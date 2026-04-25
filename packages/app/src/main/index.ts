@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { registerIpcHandlers } from './ipc.js'
+import { startApiServer, stopApiServer } from './api-server.js'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -24,9 +25,11 @@ function createWindow() {
 
 app.whenReady().then(() => {
   registerIpcHandlers()
+  startApiServer().catch(console.error)
   createWindow()
 })
 
 app.on('window-all-closed', () => {
+  stopApiServer()
   app.quit()
 })
