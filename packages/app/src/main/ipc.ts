@@ -10,12 +10,16 @@ export function registerIpcHandlers() {
   ipcMain.handle('library:init', async (_event, path: string) => {
     library = Library.init(path)
     await library.plugins.loadAll()
+    const indexService = library.createIndexService()
+    await indexService.rebuildFull()
     return { rootPath: library.rootPath }
   })
 
   ipcMain.handle('library:open', async (_event, path: string) => {
     library = Library.open(path)
     await library.plugins.loadAll()
+    const indexService = library.createIndexService()
+    await indexService.rebuildFull()
     return { rootPath: library.rootPath }
   })
 
