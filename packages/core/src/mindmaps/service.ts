@@ -153,6 +153,8 @@ export class MindmapService {
   }
 
   async delete(id: string): Promise<void> {
+    this.db.prepare('DELETE FROM mindmap_edges WHERE mindmap_id = ?').run(id)
+    this.db.prepare('DELETE FROM mindmap_nodes WHERE mindmap_id = ?').run(id)
     this.db.prepare('DELETE FROM mindmaps WHERE id = ?').run(id)
     this.events.emit('mindmap:deleted', { id })
   }
@@ -263,6 +265,7 @@ export class MindmapService {
 
   async removeNode(id: string): Promise<void> {
     const nodeRow = this.db.prepare('SELECT mindmap_id FROM mindmap_nodes WHERE id = ?').get(id) as { mindmap_id: string } | undefined
+    this.db.prepare('DELETE FROM mindmap_nodes WHERE parent_id = ?').run(id)
     this.db.prepare('DELETE FROM mindmap_nodes WHERE id = ?').run(id)
     if (nodeRow) this.events.emit('mindmap:node:removed', { id, mindmapId: nodeRow.mindmap_id })
   }
