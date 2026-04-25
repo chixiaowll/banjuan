@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs'
+import { join, relative, extname } from 'node:path'
 import type Database from 'better-sqlite3'
 import { createConnection } from './db/connection.js'
 import { initSchema } from './db/schema.js'
@@ -113,6 +113,45 @@ export class Library {
     if (!config) throw new Error('No sync configuration found')
     const adapter = new WebDAVAdapter()
     return new StubService(this.rootPath, adapter)
+  }
+
+  async scanAndImport(): Promise<{ imported: number; skipped: number; errors: string[] }> {
+    const supportedExts = new Set([
+      '.pdf', '.epub', '.txt', '.md', '.markdown',
+      '.jpg', '.jpeg', '.png', '.webp', '.gif',
+      '.mp4', '.mov', '.webm',
+      '.html', '.htm',
+    ])
+    const skipDirs = new Set(['.banjuan', 'notes', 'node_modules', '.git'])
+    const files: string[] = []
+
+    const walk = (dir: string) => {
+      const entries = readdirSync(dir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (entry.name.startsWith('.')) continue
+        const fullPath = join(dir, entry.name)
+        if (entry.isDirectory()) {
+          const topDir = relative(this.rootPath, fullPath).split('/')[0]
+          if (skipDirs.has(topDir)) continue
+          walk(fullPath)
+        } else {
+          const ext = extname(entry.name).toLowerCase()
+          if (supportedExts.has(ext)) files.push(fullPath)
+        }
+      }
+    }
+    walk(this.rootPath)
+
+    const result = { imported: 0, skipped: 0, errors: [] as string[] }
+    for (const file of files) {
+      try {
+        await this.documents.import(file)
+        result.imported++
+      } catch {
+        result.skipped++
+      }
+    }
+    return result
   }
 
   async close(): Promise<void> {
