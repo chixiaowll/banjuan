@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import PdfViewer from './PdfViewer.js'
+import TextViewer from './TextViewer.js'
+import MarkdownViewer from './MarkdownViewer.js'
+import ImageViewer from './ImageViewer.js'
+import VideoViewer from './VideoViewer.js'
 
 interface DocInfo {
   id: string
@@ -31,13 +35,15 @@ export default function DocumentViewer({ doc, onBack }: Props) {
       case 'pdf':
         return <PdfViewer filePath={filePath} />
       case 'txt':
+        return <TextViewer docPath={doc.path} />
       case 'md':
+        return <MarkdownViewer docPath={doc.path} />
       case 'html':
-        return <div style={{ padding: 24, color: 'var(--text-muted)' }}>Text viewer coming soon...</div>
+        return <TextViewer docPath={doc.path} />
       case 'image':
-        return <div style={{ padding: 24, color: 'var(--text-muted)' }}>Image viewer coming soon...</div>
+        return <ImageViewer filePath={filePath} />
       case 'video':
-        return <div style={{ padding: 24, color: 'var(--text-muted)' }}>Video player coming soon...</div>
+        return <VideoViewer filePath={filePath} />
       case 'epub':
         return <div style={{ padding: 24, color: 'var(--text-muted)' }}>EPUB viewer coming soon...</div>
       default:
