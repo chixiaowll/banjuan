@@ -216,3 +216,21 @@ export interface MindmapEdgeCreateInput {
   targetId: string
   label?: string
 }
+
+export interface GraphNode {
+  id: string
+  label: string
+  type: 'document' | 'note' | 'mindmap'
+  docType?: DocumentType
+}
+
+export interface GraphEdge {
+  source: string
+  target: string
+  type: 'note-doc' | 'annotation-link' | 'mindmap-doc'
+}
+
+export interface GraphData {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+}
