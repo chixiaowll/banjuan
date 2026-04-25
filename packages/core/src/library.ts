@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type Database from 'better-sqlite3'
 import { createConnection } from './db/connection.js'
@@ -12,7 +12,10 @@ import { MindmapService } from './mindmaps/service.js'
 import { GraphService } from './graph/service.js'
 import { EventBus } from './events/bus.js'
 import { PluginManager } from './plugins/manager.js'
-import type { LibraryConfig } from './types.js'
+import type { LibraryConfig, SyncConfig } from './types.js'
+import { WebDAVAdapter } from './sync/webdav-adapter.js'
+import { SyncService } from './sync/service.js'
+import { StubService } from './sync/stub-service.js'
 
 export class Library {
   readonly rootPath: string
@@ -80,6 +83,31 @@ export class Library {
     initSchema(db)
 
     return new Library(rootPath, db)
+  }
+
+  getSyncConfig(): SyncConfig | null {
+    const syncPath = join(this.rootPath, '.banjuan', 'sync.json')
+    if (!existsSync(syncPath)) return null
+    return JSON.parse(readFileSync(syncPath, 'utf-8')) as SyncConfig
+  }
+
+  saveSyncConfig(config: SyncConfig): void {
+    const syncPath = join(this.rootPath, '.banjuan', 'sync.json')
+    writeFileSync(syncPath, JSON.stringify(config, null, 2))
+  }
+
+  createSyncService(): SyncService {
+    const config = this.getSyncConfig()
+    if (!config) throw new Error('No sync configuration found')
+    const adapter = new WebDAVAdapter()
+    return new SyncService(this.rootPath, adapter)
+  }
+
+  createStubService(): StubService {
+    const config = this.getSyncConfig()
+    if (!config) throw new Error('No sync configuration found')
+    const adapter = new WebDAVAdapter()
+    return new StubService(this.rootPath, adapter)
   }
 
   async close(): Promise<void> {
