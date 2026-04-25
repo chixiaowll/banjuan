@@ -77,6 +77,27 @@ describe('MindmapService (file-first)', () => {
       const fileData = JSON.parse(readFileSync(jsonPath, 'utf-8'))
       expect(fileData.nodes).toHaveLength(0)
     })
+
+    it('recursively removes children and related edges from both JSON and SQLite', async () => {
+      const mm = await lib.mindmaps.create({ title: 'Cascade' })
+      const root = await lib.mindmaps.addNode(mm.id, { title: 'Root' })
+      const child = await lib.mindmaps.addNode(mm.id, { title: 'Child', parentId: root.id })
+      const grandchild = await lib.mindmaps.addNode(mm.id, { title: 'Grandchild', parentId: child.id })
+      await lib.mindmaps.addEdge(mm.id, { sourceId: root.id, targetId: child.id, label: 'e1' })
+      await lib.mindmaps.addEdge(mm.id, { sourceId: child.id, targetId: grandchild.id, label: 'e2' })
+
+      await lib.mindmaps.removeNode(root.id)
+
+      const jsonPath = join(libPath, '.banjuan', 'data', 'mindmaps', mm.id.slice(0, 2), `${mm.id}.json`)
+      const fileData = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+      expect(fileData.nodes).toHaveLength(0)
+      expect(fileData.edges).toHaveLength(0)
+
+      const nodes = await lib.mindmaps.getNodes(mm.id)
+      expect(nodes).toHaveLength(0)
+      const edges = await lib.mindmaps.getEdges(mm.id)
+      expect(edges).toHaveLength(0)
+    })
   })
 
   describe('addEdge', () => {
@@ -122,6 +143,21 @@ describe('MindmapService (file-first)', () => {
       await lib.mindmaps.delete(mm.id)
       expect(existsSync(jsonPath)).toBe(false)
       expect(await lib.mindmaps.get(mm.id)).toBeUndefined()
+    })
+  })
+
+  describe('update', () => {
+    it('updates both JSON file and SQLite', async () => {
+      const mm = await lib.mindmaps.create({ title: 'Old Title' })
+      const updated = await lib.mindmaps.update(mm.id, { title: 'New Title', layout: 'radial' })
+
+      expect(updated.title).toBe('New Title')
+      expect(updated.layout).toBe('radial')
+
+      const jsonPath = join(libPath, '.banjuan', 'data', 'mindmaps', mm.id.slice(0, 2), `${mm.id}.json`)
+      const fileData = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+      expect(fileData.title).toBe('New Title')
+      expect(fileData.layout).toBe('radial')
     })
   })
 
