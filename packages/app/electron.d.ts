@@ -30,6 +30,14 @@ interface ElectronAPI {
     update: (id: string, updates: { content?: string; color?: string }) => Promise<any>
     delete: (id: string) => Promise<void>
   }
+  notes: {
+    create: (input: { title: string; docId?: string; annotationIds?: string[]; content?: string }) => Promise<any>
+    list: (options?: { docId?: string; tag?: string; sort?: string; order?: string }) => Promise<any[]>
+    get: (id: string) => Promise<any>
+    update: (id: string, updates: { title?: string; content?: string }) => Promise<any>
+    delete: (id: string) => Promise<void>
+    getAnnotations: (noteId: string) => Promise<any[]>
+  }
 }
 
 declare global {
