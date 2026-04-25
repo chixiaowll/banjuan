@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
-import { writeFileSync, mkdirSync } from 'node:fs'
-import { createTempDir, cleanupTempDir } from './helpers.js'
+import { createTempDir, cleanupTempDir, createTestFile } from './helpers.js'
 import { Library } from '../src/library.js'
 import type { AnnotationCreateInput, PdfPosition } from '../src/types.js'
 
@@ -13,10 +12,8 @@ describe('AnnotationService', () => {
   beforeEach(async () => {
     tempDir = createTempDir()
     lib = Library.init(join(tempDir, 'lib'))
-    mkdirSync(join(lib.rootPath, 'documents'), { recursive: true })
-    const file = join(tempDir, 'test.txt')
-    writeFileSync(file, 'test content')
-    const doc = await lib.documents.import(file)
+    createTestFile(join(tempDir, 'lib'), 'test.txt', 'test content')
+    const doc = await lib.documents.import('test.txt')
     docId = doc.id
   })
 

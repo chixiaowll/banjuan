@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs'
-import { createTempDir, cleanupTempDir } from './helpers.js'
+import { readFileSync, existsSync } from 'node:fs'
+import { createTempDir, cleanupTempDir, createTestFile } from './helpers.js'
 import { Library } from '../src/library.js'
 
 describe('NoteService', () => {
@@ -11,7 +11,6 @@ describe('NoteService', () => {
   beforeEach(() => {
     tempDir = createTempDir()
     lib = Library.init(join(tempDir, 'lib'))
-    mkdirSync(join(lib.rootPath, 'documents'), { recursive: true })
   })
 
   afterEach(() => { lib.close(); cleanupTempDir(tempDir) })
@@ -28,17 +27,15 @@ describe('NoteService', () => {
     })
 
     it('creates a note linked to a document', async () => {
-      const file = join(tempDir, 'doc.txt')
-      writeFileSync(file, 'content')
-      const doc = await lib.documents.import(file)
+      createTestFile(join(tempDir, 'lib'), 'doc.txt', 'content')
+      const doc = await lib.documents.import('doc.txt')
       const note = await lib.notes.create({ title: 'Doc Note', docId: doc.id, content: 'Notes about the doc' })
       expect(note.docId).toBe(doc.id)
     })
 
     it('links annotations to the note', async () => {
-      const file = join(tempDir, 'doc.txt')
-      writeFileSync(file, 'content')
-      const doc = await lib.documents.import(file)
+      createTestFile(join(tempDir, 'lib'), 'doc2.txt', 'content2')
+      const doc = await lib.documents.import('doc2.txt')
       const ann = await lib.annotations.create({
         docId: doc.id, type: 'highlight',
         position: { type: 'text', startOffset: 0, endOffset: 5, text: 'conte' },
@@ -60,9 +57,8 @@ describe('NoteService', () => {
     })
 
     it('filters by docId', async () => {
-      const file = join(tempDir, 'doc.txt')
-      writeFileSync(file, 'content')
-      const doc = await lib.documents.import(file)
+      createTestFile(join(tempDir, 'lib'), 'doc.txt', 'content')
+      const doc = await lib.documents.import('doc.txt')
       await lib.notes.create({ title: 'Linked', docId: doc.id, content: '' })
       await lib.notes.create({ title: 'Standalone', content: '' })
       const notes = await lib.notes.list({ docId: doc.id })

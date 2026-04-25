@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { createTempDir, cleanupTempDir } from './helpers.js'
+import { createTempDir, cleanupTempDir, createTestFile } from './helpers.js'
 import { Library } from '../src/library.js'
 
 const DIST_PATH = join(import.meta.dirname, '..', 'dist', 'index.js')
@@ -13,7 +13,6 @@ describe('EventBus', () => {
   beforeEach(() => {
     tempDir = createTempDir()
     lib = Library.init(join(tempDir, 'lib'))
-    mkdirSync(join(lib.rootPath, 'documents'), { recursive: true })
   })
 
   afterEach(async () => {
@@ -24,9 +23,8 @@ describe('EventBus', () => {
   it('emits document:imported events', async () => {
     let received: any = null
     lib.events.on('document:imported', (data) => { received = data })
-    const testFile = join(tempDir, 'test.txt')
-    writeFileSync(testFile, 'Hello')
-    const doc = await lib.documents.import(testFile)
+    createTestFile(join(tempDir, 'lib'), 'test.txt', 'Hello')
+    const doc = await lib.documents.import('test.txt')
     expect(received).not.toBeNull()
     expect(received.document.id).toBe(doc.id)
   })
@@ -34,9 +32,8 @@ describe('EventBus', () => {
   it('emits document:deleted events', async () => {
     let received: any = null
     lib.events.on('document:deleted', (data) => { received = data })
-    const testFile = join(tempDir, 'test.txt')
-    writeFileSync(testFile, 'Hello')
-    const doc = await lib.documents.import(testFile)
+    createTestFile(join(tempDir, 'lib'), 'test2.txt', 'Hello2')
+    const doc = await lib.documents.import('test2.txt')
     await lib.documents.delete(doc.id)
     expect(received).not.toBeNull()
     expect(received.id).toBe(doc.id)
@@ -45,9 +42,8 @@ describe('EventBus', () => {
   it('emits annotation:created events', async () => {
     let received: any = null
     lib.events.on('annotation:created', (data) => { received = data })
-    const testFile = join(tempDir, 'test.txt')
-    writeFileSync(testFile, 'Hello')
-    const doc = await lib.documents.import(testFile)
+    createTestFile(join(tempDir, 'lib'), 'test3.txt', 'Hello3')
+    const doc = await lib.documents.import('test3.txt')
     const ann = await lib.annotations.create({
       docId: doc.id,
       type: 'highlight',
