@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
-import { writeFileSync, mkdirSync } from 'node:fs'
-import { createTempDir, cleanupTempDir } from './helpers.js'
+import { createTempDir, cleanupTempDir, createTestFile } from './helpers.js'
 import { Library } from '../src/library.js'
 
 describe('SearchService', () => {
@@ -11,15 +10,12 @@ describe('SearchService', () => {
   beforeEach(async () => {
     tempDir = createTempDir()
     lib = Library.init(join(tempDir, 'lib'))
-    mkdirSync(join(lib.rootPath, 'documents'), { recursive: true })
 
-    const file1 = join(tempDir, 'transformers.txt')
-    writeFileSync(file1, 'Attention is all you need paper about transformers')
-    await lib.documents.import(file1)
+    createTestFile(join(tempDir, 'lib'), 'transformers.txt', 'Attention is all you need paper about transformers')
+    await lib.documents.import('transformers.txt')
 
-    const file2 = join(tempDir, 'cnn.txt')
-    writeFileSync(file2, 'Convolutional neural networks for image recognition')
-    await lib.documents.import(file2)
+    createTestFile(join(tempDir, 'lib'), 'cnn.txt', 'Convolutional neural networks for image recognition')
+    await lib.documents.import('cnn.txt')
 
     await lib.notes.create({
       title: 'Transformer Notes',

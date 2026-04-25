@@ -1,26 +1,41 @@
 import type Database from 'better-sqlite3'
-import { copyFileSync, unlinkSync, existsSync, readFileSync } from 'node:fs'
-import { join, basename } from 'node:path'
+import { readFileSync, existsSync } from 'node:fs'
+import { join, relative, isAbsolute } from 'node:path'
 import { createHash } from 'node:crypto'
 import { v4 as uuid } from 'uuid'
-import type { Document, DocumentListOptions } from '../types.js'
+import type { Document, DocumentListOptions, DocumentFileData } from '../types.js'
 import { detectDocumentType, extractTitle } from './metadata.js'
 import type { SearchService } from '../search/service.js'
 import type { EventBus } from '../events/bus.js'
+import { JsonStore } from '../storage/json-store.js'
 
 export class DocumentService {
+  private store: JsonStore<DocumentFileData>
+
   constructor(
     private db: Database.Database,
     private rootPath: string,
     private search: SearchService,
     private events: EventBus,
-  ) {}
+  ) {
+    this.store = new JsonStore(join(rootPath, '.banjuan', 'data', 'documents'))
+  }
 
   async import(
     filePath: string,
     options?: { title?: string; tags?: string[] },
   ): Promise<Document> {
-    const content = readFileSync(filePath)
+    const absPath = isAbsolute(filePath) ? filePath : join(this.rootPath, filePath)
+    if (!existsSync(absPath)) {
+      throw new Error(`File not found: ${absPath}`)
+    }
+
+    const relPath = relative(this.rootPath, absPath)
+    if (relPath.startsWith('..')) {
+      throw new Error('File must be inside the library directory')
+    }
+
+    const content = readFileSync(absPath)
     const hash = createHash('sha256').update(content).digest('hex')
 
     const existing = this.db
@@ -30,26 +45,29 @@ export class DocumentService {
       throw new Error(`File already imported (id: ${existing.id})`)
     }
 
-    const type = detectDocumentType(filePath)
-    const title = options?.title ?? extractTitle(filePath)
+    const type = detectDocumentType(absPath)
+    const title = options?.title ?? extractTitle(absPath)
     const id = uuid()
-    const fileName = `${id}-${basename(filePath)}`
-    const relativePath = fileName
-
-    copyFileSync(filePath, join(this.rootPath, 'documents', fileName))
-
     const now = new Date().toISOString()
+    const tags = options?.tags ?? []
+
+    const fileData: DocumentFileData = {
+      id, title, authors: [], path: relPath, type, hash,
+      tags, metadata: {}, createdAt: now, updatedAt: now,
+    }
+    this.store.write(fileData)
+
     this.db
       .prepare(
         `INSERT INTO documents (id, title, authors, path, type, hash, metadata, created_at, updated_at)
          VALUES (?, ?, '[]', ?, ?, ?, '{}', ?, ?)`,
       )
-      .run(id, title, relativePath, type, hash, now, now)
+      .run(id, title, relPath, type, hash, now, now)
 
     this.search.index({ id, title, content: title, type: 'document' })
 
-    const doc = {
-      id, title, authors: [], path: relativePath, type, hash,
+    const doc: Document = {
+      id, title, authors: [], path: relPath, type, hash,
       metadata: {}, createdAt: now, updatedAt: now,
     }
     this.events.emit('document:imported', { document: doc })
@@ -90,11 +108,7 @@ export class DocumentService {
     const doc = await this.get(id)
     if (!doc) return
 
-    const filePath = join(this.rootPath, 'documents', doc.path)
-    if (existsSync(filePath)) {
-      unlinkSync(filePath)
-    }
-
+    this.store.delete(id)
     this.search.removeById(id)
     this.db.prepare('DELETE FROM documents WHERE id = ?').run(id)
     this.events.emit('document:deleted', { id })

@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
-import { writeFileSync, mkdirSync } from 'node:fs'
-import { createTempDir, cleanupTempDir } from './helpers.js'
+import { createTempDir, cleanupTempDir, createTestFile } from './helpers.js'
 import { Library } from '../src/library.js'
 
 describe('TagService', () => {
@@ -11,7 +10,6 @@ describe('TagService', () => {
   beforeEach(() => {
     tempDir = createTempDir()
     lib = Library.init(join(tempDir, 'lib'))
-    mkdirSync(join(lib.rootPath, 'documents'), { recursive: true })
   })
 
   afterEach(() => {
@@ -44,9 +42,8 @@ describe('TagService', () => {
 
   describe('assign and query', () => {
     it('assigns tags to a document', async () => {
-      const file = join(tempDir, 'doc.txt')
-      writeFileSync(file, 'content')
-      const doc = await lib.documents.import(file)
+      createTestFile(join(tempDir, 'lib'), 'doc.txt', 'content')
+      const doc = await lib.documents.import('doc.txt')
       await lib.tags.create({ name: 'AI' })
       await lib.tags.assign(doc.id, 'document', ['AI'])
       const docs = await lib.documents.list({ tag: 'AI' })
@@ -55,9 +52,8 @@ describe('TagService', () => {
     })
 
     it('removes a tag assignment', async () => {
-      const file = join(tempDir, 'doc.txt')
-      writeFileSync(file, 'content')
-      const doc = await lib.documents.import(file)
+      createTestFile(join(tempDir, 'lib'), 'doc.txt', 'content')
+      const doc = await lib.documents.import('doc.txt')
       await lib.tags.create({ name: 'AI' })
       await lib.tags.assign(doc.id, 'document', ['AI'])
       await lib.tags.unassign(doc.id, 'document', 'AI')
@@ -66,9 +62,8 @@ describe('TagService', () => {
     })
 
     it('lists tags for a document', async () => {
-      const file = join(tempDir, 'doc.txt')
-      writeFileSync(file, 'content')
-      const doc = await lib.documents.import(file)
+      createTestFile(join(tempDir, 'lib'), 'doc2.txt', 'content2')
+      const doc = await lib.documents.import('doc2.txt')
       await lib.tags.create({ name: 'AI' })
       await lib.tags.create({ name: 'NLP' })
       await lib.tags.assign(doc.id, 'document', ['AI', 'NLP'])
