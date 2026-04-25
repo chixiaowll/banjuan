@@ -110,9 +110,11 @@ export class MindmapService {
 
   async delete(id: string): Promise<void> {
     this.store.delete(id)
-    this.db.prepare('DELETE FROM mindmap_edges WHERE mindmap_id = ?').run(id)
-    this.db.prepare('DELETE FROM mindmap_nodes WHERE mindmap_id = ?').run(id)
-    this.db.prepare('DELETE FROM mindmaps WHERE id = ?').run(id)
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM mindmap_edges WHERE mindmap_id = ?').run(id)
+      this.db.prepare('DELETE FROM mindmap_nodes WHERE mindmap_id = ?').run(id)
+      this.db.prepare('DELETE FROM mindmaps WHERE id = ?').run(id)
+    })()
     this.events.emit('mindmap:deleted', { id })
   }
 
@@ -259,7 +261,7 @@ export class MindmapService {
 
     this.db.prepare('INSERT INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)').run(id, mindmapId, input.sourceId, input.targetId, input.label ?? null, null)
 
-    const edge: MindmapEdge = { id, mindmapId, ...edgeData }
+    const edge: MindmapEdge = { ...edgeData, mindmapId }
     this.events.emit('mindmap:edge:added', { edge })
     return edge
   }
