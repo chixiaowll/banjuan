@@ -22,6 +22,18 @@ const api = {
     create: (input: { name: string; color?: string }) => ipcRenderer.invoke('tags:create', input),
     forTarget: (id: string, type: string) => ipcRenderer.invoke('tags:forTarget', id, type),
   },
+  annotations: {
+    create: (input: {
+      docId: string; type: string; page?: number;
+      position: unknown; content?: string; selectedText?: string; color?: string
+    }) => ipcRenderer.invoke('annotations:create', input),
+    list: (options: { docId: string; page?: number; type?: string; color?: string }) =>
+      ipcRenderer.invoke('annotations:list', options),
+    get: (id: string) => ipcRenderer.invoke('annotations:get', id),
+    update: (id: string, updates: { content?: string; color?: string }) =>
+      ipcRenderer.invoke('annotations:update', id, updates),
+    delete: (id: string) => ipcRenderer.invoke('annotations:delete', id),
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)
