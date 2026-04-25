@@ -1,4 +1,6 @@
 import { ipcMain, dialog } from 'electron'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { Library } from '@banjuan/core'
 
 let library: Library | null = null
@@ -47,6 +49,17 @@ export function registerIpcHandlers() {
   ipcMain.handle('documents:delete', async (_event, id: string) => {
     if (!library) throw new Error('No library open')
     return library.documents.delete(id)
+  })
+
+  ipcMain.handle('documents:getFilePath', async (_event, relativePath: string) => {
+    if (!library) throw new Error('No library open')
+    return join(library.rootPath, 'documents', relativePath)
+  })
+
+  ipcMain.handle('documents:readContent', async (_event, relativePath: string) => {
+    if (!library) throw new Error('No library open')
+    const fullPath = join(library.rootPath, 'documents', relativePath)
+    return readFileSync(fullPath, 'utf-8')
   })
 
   ipcMain.handle('tags:list', async () => {

@@ -14,6 +14,8 @@ const api = {
     list: (options?: Record<string, unknown>) => ipcRenderer.invoke('documents:list', options),
     get: (id: string) => ipcRenderer.invoke('documents:get', id),
     delete: (id: string) => ipcRenderer.invoke('documents:delete', id),
+    getFilePath: (relativePath: string) => ipcRenderer.invoke('documents:getFilePath', relativePath),
+    readContent: (relativePath: string) => ipcRenderer.invoke('documents:readContent', relativePath),
   },
   tags: {
     list: () => ipcRenderer.invoke('tags:list'),
