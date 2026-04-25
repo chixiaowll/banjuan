@@ -16,6 +16,7 @@ import type { LibraryConfig, SyncConfig } from './types.js'
 import { WebDAVAdapter } from './sync/webdav-adapter.js'
 import { SyncService } from './sync/service.js'
 import { StubService } from './sync/stub-service.js'
+import { IndexService } from './indexing/service.js'
 
 export class Library {
   readonly rootPath: string
@@ -101,6 +102,10 @@ export class Library {
     if (!config) throw new Error('No sync configuration found')
     const adapter = new WebDAVAdapter()
     return new SyncService(this.rootPath, adapter, this.events)
+  }
+
+  createIndexService(): IndexService {
+    return new IndexService(this.db, this.rootPath)
   }
 
   createStubService(): StubService {
