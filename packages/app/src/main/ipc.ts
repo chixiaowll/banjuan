@@ -216,4 +216,9 @@ export function registerIpcHandlers() {
     if (!library) throw new Error('No library open')
     return library.mindmaps.removeEdge(id)
   })
+
+  ipcMain.handle('graph:getData', async () => {
+    if (!library) throw new Error('No library open')
+    return library.graph.getData()
+  })
 }
