@@ -19,6 +19,7 @@ interface DocInfo {
 interface Props {
   doc: DocInfo
   onBack: () => void
+  onOpenNote?: (note: any) => void
 }
 
 interface SelectionInfo {
@@ -28,7 +29,7 @@ interface SelectionInfo {
   clientRect: DOMRect
 }
 
-export default function DocumentViewer({ doc, onBack }: Props) {
+export default function DocumentViewer({ doc, onBack, onOpenNote }: Props) {
   const [filePath, setFilePath] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(false)
   const [selection, setSelection] = useState<SelectionInfo | null>(null)
@@ -57,19 +58,25 @@ export default function DocumentViewer({ doc, onBack }: Props) {
 
   const handleNote = useCallback(async () => {
     if (!selection) return
-    const content = prompt('输入批注内容：')
-    if (content === null) return
-    await create({
-      type: 'note',
+    const ann = await create({
+      type: 'highlight',
       page: selection.page,
       position: { type: 'pdf', page: selection.page, rects: selection.rects, text: selection.text },
       selectedText: selection.text,
-      content,
       color: '#fde68a',
+    })
+    const title = `${doc.title} — 笔记`
+    const content = `> ${selection.text}\n\n`
+    const note = await window.electronAPI.notes.create({
+      title,
+      docId: doc.id,
+      annotationIds: [ann.id],
+      content,
     })
     setSelection(null)
     window.getSelection()?.removeAllRanges()
-  }, [selection, create])
+    onOpenNote?.(note)
+  }, [selection, create, doc, onOpenNote])
 
   if (!filePath) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
