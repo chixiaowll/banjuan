@@ -2,6 +2,7 @@ import { ipcMain, dialog } from 'electron'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Library } from '@banjuan/core'
+import { setLibraryGetter } from './api-server.js'
 
 let library: Library | null = null
 
@@ -248,4 +249,6 @@ export function registerIpcHandlers() {
     if (!library) throw new Error('No library open')
     await library.plugins.runCommand(commandId)
   })
+
+  setLibraryGetter(() => library)
 }
