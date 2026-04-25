@@ -78,6 +78,20 @@ const api = {
     getCommands: () => ipcRenderer.invoke('plugins:getCommands'),
     runCommand: (commandId: string) => ipcRenderer.invoke('plugins:runCommand', commandId),
   },
+  sync: {
+    getConfig: () => ipcRenderer.invoke('sync:getConfig'),
+    saveConfig: (config: {
+      type: 'webdav'; url: string; username: string; password: string; remotePath: string
+    }) => ipcRenderer.invoke('sync:saveConfig', config),
+    run: () => ipcRenderer.invoke('sync:run'),
+    stubList: () => ipcRenderer.invoke('sync:stubList'),
+    stubDownload: (docId: string) => ipcRenderer.invoke('sync:stubDownload', docId),
+    stubUpload: (docId: string) => ipcRenderer.invoke('sync:stubUpload', docId),
+    getDocStatus: (docId: string) => ipcRenderer.invoke('sync:getDocStatus', docId),
+  },
+  index: {
+    rebuild: () => ipcRenderer.invoke('index:rebuild'),
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)
