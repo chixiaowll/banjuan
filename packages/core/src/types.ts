@@ -159,3 +159,60 @@ export interface LibraryConfig {
   version: string
   createdAt: string
 }
+
+export type MindmapLayout = 'tree' | 'radial' | 'free'
+
+export interface Mindmap {
+  id: string
+  title: string
+  docId: string | null
+  layout: MindmapLayout
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MindmapCreateInput {
+  title: string
+  docId?: string
+  layout?: MindmapLayout
+}
+
+export interface MindmapNode {
+  id: string
+  mindmapId: string
+  parentId: string | null
+  annotationId: string | null
+  title: string
+  content: string | null
+  color: string | null
+  positionX: number | null
+  positionY: number | null
+  sortOrder: number
+  collapsed: boolean
+  createdAt: string
+}
+
+export interface MindmapNodeCreateInput {
+  title: string
+  parentId?: string
+  annotationId?: string
+  content?: string
+  color?: string
+  positionX?: number
+  positionY?: number
+}
+
+export interface MindmapEdge {
+  id: string
+  mindmapId: string
+  sourceId: string
+  targetId: string
+  label: string | null
+  style: string | null
+}
+
+export interface MindmapEdgeCreateInput {
+  sourceId: string
+  targetId: string
+  label?: string
+}
