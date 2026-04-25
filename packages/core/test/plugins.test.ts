@@ -13,6 +13,7 @@ describe('EventBus', () => {
   beforeEach(() => {
     tempDir = createTempDir()
     lib = Library.init(join(tempDir, 'lib'))
+    mkdirSync(join(lib.rootPath, 'documents'), { recursive: true })
   })
 
   afterEach(async () => {

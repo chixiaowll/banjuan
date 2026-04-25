@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { createTempDir, cleanupTempDir } from './helpers.js'
 import { Library } from '../src/library.js'
 
@@ -22,8 +22,31 @@ describe('Library', () => {
 
       expect(existsSync(join(libPath, '.banjuan', 'db.sqlite'))).toBe(true)
       expect(existsSync(join(libPath, '.banjuan', 'config.json'))).toBe(true)
-      expect(existsSync(join(libPath, 'documents'))).toBe(true)
+      expect(existsSync(join(libPath, '.banjuan', 'data', 'documents'))).toBe(true)
+      expect(existsSync(join(libPath, '.banjuan', 'data', 'annotations'))).toBe(true)
+      expect(existsSync(join(libPath, '.banjuan', 'data', 'mindmaps'))).toBe(true)
+      expect(existsSync(join(libPath, '.banjuan', 'stubs'))).toBe(true)
       expect(existsSync(join(libPath, 'notes'))).toBe(true)
+
+      lib.close()
+    })
+
+    it('does not create documents/ directory at root level', () => {
+      const libPath = join(tempDir, 'my-library')
+      const lib = Library.init(libPath)
+
+      expect(existsSync(join(libPath, 'documents'))).toBe(false)
+
+      lib.close()
+    })
+
+    it('creates tags.json with empty array', () => {
+      const libPath = join(tempDir, 'my-library')
+      const lib = Library.init(libPath)
+
+      const tagsPath = join(libPath, '.banjuan', 'tags.json')
+      expect(existsSync(tagsPath)).toBe(true)
+      expect(readFileSync(tagsPath, 'utf-8')).toBe('[]')
 
       lib.close()
     })

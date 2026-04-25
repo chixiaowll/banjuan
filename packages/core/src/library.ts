@@ -33,10 +33,10 @@ export class Library {
     this.events = new EventBus()
     this.search = new SearchService(db)
     this.documents = new DocumentService(db, rootPath, this.search, this.events)
-    this.annotations = new AnnotationService(db, this.events)
+    this.annotations = new AnnotationService(db, rootPath, this.events)
     this.notes = new NoteService(db, rootPath, this.search, this.events)
-    this.tags = new TagService(db, this.events)
-    this.mindmaps = new MindmapService(db, this.events)
+    this.tags = new TagService(db, rootPath, this.events)
+    this.mindmaps = new MindmapService(db, rootPath, this.events)
     this.graph = new GraphService(db)
     this.plugins = new PluginManager(this, this.events, rootPath)
   }
@@ -48,7 +48,10 @@ export class Library {
     }
 
     mkdirSync(banjuanDir, { recursive: true })
-    mkdirSync(join(rootPath, 'documents'), { recursive: true })
+    mkdirSync(join(banjuanDir, 'data', 'documents'), { recursive: true })
+    mkdirSync(join(banjuanDir, 'data', 'annotations'), { recursive: true })
+    mkdirSync(join(banjuanDir, 'data', 'mindmaps'), { recursive: true })
+    mkdirSync(join(banjuanDir, 'stubs'), { recursive: true })
     mkdirSync(join(rootPath, 'notes'), { recursive: true })
 
     const config: LibraryConfig = {
@@ -57,6 +60,7 @@ export class Library {
       createdAt: new Date().toISOString(),
     }
     writeFileSync(join(banjuanDir, 'config.json'), JSON.stringify(config, null, 2))
+    writeFileSync(join(banjuanDir, 'tags.json'), '[]')
 
     const dbPath = join(banjuanDir, 'db.sqlite')
     const db = createConnection(dbPath)

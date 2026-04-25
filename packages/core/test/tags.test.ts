@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, mkdirSync } from 'node:fs'
 import { createTempDir, cleanupTempDir } from './helpers.js'
 import { Library } from '../src/library.js'
 
@@ -11,6 +11,7 @@ describe('TagService', () => {
   beforeEach(() => {
     tempDir = createTempDir()
     lib = Library.init(join(tempDir, 'lib'))
+    mkdirSync(join(lib.rootPath, 'documents'), { recursive: true })
   })
 
   afterEach(() => {

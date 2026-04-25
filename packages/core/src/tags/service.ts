@@ -4,7 +4,7 @@ import type { Tag, TagTarget } from '../types.js'
 import type { EventBus } from '../events/bus.js'
 
 export class TagService {
-  constructor(private db: Database.Database, private events: EventBus) {}
+  constructor(private db: Database.Database, private _rootPath: string, private events: EventBus) {}
 
   async create(input: { name: string; color?: string }): Promise<Tag> {
     const id = uuid()
