@@ -22,8 +22,8 @@
 ├── 哲学/
 │   └── 庄子.txt
 ├── notes/                              ← banjuan 管理的笔记（用户也可在此创建 .md）
-│   └── a4/
-│       └── a4fbbc5e.md
+│   ├── Attention 论文笔记.md
+│   └── 庄子读书心得.md
 ├── .banjuan/
 │   ├── config.json                     ← 书房配置
 │   ├── tags.json                       ← 全局标签定义 [{id, name, color}]
@@ -57,7 +57,7 @@ annotations/
 │   └── a4fbbc5e-xxxx.json
 ```
 
-笔记 .md 文件同理，存在 `notes/{前两位}/` 下。
+笔记 .md 文件直接存在 `notes/` 下，文件名由用户自取（或从标题自动生成），不做 UUID 分层。
 
 ## 4. 数据格式
 
@@ -100,7 +100,7 @@ annotations/
 }
 ```
 
-### 4.3 笔记 — `notes/{prefix}/{id}.md`（frontmatter + 正文合一）
+### 4.3 笔记 — `notes/{用户自取文件名}.md`（frontmatter + 正文合一）
 
 ```markdown
 ---
@@ -122,9 +122,11 @@ updatedAt: 2026-04-25T10:30:00Z
 我的理解是...
 ```
 
+- 文件名由用户自取，或从标题自动生成（如 `Attention 论文笔记.md`）
 - 用户可以在 notes/ 下自由创建 .md 文件
 - 从标注创建笔记时，自动生成 frontmatter 并写入关联
 - 没有 frontmatter 的 .md 文件 — 导入时自动补充 id 和 createdAt
+- 用户重命名文件不影响关联（其他实体通过 frontmatter 中的 id 引用笔记）
 
 ### 4.4 脑图 — `.banjuan/data/mindmaps/{prefix}/{id}.json`
 
