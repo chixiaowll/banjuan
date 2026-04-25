@@ -34,6 +34,17 @@ const api = {
       ipcRenderer.invoke('annotations:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('annotations:delete', id),
   },
+  notes: {
+    create: (input: { title: string; docId?: string; annotationIds?: string[]; content?: string }) =>
+      ipcRenderer.invoke('notes:create', input),
+    list: (options?: { docId?: string; tag?: string; sort?: string; order?: string }) =>
+      ipcRenderer.invoke('notes:list', options),
+    get: (id: string) => ipcRenderer.invoke('notes:get', id),
+    update: (id: string, updates: { title?: string; content?: string }) =>
+      ipcRenderer.invoke('notes:update', id, updates),
+    delete: (id: string) => ipcRenderer.invoke('notes:delete', id),
+    getAnnotations: (noteId: string) => ipcRenderer.invoke('notes:getAnnotations', noteId),
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

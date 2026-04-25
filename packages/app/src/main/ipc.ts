@@ -108,4 +108,40 @@ export function registerIpcHandlers() {
     if (!library) throw new Error('No library open')
     return library.annotations.delete(id)
   })
+
+  ipcMain.handle('notes:create', async (_event, input: {
+    title: string; docId?: string; annotationIds?: string[]; content?: string
+  }) => {
+    if (!library) throw new Error('No library open')
+    return library.notes.create(input)
+  })
+
+  ipcMain.handle('notes:list', async (_event, options?: {
+    docId?: string; tag?: string; sort?: string; order?: string
+  }) => {
+    if (!library) throw new Error('No library open')
+    return library.notes.list(options as any)
+  })
+
+  ipcMain.handle('notes:get', async (_event, id: string) => {
+    if (!library) throw new Error('No library open')
+    return library.notes.get(id)
+  })
+
+  ipcMain.handle('notes:update', async (_event, id: string, updates: {
+    title?: string; content?: string
+  }) => {
+    if (!library) throw new Error('No library open')
+    return library.notes.update(id, updates)
+  })
+
+  ipcMain.handle('notes:delete', async (_event, id: string) => {
+    if (!library) throw new Error('No library open')
+    return library.notes.delete(id)
+  })
+
+  ipcMain.handle('notes:getAnnotations', async (_event, noteId: string) => {
+    if (!library) throw new Error('No library open')
+    return library.notes.getAnnotations(noteId)
+  })
 }
