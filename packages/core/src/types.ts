@@ -1,4 +1,4 @@
-export type DocumentType = 'pdf' | 'epub' | 'txt' | 'md' | 'image' | 'video' | 'html'
+export type DocumentType = 'pdf' | 'epub' | 'txt' | 'md' | 'image' | 'video' | 'html' | 'other'
 
 export interface Document {
   id: string

@@ -86,16 +86,16 @@ describe('Library', () => {
       createTestFile(libPath, 'deep/nested/dir/doc.epub', Buffer.from('epub'))
       createTestFile(libPath, 'readme.md', '# Readme')
       createTestFile(libPath, 'photo.jpg', Buffer.from('img'))
-      createTestFile(libPath, 'unsupported.xyz', 'nope')
+      createTestFile(libPath, 'data.xyz', 'nope')
 
       const lib = Library.init(libPath)
       const result = await lib.scanAndImport()
 
-      expect(result.imported).toBe(5)
+      expect(result.imported).toBe(6)
       expect(result.skipped).toBe(0)
 
       const docs = await lib.documents.list()
-      expect(docs).toHaveLength(5)
+      expect(docs).toHaveLength(6)
 
       const paths = docs.map(d => d.path).sort()
       expect(paths).toContain('机器学习/paper.pdf')

@@ -116,12 +116,6 @@ export class Library {
   }
 
   async scanAndImport(): Promise<{ imported: number; skipped: number; errors: string[] }> {
-    const supportedExts = new Set([
-      '.pdf', '.epub', '.txt', '.md', '.markdown',
-      '.jpg', '.jpeg', '.png', '.webp', '.gif',
-      '.mp4', '.mov', '.webm',
-      '.html', '.htm',
-    ])
     const skipDirs = new Set(['.banjuan', 'notes', 'node_modules', '.git'])
     const files: string[] = []
 
@@ -135,8 +129,7 @@ export class Library {
           if (skipDirs.has(topDir)) continue
           walk(fullPath)
         } else {
-          const ext = extname(entry.name).toLowerCase()
-          if (supportedExts.has(ext)) files.push(fullPath)
+          files.push(fullPath)
         }
       }
     }
