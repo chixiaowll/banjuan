@@ -100,7 +100,7 @@ export class Library {
     const config = this.getSyncConfig()
     if (!config) throw new Error('No sync configuration found')
     const adapter = new WebDAVAdapter()
-    return new SyncService(this.rootPath, adapter)
+    return new SyncService(this.rootPath, adapter, this.events)
   }
 
   createStubService(): StubService {
