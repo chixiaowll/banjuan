@@ -56,12 +56,12 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('documents:getFilePath', async (_event, relativePath: string) => {
     if (!library) throw new Error('No library open')
-    return join(library.rootPath, 'documents', relativePath)
+    return join(library.rootPath, relativePath)
   })
 
   ipcMain.handle('documents:readContent', async (_event, relativePath: string) => {
     if (!library) throw new Error('No library open')
-    const fullPath = join(library.rootPath, 'documents', relativePath)
+    const fullPath = join(library.rootPath, relativePath)
     return readFileSync(fullPath, 'utf-8')
   })
 
