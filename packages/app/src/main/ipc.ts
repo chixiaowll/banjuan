@@ -76,4 +76,36 @@ export function registerIpcHandlers() {
     if (!library) throw new Error('No library open')
     return library.tags.forTarget(targetId, targetType as any)
   })
+
+  ipcMain.handle('annotations:create', async (_event, input: {
+    docId: string; type: string; page?: number;
+    position: unknown; content?: string; selectedText?: string; color?: string
+  }) => {
+    if (!library) throw new Error('No library open')
+    return library.annotations.create(input as any)
+  })
+
+  ipcMain.handle('annotations:list', async (_event, options: {
+    docId: string; page?: number; type?: string; color?: string
+  }) => {
+    if (!library) throw new Error('No library open')
+    return library.annotations.list(options as any)
+  })
+
+  ipcMain.handle('annotations:get', async (_event, id: string) => {
+    if (!library) throw new Error('No library open')
+    return library.annotations.get(id)
+  })
+
+  ipcMain.handle('annotations:update', async (_event, id: string, updates: {
+    content?: string; color?: string
+  }) => {
+    if (!library) throw new Error('No library open')
+    return library.annotations.update(id, updates)
+  })
+
+  ipcMain.handle('annotations:delete', async (_event, id: string) => {
+    if (!library) throw new Error('No library open')
+    return library.annotations.delete(id)
+  })
 }
