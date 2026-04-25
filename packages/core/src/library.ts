@@ -9,6 +9,7 @@ import { NoteService } from './notes/service.js'
 import { TagService } from './tags/service.js'
 import { SearchService } from './search/service.js'
 import { MindmapService } from './mindmaps/service.js'
+import { GraphService } from './graph/service.js'
 import type { LibraryConfig } from './types.js'
 
 export class Library {
@@ -19,6 +20,7 @@ export class Library {
   readonly tags: TagService
   readonly search: SearchService
   readonly mindmaps: MindmapService
+  readonly graph: GraphService
   private db: Database.Database
 
   private constructor(rootPath: string, db: Database.Database) {
@@ -30,6 +32,7 @@ export class Library {
     this.notes = new NoteService(db, rootPath, this.search)
     this.tags = new TagService(db)
     this.mindmaps = new MindmapService(db)
+    this.graph = new GraphService(db)
   }
 
   static init(rootPath: string): Library {
