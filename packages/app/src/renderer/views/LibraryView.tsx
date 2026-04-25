@@ -28,16 +28,7 @@ interface Props {
 
 type SidebarSection = 'documents' | 'notes' | 'mindmaps' | 'graph' | 'sync' | 'plugins'
 
-const TYPE_COLORS: Record<string, string> = {
-  pdf: '#f38ba8',
-  epub: '#a6e3a1',
-  txt: '#89b4fa',
-  md: '#cba6f7',
-  image: '#fab387',
-  video: '#f9e2af',
-  html: '#94e2d5',
-  other: '#6c7086',
-}
+const TYPE_COLOR = 'var(--text-muted)'
 
 function formatDate(dateStr: string): string {
   try {
@@ -532,7 +523,7 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
                       fontSize: 10,
                       fontWeight: 600,
                       textTransform: 'uppercase',
-                      color: TYPE_COLORS[item.type] || 'var(--text-muted)',
+                      color: TYPE_COLOR,
                       letterSpacing: 0.5,
                     }}>
                       {item.type}
@@ -567,7 +558,7 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
               fontSize: 11,
               fontWeight: 600,
               textTransform: 'uppercase',
-              color: TYPE_COLORS[selectedItemDetail.type] || 'var(--text-muted)',
+              color: TYPE_COLOR,
             }}>
               {selectedItemDetail.type}
             </span>
