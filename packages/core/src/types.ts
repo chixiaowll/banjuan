@@ -234,3 +234,51 @@ export interface GraphData {
   nodes: GraphNode[]
   edges: GraphEdge[]
 }
+
+export interface PluginManifest {
+  id: string
+  name: string
+  version: string
+  description?: string
+  apiVersion: string
+  permissions?: string[]
+}
+
+export interface PluginInfo {
+  id: string
+  name: string
+  version: string
+  description: string
+  enabled: boolean
+  path: string
+}
+
+export interface PluginCommand {
+  id: string
+  name: string
+  pluginId: string
+  callback: () => Promise<void>
+}
+
+export type BanjuanEventMap = {
+  'document:imported': { document: Document }
+  'document:deleted': { id: string }
+  'annotation:created': { annotation: Annotation }
+  'annotation:updated': { annotation: Annotation }
+  'annotation:deleted': { id: string; docId: string }
+  'note:created': { note: Note }
+  'note:updated': { note: Note }
+  'note:deleted': { id: string }
+  'mindmap:created': { mindmap: Mindmap }
+  'mindmap:updated': { mindmap: Mindmap }
+  'mindmap:deleted': { id: string }
+  'mindmap:node:added': { node: MindmapNode }
+  'mindmap:node:removed': { id: string; mindmapId: string }
+  'mindmap:edge:added': { edge: MindmapEdge }
+  'tag:assigned': { targetId: string; targetType: TagTarget; tagName: string }
+  'tag:removed': { targetId: string; targetType: TagTarget; tagName: string }
+  'library:opened': { path: string }
+  'library:closed': { path: string }
+}
+
+export type BanjuanEvent = keyof BanjuanEventMap
