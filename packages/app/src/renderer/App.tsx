@@ -11,6 +11,12 @@ export default function App() {
 
   if (!libraryPath) return <WelcomeView onOpen={setLibraryPath} />
   if (viewingNote) return <NoteView note={viewingNote} onBack={() => setViewingNote(null)} />
-  if (viewingDoc) return <DocumentViewer doc={viewingDoc} onBack={() => setViewingDoc(null)} />
+  if (viewingDoc) return (
+    <DocumentViewer
+      doc={viewingDoc}
+      onBack={() => setViewingDoc(null)}
+      onOpenNote={(note) => { setViewingDoc(null); setViewingNote(note) }}
+    />
+  )
   return <LibraryView rootPath={libraryPath} onOpenDoc={setViewingDoc} onOpenNote={setViewingNote} />
 }
