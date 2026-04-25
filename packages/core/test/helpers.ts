@@ -1,5 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
+import { join, dirname } from 'node:path'
 import { tmpdir } from 'node:os'
 
 export function createTempDir(): string {
@@ -8,4 +8,11 @@ export function createTempDir(): string {
 
 export function cleanupTempDir(dir: string): void {
   rmSync(dir, { recursive: true, force: true })
+}
+
+export function createTestFile(libPath: string, relativePath: string, content?: string | Buffer): string {
+  const fullPath = join(libPath, relativePath)
+  mkdirSync(dirname(fullPath), { recursive: true })
+  writeFileSync(fullPath, content ?? 'test content')
+  return fullPath
 }

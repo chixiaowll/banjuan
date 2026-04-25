@@ -139,7 +139,7 @@ export interface Tag {
   color: string | null
 }
 
-export type TagTarget = 'document' | 'note'
+export type TagTarget = 'document' | 'note' | 'mindmap'
 
 export interface SearchResult {
   type: 'document' | 'note' | 'annotation'
@@ -258,6 +258,73 @@ export interface PluginCommand {
   name: string
   pluginId: string
   callback: () => Promise<void>
+}
+
+// --- File data interfaces (source-of-truth file formats) ---
+
+export interface DocumentFileData {
+  id: string
+  title: string
+  authors: string[]
+  path: string
+  type: DocumentType
+  hash: string
+  tags: string[]
+  metadata: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AnnotationFileData {
+  id: string
+  docId: string
+  type: AnnotationType
+  page: number | null
+  position: AnnotationPosition
+  content: string | null
+  selectedText: string | null
+  color: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NoteFileData {
+  id: string
+  title: string
+  docId: string | null
+  annotationIds: string[]
+  tags: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MindmapFileData {
+  id: string
+  title: string
+  docId: string | null
+  layout: MindmapLayout
+  tags: string[]
+  nodes: Array<{
+    id: string
+    parentId: string | null
+    annotationId: string | null
+    title: string
+    content: string | null
+    color: string | null
+    positionX: number | null
+    positionY: number | null
+    sortOrder: number
+    collapsed: boolean
+  }>
+  edges: Array<{
+    id: string
+    sourceId: string
+    targetId: string
+    label: string | null
+    style: string | null
+  }>
+  createdAt: string
+  updatedAt: string
 }
 
 export type BanjuanEventMap = {
