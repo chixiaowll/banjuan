@@ -68,6 +68,18 @@ interface ElectronAPI {
     getCommands: () => Promise<Array<{ id: string; name: string; pluginId: string }>>
     runCommand: (commandId: string) => Promise<void>
   }
+  sync: {
+    getConfig: () => Promise<{ type: 'webdav'; url: string; username: string; password: string; remotePath: string } | null>
+    saveConfig: (config: { type: 'webdav'; url: string; username: string; password: string; remotePath: string }) => Promise<void>
+    run: () => Promise<{ uploaded: number; downloaded: number; deletedLocal: number; deletedRemote: number; errors: string[] }>
+    stubList: () => Promise<Array<{ id: string; hash: string; size: number; remotePath: string; createdAt: string }>>
+    stubDownload: (docId: string) => Promise<void>
+    stubUpload: (docId: string) => Promise<void>
+    getDocStatus: (docId: string) => Promise<string>
+  }
+  index: {
+    rebuild: () => Promise<void>
+  }
 }
 
 declare global {
