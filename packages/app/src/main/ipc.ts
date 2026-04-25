@@ -9,10 +9,11 @@ let library: Library | null = null
 export function registerIpcHandlers() {
   ipcMain.handle('library:init', async (_event, path: string) => {
     library = Library.init(path)
+    const scanResult = await library.scanAndImport()
     await library.plugins.loadAll()
     const indexService = library.createIndexService()
     await indexService.rebuildFull()
-    return { rootPath: library.rootPath }
+    return { rootPath: library.rootPath, imported: scanResult.imported, skipped: scanResult.skipped }
   })
 
   ipcMain.handle('library:open', async (_event, path: string) => {
