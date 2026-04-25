@@ -12,6 +12,7 @@
   "dependencies": {
     "better-sqlite3": "^11.7.0",
     "uuid": "^11.1.0",
+    "webdav": "^5.9.0",
     "yaml": "^2.8.3"
   },
   "devDependencies": {
