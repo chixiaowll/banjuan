@@ -8,6 +8,7 @@ import { mindmapCmd } from './commands/mindmap.js'
 import { searchCmd } from './commands/search.js'
 import { tagCmd } from './commands/tag.js'
 import { pluginCmd } from './commands/plugin.js'
+import { syncCmd } from './commands/sync.js'
 
 const program = new Command()
   .name('banjuan')
@@ -23,5 +24,6 @@ program.addCommand(mindmapCmd)
 program.addCommand(searchCmd)
 program.addCommand(tagCmd)
 program.addCommand(pluginCmd)
+program.addCommand(syncCmd)
 
 program.parse()
