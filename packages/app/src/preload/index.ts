@@ -45,6 +45,29 @@ const api = {
     delete: (id: string) => ipcRenderer.invoke('notes:delete', id),
     getAnnotations: (noteId: string) => ipcRenderer.invoke('notes:getAnnotations', noteId),
   },
+  mindmaps: {
+    create: (input: { title: string; docId?: string; layout?: string }) =>
+      ipcRenderer.invoke('mindmaps:create', input),
+    list: (options?: { docId?: string }) => ipcRenderer.invoke('mindmaps:list', options),
+    get: (id: string) => ipcRenderer.invoke('mindmaps:get', id),
+    update: (id: string, updates: { title?: string; layout?: string; docId?: string }) =>
+      ipcRenderer.invoke('mindmaps:update', id, updates),
+    delete: (id: string) => ipcRenderer.invoke('mindmaps:delete', id),
+    addNode: (mindmapId: string, input: {
+      title: string; parentId?: string; annotationId?: string;
+      content?: string; color?: string; positionX?: number; positionY?: number
+    }) => ipcRenderer.invoke('mindmaps:addNode', mindmapId, input),
+    getNodes: (mindmapId: string) => ipcRenderer.invoke('mindmaps:getNodes', mindmapId),
+    updateNode: (id: string, updates: {
+      title?: string; content?: string; color?: string;
+      positionX?: number; positionY?: number; collapsed?: boolean; sortOrder?: number
+    }) => ipcRenderer.invoke('mindmaps:updateNode', id, updates),
+    removeNode: (id: string) => ipcRenderer.invoke('mindmaps:removeNode', id),
+    addEdge: (mindmapId: string, input: { sourceId: string; targetId: string; label?: string }) =>
+      ipcRenderer.invoke('mindmaps:addEdge', mindmapId, input),
+    getEdges: (mindmapId: string) => ipcRenderer.invoke('mindmaps:getEdges', mindmapId),
+    removeEdge: (id: string) => ipcRenderer.invoke('mindmaps:removeEdge', id),
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)
