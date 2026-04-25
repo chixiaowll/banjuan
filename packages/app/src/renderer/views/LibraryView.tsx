@@ -13,9 +13,10 @@ interface Props {
   onOpenDoc: (doc: Document) => void
   onOpenNote: (note: any) => void
   onOpenMindmap: (mindmap: any) => void
+  onOpenGraph: () => void
 }
 
-export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMindmap }: Props) {
+export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMindmap, onOpenGraph }: Props) {
   const [documents, setDocuments] = useState<Document[]>([])
   const [mindmaps, setMindmaps] = useState<any[]>([])
 
@@ -73,6 +74,9 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
             </div>
           ))}
         </div>
+        <button onClick={onOpenGraph} style={{ marginTop: 16, width: '100%' }}>
+          知识图谱
+        </button>
       </div>
 
       <div style={{ flex: 1, padding: '24px', overflow: 'auto' }}>
