@@ -1,9 +1,10 @@
 import type Database from 'better-sqlite3'
 import { v4 as uuid } from 'uuid'
 import type { Annotation, AnnotationCreateInput, AnnotationListOptions } from '../types.js'
+import type { EventBus } from '../events/bus.js'
 
 export class AnnotationService {
-  constructor(private db: Database.Database) {}
+  constructor(private db: Database.Database, private events: EventBus) {}
 
   async create(input: AnnotationCreateInput): Promise<Annotation> {
     const id = uuid()
@@ -18,12 +19,14 @@ export class AnnotationService {
         JSON.stringify(input.position), input.content ?? null,
         input.selectedText ?? null, input.color ?? 'yellow', now, now)
 
-    return {
+    const annotation = {
       id, docId: input.docId, type: input.type, page: input.page ?? null,
       position: input.position, content: input.content ?? null,
       selectedText: input.selectedText ?? null, color: input.color ?? 'yellow',
       createdAt: now, updatedAt: now,
     }
+    this.events.emit('annotation:created', { annotation })
+    return annotation
   }
 
   async list(options: AnnotationListOptions): Promise<Annotation[]> {
@@ -55,11 +58,15 @@ export class AnnotationService {
 
     params.push(id)
     this.db.prepare(`UPDATE annotations SET ${sets.join(', ')} WHERE id = ?`).run(...params)
-    return (await this.get(id))!
+    const annotation = (await this.get(id))!
+    this.events.emit('annotation:updated', { annotation })
+    return annotation
   }
 
   async delete(id: string): Promise<void> {
+    const ann = this.db.prepare('SELECT doc_id FROM annotations WHERE id = ?').get(id) as { doc_id: string } | undefined
     this.db.prepare('DELETE FROM annotations WHERE id = ?').run(id)
+    if (ann) this.events.emit('annotation:deleted', { id, docId: ann.doc_id })
   }
 }
 

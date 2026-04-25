@@ -4,12 +4,14 @@ import { join, dirname } from 'node:path'
 import { v4 as uuid } from 'uuid'
 import type { Note, NoteCreateInput, NoteListOptions, Annotation } from '../types.js'
 import type { SearchService } from '../search/service.js'
+import type { EventBus } from '../events/bus.js'
 
 export class NoteService {
   constructor(
     private db: Database.Database,
     private rootPath: string,
     private search: SearchService,
+    private events: EventBus,
   ) {}
 
   async create(input: NoteCreateInput): Promise<Note> {
@@ -33,7 +35,9 @@ export class NoteService {
       for (const annId of input.annotationIds) { insertLink.run(id, annId) }
     }
 
-    return { id, title: input.title, path: relativePath, docId: input.docId ?? null, content: input.content ?? '', createdAt: now, updatedAt: now }
+    const note = { id, title: input.title, path: relativePath, docId: input.docId ?? null, content: input.content ?? '', createdAt: now, updatedAt: now }
+    this.events.emit('note:created', { note })
+    return note
   }
 
   async list(options?: NoteListOptions): Promise<Note[]> {
@@ -80,7 +84,9 @@ export class NoteService {
       writeFileSync(join(this.rootPath, 'notes', row.path), updates.content)
     }
 
-    return (await this.get(id))!
+    const note = (await this.get(id))!
+    this.events.emit('note:updated', { note })
+    return note
   }
 
   async delete(id: string): Promise<void> {
@@ -90,6 +96,7 @@ export class NoteService {
     if (existsSync(filePath)) { unlinkSync(filePath) }
     this.search.removeById(id)
     this.db.prepare('DELETE FROM notes WHERE id = ?').run(id)
+    this.events.emit('note:deleted', { id })
   }
 
   async getAnnotations(noteId: string): Promise<Annotation[]> {

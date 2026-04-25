@@ -6,12 +6,14 @@ import { v4 as uuid } from 'uuid'
 import type { Document, DocumentListOptions } from '../types.js'
 import { detectDocumentType, extractTitle } from './metadata.js'
 import type { SearchService } from '../search/service.js'
+import type { EventBus } from '../events/bus.js'
 
 export class DocumentService {
   constructor(
     private db: Database.Database,
     private rootPath: string,
     private search: SearchService,
+    private events: EventBus,
   ) {}
 
   async import(
@@ -46,10 +48,12 @@ export class DocumentService {
 
     this.search.index({ id, title, content: title, type: 'document' })
 
-    return {
+    const doc = {
       id, title, authors: [], path: relativePath, type, hash,
       metadata: {}, createdAt: now, updatedAt: now,
     }
+    this.events.emit('document:imported', { document: doc })
+    return doc
   }
 
   async list(options?: DocumentListOptions): Promise<Document[]> {
@@ -93,6 +97,7 @@ export class DocumentService {
 
     this.search.removeById(id)
     this.db.prepare('DELETE FROM documents WHERE id = ?').run(id)
+    this.events.emit('document:deleted', { id })
   }
 }
 

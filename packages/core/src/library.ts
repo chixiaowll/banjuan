@@ -10,6 +10,8 @@ import { TagService } from './tags/service.js'
 import { SearchService } from './search/service.js'
 import { MindmapService } from './mindmaps/service.js'
 import { GraphService } from './graph/service.js'
+import { EventBus } from './events/bus.js'
+import { PluginManager } from './plugins/manager.js'
 import type { LibraryConfig } from './types.js'
 
 export class Library {
@@ -21,18 +23,22 @@ export class Library {
   readonly search: SearchService
   readonly mindmaps: MindmapService
   readonly graph: GraphService
+  readonly events: EventBus
+  readonly plugins: PluginManager
   private db: Database.Database
 
   private constructor(rootPath: string, db: Database.Database) {
     this.rootPath = rootPath
     this.db = db
+    this.events = new EventBus()
     this.search = new SearchService(db)
-    this.documents = new DocumentService(db, rootPath, this.search)
-    this.annotations = new AnnotationService(db)
-    this.notes = new NoteService(db, rootPath, this.search)
-    this.tags = new TagService(db)
-    this.mindmaps = new MindmapService(db)
+    this.documents = new DocumentService(db, rootPath, this.search, this.events)
+    this.annotations = new AnnotationService(db, this.events)
+    this.notes = new NoteService(db, rootPath, this.search, this.events)
+    this.tags = new TagService(db, this.events)
+    this.mindmaps = new MindmapService(db, this.events)
     this.graph = new GraphService(db)
+    this.plugins = new PluginManager(this, this.events, rootPath)
   }
 
   static init(rootPath: string): Library {
@@ -72,7 +78,10 @@ export class Library {
     return new Library(rootPath, db)
   }
 
-  close(): void {
+  async close(): Promise<void> {
+    await this.plugins.unloadAll()
+    this.events.emit('library:closed', { path: this.rootPath })
+    this.events.removeAllListeners()
     this.db.close()
   }
 }
