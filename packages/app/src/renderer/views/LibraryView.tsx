@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import NoteList from '../components/notes/NoteList.js'
+import SyncConfigPanel from '../components/sync/SyncConfigPanel.js'
 
 interface Document {
   id: string
   title: string
   type: string
+  path: string
   createdAt: string
 }
 
@@ -21,10 +23,25 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
   const [mindmaps, setMindmaps] = useState<any[]>([])
   const [plugins, setPlugins] = useState<any[]>([])
   const [showPlugins, setShowPlugins] = useState(false)
+  const [showSync, setShowSync] = useState(false)
+  const [docStatuses, setDocStatuses] = useState<Record<string, string>>({})
+
+  const loadDocStatuses = async (docs: Document[]) => {
+    const statuses: Record<string, string> = {}
+    for (const doc of docs) {
+      try {
+        statuses[doc.id] = await window.electronAPI.sync.getDocStatus(doc.id)
+      } catch {
+        statuses[doc.id] = 'local'
+      }
+    }
+    setDocStatuses(statuses)
+  }
 
   const loadDocuments = async () => {
     const docs = await window.electronAPI.documents.list()
     setDocuments(docs)
+    loadDocStatuses(docs)
   }
 
   const loadMindmaps = async () => {
@@ -55,6 +72,24 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
   const handleDelete = async (id: string) => {
     await window.electronAPI.documents.delete(id)
     await loadDocuments()
+  }
+
+  const handleDownload = async (docId: string) => {
+    try {
+      await window.electronAPI.sync.stubDownload(docId)
+      await loadDocuments()
+    } catch (err: any) {
+      alert(`下载失败: ${err.message}`)
+    }
+  }
+
+  const handleUpload = async (docId: string) => {
+    try {
+      await window.electronAPI.sync.stubUpload(docId)
+      await loadDocuments()
+    } catch (err: any) {
+      alert(`上传失败: ${err.message}`)
+    }
   }
 
   return (
@@ -101,44 +136,75 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
             ))}
           </div>
         )}
+        <button onClick={() => setShowSync(s => !s)} style={{ marginTop: 8, width: '100%' }}>
+          同步
+        </button>
       </div>
 
-      <div style={{ flex: 1, padding: '24px', overflow: 'auto' }}>
-        <h2 style={{ marginBottom: '16px' }}>文档库</h2>
-        {documents.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)' }}>还没有文档，点击"导入文档"开始</p>
-        ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: '16px',
-          }}>
-            {documents.map((doc) => (
-              <div key={doc.id} style={{
-                background: 'var(--surface)', borderRadius: '8px',
-                padding: '16px', border: '1px solid var(--border)',
-                cursor: 'pointer',
-              }} onClick={() => onOpenDoc(doc)}>
-                <div style={{ fontSize: '12px', color: 'var(--accent)', marginBottom: '8px' }}>
-                  {doc.type.toUpperCase()}
+      {showSync ? (
+        <SyncConfigPanel onClose={() => { setShowSync(false); loadDocuments() }} />
+      ) : (
+        <div style={{ flex: 1, padding: '24px', overflow: 'auto' }}>
+          <h2 style={{ marginBottom: '16px' }}>文档库</h2>
+          {documents.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)' }}>还没有文档，点击"导入文档"开始</p>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+              gap: '16px',
+            }}>
+              {documents.map((doc) => (
+                <div key={doc.id} style={{
+                  background: 'var(--surface)', borderRadius: '8px',
+                  padding: '16px', border: '1px solid var(--border)',
+                  cursor: 'pointer',
+                }} onClick={() => onOpenDoc(doc)}>
+                  <div style={{ fontSize: '12px', color: 'var(--accent)', marginBottom: '8px' }}>
+                    {doc.type.toUpperCase()}
+                    {docStatuses[doc.id] === 'cloud' && (
+                      <span style={{ fontSize: 11, color: '#89b4fa', marginLeft: 8 }}>云端</span>
+                    )}
+                    {docStatuses[doc.id] === 'synced' && (
+                      <span style={{ fontSize: 11, color: '#a6e3a1', marginLeft: 8 }}>已同步</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px' }}>
+                    {doc.title}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {new Date(doc.createdAt).toLocaleDateString('zh-CN')}
+                  </div>
+                  <div style={{ marginTop: '8px', display: 'flex', gap: 4 }}>
+                    {docStatuses[doc.id] === 'cloud' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDownload(doc.id) }}
+                        style={{ fontSize: '12px' }}
+                      >
+                        下载
+                      </button>
+                    )}
+                    {docStatuses[doc.id] === 'local' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleUpload(doc.id) }}
+                        style={{ fontSize: '12px' }}
+                      >
+                        上传
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(doc.id) }}
+                      style={{ fontSize: '12px', color: '#f38ba8', borderColor: '#f38ba8' }}
+                    >
+                      删除
+                    </button>
+                  </div>
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px' }}>
-                  {doc.title}
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  {new Date(doc.createdAt).toLocaleDateString('zh-CN')}
-                </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(doc.id) }}
-                  style={{ marginTop: '8px', fontSize: '12px', color: '#f38ba8', borderColor: '#f38ba8' }}
-                >
-                  删除
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
