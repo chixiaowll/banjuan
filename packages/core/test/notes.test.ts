@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
-import { writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs'
 import { createTempDir, cleanupTempDir } from './helpers.js'
 import { Library } from '../src/library.js'
 
@@ -11,6 +11,7 @@ describe('NoteService', () => {
   beforeEach(() => {
     tempDir = createTempDir()
     lib = Library.init(join(tempDir, 'lib'))
+    mkdirSync(join(lib.rootPath, 'documents'), { recursive: true })
   })
 
   afterEach(() => { lib.close(); cleanupTempDir(tempDir) })

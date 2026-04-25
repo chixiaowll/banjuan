@@ -4,7 +4,7 @@ import type { Annotation, AnnotationCreateInput, AnnotationListOptions } from '.
 import type { EventBus } from '../events/bus.js'
 
 export class AnnotationService {
-  constructor(private db: Database.Database, private events: EventBus) {}
+  constructor(private db: Database.Database, private _rootPath: string, private events: EventBus) {}
 
   async create(input: AnnotationCreateInput): Promise<Annotation> {
     const id = uuid()

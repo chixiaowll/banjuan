@@ -84,7 +84,7 @@ function rowToEdge(row: EdgeRow): MindmapEdge {
 }
 
 export class MindmapService {
-  constructor(private db: Database.Database, private events: EventBus) {}
+  constructor(private db: Database.Database, private _rootPath: string, private events: EventBus) {}
 
   async create(input: MindmapCreateInput): Promise<Mindmap> {
     const id = uuid()

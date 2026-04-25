@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
-import { writeFileSync, existsSync } from 'node:fs'
+import { writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { createTempDir, cleanupTempDir } from './helpers.js'
 import { Library } from '../src/library.js'
 
@@ -12,6 +12,8 @@ describe('DocumentService', () => {
   beforeEach(() => {
     tempDir = createTempDir()
     lib = Library.init(join(tempDir, 'lib'))
+    // DocumentService still writes to rootPath/documents/ (will be refactored in Task 4)
+    mkdirSync(join(lib.rootPath, 'documents'), { recursive: true })
     fixtureFile = join(tempDir, 'test-doc.txt')
     writeFileSync(fixtureFile, 'Hello, this is test content for the document.')
   })
