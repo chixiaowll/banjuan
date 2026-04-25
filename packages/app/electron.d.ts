@@ -12,6 +12,8 @@ interface ElectronAPI {
     list: (options?: Record<string, unknown>) => Promise<any[]>
     get: (id: string) => Promise<any>
     delete: (id: string) => Promise<void>
+    getFilePath: (relativePath: string) => Promise<string>
+    readContent: (relativePath: string) => Promise<string>
   }
   tags: {
     list: () => Promise<any[]>

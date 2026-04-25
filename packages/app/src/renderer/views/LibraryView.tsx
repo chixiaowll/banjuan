@@ -9,9 +9,10 @@ interface Document {
 
 interface Props {
   rootPath: string
+  onOpenDoc: (doc: Document) => void
 }
 
-export default function LibraryView({ rootPath }: Props) {
+export default function LibraryView({ rootPath, onOpenDoc }: Props) {
   const [documents, setDocuments] = useState<Document[]>([])
 
   const loadDocuments = async () => {
@@ -58,7 +59,8 @@ export default function LibraryView({ rootPath }: Props) {
               <div key={doc.id} style={{
                 background: 'var(--surface)', borderRadius: '8px',
                 padding: '16px', border: '1px solid var(--border)',
-              }}>
+                cursor: 'pointer',
+              }} onClick={() => onOpenDoc(doc)}>
                 <div style={{ fontSize: '12px', color: 'var(--accent)', marginBottom: '8px' }}>
                   {doc.type.toUpperCase()}
                 </div>
@@ -69,7 +71,7 @@ export default function LibraryView({ rootPath }: Props) {
                   {new Date(doc.createdAt).toLocaleDateString('zh-CN')}
                 </div>
                 <button
-                  onClick={() => handleDelete(doc.id)}
+                  onClick={(e) => { e.stopPropagation(); handleDelete(doc.id) }}
                   style={{ marginTop: '8px', fontSize: '12px', color: '#f38ba8', borderColor: '#f38ba8' }}
                 >
                   删除
