@@ -2,6 +2,9 @@
 import { Command } from 'commander'
 import { initCmd } from './commands/init.js'
 import { docCmd } from './commands/doc.js'
+import { annCmd } from './commands/ann.js'
+import { noteCmd } from './commands/note.js'
+import { mindmapCmd } from './commands/mindmap.js'
 
 const program = new Command()
   .name('banjuan')
@@ -11,5 +14,8 @@ const program = new Command()
 
 program.addCommand(initCmd)
 program.addCommand(docCmd)
+program.addCommand(annCmd)
+program.addCommand(noteCmd)
+program.addCommand(mindmapCmd)
 
 program.parse()
