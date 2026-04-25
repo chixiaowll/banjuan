@@ -327,6 +327,36 @@ export interface MindmapFileData {
   updatedAt: string
 }
 
+export interface SyncConfig {
+  type: 'webdav'
+  url: string
+  username: string
+  password: string
+  remotePath: string
+}
+
+export interface RemoteFile {
+  path: string
+  mtime: number
+  size: number
+  isDirectory: boolean
+}
+
+export interface SyncSnapshot {
+  timestamp: number
+  files: string[]
+}
+
+export interface StubData {
+  id: string
+  hash: string
+  size: number
+  remotePath: string
+  createdAt: string
+}
+
+export type DocumentSyncStatus = 'local' | 'cloud' | 'synced'
+
 export type BanjuanEventMap = {
   'document:imported': { document: Document }
   'document:deleted': { id: string }
