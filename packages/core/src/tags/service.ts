@@ -1,9 +1,10 @@
 import type Database from 'better-sqlite3'
 import { v4 as uuid } from 'uuid'
 import type { Tag, TagTarget } from '../types.js'
+import type { EventBus } from '../events/bus.js'
 
 export class TagService {
-  constructor(private db: Database.Database) {}
+  constructor(private db: Database.Database, private events: EventBus) {}
 
   async create(input: { name: string; color?: string }): Promise<Tag> {
     const id = uuid()
@@ -31,6 +32,7 @@ export class TagService {
         const tag = findTag.get(name) as { id: string } | undefined
         if (tag) {
           insertTag.run(targetId, tag.id)
+          this.events.emit('tag:assigned', { targetId, targetType, tagName: name })
         }
       }
     })
@@ -46,6 +48,7 @@ export class TagService {
       | undefined
     if (tag) {
       this.db.prepare(`DELETE FROM ${table} WHERE ${idCol} = ? AND tag_id = ?`).run(targetId, tag.id)
+      this.events.emit('tag:removed', { targetId, targetType, tagName })
     }
   }
 

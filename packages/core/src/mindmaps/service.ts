@@ -9,6 +9,7 @@ import type {
   MindmapEdgeCreateInput,
   MindmapLayout,
 } from '../types.js'
+import type { EventBus } from '../events/bus.js'
 
 interface MindmapRow {
   id: string
@@ -83,7 +84,7 @@ function rowToEdge(row: EdgeRow): MindmapEdge {
 }
 
 export class MindmapService {
-  constructor(private db: Database.Database) {}
+  constructor(private db: Database.Database, private events: EventBus) {}
 
   async create(input: MindmapCreateInput): Promise<Mindmap> {
     const id = uuid()
@@ -96,7 +97,9 @@ export class MindmapService {
       )
       .run(id, input.title, input.docId ?? null, layout, now, now)
 
-    return { id, title: input.title, docId: input.docId ?? null, layout, createdAt: now, updatedAt: now }
+    const mindmap = { id, title: input.title, docId: input.docId ?? null, layout, createdAt: now, updatedAt: now }
+    this.events.emit('mindmap:created', { mindmap })
+    return mindmap
   }
 
   async list(options?: { docId?: string }): Promise<Mindmap[]> {
@@ -144,11 +147,14 @@ export class MindmapService {
     this.db.prepare(`UPDATE mindmaps SET ${fields.join(', ')} WHERE id = ?`).run(...values)
 
     const row = this.db.prepare('SELECT * FROM mindmaps WHERE id = ?').get(id) as MindmapRow
-    return rowToMindmap(row)
+    const mindmap = rowToMindmap(row)
+    this.events.emit('mindmap:updated', { mindmap })
+    return mindmap
   }
 
   async delete(id: string): Promise<void> {
     this.db.prepare('DELETE FROM mindmaps WHERE id = ?').run(id)
+    this.events.emit('mindmap:deleted', { id })
   }
 
   // --- Nodes ---
@@ -184,7 +190,7 @@ export class MindmapService {
         now,
       )
 
-    return {
+    const node = {
       id,
       mindmapId,
       parentId,
@@ -198,6 +204,8 @@ export class MindmapService {
       collapsed: false,
       createdAt: now,
     }
+    this.events.emit('mindmap:node:added', { node })
+    return node
   }
 
   async getNodes(mindmapId: string): Promise<MindmapNode[]> {
@@ -254,7 +262,9 @@ export class MindmapService {
   }
 
   async removeNode(id: string): Promise<void> {
+    const nodeRow = this.db.prepare('SELECT mindmap_id FROM mindmap_nodes WHERE id = ?').get(id) as { mindmap_id: string } | undefined
     this.db.prepare('DELETE FROM mindmap_nodes WHERE id = ?').run(id)
+    if (nodeRow) this.events.emit('mindmap:node:removed', { id, mindmapId: nodeRow.mindmap_id })
   }
 
   // --- Edges ---
@@ -268,7 +278,7 @@ export class MindmapService {
       )
       .run(id, mindmapId, input.sourceId, input.targetId, input.label ?? null, null)
 
-    return {
+    const edge = {
       id,
       mindmapId,
       sourceId: input.sourceId,
@@ -276,6 +286,8 @@ export class MindmapService {
       label: input.label ?? null,
       style: null,
     }
+    this.events.emit('mindmap:edge:added', { edge })
+    return edge
   }
 
   async getEdges(mindmapId: string): Promise<MindmapEdge[]> {
