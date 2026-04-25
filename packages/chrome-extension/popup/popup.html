@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>半卷闲书</h1>
+    <div id="status" class="status disconnected">检查连接中...</div>
+
+    <div id="settings-section" style="display:none">
+      <label>API 端口：
+        <input type="number" id="port-input" placeholder="端口号">
+      </label>
+      <button id="save-port">保存</button>
+    </div>
+
+    <div id="clip-section" style="display:none">
+      <div class="page-info">
+        <div id="page-title" class="page-title"></div>
+        <div id="page-url" class="page-url"></div>
+      </div>
+
+      <div id="selection-info" style="display:none">
+        <label>选中文本：</label>
+        <div id="selected-text" class="selected-text"></div>
+      </div>
+
+      <label>标签（逗号分隔）：
+        <input type="text" id="tags-input" placeholder="标签1, 标签2">
+      </label>
+
+      <button id="clip-btn" class="primary">保存到书房</button>
+      <div id="result" class="result" style="display:none"></div>
+    </div>
+
+    <button id="toggle-settings" class="link-btn">设置</button>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
