@@ -250,5 +250,93 @@ export function registerIpcHandlers() {
     await library.plugins.runCommand(commandId)
   })
 
+  ipcMain.handle('sync:getConfig', async () => {
+    if (!library) throw new Error('No library open')
+    return library.getSyncConfig()
+  })
+
+  ipcMain.handle('sync:saveConfig', async (_event, config: {
+    type: 'webdav'; url: string; username: string; password: string; remotePath: string
+  }) => {
+    if (!library) throw new Error('No library open')
+    library.saveSyncConfig(config)
+  })
+
+  ipcMain.handle('sync:run', async () => {
+    if (!library) throw new Error('No library open')
+    const config = library.getSyncConfig()
+    if (!config) throw new Error('No sync configuration found')
+    const svc = library.createSyncService()
+    const { WebDAVAdapter } = await import('@banjuan/core')
+    const adapter = new WebDAVAdapter()
+    await adapter.connect(config)
+    try {
+      const result = await svc.sync()
+      const indexService = library.createIndexService()
+      await indexService.rebuildFull()
+      return result
+    } finally {
+      await adapter.disconnect()
+    }
+  })
+
+  ipcMain.handle('sync:stubList', async () => {
+    if (!library) throw new Error('No library open')
+    const svc = library.createStubService()
+    return svc.listStubs()
+  })
+
+  ipcMain.handle('sync:stubDownload', async (_event, docId: string) => {
+    if (!library) throw new Error('No library open')
+    const doc = await library.documents.get(docId)
+    if (!doc) throw new Error('Document not found')
+    const config = library.getSyncConfig()
+    if (!config) throw new Error('No sync configuration found')
+    const svc = library.createStubService()
+    const { WebDAVAdapter } = await import('@banjuan/core')
+    const adapter = new WebDAVAdapter()
+    await adapter.connect(config)
+    try {
+      const localPath = join(library.rootPath, doc.path)
+      await svc.downloadFile(docId, localPath)
+    } finally {
+      await adapter.disconnect()
+    }
+  })
+
+  ipcMain.handle('sync:stubUpload', async (_event, docId: string) => {
+    if (!library) throw new Error('No library open')
+    const doc = await library.documents.get(docId)
+    if (!doc) throw new Error('Document not found')
+    const config = library.getSyncConfig()
+    if (!config) throw new Error('No sync configuration found')
+    const svc = library.createStubService()
+    const { WebDAVAdapter } = await import('@banjuan/core')
+    const adapter = new WebDAVAdapter()
+    await adapter.connect(config)
+    try {
+      const localPath = join(library.rootPath, doc.path)
+      await svc.uploadFile(localPath, doc.path)
+    } finally {
+      await adapter.disconnect()
+    }
+  })
+
+  ipcMain.handle('sync:getDocStatus', async (_event, docId: string) => {
+    if (!library) throw new Error('No library open')
+    const doc = await library.documents.get(docId)
+    if (!doc) return 'local'
+    const config = library.getSyncConfig()
+    if (!config) return 'local'
+    const svc = library.createStubService()
+    return svc.getStatus(docId, join(library.rootPath, doc.path))
+  })
+
+  ipcMain.handle('index:rebuild', async () => {
+    if (!library) throw new Error('No library open')
+    const indexService = library.createIndexService()
+    await indexService.rebuildFull()
+  })
+
   setLibraryGetter(() => library)
 }
