@@ -171,10 +171,10 @@ export default function SyncConfigPanel({ onClose }: Props) {
         {status && (
           <div style={{
             fontSize: '13px',
-            color: status.isError ? '#f38ba8' : '#a6e3a1',
+            color: status.isError ? '#c44040' : '#4a8c4a',
             padding: '8px 10px',
             borderRadius: '4px',
-            border: `1px solid ${status.isError ? '#f38ba8' : '#a6e3a1'}`,
+            border: `1px solid ${status.isError ? '#c44040' : '#4a8c4a'}`,
           }}>
             {status.message}
           </div>

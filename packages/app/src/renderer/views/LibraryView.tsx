@@ -251,7 +251,7 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
     borderRadius: 4,
     fontWeight: active ? 600 : 400,
     color: active ? 'var(--accent)' : 'var(--text)',
-    background: active ? 'rgba(137, 180, 250, 0.1)' : 'transparent',
+    background: active ? 'var(--selected)' : 'transparent',
     marginBottom: 1,
     display: 'flex',
     alignItems: 'center',
@@ -370,7 +370,7 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
                   padding: '2px 6px',
                   borderRadius: 3,
                   cursor: 'pointer',
-                  background: selectedTag === tag.id ? 'rgba(137, 180, 250, 0.2)' : 'rgba(255,255,255,0.05)',
+                  background: selectedTag === tag.id ? 'var(--selected)' : 'var(--hover)',
                   color: tag.color || 'var(--text-muted)',
                   border: selectedTag === tag.id ? '1px solid var(--accent)' : '1px solid transparent',
                 }}
@@ -399,7 +399,7 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
                     await window.electronAPI.plugins.unload(p.id)
                     setPlugins(ps => ps.filter(x => x.id !== p.id))
                   }}
-                  style={{ fontSize: 11, cursor: 'pointer', color: '#f38ba8' }}
+                  style={{ fontSize: 11, cursor: 'pointer', color: '#c44040' }}
                 >
                   卸载
                 </span>
@@ -492,10 +492,10 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
                   cursor: 'pointer',
                   fontSize: 13,
                   background: isSelected
-                    ? 'rgba(137, 180, 250, 0.15)'
+                    ? 'var(--selected)'
                     : idx % 2 === 0
                       ? 'transparent'
-                      : 'rgba(255, 255, 255, 0.02)',
+                      : 'var(--surface)',
                 }}
                 onClick={() => {
                   const type = selectedSection === 'documents' ? 'document'
@@ -585,8 +585,8 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
           <DetailField label="同步状态" value={
             <span style={{
               fontSize: 11,
-              color: docStatuses[selectedItemId] === 'synced' ? '#a6e3a1'
-                : docStatuses[selectedItemId] === 'cloud' ? '#89b4fa' : 'var(--text-muted)',
+              color: docStatuses[selectedItemId] === 'synced' ? '#4a8c4a'
+                : docStatuses[selectedItemId] === 'cloud' ? 'var(--accent)' : 'var(--text-muted)',
             }}>
               {docStatuses[selectedItemId] === 'synced' ? '已同步'
                 : docStatuses[selectedItemId] === 'cloud' ? '云端' : '本地'}
@@ -603,7 +603,7 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
                     fontSize: 11,
                     padding: '1px 6px',
                     borderRadius: 3,
-                    background: 'rgba(255,255,255,0.05)',
+                    background: 'var(--hover)',
                     color: tag.color || 'var(--text-muted)',
                   }}>
                     {tag.name}
@@ -633,7 +633,7 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
             )}
             <button
               onClick={() => handleDelete(selectedItemId)}
-              style={{ fontSize: 12, padding: '4px 10px', width: '100%', color: '#f38ba8', borderColor: '#f38ba8' }}
+              style={{ fontSize: 12, padding: '4px 10px', width: '100%', color: '#c44040', borderColor: '#c44040' }}
             >
               删除
             </button>
@@ -658,7 +658,7 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
                 <div style={{ marginTop: 16 }}>
                   <button
                     onClick={() => handleDelete(selectedItemId)}
-                    style={{ fontSize: 12, padding: '4px 10px', width: '100%', color: '#f38ba8', borderColor: '#f38ba8' }}
+                    style={{ fontSize: 12, padding: '4px 10px', width: '100%', color: '#c44040', borderColor: '#c44040' }}
                   >
                     删除
                   </button>
