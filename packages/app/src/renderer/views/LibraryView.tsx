@@ -12,21 +12,36 @@ interface Props {
   rootPath: string
   onOpenDoc: (doc: Document) => void
   onOpenNote: (note: any) => void
+  onOpenMindmap: (mindmap: any) => void
 }
 
-export default function LibraryView({ rootPath, onOpenDoc, onOpenNote }: Props) {
+export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMindmap }: Props) {
   const [documents, setDocuments] = useState<Document[]>([])
+  const [mindmaps, setMindmaps] = useState<any[]>([])
 
   const loadDocuments = async () => {
     const docs = await window.electronAPI.documents.list()
     setDocuments(docs)
   }
 
-  useEffect(() => { loadDocuments() }, [])
+  const loadMindmaps = async () => {
+    const maps = await window.electronAPI.mindmaps.list()
+    setMindmaps(maps)
+  }
+
+  useEffect(() => { loadDocuments(); loadMindmaps() }, [])
 
   const handleImport = async () => {
     const result = await window.electronAPI.documents.import()
     if (result) await loadDocuments()
+  }
+
+  const handleCreateMindmap = async () => {
+    const title = prompt('脑图标题：')
+    if (!title) return
+    const map = await window.electronAPI.mindmaps.create({ title })
+    await loadMindmaps()
+    onOpenMindmap(map)
   }
 
   const handleDelete = async (id: string) => {
@@ -46,6 +61,18 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote }: Props) 
           导入文档
         </button>
         <div style={{ marginTop: 24 }}><NoteList onOpenNote={onOpenNote} /></div>
+        <div style={{ marginTop: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>脑图</span>
+            <button onClick={handleCreateMindmap} style={{ fontSize: 12 }}>+ 新建</button>
+          </div>
+          {mindmaps.map((m) => (
+            <div key={m.id} onClick={() => onOpenMindmap(m)}
+              style={{ padding: '6px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 13, marginBottom: 2 }}>
+              {m.title}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div style={{ flex: 1, padding: '24px', overflow: 'auto' }}>
