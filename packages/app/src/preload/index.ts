@@ -68,6 +68,9 @@ const api = {
     getEdges: (mindmapId: string) => ipcRenderer.invoke('mindmaps:getEdges', mindmapId),
     removeEdge: (id: string) => ipcRenderer.invoke('mindmaps:removeEdge', id),
   },
+  graph: {
+    getData: () => ipcRenderer.invoke('graph:getData'),
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

@@ -58,6 +58,9 @@ interface ElectronAPI {
     getEdges: (mindmapId: string) => Promise<any[]>
     removeEdge: (id: string) => Promise<void>
   }
+  graph: {
+    getData: () => Promise<{ nodes: any[]; edges: any[] }>
+  }
 }
 
 declare global {
