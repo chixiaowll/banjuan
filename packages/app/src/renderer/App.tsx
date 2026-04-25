@@ -4,14 +4,24 @@ import LibraryView from './views/LibraryView.js'
 import DocumentViewer from './components/viewers/DocumentViewer.js'
 import NoteView from './views/NoteView.js'
 import MindmapView from './views/MindmapView.js'
+import GraphView from './views/GraphView.js'
 
 export default function App() {
   const [libraryPath, setLibraryPath] = useState<string | null>(null)
   const [viewingDoc, setViewingDoc] = useState<any>(null)
   const [viewingNote, setViewingNote] = useState<any>(null)
   const [viewingMindmap, setViewingMindmap] = useState<any>(null)
+  const [showGraph, setShowGraph] = useState(false)
 
   if (!libraryPath) return <WelcomeView onOpen={setLibraryPath} />
+  if (showGraph) return (
+    <GraphView
+      onBack={() => setShowGraph(false)}
+      onOpenDoc={(doc) => { setShowGraph(false); setViewingDoc(doc) }}
+      onOpenNote={(note) => { setShowGraph(false); setViewingNote(note) }}
+      onOpenMindmap={(map) => { setShowGraph(false); setViewingMindmap(map) }}
+    />
+  )
   if (viewingMindmap) return <MindmapView mindmap={viewingMindmap} onBack={() => setViewingMindmap(null)} />
   if (viewingNote) return <NoteView note={viewingNote} onBack={() => setViewingNote(null)} />
   if (viewingDoc) return (
@@ -21,5 +31,5 @@ export default function App() {
       onOpenNote={(note) => { setViewingDoc(null); setViewingNote(note) }}
     />
   )
-  return <LibraryView rootPath={libraryPath} onOpenDoc={setViewingDoc} onOpenNote={setViewingNote} onOpenMindmap={setViewingMindmap} />
+  return <LibraryView rootPath={libraryPath} onOpenDoc={setViewingDoc} onOpenNote={setViewingNote} onOpenMindmap={setViewingMindmap} onOpenGraph={() => setShowGraph(true)} />
 }
