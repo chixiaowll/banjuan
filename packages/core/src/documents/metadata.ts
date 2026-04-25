@@ -21,11 +21,7 @@ const EXT_TO_TYPE: Record<string, DocumentType> = {
 
 export function detectDocumentType(filePath: string): DocumentType {
   const ext = extname(filePath).toLowerCase()
-  const type = EXT_TO_TYPE[ext]
-  if (!type) {
-    throw new Error(`Unsupported file type: ${ext}`)
-  }
-  return type
+  return EXT_TO_TYPE[ext] ?? 'other'
 }
 
 export function extractTitle(filePath: string): string {

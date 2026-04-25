@@ -36,6 +36,7 @@ const TYPE_COLORS: Record<string, string> = {
   image: '#fab387',
   video: '#f9e2af',
   html: '#94e2d5',
+  other: '#6c7086',
 }
 
 function formatDate(dateStr: string): string {
