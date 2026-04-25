@@ -209,11 +209,11 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
   }
 
   // Sidebar items
-  const sidebarItems: { key: SidebarSection; label: string; icon: string }[] = [
-    { key: 'documents', label: '文档库', icon: '\u{1F4C4}' },
-    { key: 'notes', label: '笔记', icon: '\u{1F4DD}' },
-    { key: 'mindmaps', label: '脑图', icon: '\u{1F5FA}' },
-    { key: 'graph', label: '知识图谱', icon: '\u{1F310}' },
+  const sidebarItems: { key: SidebarSection; label: string }[] = [
+    { key: 'documents', label: '文档库' },
+    { key: 'notes', label: '笔记' },
+    { key: 'mindmaps', label: '脑图' },
+    { key: 'graph', label: '知识图谱' },
   ]
 
   const sidebarUtils: { key: SidebarSection; label: string }[] = [
