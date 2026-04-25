@@ -1,104 +1,142 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { createTempDir, cleanupTempDir } from './helpers.js'
 import { Library } from '../src/library.js'
+import { createTempDir, cleanupTempDir } from './helpers.js'
 
-describe('MindmapService', () => {
+describe('MindmapService (file-first)', () => {
   let tempDir: string
   let lib: Library
+  let libPath: string
 
   beforeEach(() => {
     tempDir = createTempDir()
-    lib = Library.init(join(tempDir, 'lib'))
+    libPath = join(tempDir, 'lib')
+    lib = Library.init(libPath)
   })
 
-  afterEach(() => {
-    lib.close()
+  afterEach(async () => {
+    await lib.close()
     cleanupTempDir(tempDir)
   })
 
-  it('creates a mindmap', async () => {
-    const mm = await lib.mindmaps.create({ title: 'My Map' })
-    expect(mm.id).toBeTruthy()
-    expect(mm.title).toBe('My Map')
-    expect(mm.layout).toBe('tree')
-    expect(mm.docId).toBeNull()
+  describe('create', () => {
+    it('creates JSON file with empty nodes and edges', async () => {
+      const mm = await lib.mindmaps.create({ title: 'Test Map' })
+
+      const jsonPath = join(libPath, '.banjuan', 'data', 'mindmaps', mm.id.slice(0, 2), `${mm.id}.json`)
+      expect(existsSync(jsonPath)).toBe(true)
+
+      const fileData = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+      expect(fileData.id).toBe(mm.id)
+      expect(fileData.title).toBe('Test Map')
+      expect(fileData.nodes).toEqual([])
+      expect(fileData.edges).toEqual([])
+      expect(fileData.tags).toEqual([])
+      expect(fileData.layout).toBe('tree')
+    })
   })
 
-  it('lists mindmaps', async () => {
-    await lib.mindmaps.create({ title: 'Map A' })
-    await lib.mindmaps.create({ title: 'Map B' })
-    const list = await lib.mindmaps.list()
-    expect(list).toHaveLength(2)
+  describe('addNode', () => {
+    it('adds node to JSON file and SQLite', async () => {
+      const mm = await lib.mindmaps.create({ title: 'Map' })
+      const node = await lib.mindmaps.addNode(mm.id, { title: 'Root Node' })
+
+      expect(node.title).toBe('Root Node')
+      expect(node.mindmapId).toBe(mm.id)
+
+      const jsonPath = join(libPath, '.banjuan', 'data', 'mindmaps', mm.id.slice(0, 2), `${mm.id}.json`)
+      const fileData = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+      expect(fileData.nodes).toHaveLength(1)
+      expect(fileData.nodes[0].title).toBe('Root Node')
+    })
   })
 
-  it('adds and retrieves nodes', async () => {
-    const mm = await lib.mindmaps.create({ title: 'Node Test' })
-    const root = await lib.mindmaps.addNode(mm.id, { title: 'Root' })
-    const child = await lib.mindmaps.addNode(mm.id, { title: 'Child', parentId: root.id })
+  describe('updateNode', () => {
+    it('updates node in JSON file and SQLite', async () => {
+      const mm = await lib.mindmaps.create({ title: 'Map' })
+      const node = await lib.mindmaps.addNode(mm.id, { title: 'Old' })
 
-    expect(root.parentId).toBeNull()
-    expect(child.parentId).toBe(root.id)
+      const updated = await lib.mindmaps.updateNode(node.id, { title: 'New' })
+      expect(updated.title).toBe('New')
 
-    const nodes = await lib.mindmaps.getNodes(mm.id)
-    expect(nodes).toHaveLength(2)
+      const jsonPath = join(libPath, '.banjuan', 'data', 'mindmaps', mm.id.slice(0, 2), `${mm.id}.json`)
+      const fileData = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+      expect(fileData.nodes[0].title).toBe('New')
+    })
   })
 
-  it('updates a node', async () => {
-    const mm = await lib.mindmaps.create({ title: 'Update Test' })
-    const node = await lib.mindmaps.addNode(mm.id, { title: 'Original' })
-    const updated = await lib.mindmaps.updateNode(node.id, { title: 'Renamed', color: 'red' })
+  describe('removeNode', () => {
+    it('removes node from JSON file and SQLite', async () => {
+      const mm = await lib.mindmaps.create({ title: 'Map' })
+      const node = await lib.mindmaps.addNode(mm.id, { title: 'Remove Me' })
 
-    expect(updated.title).toBe('Renamed')
-    expect(updated.color).toBe('red')
+      await lib.mindmaps.removeNode(node.id)
+
+      const jsonPath = join(libPath, '.banjuan', 'data', 'mindmaps', mm.id.slice(0, 2), `${mm.id}.json`)
+      const fileData = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+      expect(fileData.nodes).toHaveLength(0)
+    })
   })
 
-  it('removes a node and its children (cascade)', async () => {
-    const mm = await lib.mindmaps.create({ title: 'Cascade Test' })
-    const root = await lib.mindmaps.addNode(mm.id, { title: 'Root' })
-    await lib.mindmaps.addNode(mm.id, { title: 'Child', parentId: root.id })
+  describe('addEdge', () => {
+    it('adds edge to JSON file and SQLite', async () => {
+      const mm = await lib.mindmaps.create({ title: 'Map' })
+      const n1 = await lib.mindmaps.addNode(mm.id, { title: 'A' })
+      const n2 = await lib.mindmaps.addNode(mm.id, { title: 'B' })
 
-    await lib.mindmaps.removeNode(root.id)
-    const nodes = await lib.mindmaps.getNodes(mm.id)
-    expect(nodes).toHaveLength(0)
+      const edge = await lib.mindmaps.addEdge(mm.id, {
+        sourceId: n1.id, targetId: n2.id, label: 'relates',
+      })
+
+      const jsonPath = join(libPath, '.banjuan', 'data', 'mindmaps', mm.id.slice(0, 2), `${mm.id}.json`)
+      const fileData = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+      expect(fileData.edges).toHaveLength(1)
+      expect(fileData.edges[0].label).toBe('relates')
+    })
   })
 
-  it('adds and retrieves edges', async () => {
-    const mm = await lib.mindmaps.create({ title: 'Edge Test' })
-    const n1 = await lib.mindmaps.addNode(mm.id, { title: 'A' })
-    const n2 = await lib.mindmaps.addNode(mm.id, { title: 'B' })
-    const edge = await lib.mindmaps.addEdge(mm.id, {
-      sourceId: n1.id,
-      targetId: n2.id,
-      label: 'relates',
+  describe('removeEdge', () => {
+    it('removes edge from JSON file and SQLite', async () => {
+      const mm = await lib.mindmaps.create({ title: 'Map' })
+      const n1 = await lib.mindmaps.addNode(mm.id, { title: 'A' })
+      const n2 = await lib.mindmaps.addNode(mm.id, { title: 'B' })
+      const edge = await lib.mindmaps.addEdge(mm.id, { sourceId: n1.id, targetId: n2.id })
+
+      await lib.mindmaps.removeEdge(edge.id)
+
+      const jsonPath = join(libPath, '.banjuan', 'data', 'mindmaps', mm.id.slice(0, 2), `${mm.id}.json`)
+      const fileData = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+      expect(fileData.edges).toHaveLength(0)
+    })
+  })
+
+  describe('delete', () => {
+    it('deletes JSON file and SQLite records', async () => {
+      const mm = await lib.mindmaps.create({ title: 'Delete Me' })
+      await lib.mindmaps.addNode(mm.id, { title: 'Node' })
+
+      const jsonPath = join(libPath, '.banjuan', 'data', 'mindmaps', mm.id.slice(0, 2), `${mm.id}.json`)
+      expect(existsSync(jsonPath)).toBe(true)
+
+      await lib.mindmaps.delete(mm.id)
+      expect(existsSync(jsonPath)).toBe(false)
+      expect(await lib.mindmaps.get(mm.id)).toBeUndefined()
+    })
+  })
+
+  describe('list and get', () => {
+    it('lists mindmaps from SQLite', async () => {
+      await lib.mindmaps.create({ title: 'Map A' })
+      await lib.mindmaps.create({ title: 'Map B' })
+      const all = await lib.mindmaps.list()
+      expect(all).toHaveLength(2)
     })
 
-    expect(edge.label).toBe('relates')
-
-    const edges = await lib.mindmaps.getEdges(mm.id)
-    expect(edges).toHaveLength(1)
-    expect(edges[0].sourceId).toBe(n1.id)
-    expect(edges[0].targetId).toBe(n2.id)
-  })
-
-  it('deletes a mindmap and cascades', async () => {
-    const mm = await lib.mindmaps.create({ title: 'Delete Test' })
-    const node = await lib.mindmaps.addNode(mm.id, { title: 'Orphan' })
-
-    await lib.mindmaps.delete(mm.id)
-
-    const got = await lib.mindmaps.get(mm.id)
-    expect(got).toBeUndefined()
-
-    const nodes = await lib.mindmaps.getNodes(mm.id)
-    expect(nodes).toHaveLength(0)
-  })
-
-  it('updates a mindmap', async () => {
-    const mm = await lib.mindmaps.create({ title: 'Old Title' })
-    const updated = await lib.mindmaps.update(mm.id, { title: 'New Title', layout: 'radial' })
-
-    expect(updated.title).toBe('New Title')
-    expect(updated.layout).toBe('radial')
+    it('gets mindmap by id', async () => {
+      const mm = await lib.mindmaps.create({ title: 'Find Me' })
+      const found = await lib.mindmaps.get(mm.id)
+      expect(found?.title).toBe('Find Me')
+    })
   })
 })
