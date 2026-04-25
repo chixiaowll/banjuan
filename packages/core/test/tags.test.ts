@@ -115,6 +115,45 @@ describe('TagService (file-first)', () => {
       const tags = await lib.tags.forTarget(doc.id, 'document')
       expect(tags).toHaveLength(0)
     })
+
+    it('removes tag from note frontmatter and SQLite', async () => {
+      await lib.tags.create({ name: 'Gone' })
+      const note = await lib.notes.create({ title: 'Unassign Note', content: 'c' })
+      await lib.tags.assign(note.id, 'note', ['Gone'])
+
+      await lib.tags.unassign(note.id, 'note', 'Gone')
+
+      const raw = readFileSync(join(libPath, 'notes', note.path), 'utf-8')
+      expect(raw).not.toContain('Gone')
+      const tags = await lib.tags.forTarget(note.id, 'note')
+      expect(tags).toHaveLength(0)
+    })
+
+    it('removes tag from mindmap JSON and SQLite', async () => {
+      await lib.tags.create({ name: 'Drop' })
+      const mm = await lib.mindmaps.create({ title: 'Unmap' })
+      await lib.tags.assign(mm.id, 'mindmap', ['Drop'])
+
+      await lib.tags.unassign(mm.id, 'mindmap', 'Drop')
+
+      const jsonPath = join(libPath, '.banjuan', 'data', 'mindmaps', mm.id.slice(0, 2), `${mm.id}.json`)
+      const fileData = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+      expect(fileData.tags).not.toContain('Drop')
+      const tags = await lib.tags.forTarget(mm.id, 'mindmap')
+      expect(tags).toHaveLength(0)
+    })
+
+    it('emits tag:removed event', async () => {
+      await lib.tags.create({ name: 'Ev' })
+      createTestFile(libPath, 'ev2.txt', 'x')
+      const doc = await lib.documents.import('ev2.txt')
+      await lib.tags.assign(doc.id, 'document', ['Ev'])
+
+      let emitted: any = null
+      lib.events.on('tag:removed', (data) => { emitted = data })
+      await lib.tags.unassign(doc.id, 'document', 'Ev')
+      expect(emitted?.tagName).toBe('Ev')
+    })
   })
 
   describe('forTarget', () => {
