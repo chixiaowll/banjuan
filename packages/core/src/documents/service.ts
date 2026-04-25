@@ -44,6 +44,8 @@ export class DocumentService {
       )
       .run(id, title, relativePath, type, hash, now, now)
 
+    this.search.index({ id, title, content: title, type: 'document' })
+
     return {
       id, title, authors: [], path: relativePath, type, hash,
       metadata: {}, createdAt: now, updatedAt: now,
@@ -89,6 +91,7 @@ export class DocumentService {
       unlinkSync(filePath)
     }
 
+    this.search.removeById(id)
     this.db.prepare('DELETE FROM documents WHERE id = ?').run(id)
   }
 }
