@@ -376,6 +376,11 @@ export type BanjuanEventMap = {
   'tag:removed': { targetId: string; targetType: TagTarget; tagName: string }
   'library:opened': { path: string }
   'library:closed': { path: string }
+  'sync:started': { timestamp: number }
+  'sync:completed': { result: { uploaded: number; downloaded: number; deletedLocal: number; deletedRemote: number; errors: string[] } }
+  'sync:error': { error: string }
+  'sync:file:uploaded': { path: string }
+  'sync:file:downloaded': { path: string }
 }
 
 export type BanjuanEvent = keyof BanjuanEventMap

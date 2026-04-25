@@ -165,6 +165,24 @@ describe('SyncService', () => {
     })
   })
 
+  describe('events', () => {
+    it('emits sync:started and sync:completed', async () => {
+      const { EventBus } = await import('../../src/events/bus.js')
+      const events = new EventBus()
+      const evSyncService = new SyncService(libPath, adapter, events)
+
+      let started = false
+      let completed = false
+      events.on('sync:started', () => { started = true })
+      events.on('sync:completed', () => { completed = true })
+
+      await evSyncService.sync()
+
+      expect(started).toBe(true)
+      expect(completed).toBe(true)
+    })
+  })
+
   describe('snapshot', () => {
     it('writes sync-snapshot.json after sync', async () => {
       await syncService.sync()

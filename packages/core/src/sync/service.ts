@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, existsSync, statSync, unlinkSync, readdirS
 import { join, relative, dirname } from 'node:path'
 import type { SyncAdapter } from './adapter.js'
 import type { SyncSnapshot } from '../types.js'
+import type { EventBus } from '../events/bus.js'
 
 export interface SyncResult {
   uploaded: number
@@ -15,12 +16,13 @@ export class SyncService {
   private snapshotPath: string
   private banjuanDir: string
 
-  constructor(private rootPath: string, private adapter: SyncAdapter) {
+  constructor(private rootPath: string, private adapter: SyncAdapter, private events?: EventBus) {
     this.banjuanDir = join(rootPath, '.banjuan')
     this.snapshotPath = join(this.banjuanDir, 'sync-snapshot.json')
   }
 
   async sync(): Promise<SyncResult> {
+    this.events?.emit('sync:started', { timestamp: Date.now() })
     const result: SyncResult = { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0, errors: [] }
 
     const localFiles = this.collectLocalFiles()
@@ -42,10 +44,12 @@ export class SyncService {
           if (remote.mtime > local.mtime + 1000) {
             await this.adapter.download(this.toRemotePath(path), local.absolutePath)
             result.downloaded++
+            this.events?.emit('sync:file:downloaded', { path })
           } else if (local.mtime > remote.mtime + 1000) {
             await this.ensureRemoteDir(path)
             await this.adapter.upload(local.absolutePath, this.toRemotePath(path))
             result.uploaded++
+            this.events?.emit('sync:file:uploaded', { path })
           }
         } else if (local && !remote) {
           if (snapshotSet && snapshotSet.has(path)) {
@@ -55,6 +59,7 @@ export class SyncService {
             await this.ensureRemoteDir(path)
             await this.adapter.upload(local.absolutePath, this.toRemotePath(path))
             result.uploaded++
+            this.events?.emit('sync:file:uploaded', { path })
           }
         } else if (!local && remote) {
           if (snapshotSet && snapshotSet.has(path)) {
@@ -65,10 +70,12 @@ export class SyncService {
             mkdirSync(dirname(localPath), { recursive: true })
             await this.adapter.download(this.toRemotePath(path), localPath)
             result.downloaded++
+            this.events?.emit('sync:file:downloaded', { path })
           }
         }
       } catch (err) {
         result.errors.push(`${path}: ${(err as Error).message}`)
+        this.events?.emit('sync:error', { error: (err as Error).message })
       }
     }
 
@@ -81,6 +88,7 @@ export class SyncService {
     ])]
     this.writeSnapshot({ timestamp: Date.now(), files: finalFiles })
 
+    this.events?.emit('sync:completed', { result })
     return result
   }
 
