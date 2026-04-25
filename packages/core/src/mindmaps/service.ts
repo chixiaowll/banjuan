@@ -208,11 +208,26 @@ export class MindmapService {
         fileData.updatedAt = new Date().toISOString()
         this.writeFileData(fileData)
       }
-    }
 
-    this.db.prepare('DELETE FROM mindmap_nodes WHERE parent_id = ?').run(id)
-    this.db.prepare('DELETE FROM mindmap_nodes WHERE id = ?').run(id)
-    if (nodeRow) this.events.emit('mindmap:node:removed', { id, mindmapId: nodeRow.mindmap_id })
+      const allIds = this.collectDescendantIds(id)
+      allIds.push(id)
+      const placeholders = allIds.map(() => '?').join(', ')
+      this.db.prepare(`DELETE FROM mindmap_edges WHERE source_id IN (${placeholders}) OR target_id IN (${placeholders})`).run(...allIds, ...allIds)
+      this.db.prepare(`DELETE FROM mindmap_nodes WHERE id IN (${placeholders})`).run(...allIds)
+      this.events.emit('mindmap:node:removed', { id, mindmapId: nodeRow.mindmap_id })
+    } else {
+      this.db.prepare('DELETE FROM mindmap_nodes WHERE id = ?').run(id)
+    }
+  }
+
+  private collectDescendantIds(parentId: string): string[] {
+    const children = this.db.prepare('SELECT id FROM mindmap_nodes WHERE parent_id = ?').all(parentId) as { id: string }[]
+    const result: string[] = []
+    for (const child of children) {
+      result.push(child.id)
+      result.push(...this.collectDescendantIds(child.id))
+    }
+    return result
   }
 
   private collectChildIds(parentId: string, nodes: MindmapFileData['nodes']): string[] {
