@@ -71,6 +71,13 @@ const api = {
   graph: {
     getData: () => ipcRenderer.invoke('graph:getData'),
   },
+  plugins: {
+    list: () => ipcRenderer.invoke('plugins:list'),
+    loadAll: () => ipcRenderer.invoke('plugins:loadAll'),
+    unload: (pluginId: string) => ipcRenderer.invoke('plugins:unload', pluginId),
+    getCommands: () => ipcRenderer.invoke('plugins:getCommands'),
+    runCommand: (commandId: string) => ipcRenderer.invoke('plugins:runCommand', commandId),
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)
