@@ -8,11 +8,13 @@ let library: Library | null = null
 export function registerIpcHandlers() {
   ipcMain.handle('library:init', async (_event, path: string) => {
     library = Library.init(path)
+    await library.plugins.loadAll()
     return { rootPath: library.rootPath }
   })
 
   ipcMain.handle('library:open', async (_event, path: string) => {
     library = Library.open(path)
+    await library.plugins.loadAll()
     return { rootPath: library.rootPath }
   })
 
@@ -220,5 +222,30 @@ export function registerIpcHandlers() {
   ipcMain.handle('graph:getData', async () => {
     if (!library) throw new Error('No library open')
     return library.graph.getData()
+  })
+
+  ipcMain.handle('plugins:list', async () => {
+    if (!library) throw new Error('No library open')
+    return library.plugins.list()
+  })
+
+  ipcMain.handle('plugins:loadAll', async () => {
+    if (!library) throw new Error('No library open')
+    await library.plugins.loadAll()
+  })
+
+  ipcMain.handle('plugins:unload', async (_event, pluginId: string) => {
+    if (!library) throw new Error('No library open')
+    await library.plugins.unload(pluginId)
+  })
+
+  ipcMain.handle('plugins:getCommands', async () => {
+    if (!library) throw new Error('No library open')
+    return library.plugins.getCommands().map(c => ({ id: c.id, name: c.name, pluginId: c.pluginId }))
+  })
+
+  ipcMain.handle('plugins:runCommand', async (_event, commandId: string) => {
+    if (!library) throw new Error('No library open')
+    await library.plugins.runCommand(commandId)
   })
 }

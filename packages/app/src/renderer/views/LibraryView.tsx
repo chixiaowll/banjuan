@@ -19,6 +19,8 @@ interface Props {
 export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMindmap, onOpenGraph }: Props) {
   const [documents, setDocuments] = useState<Document[]>([])
   const [mindmaps, setMindmaps] = useState<any[]>([])
+  const [plugins, setPlugins] = useState<any[]>([])
+  const [showPlugins, setShowPlugins] = useState(false)
 
   const loadDocuments = async () => {
     const docs = await window.electronAPI.documents.list()
@@ -43,6 +45,11 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
     const map = await window.electronAPI.mindmaps.create({ title })
     await loadMindmaps()
     onOpenMindmap(map)
+  }
+
+  const loadPlugins = async () => {
+    const list = await window.electronAPI.plugins.list()
+    setPlugins(list)
   }
 
   const handleDelete = async (id: string) => {
@@ -77,6 +84,23 @@ export default function LibraryView({ rootPath, onOpenDoc, onOpenNote, onOpenMin
         <button onClick={onOpenGraph} style={{ marginTop: 16, width: '100%' }}>
           知识图谱
         </button>
+        <button onClick={() => { setShowPlugins(s => !s); if (!showPlugins) loadPlugins() }} style={{ marginTop: 8, width: '100%' }}>
+          插件 {plugins.length > 0 && `(${plugins.length})`}
+        </button>
+        {showPlugins && (
+          <div style={{ marginTop: 8, fontSize: 12 }}>
+            {plugins.length === 0 && <div style={{ color: 'var(--text-muted)', padding: '4px 0' }}>无已加载插件</div>}
+            {plugins.map(p => (
+              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                <span>{p.name} <span style={{ color: 'var(--text-muted)' }}>v{p.version}</span></span>
+                <button onClick={async () => {
+                  await window.electronAPI.plugins.unload(p.id)
+                  setPlugins(ps => ps.filter(x => x.id !== p.id))
+                }} style={{ fontSize: 11 }}>卸载</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ flex: 1, padding: '24px', overflow: 'auto' }}>

@@ -61,6 +61,13 @@ interface ElectronAPI {
   graph: {
     getData: () => Promise<{ nodes: any[]; edges: any[] }>
   }
+  plugins: {
+    list: () => Promise<Array<{ id: string; name: string; version: string; description: string; enabled: boolean; path: string }>>
+    loadAll: () => Promise<void>
+    unload: (pluginId: string) => Promise<void>
+    getCommands: () => Promise<Array<{ id: string; name: string; pluginId: string }>>
+    runCommand: (commandId: string) => Promise<void>
+  }
 }
 
 declare global {
