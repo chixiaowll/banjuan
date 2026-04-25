@@ -35,3 +35,62 @@ button.primary {
 }
 
 button.primary:hover { opacity: 0.9; }
+
+/* Input fields */
+input[type="text"],
+input[type="search"] {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+}
+
+input[type="text"]:focus,
+input[type="search"]:focus {
+  border-color: var(--accent);
+}
+
+input[type="text"]::placeholder,
+input[type="search"]::placeholder {
+  color: var(--text-muted);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Table row states */
+.table-row {
+  transition: background 0.08s ease;
+}
+
+.table-row:hover {
+  background: rgba(137, 180, 250, 0.08) !important;
+}
+
+.table-row-selected {
+  background: rgba(137, 180, 250, 0.15) !important;
+}
+
+.table-row-selected:hover {
+  background: rgba(137, 180, 250, 0.2) !important;
+}
