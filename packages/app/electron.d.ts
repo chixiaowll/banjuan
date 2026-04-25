@@ -38,6 +38,26 @@ interface ElectronAPI {
     delete: (id: string) => Promise<void>
     getAnnotations: (noteId: string) => Promise<any[]>
   }
+  mindmaps: {
+    create: (input: { title: string; docId?: string; layout?: string }) => Promise<any>
+    list: (options?: { docId?: string }) => Promise<any[]>
+    get: (id: string) => Promise<any>
+    update: (id: string, updates: { title?: string; layout?: string; docId?: string }) => Promise<any>
+    delete: (id: string) => Promise<void>
+    addNode: (mindmapId: string, input: {
+      title: string; parentId?: string; annotationId?: string;
+      content?: string; color?: string; positionX?: number; positionY?: number
+    }) => Promise<any>
+    getNodes: (mindmapId: string) => Promise<any[]>
+    updateNode: (id: string, updates: {
+      title?: string; content?: string; color?: string;
+      positionX?: number; positionY?: number; collapsed?: boolean; sortOrder?: number
+    }) => Promise<any>
+    removeNode: (id: string) => Promise<void>
+    addEdge: (mindmapId: string, input: { sourceId: string; targetId: string; label?: string }) => Promise<any>
+    getEdges: (mindmapId: string) => Promise<any[]>
+    removeEdge: (id: string) => Promise<void>
+  }
 }
 
 declare global {

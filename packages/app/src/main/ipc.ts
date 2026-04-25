@@ -144,4 +144,76 @@ export function registerIpcHandlers() {
     if (!library) throw new Error('No library open')
     return library.notes.getAnnotations(noteId)
   })
+
+  ipcMain.handle('mindmaps:create', async (_event, input: {
+    title: string; docId?: string; layout?: string
+  }) => {
+    if (!library) throw new Error('No library open')
+    return library.mindmaps.create(input as any)
+  })
+
+  ipcMain.handle('mindmaps:list', async (_event, options?: { docId?: string }) => {
+    if (!library) throw new Error('No library open')
+    return library.mindmaps.list(options)
+  })
+
+  ipcMain.handle('mindmaps:get', async (_event, id: string) => {
+    if (!library) throw new Error('No library open')
+    return library.mindmaps.get(id)
+  })
+
+  ipcMain.handle('mindmaps:update', async (_event, id: string, updates: {
+    title?: string; layout?: string; docId?: string
+  }) => {
+    if (!library) throw new Error('No library open')
+    return library.mindmaps.update(id, updates as any)
+  })
+
+  ipcMain.handle('mindmaps:delete', async (_event, id: string) => {
+    if (!library) throw new Error('No library open')
+    return library.mindmaps.delete(id)
+  })
+
+  ipcMain.handle('mindmaps:addNode', async (_event, mindmapId: string, input: {
+    title: string; parentId?: string; annotationId?: string;
+    content?: string; color?: string; positionX?: number; positionY?: number
+  }) => {
+    if (!library) throw new Error('No library open')
+    return library.mindmaps.addNode(mindmapId, input)
+  })
+
+  ipcMain.handle('mindmaps:getNodes', async (_event, mindmapId: string) => {
+    if (!library) throw new Error('No library open')
+    return library.mindmaps.getNodes(mindmapId)
+  })
+
+  ipcMain.handle('mindmaps:updateNode', async (_event, id: string, updates: {
+    title?: string; content?: string; color?: string;
+    positionX?: number; positionY?: number; collapsed?: boolean; sortOrder?: number
+  }) => {
+    if (!library) throw new Error('No library open')
+    return library.mindmaps.updateNode(id, updates)
+  })
+
+  ipcMain.handle('mindmaps:removeNode', async (_event, id: string) => {
+    if (!library) throw new Error('No library open')
+    return library.mindmaps.removeNode(id)
+  })
+
+  ipcMain.handle('mindmaps:addEdge', async (_event, mindmapId: string, input: {
+    sourceId: string; targetId: string; label?: string
+  }) => {
+    if (!library) throw new Error('No library open')
+    return library.mindmaps.addEdge(mindmapId, input)
+  })
+
+  ipcMain.handle('mindmaps:getEdges', async (_event, mindmapId: string) => {
+    if (!library) throw new Error('No library open')
+    return library.mindmaps.getEdges(mindmapId)
+  })
+
+  ipcMain.handle('mindmaps:removeEdge', async (_event, id: string) => {
+    if (!library) throw new Error('No library open')
+    return library.mindmaps.removeEdge(id)
+  })
 }
