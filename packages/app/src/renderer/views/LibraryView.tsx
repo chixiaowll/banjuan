@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import NoteList from '../components/notes/NoteList.js'
 
 interface Document {
   id: string
@@ -10,9 +11,10 @@ interface Document {
 interface Props {
   rootPath: string
   onOpenDoc: (doc: Document) => void
+  onOpenNote: (note: any) => void
 }
 
-export default function LibraryView({ rootPath, onOpenDoc }: Props) {
+export default function LibraryView({ rootPath, onOpenDoc, onOpenNote }: Props) {
   const [documents, setDocuments] = useState<Document[]>([])
 
   const loadDocuments = async () => {
@@ -43,6 +45,7 @@ export default function LibraryView({ rootPath, onOpenDoc }: Props) {
         <button className="primary" onClick={handleImport} style={{ marginTop: '16px' }}>
           导入文档
         </button>
+        <div style={{ marginTop: 24 }}><NoteList onOpenNote={onOpenNote} /></div>
       </div>
 
       <div style={{ flex: 1, padding: '24px', overflow: 'auto' }}>
