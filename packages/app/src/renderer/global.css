@@ -1,10 +1,12 @@
 :root {
-  --bg: #1e1e2e;
-  --surface: #292940;
-  --text: #cdd6f4;
-  --text-muted: #6c7086;
-  --accent: #89b4fa;
-  --border: #45475a;
+  --bg: #ffffff;
+  --surface: #f6f6f6;
+  --text: #333333;
+  --text-muted: #888888;
+  --accent: #4072c4;
+  --border: #d4d4d4;
+  --hover: #e8e8e8;
+  --selected: #d0def0;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -19,18 +21,18 @@ body {
 button {
   cursor: pointer;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--bg);
   color: var(--text);
   padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 4px;
+  font-size: 13px;
 }
 
-button:hover { background: var(--border); }
+button:hover { background: var(--hover); }
 
 button.primary {
   background: var(--accent);
-  color: var(--bg);
+  color: #ffffff;
   border: none;
 }
 
@@ -38,6 +40,7 @@ button.primary:hover { opacity: 0.9; }
 
 /* Input fields */
 input[type="text"],
+input[type="password"],
 input[type="search"] {
   background: var(--bg);
   color: var(--text);
@@ -50,11 +53,13 @@ input[type="search"] {
 }
 
 input[type="text"]:focus,
+input[type="password"]:focus,
 input[type="search"]:focus {
   border-color: var(--accent);
 }
 
 input[type="text"]::placeholder,
+input[type="password"]::placeholder,
 input[type="search"]::placeholder {
   color: var(--text-muted);
 }
@@ -80,17 +85,17 @@ input[type="search"]::placeholder {
 
 /* Table row states */
 .table-row {
-  transition: background 0.08s ease;
+  transition: background 0.05s ease;
 }
 
 .table-row:hover {
-  background: rgba(137, 180, 250, 0.08) !important;
+  background: var(--hover) !important;
 }
 
 .table-row-selected {
-  background: rgba(137, 180, 250, 0.15) !important;
+  background: var(--selected) !important;
 }
 
 .table-row-selected:hover {
-  background: rgba(137, 180, 250, 0.2) !important;
+  background: var(--selected) !important;
 }
