@@ -4,6 +4,7 @@ import TextViewer from './TextViewer.js'
 import MarkdownViewer from './MarkdownViewer.js'
 import ImageViewer from './ImageViewer.js'
 import VideoViewer from './VideoViewer.js'
+import EpubViewer from './EpubViewer.js'
 
 interface DocInfo {
   id: string
@@ -45,7 +46,7 @@ export default function DocumentViewer({ doc, onBack }: Props) {
       case 'video':
         return <VideoViewer filePath={filePath} />
       case 'epub':
-        return <div style={{ padding: 24, color: 'var(--text-muted)' }}>EPUB viewer coming soon...</div>
+        return <EpubViewer filePath={filePath} />
       default:
         return <div style={{ padding: 24 }}>Unsupported document type: {doc.type}</div>
     }
