@@ -26,6 +26,8 @@ export class NoteService {
       .prepare(`INSERT INTO notes (id, title, path, doc_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`)
       .run(id, input.title, relativePath, input.docId ?? null, now, now)
 
+    this.search.index({ id, title: input.title, content: input.content ?? '', type: 'note' })
+
     if (input.annotationIds?.length) {
       const insertLink = this.db.prepare('INSERT INTO note_annotations (note_id, annotation_id) VALUES (?, ?)')
       for (const annId of input.annotationIds) { insertLink.run(id, annId) }
@@ -86,6 +88,7 @@ export class NoteService {
     if (!row) return
     const filePath = join(this.rootPath, 'notes', row.path)
     if (existsSync(filePath)) { unlinkSync(filePath) }
+    this.search.removeById(id)
     this.db.prepare('DELETE FROM notes WHERE id = ?').run(id)
   }
 
