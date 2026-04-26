@@ -3,16 +3,19 @@ import TitleBar, { type Tab } from './TitleBar.js'
 import LibraryView from '../views/LibraryView.js'
 import DocumentViewer from './viewers/DocumentViewer.js'
 import NoteView from '../views/NoteView.js'
+import { useT } from '../i18n/index.js'
 
 const LIBRARY_TAB_ID = 'library'
 
 interface Props {
   libraryPath: string
+  libraryName: string
 }
 
-export default function TabManager({ libraryPath }: Props) {
+export default function TabManager({ libraryPath, libraryName }: Props) {
+  const t = useT()
   const [tabs, setTabs] = useState<Tab[]>([
-    { id: LIBRARY_TAB_ID, type: 'library', title: '书库', closable: false },
+    { id: LIBRARY_TAB_ID, type: 'library', title: libraryName, closable: false },
   ])
   const [activeTabId, setActiveTabId] = useState(LIBRARY_TAB_ID)
   const [tabData, setTabData] = useState<Map<string, any>>(() => new Map())
@@ -74,6 +77,7 @@ export default function TabManager({ libraryPath }: Props) {
             {tab.type === 'library' && (
               <LibraryView
                 rootPath={libraryPath}
+                libraryName={libraryName}
                 onOpenDoc={openDocument}
                 onOpenNote={openNote}
                 onOpenMindmap={() => {}}
@@ -91,6 +95,7 @@ export default function TabManager({ libraryPath }: Props) {
               <NoteView
                 note={tabData.get(tab.id)}
                 onBack={() => closeTab(tab.id)}
+                onOpenNote={openNote}
               />
             )}
           </div>
