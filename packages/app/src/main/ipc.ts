@@ -32,6 +32,7 @@ export function registerIpcHandlers() {
   ipcMain.handle('library:open', async (event, path: string) => {
     const lib = Library.open(path)
     libraries.set(event.sender.id, lib)
+    await Library.migrateNotes(path)
     const syncResult = await lib.syncWithDisk()
     await lib.plugins.loadAll()
     const indexService = lib.createIndexService()
