@@ -33,6 +33,13 @@ export class GraphService {
       }
     }
 
+    const noteLinks = this.db.prepare('SELECT source_id, target_id FROM note_links').all() as Array<{ source_id: string; target_id: string }>
+    for (const link of noteLinks) {
+      if (nodeIds.has(link.source_id) && nodeIds.has(link.target_id)) {
+        edges.push({ source: link.source_id, target: link.target_id, type: 'note-note' })
+      }
+    }
+
     const annLinks = this.db.prepare(`
       SELECT DISTINCT n.id as note_id, a.doc_id
       FROM note_annotations na
