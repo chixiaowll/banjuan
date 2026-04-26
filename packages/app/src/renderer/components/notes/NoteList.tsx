@@ -1,10 +1,14 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
+import { useI18n } from '../../i18n/index.js'
+import TemplatePicker from './TemplatePicker.js'
 
 interface Note {
   id: string
   title: string
   docId: string | null
+  folderId: string | null
   createdAt: string
+  updatedAt: string
 }
 
 interface Props {
@@ -12,19 +16,25 @@ interface Props {
 }
 
 export default function NoteList({ onOpenNote }: Props) {
+  const { t, locale } = useI18n()
   const [notes, setNotes] = useState<Note[]>([])
+  const [showPicker, setShowPicker] = useState(false)
 
-  const loadNotes = async () => {
-    const list = await window.electronAPI.notes.list()
+  const loadNotes = useCallback(async () => {
+    const list = await window.electronAPI.notes.list({ sort: 'updated_at', order: 'desc' })
     setNotes(list)
-  }
+  }, [])
 
-  useEffect(() => { loadNotes() }, [])
+  useEffect(() => { loadNotes() }, [loadNotes])
 
-  const handleCreate = async () => {
-    const title = prompt('笔记标题：')
+  const handleCreate = async (templateId: string | null) => {
+    setShowPicker(false)
+    const title = prompt(t('prompt.noteTitle'))
     if (!title) return
-    const note = await window.electronAPI.notes.create({ title, content: '' })
+    const note = await window.electronAPI.notes.create({
+      title,
+      templateId: templateId ?? undefined,
+    })
     await loadNotes()
     onOpenNote(note)
   }
@@ -35,17 +45,19 @@ export default function NoteList({ onOpenNote }: Props) {
     await loadNotes()
   }
 
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US')
+
   return (
     <div>
       <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        marginBottom: 12,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
       }}>
-        <h3 style={{ fontSize: 14, margin: 0 }}>笔记</h3>
-        <button onClick={handleCreate} style={{ fontSize: 12 }}>+ 新建</button>
+        <h3 style={{ fontSize: 14, margin: 0 }}>{t('library.notes')}</h3>
+        <button onClick={() => setShowPicker(true)} style={{ fontSize: 12 }}>{t('common.new')}</button>
       </div>
       {notes.length === 0 ? (
-        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>还没有笔记</p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('library.emptyNotes')}</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {notes.map((note) => (
@@ -53,32 +65,29 @@ export default function NoteList({ onOpenNote }: Props) {
               key={note.id}
               onClick={() => onOpenNote(note)}
               style={{
-                padding: '8px 10px',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: 13,
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
+                padding: '8px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13,
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}
             >
               <div>
                 <div style={{ fontWeight: 500 }}>{note.title}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                  {new Date(note.createdAt).toLocaleDateString('zh-CN')}
+                  {formatDate(note.updatedAt || note.createdAt)}
                 </div>
               </div>
               <button
                 onClick={(e) => handleDelete(e, note.id)}
                 style={{ fontSize: 11, color: '#f38ba8', borderColor: '#f38ba8' }}
               >
-                删除
+                {t('common.delete')}
               </button>
             </div>
           ))}
         </div>
+      )}
+      {showPicker && (
+        <TemplatePicker onSelect={handleCreate} onClose={() => setShowPicker(false)} />
       )}
     </div>
   )
