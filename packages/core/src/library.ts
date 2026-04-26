@@ -6,6 +6,8 @@ import { initSchema } from './db/schema.js'
 import { DocumentService } from './documents/service.js'
 import { AnnotationService } from './annotations/service.js'
 import { NoteService } from './notes/service.js'
+import { NoteLinkService } from './notes/link-service.js'
+import { FolderService } from './notes/folder-service.js'
 import { TagService } from './tags/service.js'
 import { SearchService } from './search/service.js'
 import { MindmapService } from './mindmaps/service.js'
@@ -17,18 +19,22 @@ import { WebDAVAdapter } from './sync/webdav-adapter.js'
 import { SyncService } from './sync/service.js'
 import { StubService } from './sync/stub-service.js'
 import { IndexService } from './indexing/service.js'
+import { TemplateService } from './notes/template-service.js'
 
 export class Library {
   readonly rootPath: string
   readonly documents: DocumentService
   readonly annotations: AnnotationService
   readonly notes: NoteService
+  readonly folders: FolderService
+  readonly noteLinks: NoteLinkService
   readonly tags: TagService
   readonly search: SearchService
   readonly mindmaps: MindmapService
   readonly graph: GraphService
   readonly events: EventBus
   readonly plugins: PluginManager
+  readonly templates: TemplateService
   private db: Database.Database
 
   private constructor(rootPath: string, db: Database.Database) {
@@ -39,13 +45,20 @@ export class Library {
     this.documents = new DocumentService(db, rootPath, this.search, this.events)
     this.annotations = new AnnotationService(db, rootPath, this.events)
     this.notes = new NoteService(db, rootPath, this.search, this.events)
+    this.folders = new FolderService(db, this.events)
+    this.noteLinks = new NoteLinkService(db)
     this.tags = new TagService(db, rootPath, this.events)
     this.mindmaps = new MindmapService(db, rootPath, this.events)
     this.graph = new GraphService(db)
     this.plugins = new PluginManager(this, this.events, rootPath)
+    this.templates = new TemplateService(db)
   }
 
-  static init(rootPath: string): Library {
+  static isLibrary(rootPath: string): boolean {
+    return existsSync(join(rootPath, '.banjuan'))
+  }
+
+  static init(rootPath: string, name?: string): Library {
     const banjuanDir = join(rootPath, '.banjuan')
     if (existsSync(banjuanDir)) {
       throw new Error(`Library already exists at ${rootPath}`)
@@ -56,10 +69,10 @@ export class Library {
     mkdirSync(join(banjuanDir, 'data', 'annotations'), { recursive: true })
     mkdirSync(join(banjuanDir, 'data', 'mindmaps'), { recursive: true })
     mkdirSync(join(banjuanDir, 'stubs'), { recursive: true })
-    mkdirSync(join(rootPath, 'notes'), { recursive: true })
+    mkdirSync(join(banjuanDir, 'notes'), { recursive: true })
 
     const config: LibraryConfig = {
-      name: 'My Library',
+      name: name || 'My Library',
       version: '1',
       createdAt: new Date().toISOString(),
     }
@@ -84,6 +97,15 @@ export class Library {
     initSchema(db)
 
     return new Library(rootPath, db)
+  }
+
+  getConfig(): LibraryConfig {
+    const configPath = join(this.rootPath, '.banjuan', 'config.json')
+    return JSON.parse(readFileSync(configPath, 'utf-8')) as LibraryConfig
+  }
+
+  get name(): string {
+    return this.getConfig().name
   }
 
   getSyncConfig(): SyncConfig | null {
@@ -115,10 +137,9 @@ export class Library {
     return new StubService(this.rootPath, adapter)
   }
 
-  async scanAndImport(): Promise<{ imported: number; skipped: number; errors: string[] }> {
-    const skipDirs = new Set(['.banjuan', 'notes', 'node_modules', '.git'])
+  private walkFiles(): string[] {
+    const skipDirs = new Set(['.banjuan', 'node_modules', '.git'])
     const files: string[] = []
-
     const walk = (dir: string) => {
       const entries = readdirSync(dir, { withFileTypes: true })
       for (const entry of entries) {
@@ -134,7 +155,11 @@ export class Library {
       }
     }
     walk(this.rootPath)
+    return files
+  }
 
+  async scanAndImport(): Promise<{ imported: number; skipped: number; errors: string[] }> {
+    const files = this.walkFiles()
     const result = { imported: 0, skipped: 0, errors: [] as string[] }
     for (const file of files) {
       try {
@@ -145,6 +170,32 @@ export class Library {
       }
     }
     return result
+  }
+
+  async syncWithDisk(): Promise<{ imported: number; removed: number }> {
+    const diskFiles = new Set(this.walkFiles().map(f => relative(this.rootPath, f)))
+    const docs = await this.documents.list()
+
+    let imported = 0
+    let removed = 0
+
+    for (const doc of docs) {
+      if (!diskFiles.has(doc.path)) {
+        await this.documents.delete(doc.id)
+        removed++
+      }
+    }
+
+    for (const relPath of diskFiles) {
+      try {
+        await this.documents.import(relPath)
+        imported++
+      } catch {
+        // already imported or unsupported
+      }
+    }
+
+    return { imported, removed }
   }
 
   async close(): Promise<void> {
