@@ -2,8 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 const api = {
   library: {
-    init: (path: string) => ipcRenderer.invoke('library:init', path),
+    check: (path: string) => ipcRenderer.invoke('library:check', path),
+    init: (path: string, name?: string) => ipcRenderer.invoke('library:init', path, name),
     open: (path: string) => ipcRenderer.invoke('library:open', path),
+    openNewWindow: () => ipcRenderer.invoke('library:openNewWindow'),
     isOpen: () => ipcRenderer.invoke('library:isOpen'),
   },
   dialog: {
@@ -33,20 +35,42 @@ const api = {
     list: (options: { docId: string; page?: number; type?: string; color?: string }) =>
       ipcRenderer.invoke('annotations:list', options),
     get: (id: string) => ipcRenderer.invoke('annotations:get', id),
-    update: (id: string, updates: { content?: string; color?: string }) =>
+    update: (id: string, updates: { content?: string; color?: string; position?: unknown }) =>
       ipcRenderer.invoke('annotations:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('annotations:delete', id),
   },
   notes: {
-    create: (input: { title: string; docId?: string; annotationIds?: string[]; content?: string }) =>
+    create: (input: { title: string; docId?: string; folderId?: string; annotationIds?: string[]; content?: string; templateId?: string }) =>
       ipcRenderer.invoke('notes:create', input),
-    list: (options?: { docId?: string; tag?: string; sort?: string; order?: string }) =>
+    list: (options?: { docId?: string; folderId?: string; tag?: string; sort?: string; order?: string }) =>
       ipcRenderer.invoke('notes:list', options),
     get: (id: string) => ipcRenderer.invoke('notes:get', id),
     update: (id: string, updates: { title?: string; content?: string }) =>
       ipcRenderer.invoke('notes:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('notes:delete', id),
     getAnnotations: (noteId: string) => ipcRenderer.invoke('notes:getAnnotations', noteId),
+    move: (id: string, folderId: string | null) => ipcRenderer.invoke('notes:move', id, folderId),
+  },
+  folders: {
+    create: (input: { name: string; parentId?: string }) => ipcRenderer.invoke('folders:create', input),
+    getTree: () => ipcRenderer.invoke('folders:getTree'),
+    update: (id: string, updates: { name?: string; parentId?: string; sortOrder?: number }) =>
+      ipcRenderer.invoke('folders:update', id, updates),
+    delete: (id: string) => ipcRenderer.invoke('folders:delete', id),
+  },
+  noteLinks: {
+    getBacklinks: (noteId: string) => ipcRenderer.invoke('noteLinks:getBacklinks', noteId),
+    sync: (noteId: string, links: Array<{ targetId: string; context: string }>) =>
+      ipcRenderer.invoke('noteLinks:sync', noteId, links),
+  },
+  templates: {
+    list: () => ipcRenderer.invoke('templates:list'),
+    get: (id: string) => ipcRenderer.invoke('templates:get', id),
+    create: (input: { name: string; description?: string; content: string }) =>
+      ipcRenderer.invoke('templates:create', input),
+    update: (id: string, updates: { name?: string; description?: string; content?: string; sortOrder?: number }) =>
+      ipcRenderer.invoke('templates:update', id, updates),
+    delete: (id: string) => ipcRenderer.invoke('templates:delete', id),
   },
   mindmaps: {
     create: (input: { title: string; docId?: string; layout?: string }) =>

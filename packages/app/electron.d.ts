@@ -1,7 +1,9 @@
 interface ElectronAPI {
   library: {
-    init: (path: string) => Promise<{ rootPath: string }>
-    open: (path: string) => Promise<{ rootPath: string }>
+    check: (path: string) => Promise<boolean>
+    init: (path: string, name?: string) => Promise<{ rootPath: string; name: string }>
+    open: (path: string) => Promise<{ rootPath: string; name: string }>
+    openNewWindow: () => Promise<void>
     isOpen: () => Promise<boolean>
   }
   dialog: {
@@ -29,16 +31,34 @@ interface ElectronAPI {
     }) => Promise<any>
     list: (options: { docId: string; page?: number; type?: string; color?: string }) => Promise<any[]>
     get: (id: string) => Promise<any>
-    update: (id: string, updates: { content?: string; color?: string }) => Promise<any>
+    update: (id: string, updates: { content?: string; color?: string; position?: unknown }) => Promise<any>
     delete: (id: string) => Promise<void>
   }
   notes: {
-    create: (input: { title: string; docId?: string; annotationIds?: string[]; content?: string }) => Promise<any>
-    list: (options?: { docId?: string; tag?: string; sort?: string; order?: string }) => Promise<any[]>
+    create: (input: { title: string; docId?: string; folderId?: string; annotationIds?: string[]; content?: string; templateId?: string }) => Promise<any>
+    list: (options?: { docId?: string; folderId?: string; tag?: string; sort?: string; order?: string }) => Promise<any[]>
     get: (id: string) => Promise<any>
     update: (id: string, updates: { title?: string; content?: string }) => Promise<any>
     delete: (id: string) => Promise<void>
     getAnnotations: (noteId: string) => Promise<any[]>
+    move: (id: string, folderId: string | null) => Promise<any>
+  }
+  folders: {
+    create: (input: { name: string; parentId?: string }) => Promise<any>
+    getTree: () => Promise<any[]>
+    update: (id: string, updates: { name?: string; parentId?: string; sortOrder?: number }) => Promise<any>
+    delete: (id: string) => Promise<void>
+  }
+  noteLinks: {
+    getBacklinks: (noteId: string) => Promise<any[]>
+    sync: (noteId: string, links: Array<{ targetId: string; context: string }>) => Promise<void>
+  }
+  templates: {
+    list: () => Promise<any[]>
+    get: (id: string) => Promise<any>
+    create: (input: { name: string; description?: string; content: string }) => Promise<any>
+    update: (id: string, updates: { name?: string; description?: string; content?: string; sortOrder?: number }) => Promise<any>
+    delete: (id: string) => Promise<void>
   }
   mindmaps: {
     create: (input: { title: string; docId?: string; layout?: string }) => Promise<any>
