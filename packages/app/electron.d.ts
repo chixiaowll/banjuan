@@ -12,8 +12,10 @@ interface ElectronAPI {
     list: (options?: Record<string, unknown>) => Promise<any[]>
     get: (id: string) => Promise<any>
     delete: (id: string) => Promise<void>
+    update: (id: string, updates: { title?: string; authors?: string[]; metadata?: Record<string, unknown> }) => Promise<any>
     getFilePath: (relativePath: string) => Promise<string>
     readContent: (relativePath: string) => Promise<string>
+    readFileBuffer: (relativePath: string) => Promise<ArrayBuffer>
   }
   tags: {
     list: () => Promise<any[]>
