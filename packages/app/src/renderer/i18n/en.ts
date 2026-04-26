@@ -1,0 +1,168 @@
+const en = {
+  // App name
+  'app.name': 'Banjuan',
+  'app.slogan': 'Read wisely, live fully',
+
+  // Welcome
+  'welcome.selectDir': 'Select Directory',
+  'welcome.opening': 'Opening...',
+  'welcome.createLibrary': 'Create New Library',
+  'welcome.createLibraryDesc': 'This directory is not yet a library. Give it a name to get started.',
+  'welcome.libraryName': 'Library Name',
+  'welcome.cancel': 'Cancel',
+  'welcome.creating': 'Creating...',
+  'welcome.create': 'Create',
+
+  // Common
+  'common.save': 'Save',
+  'common.cancel': 'Cancel',
+  'common.delete': 'Delete',
+  'common.edit': 'Edit',
+  'common.back': '← Back',
+  'common.loading': 'Loading...',
+  'common.search': 'Search...',
+  'common.import': 'Import',
+  'common.unload': 'Unload',
+  'common.new': '+ New',
+
+  // Library sidebar
+  'library.documents': 'Documents',
+  'library.notes': 'Notes',
+  'library.mindmaps': 'Mindmaps',
+  'library.graph': 'Knowledge Graph',
+  'library.sync': 'Sync',
+  'library.plugins': 'Plugins',
+  'library.tags': 'Tags',
+  'library.noTags': 'No tags',
+  'library.noPlugins': 'No plugins loaded',
+  'library.tab': 'Library',
+
+  // Library content
+  'library.newNote': 'New Note',
+  'library.newMindmap': 'New Mindmap',
+  'library.colTitle': 'Title',
+  'library.colType': 'Type',
+  'library.colCreatedAt': 'Created',
+  'library.emptyDir': 'No files in this directory',
+  'library.emptyDocuments': 'Library is empty',
+  'library.allNotes': 'All',
+  'library.recentNotes': 'Recent',
+  'library.emptyNotes': 'No notes yet',
+  'library.emptyMindmaps': 'No mindmaps yet',
+
+  // Library detail
+  'detail.title': 'Details',
+  'detail.docTitle': 'Title',
+  'detail.type': 'Type',
+  'detail.path': 'Path',
+  'detail.hash': 'Hash',
+  'detail.authors': 'Authors',
+  'detail.createdAt': 'Created',
+  'detail.updatedAt': 'Updated',
+  'detail.syncStatus': 'Sync Status',
+  'detail.synced': 'Synced',
+  'detail.cloud': 'Cloud',
+  'detail.local': 'Local',
+  'detail.download': 'Download',
+  'detail.upload': 'Upload',
+  'detail.downloadFailed': 'Download failed',
+  'detail.uploadFailed': 'Upload failed',
+
+  // Prompts
+  'prompt.noteTitle': 'Note title:',
+  'prompt.folderName': 'Folder name:',
+  'prompt.mindmapTitle': 'Mindmap title:',
+  'prompt.nodeTitle': 'Node title:',
+  'prompt.childNodeTitle': 'Child node title:',
+
+  // PDF viewer
+  'pdf.thumbnails': 'Thumbnails',
+  'pdf.outline': 'Outline',
+  'pdf.annotations': 'Annotations',
+  'pdf.notes': 'Notes',
+  'pdf.noAnnotations': 'No annotations',
+  'pdf.noNotes': 'No notes',
+  'pdf.noOutline': 'No outline available',
+  'pdf.newNote': '+ New Note',
+  'pdf.loadingPdf': 'Loading PDF...',
+  'pdf.areaScreenshot': 'Area screenshot',
+  'pdf.areaSelect': 'Area selection',
+  'pdf.page': 'Page {0}',
+
+  // PDF tools
+  'tool.highlight': 'Highlight',
+  'tool.text': 'Text',
+  'tool.area': 'Area',
+  'tool.ink': 'Ink',
+  'tool.eraser': 'Eraser',
+  'tool.noteInput': 'Enter note...',
+
+  // Note view
+  'note.saving': 'Saving...',
+  'note.saved': 'Saved',
+
+  // Mindmap
+  'mindmap.label': 'Mindmap',
+  'mindmap.addRoot': '+ Root',
+  'mindmap.addChild': '+ Child',
+
+  // Sync
+  'sync.title': 'WebDAV Sync Config',
+  'sync.url': 'WebDAV URL',
+  'sync.username': 'Username',
+  'sync.password': 'Password',
+  'sync.remotePath': 'Remote Path',
+  'sync.saveConfig': 'Save Config',
+  'sync.saving': 'Saving…',
+  'sync.syncNow': 'Sync Now',
+  'sync.syncing': 'Syncing…',
+  'sync.configSaved': 'Config saved',
+  'sync.saveFailed': 'Save failed: {0}',
+  'sync.syncSuccess': 'Sync complete — uploaded {0}, downloaded {1}, deleted local {2}, deleted remote {3}',
+  'sync.syncWithErrors': 'Sync completed with errors: {0}',
+  'sync.syncFailed': 'Sync failed: {0}',
+
+  // Annotation sidebar
+  'annotation.title': 'Annotations',
+  'annotation.highlight': 'Highlight',
+  'annotation.note': 'Note',
+  'annotation.empty': 'Select text to create annotations',
+
+  // Settings
+  'settings.title': 'Settings',
+  'settings.language': 'Language / 语言',
+
+  // Selection toolbar
+  'selection.annotate': 'Annotate',
+
+  // Search
+  'search.placeholder': 'Search...',
+  'search.caseSensitive': 'Aa',
+  'search.wholeWord': 'Word',
+
+  // Graph
+  'graph.title': 'Knowledge Graph',
+  'graph.stats': '{0} nodes · {1} edges',
+  'graph.empty': 'Knowledge graph will be generated after adding documents and notes',
+
+  // PDF info sidebar
+  'info.addField': '+ Add Field',
+
+  // EPUB viewer
+  'epub.outline': 'Outline',
+  'epub.annotations': 'Annotations',
+  'epub.notes': 'Notes',
+  'epub.noAnnotations': 'No annotations',
+  'epub.noNotes': 'No notes',
+  'epub.noOutline': 'No outline available',
+  'epub.newNote': '+ New Note',
+  'epub.chapter': 'Chapter',
+
+  // Note creation from PDF
+  'note.defaultTitle': '{0} — Notes',
+
+  // Multi-window
+  'library.openAnother': 'Open Another Library',
+} as const
+
+export default en

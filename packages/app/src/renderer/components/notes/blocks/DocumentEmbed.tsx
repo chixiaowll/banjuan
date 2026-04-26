@@ -3,25 +3,21 @@ import { createReactBlockSpec } from '@blocknote/react'
 
 export const DocumentEmbed = createReactBlockSpec(
   {
-    type: 'documentEmbed',
+    type: 'documentEmbed' as const,
     propSchema: {
       docId: { default: '' },
       docTitle: { default: '' },
       authors: { default: '' },
       pageCount: { default: 0 },
     },
-    content: 'none',
+    content: 'none' as const,
   },
   {
     render: (props) => {
-      const { docId, docTitle, authors, pageCount } = props.block.props
-
-      const handleOpen = () => {
-        // Open document in new tab — implemented when wired into TabManager
-      }
+      const { docTitle, authors, pageCount } = props.block.props
 
       return (
-        <div className="document-embed" onClick={handleOpen} contentEditable={false}>
+        <div className="document-embed" contentEditable={false}>
           <div className="embed-title">📄 {docTitle || 'Untitled Document'}</div>
           <div className="embed-meta">
             {authors && <span>{authors}</span>}
@@ -32,4 +28,4 @@ export const DocumentEmbed = createReactBlockSpec(
       )
     },
   }
-)
+)()
