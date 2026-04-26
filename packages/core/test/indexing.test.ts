@@ -62,8 +62,9 @@ describe('IndexService', () => {
       expect(restored!.content).toBe('test annotation')
     })
 
-    it('rebuilds notes from .md frontmatter', async () => {
-      const note = await lib.notes.create({ title: 'Rebuild Note', content: 'hello' })
+    it('rebuilds notes from .json files', async () => {
+      const blocks = [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }]
+      const note = await lib.notes.create({ title: 'Rebuild Note', content: JSON.stringify(blocks) })
 
       const db = (lib as any).db
       db.prepare('DELETE FROM notes').run()
@@ -74,7 +75,7 @@ describe('IndexService', () => {
       const restored = await lib.notes.get(note.id)
       expect(restored).not.toBeNull()
       expect(restored!.title).toBe('Rebuild Note')
-      expect(restored!.content).toBe('hello')
+      expect(JSON.parse(restored!.content)).toEqual(blocks)
     })
 
     it('rebuilds mindmaps with nodes and edges', async () => {

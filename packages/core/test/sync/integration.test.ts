@@ -86,7 +86,7 @@ describe('Sync + Index Integration', () => {
   it('round-trip: create locally, sync, wipe SQLite, rebuild', async () => {
     createTestFile(libPath, 'round.pdf', Buffer.from('pdf'))
     const doc = await lib.documents.import('round.pdf')
-    const note = await lib.notes.create({ title: 'Round Trip', content: 'hello' })
+    const note = await lib.notes.create({ title: 'Round Trip', content: JSON.stringify([{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }]) })
 
     const syncService = new SyncService(libPath, adapter)
     await syncService.sync()
