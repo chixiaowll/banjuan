@@ -3,7 +3,7 @@ import { createReactBlockSpec } from '@blocknote/react'
 
 export const AnnotationEmbed = createReactBlockSpec(
   {
-    type: 'annotationEmbed',
+    type: 'annotationEmbed' as const,
     propSchema: {
       docId: { default: '' },
       annotationId: { default: '' },
@@ -12,15 +12,11 @@ export const AnnotationEmbed = createReactBlockSpec(
       docTitle: { default: '' },
       page: { default: 0 },
     },
-    content: 'none',
+    content: 'none' as const,
   },
   {
     render: (props) => {
-      const { docId, annotationId, quote, comment, docTitle, page } = props.block.props
-
-      const handleJump = async () => {
-        // Navigate to document at annotation position — implemented when wired into TabManager
-      }
+      const { quote, comment, docTitle, page } = props.block.props
 
       return (
         <div className="annotation-embed" contentEditable={false}>
@@ -33,11 +29,11 @@ export const AnnotationEmbed = createReactBlockSpec(
           {comment && (
             <div style={{ marginBottom: 8 }}>{comment}</div>
           )}
-          <div className="embed-jump" onClick={handleJump}>
+          <div className="embed-jump">
             跳转到原文 →
           </div>
         </div>
       )
     },
   }
-)
+)()
