@@ -14,8 +14,11 @@ const api = {
     list: (options?: Record<string, unknown>) => ipcRenderer.invoke('documents:list', options),
     get: (id: string) => ipcRenderer.invoke('documents:get', id),
     delete: (id: string) => ipcRenderer.invoke('documents:delete', id),
+    update: (id: string, updates: { title?: string; authors?: string[]; metadata?: Record<string, unknown> }) =>
+      ipcRenderer.invoke('documents:update', id, updates),
     getFilePath: (relativePath: string) => ipcRenderer.invoke('documents:getFilePath', relativePath),
     readContent: (relativePath: string) => ipcRenderer.invoke('documents:readContent', relativePath),
+    readFileBuffer: (relativePath: string) => ipcRenderer.invoke('documents:readFileBuffer', relativePath),
   },
   tags: {
     list: () => ipcRenderer.invoke('tags:list'),
