@@ -99,3 +99,122 @@ input[type="search"]::placeholder {
 .table-row-selected:hover {
   background: var(--selected) !important;
 }
+
+/* pdf.js text layer */
+.textLayer {
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 2;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.textLayer :is(span, br) {
+  color: #000;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.textLayer ::selection {
+  background: rgba(0, 100, 200, 0.25);
+}
+
+/* Title bar */
+.title-bar {
+  position: relative;
+  height: 38px;
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.title-bar-drag {
+  position: absolute;
+  inset: 0;
+  -webkit-app-region: drag;
+}
+
+.title-bar-tabs {
+  display: flex;
+  align-items: stretch;
+  padding-left: 78px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  position: relative;
+  z-index: 1;
+}
+
+.title-bar-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.title-bar-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  min-width: 80px;
+  max-width: 200px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: background 0.15s;
+}
+
+.title-bar-tab:hover {
+  background: var(--hover);
+}
+
+.title-bar-tab.active {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.title-bar-tab-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.title-bar-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title-bar-tab-close {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 16px;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title-bar-tab-close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
