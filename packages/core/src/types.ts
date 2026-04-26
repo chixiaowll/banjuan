@@ -136,7 +136,9 @@ export interface Note {
   title: string
   path: string
   docId: string | null
+  folderId: string | null
   content: string
+  contentFormat: 'json' | 'markdown'
   createdAt: string
   updatedAt: string
 }
@@ -144,15 +146,56 @@ export interface Note {
 export interface NoteCreateInput {
   title: string
   docId?: string
+  folderId?: string
   annotationIds?: string[]
   content?: string
+  templateId?: string
 }
 
 export interface NoteListOptions {
   docId?: string
+  folderId?: string
   tag?: string
   sort?: 'created_at' | 'title' | 'updated_at'
   order?: 'asc' | 'desc'
+}
+
+export interface Folder {
+  id: string
+  name: string
+  parentId: string | null
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+  children?: Folder[]
+}
+
+export interface FolderCreateInput {
+  name: string
+  parentId?: string
+}
+
+export interface NoteLink {
+  sourceId: string
+  targetId: string
+  context: string
+}
+
+export interface NoteTemplate {
+  id: string
+  name: string
+  description: string
+  content: string
+  isBuiltin: boolean
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NoteTemplateCreateInput {
+  name: string
+  description?: string
+  content: string
 }
 
 export interface Tag {
@@ -249,7 +292,7 @@ export interface GraphNode {
 export interface GraphEdge {
   source: string
   target: string
-  type: 'note-doc' | 'annotation-link' | 'mindmap-doc'
+  type: 'note-doc' | 'note-note' | 'annotation-link' | 'mindmap-doc'
 }
 
 export interface GraphData {
@@ -314,8 +357,10 @@ export interface NoteFileData {
   id: string
   title: string
   docId: string | null
+  folderId: string | null
   annotationIds: string[]
   tags: string[]
+  contentFormat: 'json' | 'markdown'
   createdAt: string
   updatedAt: string
 }
@@ -388,6 +433,9 @@ export type BanjuanEventMap = {
   'note:created': { note: Note }
   'note:updated': { note: Note }
   'note:deleted': { id: string }
+  'folder:created': { folder: Folder }
+  'folder:updated': { folder: Folder }
+  'folder:deleted': { id: string }
   'mindmap:created': { mindmap: Mindmap }
   'mindmap:updated': { mindmap: Mindmap }
   'mindmap:deleted': { id: string }

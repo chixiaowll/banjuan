@@ -30,7 +30,7 @@ export class NoteService {
     private search: SearchService,
     private events: EventBus,
   ) {
-    this.notesDir = join(rootPath, 'notes')
+    this.notesDir = join(rootPath, '.banjuan', 'notes')
   }
 
   async create(input: NoteCreateInput): Promise<Note> {
@@ -45,8 +45,10 @@ export class NoteService {
       id,
       title: input.title,
       docId: input.docId ?? null,
+      folderId: input.folderId ?? null,
       annotationIds: input.annotationIds ?? [],
       tags: [],
+      contentFormat: 'json',
       createdAt: now,
       updatedAt: now,
     }
@@ -54,8 +56,8 @@ export class NoteService {
     const mdContent = serializeFrontmatter(frontmatterData as unknown as Record<string, unknown>, input.content ?? '')
     writeFileSync(fullPath, mdContent)
 
-    this.db.prepare(`INSERT INTO notes (id, title, path, doc_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(id, input.title, filename, input.docId ?? null, now, now)
+    this.db.prepare(`INSERT INTO notes (id, title, path, doc_id, folder_id, content_format, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, input.title, filename, input.docId ?? null, input.folderId ?? null, 'json', now, now)
 
     this.search.index({ id, title: input.title, content: input.content ?? '', type: 'note' })
 
@@ -64,7 +66,7 @@ export class NoteService {
       for (const annId of input.annotationIds) { insertLink.run(id, annId) }
     }
 
-    const note: Note = { id, title: input.title, path: filename, docId: input.docId ?? null, content: input.content ?? '', createdAt: now, updatedAt: now }
+    const note: Note = { id, title: input.title, path: filename, docId: input.docId ?? null, folderId: input.folderId ?? null, content: input.content ?? '', contentFormat: 'json', createdAt: now, updatedAt: now }
     this.events.emit('note:created', { note })
     return note
   }
@@ -149,7 +151,8 @@ export class NoteService {
   private rowToNote(row: Record<string, unknown>): Note {
     return {
       id: row.id as string, title: row.title as string, path: row.path as string,
-      docId: row.doc_id as string | null, content: '',
+      docId: row.doc_id as string | null, folderId: row.folder_id as string | null,
+      content: '', contentFormat: (row.content_format as 'json' | 'markdown') ?? 'json',
       createdAt: row.created_at as string, updatedAt: row.updated_at as string,
     }
   }

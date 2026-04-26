@@ -21,7 +21,7 @@ export class FileWatcher {
 
   start(): void {
     const dataDir = join(this.rootPath, '.banjuan', 'data')
-    const notesDir = join(this.rootPath, 'notes')
+    const notesDir = join(this.rootPath, '.banjuan', 'notes')
 
     const watchDir = (dir: string) => {
       if (!existsSync(dir)) return
@@ -65,7 +65,7 @@ export class FileWatcher {
 
   private processChange(baseDir: string, filename: string): void {
     const fullPath = join(baseDir, filename)
-    const isNotesDir = baseDir === join(this.rootPath, 'notes')
+    const isNotesDir = baseDir === join(this.rootPath, '.banjuan', 'notes')
 
     if (isNotesDir && filename.endsWith('.md')) {
       this.reindexNote(filename)
@@ -122,15 +122,15 @@ export class FileWatcher {
   }
 
   private reindexNote(filename: string): void {
-    const filePath = join(this.rootPath, 'notes', filename)
+    const filePath = join(this.rootPath, '.banjuan', 'notes', filename)
     if (!existsSync(filePath)) return
     try {
       const raw = readFileSync(filePath, 'utf-8')
       const { data } = parseFrontmatter<NoteFileData>(raw)
       if (!data.id) return
       this.db.prepare(
-        `INSERT OR REPLACE INTO notes (id, title, path, doc_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
-      ).run(data.id, data.title ?? filename, filename, data.docId ?? null, data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString())
+        `INSERT OR REPLACE INTO notes (id, title, path, doc_id, folder_id, content_format, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(data.id, data.title ?? filename, filename, data.docId ?? null, data.folderId ?? null, data.contentFormat ?? 'json', data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString())
     } catch { /* ignore malformed files */ }
   }
 }

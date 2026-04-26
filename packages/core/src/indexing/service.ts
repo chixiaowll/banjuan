@@ -20,7 +20,7 @@ export class IndexService {
     this.mmStore = new JsonStore(join(banjuanDir, 'data', 'mindmaps'))
     this.metaPath = join(banjuanDir, 'db.meta.json')
     this.tagsPath = join(banjuanDir, 'tags.json')
-    this.notesDir = join(rootPath, 'notes')
+    this.notesDir = join(rootPath, '.banjuan', 'notes')
   }
 
   async rebuildFull(): Promise<void> {
@@ -110,8 +110,8 @@ export class IndexService {
     if (!data.id) return
 
     this.db.prepare(
-      `INSERT OR REPLACE INTO notes (id, title, path, doc_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(data.id, data.title ?? filename, filename, data.docId ?? null, data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString())
+      `INSERT OR REPLACE INTO notes (id, title, path, doc_id, folder_id, content_format, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(data.id, data.title ?? filename, filename, data.docId ?? null, data.folderId ?? null, data.contentFormat ?? 'json', data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString())
 
     this.db.prepare(
       `INSERT INTO search_index (rowid, title, content, type)
