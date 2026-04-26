@@ -52,6 +52,9 @@ export class Library {
     this.graph = new GraphService(db)
     this.plugins = new PluginManager(this, this.events, rootPath)
     this.templates = new TemplateService(db)
+
+    this.notes.setTemplateService(this.templates)
+    this.notes.setLinkService(this.noteLinks)
   }
 
   static isLibrary(rootPath: string): boolean {

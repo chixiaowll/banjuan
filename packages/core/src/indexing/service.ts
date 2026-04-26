@@ -97,12 +97,50 @@ export class IndexService {
     if (!existsSync(this.notesDir)) return
     const files = readdirSync(this.notesDir, { withFileTypes: true })
     for (const file of files) {
-      if (!file.isFile() || !file.name.endsWith('.md')) continue
-      this.indexNoteFile(file.name)
+      if (!file.isFile()) continue
+      if (file.name.endsWith('.json')) {
+        this.indexNoteJsonFile(file.name)
+      } else if (file.name.endsWith('.md')) {
+        this.indexNoteMdFile(file.name)
+      }
     }
   }
 
-  private indexNoteFile(filename: string): void {
+  private indexNoteJsonFile(filename: string): void {
+    const filePath = join(this.notesDir, filename)
+    const raw = JSON.parse(readFileSync(filePath, 'utf-8')) as { meta: NoteFileData; blocks: unknown[] }
+    const data = raw.meta
+
+    if (!data.id) return
+
+    this.db.prepare(
+      `INSERT OR REPLACE INTO notes (id, title, path, doc_id, folder_id, content_format, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(data.id, data.title ?? filename, filename, data.docId ?? null, data.folderId ?? null, 'json', data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString())
+
+    const textContent = this.blocksToText(raw.blocks ?? [])
+    this.db.prepare(
+      `INSERT INTO search_index (rowid, title, content, type)
+       VALUES ((SELECT COALESCE(MAX(rowid), 0) + 1 FROM search_index), ?, ?, ?)`
+    ).run(data.title ?? filename, textContent, `note:${data.id}`)
+
+    if (data.annotationIds?.length) {
+      const insertLink = this.db.prepare('INSERT OR IGNORE INTO note_annotations (note_id, annotation_id) VALUES (?, ?)')
+      for (const annId of data.annotationIds) {
+        insertLink.run(data.id, annId)
+      }
+    }
+
+    if (data.tags?.length) {
+      const findTag = this.db.prepare('SELECT id FROM tags WHERE name = ?')
+      const insertTag = this.db.prepare('INSERT OR IGNORE INTO note_tags (note_id, tag_id) VALUES (?, ?)')
+      for (const tagName of data.tags) {
+        const tag = findTag.get(tagName) as { id: string } | undefined
+        if (tag) insertTag.run(data.id, tag.id)
+      }
+    }
+  }
+
+  private indexNoteMdFile(filename: string): void {
     const filePath = join(this.notesDir, filename)
     const raw = readFileSync(filePath, 'utf-8')
     const { data, content } = parseFrontmatter<NoteFileData>(raw)
@@ -111,7 +149,7 @@ export class IndexService {
 
     this.db.prepare(
       `INSERT OR REPLACE INTO notes (id, title, path, doc_id, folder_id, content_format, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(data.id, data.title ?? filename, filename, data.docId ?? null, data.folderId ?? null, data.contentFormat ?? 'json', data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString())
+    ).run(data.id, data.title ?? filename, filename, data.docId ?? null, data.folderId ?? null, data.contentFormat ?? 'markdown', data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString())
 
     this.db.prepare(
       `INSERT INTO search_index (rowid, title, content, type)
@@ -133,6 +171,19 @@ export class IndexService {
         if (tag) insertTag.run(data.id, tag.id)
       }
     }
+  }
+
+  private blocksToText(blocks: unknown[]): string {
+    const texts: string[] = []
+    const extract = (obj: unknown) => {
+      if (!obj || typeof obj !== 'object') return
+      const o = obj as Record<string, unknown>
+      if ('text' in o && typeof o.text === 'string') texts.push(o.text)
+      if ('content' in o && Array.isArray(o.content)) o.content.forEach(extract)
+      if ('children' in o && Array.isArray(o.children)) o.children.forEach(extract)
+    }
+    blocks.forEach(extract)
+    return texts.join(' ')
   }
 
   private indexMindmap(mm: MindmapFileData): void {

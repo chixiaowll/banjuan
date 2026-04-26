@@ -19,7 +19,7 @@ describe('SearchService', () => {
 
     await lib.notes.create({
       title: 'Transformer Notes',
-      content: 'The transformer architecture uses self-attention mechanisms',
+      content: JSON.stringify([{ type: 'paragraph', content: [{ type: 'text', text: 'The transformer architecture uses self-attention mechanisms' }] }]),
     })
   })
 
