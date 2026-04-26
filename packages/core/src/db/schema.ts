@@ -31,6 +31,39 @@ CREATE TABLE IF NOT EXISTS notes (
     title TEXT NOT NULL,
     path TEXT NOT NULL,
     doc_id TEXT,
+    folder_id TEXT,
+    content_format TEXT DEFAULT 'json',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (folder_id) REFERENCES folders(id)
+);
+
+CREATE TABLE IF NOT EXISTS folders (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    parent_id TEXT,
+    sort_order INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (parent_id) REFERENCES folders(id)
+);
+
+CREATE TABLE IF NOT EXISTS note_links (
+    source_id TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    context TEXT,
+    PRIMARY KEY (source_id, target_id),
+    FOREIGN KEY (source_id) REFERENCES notes(id),
+    FOREIGN KEY (target_id) REFERENCES notes(id)
+);
+
+CREATE TABLE IF NOT EXISTS note_templates (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    content TEXT NOT NULL,
+    is_builtin INTEGER DEFAULT 0,
+    sort_order INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
