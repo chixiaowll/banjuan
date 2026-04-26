@@ -20,6 +20,7 @@ import { SyncService } from './sync/service.js'
 import { StubService } from './sync/stub-service.js'
 import { IndexService } from './indexing/service.js'
 import { TemplateService } from './notes/template-service.js'
+import { migrateNotesToJson } from './notes/migration.js'
 
 export class Library {
   readonly rootPath: string
@@ -100,6 +101,11 @@ export class Library {
     initSchema(db)
 
     return new Library(rootPath, db)
+  }
+
+  static async migrateNotes(rootPath: string): Promise<{ migrated: number; errors: string[] }> {
+    const notesDir = join(rootPath, '.banjuan', 'notes')
+    return migrateNotesToJson(notesDir)
   }
 
   getConfig(): LibraryConfig {
