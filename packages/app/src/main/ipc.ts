@@ -59,6 +59,13 @@ export function registerIpcHandlers() {
     return library.documents.delete(id)
   })
 
+  ipcMain.handle('documents:update', async (_event, id: string, updates: {
+    title?: string; authors?: string[]; metadata?: Record<string, unknown>
+  }) => {
+    if (!library) throw new Error('No library open')
+    return library.documents.update(id, updates)
+  })
+
   ipcMain.handle('documents:getFilePath', async (_event, relativePath: string) => {
     if (!library) throw new Error('No library open')
     return join(library.rootPath, relativePath)
@@ -68,6 +75,12 @@ export function registerIpcHandlers() {
     if (!library) throw new Error('No library open')
     const fullPath = join(library.rootPath, relativePath)
     return readFileSync(fullPath, 'utf-8')
+  })
+
+  ipcMain.handle('documents:readFileBuffer', async (_event, relativePath: string) => {
+    if (!library) throw new Error('No library open')
+    const fullPath = join(library.rootPath, relativePath)
+    return readFileSync(fullPath)
   })
 
   ipcMain.handle('tags:list', async () => {

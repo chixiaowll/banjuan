@@ -38,11 +38,11 @@ export class DocumentService {
     const content = readFileSync(absPath)
     const hash = createHash('sha256').update(content).digest('hex')
 
-    const existing = this.db
-      .prepare('SELECT id FROM documents WHERE hash = ?')
-      .get(hash) as { id: string } | undefined
-    if (existing) {
-      throw new Error(`File already imported (id: ${existing.id})`)
+    const existingByPath = this.db
+      .prepare('SELECT id FROM documents WHERE path = ?')
+      .get(relPath) as { id: string } | undefined
+    if (existingByPath) {
+      throw new Error(`File already imported at path: ${relPath}`)
     }
 
     const type = detectDocumentType(absPath)
@@ -102,6 +102,33 @@ export class DocumentService {
       | Record<string, unknown>
       | undefined
     return row ? rowToDocument(row) : null
+  }
+
+  async update(id: string, updates: { title?: string; authors?: string[]; metadata?: Record<string, unknown> }): Promise<Document | null> {
+    const existing = await this.get(id)
+    if (!existing) return null
+
+    const now = new Date().toISOString()
+    const newTitle = updates.title ?? existing.title
+    const newAuthors = updates.authors ?? existing.authors
+    const newMetadata = updates.metadata ?? existing.metadata
+
+    this.db.prepare(
+      `UPDATE documents SET title = ?, authors = ?, metadata = ?, updated_at = ? WHERE id = ?`
+    ).run(newTitle, JSON.stringify(newAuthors), JSON.stringify(newMetadata), now, id)
+
+    const fileData = this.store.read(id)
+    if (fileData) {
+      fileData.title = newTitle
+      fileData.authors = newAuthors
+      fileData.metadata = newMetadata
+      fileData.updatedAt = now
+      this.store.write(fileData)
+    }
+
+    this.search.index({ id, title: newTitle, content: newTitle, type: 'document' })
+
+    return { ...existing, title: newTitle, authors: newAuthors, metadata: newMetadata, updatedAt: now }
   }
 
   async delete(id: string): Promise<void> {
