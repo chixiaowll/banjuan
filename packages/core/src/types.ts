@@ -25,7 +25,13 @@ export interface DocumentListOptions {
   order?: 'asc' | 'desc'
 }
 
-export type AnnotationType = 'highlight' | 'note' | 'bookmark' | 'ink'
+export interface DocumentUpdateInput {
+  title?: string
+  authors?: string[]
+  metadata?: Record<string, unknown>
+}
+
+export type AnnotationType = 'highlight' | 'note' | 'bookmark' | 'ink' | 'area'
 
 export interface PdfPosition {
   type: 'pdf'
@@ -71,6 +77,20 @@ export interface InkPosition {
   bounds: { x: number; y: number; w: number; h: number }
 }
 
+export interface PointPosition {
+  type: 'point'
+  page: number
+  x: number
+  y: number
+}
+
+export interface AreaPosition {
+  type: 'area'
+  page: number
+  rect: { x: number; y: number; w: number; h: number }
+  imageData?: string
+}
+
 export type AnnotationPosition =
   | PdfPosition
   | EpubPosition
@@ -78,6 +98,8 @@ export type AnnotationPosition =
   | ImagePosition
   | VideoPosition
   | InkPosition
+  | PointPosition
+  | AreaPosition
 
 export interface Annotation {
   id: string
