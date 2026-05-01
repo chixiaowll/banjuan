@@ -1,8 +1,9 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import TitleBar, { type Tab } from './TitleBar.js'
 import LibraryView from '../views/LibraryView.js'
 import DocumentViewer from './viewers/DocumentViewer.js'
 import NoteView from '../views/NoteView.js'
+import MindmapView from '../views/MindmapView.js'
 import { useT } from '../i18n/index.js'
 
 const LIBRARY_TAB_ID = 'library'
@@ -46,6 +47,36 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
     setActiveTabId(tabId)
   }, [tabs, tabData])
 
+  const openMindmap = useCallback((mm: any) => {
+    const existingTab = tabs.find(t => t.type === 'mindmap' && tabData.get(t.id)?.id === mm.id)
+    if (existingTab) {
+      setActiveTabId(existingTab.id)
+      return
+    }
+    const tabId = `mindmap-${mm.id}`
+    const newTab: Tab = { id: tabId, type: 'mindmap', title: mm.title, closable: true }
+    setTabs(prev => [...prev, newTab])
+    setTabData(prev => new Map(prev).set(tabId, mm))
+    setActiveTabId(tabId)
+  }, [tabs, tabData])
+
+  useEffect(() => {
+    const syncTabTitles = async () => {
+      const noteTabs = tabs.filter(t => t.type === 'note')
+      if (noteTabs.length === 0) return
+      for (const tab of noteTabs) {
+        const noteData = tabData.get(tab.id)
+        if (!noteData) continue
+        const fresh = await window.electronAPI.notes.get(noteData.id)
+        if (fresh && fresh.title !== tab.title) {
+          setTabs(prev => prev.map(t => t.id === tab.id ? { ...t, title: fresh.title } : t))
+        }
+      }
+    }
+    document.addEventListener('notes-changed', syncTabTitles)
+    return () => document.removeEventListener('notes-changed', syncTabTitles)
+  }, [tabs, tabData])
+
   const closeTab = useCallback((tabId: string) => {
     if (tabId === LIBRARY_TAB_ID) return
     setTabs(prev => prev.filter(t => t.id !== tabId))
@@ -62,6 +93,7 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
         activeTabId={activeTabId}
         onSelectTab={setActiveTabId}
         onCloseTab={closeTab}
+        onReorderTabs={setTabs}
       />
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {tabs.map(tab => (
@@ -80,7 +112,7 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
                 libraryName={libraryName}
                 onOpenDoc={openDocument}
                 onOpenNote={openNote}
-                onOpenMindmap={() => {}}
+                onOpenMindmap={openMindmap}
                 onOpenGraph={() => {}}
               />
             )}
@@ -96,6 +128,12 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
                 note={tabData.get(tab.id)}
                 onBack={() => closeTab(tab.id)}
                 onOpenNote={openNote}
+              />
+            )}
+            {tab.type === 'mindmap' && tabData.get(tab.id) && (
+              <MindmapView
+                mindmap={tabData.get(tab.id)}
+                onBack={() => closeTab(tab.id)}
               />
             )}
           </div>
