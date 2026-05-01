@@ -35,13 +35,17 @@ interface ElectronAPI {
     delete: (id: string) => Promise<void>
   }
   notes: {
-    create: (input: { title: string; docId?: string; folderId?: string; annotationIds?: string[]; content?: string; templateId?: string }) => Promise<any>
+    create: (input: { title: string; docId?: string; folder?: string; annotationIds?: string[]; content?: string; templateId?: string }) => Promise<any>
     list: (options?: { docId?: string; folderId?: string; tag?: string; sort?: string; order?: string }) => Promise<any[]>
     get: (id: string) => Promise<any>
     update: (id: string, updates: { title?: string; content?: string }) => Promise<any>
     delete: (id: string) => Promise<void>
     getAnnotations: (noteId: string) => Promise<any[]>
-    move: (id: string, folderId: string | null) => Promise<any>
+    move: (id: string, targetFolder: string | null) => Promise<any>
+    listDirs: () => Promise<string[]>
+    createDir: (dirPath: string) => Promise<void>
+    renameDir: (oldPath: string, newPath: string) => Promise<void>
+    onNavigateLink: (callback: (noteId: string) => void) => () => void
   }
   folders: {
     create: (input: { name: string; parentId?: string }) => Promise<any>
@@ -51,7 +55,14 @@ interface ElectronAPI {
   }
   noteLinks: {
     getBacklinks: (noteId: string) => Promise<any[]>
+    getForwardLinks: (noteId: string) => Promise<any[]>
     sync: (noteId: string, links: Array<{ targetId: string; context: string }>) => Promise<void>
+  }
+  attachments: {
+    save: (noteId: string, fileName: string, data: ArrayBuffer) => Promise<string>
+    getPath: (relativePath: string) => Promise<string>
+    delete: (relativePath: string) => Promise<void>
+    open: (relativePath: string) => Promise<string>
   }
   templates: {
     list: () => Promise<any[]>
@@ -61,19 +72,24 @@ interface ElectronAPI {
     delete: (id: string) => Promise<void>
   }
   mindmaps: {
-    create: (input: { title: string; docId?: string; layout?: string }) => Promise<any>
+    create: (input: { title: string; docId?: string; layout?: string; theme?: string }) => Promise<any>
     list: (options?: { docId?: string }) => Promise<any[]>
     get: (id: string) => Promise<any>
-    update: (id: string, updates: { title?: string; layout?: string; docId?: string }) => Promise<any>
+    update: (id: string, updates: { title?: string; layout?: string; docId?: string; theme?: string }) => Promise<any>
     delete: (id: string) => Promise<void>
     addNode: (mindmapId: string, input: {
-      title: string; parentId?: string; annotationId?: string;
-      content?: string; color?: string; positionX?: number; positionY?: number
+      title: string; parentId?: string; nodeType?: string; annotationId?: string;
+      noteId?: string; docId?: string; hyperlink?: string; imageUrl?: string;
+      tagId?: string; content?: string; color?: string; notes?: string;
+      shape?: string; styleOverrides?: string; positionX?: number; positionY?: number
     }) => Promise<any>
     getNodes: (mindmapId: string) => Promise<any[]>
     updateNode: (id: string, updates: {
-      title?: string; content?: string; color?: string;
-      positionX?: number; positionY?: number; collapsed?: boolean; sortOrder?: number
+      title?: string; content?: string; color?: string; notes?: string;
+      shape?: string; styleOverrides?: string; nodeType?: string;
+      noteId?: string; docId?: string; hyperlink?: string; imageUrl?: string;
+      tagId?: string; parentId?: string; positionX?: number; positionY?: number;
+      collapsed?: boolean; sortOrder?: number
     }) => Promise<any>
     removeNode: (id: string) => Promise<void>
     addEdge: (mindmapId: string, input: { sourceId: string; targetId: string; label?: string }) => Promise<any>
@@ -98,6 +114,14 @@ interface ElectronAPI {
     stubDownload: (docId: string) => Promise<void>
     stubUpload: (docId: string) => Promise<void>
     getDocStatus: (docId: string) => Promise<string>
+  }
+  export: {
+    markdown: (input: { title: string; markdown: string; attachments: string[] }) => Promise<string | null>
+    pdf: (input: { title: string; html: string; attachments: string[] }) => Promise<string | null>
+  }
+  clipboard: {
+    readFiles: () => Promise<Array<{ path: string; name: string }>>
+    readFileBuffer: (filePath: string) => Promise<ArrayBuffer>
   }
   index: {
     rebuild: () => Promise<void>

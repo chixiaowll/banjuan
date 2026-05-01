@@ -107,7 +107,8 @@ CREATE TABLE IF NOT EXISTS mindmaps (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     doc_id TEXT,
-    layout TEXT DEFAULT 'tree',
+    layout TEXT DEFAULT 'mindmap',
+    theme TEXT DEFAULT 'classic',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -116,10 +117,19 @@ CREATE TABLE IF NOT EXISTS mindmap_nodes (
     id TEXT PRIMARY KEY,
     mindmap_id TEXT NOT NULL,
     parent_id TEXT,
+    node_type TEXT DEFAULT 'text',
     annotation_id TEXT,
+    note_id TEXT,
+    doc_id TEXT,
+    hyperlink TEXT,
+    image_url TEXT,
+    tag_id TEXT,
     title TEXT NOT NULL,
     content TEXT,
     color TEXT,
+    notes TEXT,
+    shape TEXT,
+    style_overrides TEXT,
     position_x REAL,
     position_y REAL,
     sort_order INTEGER DEFAULT 0,
@@ -139,4 +149,30 @@ CREATE TABLE IF NOT EXISTS mindmap_edges (
 
 export function initSchema(db: Database.Database): void {
   db.exec(SCHEMA_SQL)
+
+  // Migrate mindmap_nodes: add new columns if missing
+  const nodeColumns = db.pragma('table_info(mindmap_nodes)') as Array<{ name: string }>
+  const nodeColNames = new Set(nodeColumns.map(c => c.name))
+  const newNodeCols: Array<[string, string]> = [
+    ['node_type', "TEXT DEFAULT 'text'"],
+    ['note_id', 'TEXT'],
+    ['doc_id', 'TEXT'],
+    ['hyperlink', 'TEXT'],
+    ['image_url', 'TEXT'],
+    ['tag_id', 'TEXT'],
+    ['notes', 'TEXT'],
+    ['shape', 'TEXT'],
+    ['style_overrides', 'TEXT'],
+  ]
+  for (const [name, type] of newNodeCols) {
+    if (!nodeColNames.has(name)) {
+      db.exec(`ALTER TABLE mindmap_nodes ADD COLUMN ${name} ${type}`)
+    }
+  }
+  // Migrate mindmaps: add theme column if missing
+  const mmColumns = db.pragma('table_info(mindmaps)') as Array<{ name: string }>
+  const mmColNames = new Set(mmColumns.map(c => c.name))
+  if (!mmColNames.has('theme')) {
+    db.exec("ALTER TABLE mindmaps ADD COLUMN theme TEXT DEFAULT 'classic'")
+  }
 }
