@@ -1,7 +1,9 @@
-import { ipcMain, dialog } from 'electron'
-import { readFileSync } from 'node:fs'
+import { ipcMain, dialog, clipboard, shell, BrowserWindow } from 'electron'
+import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, basename } from 'node:path'
+import { execSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { Library } from '@banjuan/core'
 import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
@@ -12,6 +14,11 @@ function getLib(event: Electron.IpcMainInvokeEvent): Library {
   const lib = libraries.get(event.sender.id)
   if (!lib) throw new Error('No library open')
   return lib
+}
+
+export function getLibraryRootPath(): string | null {
+  const first = libraries.values().next()
+  return first.done ? null : first.value.rootPath
 }
 
 export function registerIpcHandlers() {
@@ -34,6 +41,7 @@ export function registerIpcHandlers() {
     libraries.set(event.sender.id, lib)
     await Library.migrateNotes(path)
     const syncResult = await lib.syncWithDisk()
+    try { await lib.notes.syncDisk() } catch { /* non-critical */ }
     await lib.plugins.loadAll()
     const indexService = lib.createIndexService()
     await indexService.rebuildFull()
@@ -158,15 +166,29 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('notes:delete', async (event, id: string) => {
-    return getLib(event).notes.delete(id)
+    const lib = getLib(event)
+    await lib.attachments.deleteAllForNote(id)
+    return lib.notes.delete(id)
   })
 
   ipcMain.handle('notes:getAnnotations', async (event, noteId: string) => {
     return getLib(event).notes.getAnnotations(noteId)
   })
 
-  ipcMain.handle('notes:move', async (event, id: string, folderId: string | null) => {
-    return getLib(event).notes.move(id, folderId)
+  ipcMain.handle('notes:move', async (event, id: string, targetFolder: string | null) => {
+    return getLib(event).notes.move(id, targetFolder)
+  })
+
+  ipcMain.handle('notes:listDirs', async (event) => {
+    return getLib(event).notes.listDirs()
+  })
+
+  ipcMain.handle('notes:createDir', async (event, dirPath: string) => {
+    return getLib(event).notes.createDir(dirPath)
+  })
+
+  ipcMain.handle('notes:renameDir', async (event, oldPath: string, newPath: string) => {
+    return getLib(event).notes.renameDir(oldPath, newPath)
   })
 
   ipcMain.handle('folders:create', async (event, input: { name: string; parentId?: string }) => {
@@ -191,8 +213,29 @@ export function registerIpcHandlers() {
     return getLib(event).noteLinks.getBacklinks(noteId)
   })
 
+  ipcMain.handle('noteLinks:getForwardLinks', async (event, noteId: string) => {
+    return getLib(event).noteLinks.getForwardLinks(noteId)
+  })
+
   ipcMain.handle('noteLinks:sync', async (event, noteId: string, links: Array<{ targetId: string; context: string }>) => {
     return getLib(event).noteLinks.sync(noteId, links)
+  })
+
+  ipcMain.handle('attachments:save', async (event, noteId: string, fileName: string, data: ArrayBuffer) => {
+    return getLib(event).attachments.save(noteId, fileName, Buffer.from(data))
+  })
+
+  ipcMain.handle('attachments:getPath', async (event, relativePath: string) => {
+    return getLib(event).attachments.getFullPath(relativePath)
+  })
+
+  ipcMain.handle('attachments:delete', async (event, relativePath: string) => {
+    return getLib(event).attachments.delete(relativePath)
+  })
+
+  ipcMain.handle('attachments:open', async (event, relativePath: string) => {
+    const fullPath = getLib(event).attachments.getFullPath(relativePath)
+    return shell.openPath(fullPath)
   })
 
   ipcMain.handle('templates:list', async (event) => {
@@ -218,7 +261,7 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('mindmaps:create', async (event, input: {
-    title: string; docId?: string; layout?: string
+    title: string; docId?: string; layout?: string; theme?: string
   }) => {
     return getLib(event).mindmaps.create(input as any)
   })
@@ -232,7 +275,7 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('mindmaps:update', async (event, id: string, updates: {
-    title?: string; layout?: string; docId?: string
+    title?: string; layout?: string; docId?: string; theme?: string
   }) => {
     return getLib(event).mindmaps.update(id, updates as any)
   })
@@ -242,8 +285,10 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('mindmaps:addNode', async (event, mindmapId: string, input: {
-    title: string; parentId?: string; annotationId?: string;
-    content?: string; color?: string; positionX?: number; positionY?: number
+    title: string; parentId?: string; nodeType?: string; annotationId?: string;
+    noteId?: string; docId?: string; hyperlink?: string; imageUrl?: string;
+    tagId?: string; content?: string; color?: string; notes?: string;
+    shape?: string; styleOverrides?: string; positionX?: number; positionY?: number
   }) => {
     return getLib(event).mindmaps.addNode(mindmapId, input)
   })
@@ -253,8 +298,11 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('mindmaps:updateNode', async (event, id: string, updates: {
-    title?: string; content?: string; color?: string;
-    positionX?: number; positionY?: number; collapsed?: boolean; sortOrder?: number
+    title?: string; content?: string; color?: string; notes?: string;
+    shape?: string; styleOverrides?: string; nodeType?: string;
+    noteId?: string; docId?: string; hyperlink?: string; imageUrl?: string;
+    tagId?: string; parentId?: string; positionX?: number; positionY?: number;
+    collapsed?: boolean; sortOrder?: number
   }) => {
     return getLib(event).mindmaps.updateNode(id, updates)
   })
@@ -377,6 +425,145 @@ export function registerIpcHandlers() {
     if (!config) return 'local'
     const svc = library.createStubService()
     return svc.getStatus(docId, join(library.rootPath, doc.path))
+  })
+
+  ipcMain.handle('clipboard:readFiles', async () => {
+    if (process.platform === 'darwin') {
+      const raw = clipboard.read('NSFilenamesPboardType')
+      if (raw) {
+        try {
+          const plist = raw.match(/<string>(.*?)<\/string>/g)
+          if (plist) {
+            return plist
+              .map(s => s.replace(/<\/?string>/g, ''))
+              .filter(p => existsSync(p))
+              .map(p => ({ path: p, name: basename(p) }))
+          }
+        } catch { /* not file data */ }
+      }
+    }
+    return []
+  })
+
+  ipcMain.handle('clipboard:readFileBuffer', async (_event, filePath: string) => {
+    return readFile(filePath)
+  })
+
+  ipcMain.handle('export:markdown', async (event, input: { title: string; markdown: string; attachments: string[] }) => {
+    const lib = getLib(event)
+    const safeTitle = input.title.replace(/[/\\:*?"<>|]/g, '_')
+
+    if (input.attachments.length === 0) {
+      const result = await dialog.showSaveDialog({
+        defaultPath: `${safeTitle}.md`,
+        filters: [{ name: 'Markdown', extensions: ['md'] }],
+      })
+      if (result.canceled || !result.filePath) return null
+      writeFileSync(result.filePath, input.markdown, 'utf-8')
+      return result.filePath
+    }
+
+    const result = await dialog.showSaveDialog({
+      defaultPath: `${safeTitle}.zip`,
+      filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
+    })
+    if (result.canceled || !result.filePath) return null
+
+    const tmpDir = join(tmpdir(), `banjuan-export-${Date.now()}`)
+    const contentDir = join(tmpDir, safeTitle)
+    const attDir = join(contentDir, 'attachments')
+    mkdirSync(attDir, { recursive: true })
+    writeFileSync(join(contentDir, `${safeTitle}.md`), input.markdown, 'utf-8')
+
+    for (const relPath of input.attachments) {
+      const srcPath = lib.attachments.getFullPath(relPath)
+      if (existsSync(srcPath)) {
+        copyFileSync(srcPath, join(attDir, basename(srcPath)))
+      }
+    }
+
+    execSync(`cd "${tmpDir}" && zip -r "${result.filePath}" "${safeTitle}"`)
+    execSync(`rm -rf "${tmpDir}"`)
+    return result.filePath
+  })
+
+  ipcMain.handle('export:pdf', async (event, input: { title: string; html: string; attachments: string[] }) => {
+    const lib = getLib(event)
+    const safeTitle = input.title.replace(/[/\\:*?"<>|]/g, '_')
+    const hasAttachments = input.attachments.length > 0
+
+    const result = await dialog.showSaveDialog({
+      defaultPath: hasAttachments ? `${safeTitle}.zip` : `${safeTitle}.pdf`,
+      filters: hasAttachments
+        ? [{ name: 'ZIP Archive', extensions: ['zip'] }]
+        : [{ name: 'PDF', extensions: ['pdf'] }],
+    })
+    if (result.canceled || !result.filePath) return null
+
+    const rootPath = getLibraryRootPath()
+    let contentHtml = input.html
+    if (rootPath) {
+      contentHtml = contentHtml.replace(/banjuan-attachment:\/\//g,
+        `local-file://${encodeURIComponent(join(rootPath, '.banjuan'))}/`)
+    }
+
+    const fullHtml = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  @page { margin: 2cm 1.5cm; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; color: #333; line-height: 1.8; font-size: 14px; }
+  h1 { font-size: 24px; margin: 24px 0 16px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+  h2 { font-size: 20px; margin: 20px 0 12px; }
+  h3 { font-size: 16px; margin: 16px 0 8px; }
+  p { margin: 8px 0; }
+  img { max-width: 100%; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f5f5f5; font-weight: 600; }
+  pre { background: #f6f8fa; padding: 12px 16px; border-radius: 6px; overflow-x: auto; font-size: 13px; }
+  code { background: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-size: 13px; }
+  pre code { background: none; padding: 0; }
+  blockquote { border-left: 3px solid #ddd; margin: 8px 0; padding: 4px 16px; color: #666; }
+  ul, ol { padding-left: 24px; }
+  a { color: #0969da; text-decoration: none; }
+</style></head><body>
+${contentHtml}
+</body></html>`
+
+    const tmpHtmlPath = join(tmpdir(), `banjuan-pdf-${Date.now()}.html`)
+    writeFileSync(tmpHtmlPath, fullHtml, 'utf-8')
+
+    const hiddenWin = new BrowserWindow({ show: false, width: 800, height: 600, webPreferences: { offscreen: true } })
+    try {
+      await hiddenWin.loadFile(tmpHtmlPath)
+      await new Promise(r => setTimeout(r, 800))
+      const pdfBuffer = await hiddenWin.webContents.printToPDF({
+        printBackground: true,
+        margins: { marginType: 'default' },
+        pageSize: 'A4',
+      })
+
+      if (!hasAttachments) {
+        writeFileSync(result.filePath, pdfBuffer)
+      } else {
+        const tmpDir = join(tmpdir(), `banjuan-export-${Date.now()}`)
+        const contentDir = join(tmpDir, safeTitle)
+        const attDir = join(contentDir, 'attachments')
+        mkdirSync(attDir, { recursive: true })
+        writeFileSync(join(contentDir, `${safeTitle}.pdf`), pdfBuffer)
+        for (const relPath of input.attachments) {
+          const srcPath = lib.attachments.getFullPath(relPath)
+          if (existsSync(srcPath)) {
+            copyFileSync(srcPath, join(attDir, basename(srcPath)))
+          }
+        }
+        execSync(`cd "${tmpDir}" && zip -r "${result.filePath}" "${safeTitle}"`)
+        execSync(`rm -rf "${tmpDir}"`)
+      }
+      return result.filePath
+    } finally {
+      hiddenWin.close()
+      try { if (existsSync(tmpHtmlPath)) unlinkSync(tmpHtmlPath) } catch { /* ignore */ }
+    }
   })
 
   ipcMain.handle('index:rebuild', async (event) => {

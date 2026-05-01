@@ -147,6 +147,7 @@ export interface NoteCreateInput {
   title: string
   docId?: string
   folderId?: string
+  folder?: string
   annotationIds?: string[]
   content?: string
   templateId?: string
@@ -225,13 +226,16 @@ export interface LibraryConfig {
   createdAt: string
 }
 
-export type MindmapLayout = 'tree' | 'radial' | 'free'
+export type MindmapLayout = 'mindmap' | 'logical' | 'organization'
+
+export type MindmapNodeType = 'text' | 'note' | 'document' | 'annotation' | 'image' | 'link' | 'tag'
 
 export interface Mindmap {
   id: string
   title: string
   docId: string | null
   layout: MindmapLayout
+  theme: string
   createdAt: string
   updatedAt: string
 }
@@ -240,16 +244,26 @@ export interface MindmapCreateInput {
   title: string
   docId?: string
   layout?: MindmapLayout
+  theme?: string
 }
 
 export interface MindmapNode {
   id: string
   mindmapId: string
   parentId: string | null
+  nodeType: MindmapNodeType
   annotationId: string | null
+  noteId: string | null
+  docId: string | null
+  hyperlink: string | null
+  imageUrl: string | null
+  tagId: string | null
   title: string
   content: string | null
   color: string | null
+  notes: string | null
+  shape: string | null
+  styleOverrides: string | null
   positionX: number | null
   positionY: number | null
   sortOrder: number
@@ -260,9 +274,18 @@ export interface MindmapNode {
 export interface MindmapNodeCreateInput {
   title: string
   parentId?: string
+  nodeType?: MindmapNodeType
   annotationId?: string
+  noteId?: string
+  docId?: string
+  hyperlink?: string
+  imageUrl?: string
+  tagId?: string
   content?: string
   color?: string
+  notes?: string
+  shape?: string
+  styleOverrides?: string
   positionX?: number
   positionY?: number
 }
@@ -370,14 +393,24 @@ export interface MindmapFileData {
   title: string
   docId: string | null
   layout: MindmapLayout
+  theme: string
   tags: string[]
   nodes: Array<{
     id: string
     parentId: string | null
+    nodeType: MindmapNodeType
     annotationId: string | null
+    noteId: string | null
+    docId: string | null
+    hyperlink: string | null
+    imageUrl: string | null
+    tagId: string | null
     title: string
     content: string | null
     color: string | null
+    notes: string | null
+    shape: string | null
+    styleOverrides: string | null
     positionX: number | null
     positionY: number | null
     sortOrder: number

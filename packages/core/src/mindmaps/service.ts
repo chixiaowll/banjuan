@@ -3,19 +3,23 @@ import { join } from 'node:path'
 import { v4 as uuid } from 'uuid'
 import type {
   Mindmap, MindmapCreateInput, MindmapNode, MindmapNodeCreateInput,
-  MindmapEdge, MindmapEdgeCreateInput, MindmapLayout, MindmapFileData,
+  MindmapEdge, MindmapEdgeCreateInput, MindmapLayout, MindmapNodeType, MindmapFileData,
 } from '../types.js'
 import type { EventBus } from '../events/bus.js'
 import { JsonStore } from '../storage/json-store.js'
 
 interface MindmapRow {
   id: string; title: string; doc_id: string | null; layout: string
-  created_at: string; updated_at: string
+  theme: string | null; created_at: string; updated_at: string
 }
 
 interface NodeRow {
-  id: string; mindmap_id: string; parent_id: string | null; annotation_id: string | null
+  id: string; mindmap_id: string; parent_id: string | null
+  node_type: string; annotation_id: string | null
+  note_id: string | null; doc_id: string | null
+  hyperlink: string | null; image_url: string | null; tag_id: string | null
   title: string; content: string | null; color: string | null
+  notes: string | null; shape: string | null; style_overrides: string | null
   position_x: number | null; position_y: number | null
   sort_order: number; collapsed: number; created_at: string
 }
@@ -26,11 +30,26 @@ interface EdgeRow {
 }
 
 function rowToMindmap(row: MindmapRow): Mindmap {
-  return { id: row.id, title: row.title, docId: row.doc_id, layout: row.layout as MindmapLayout, createdAt: row.created_at, updatedAt: row.updated_at }
+  return {
+    id: row.id, title: row.title, docId: row.doc_id,
+    layout: row.layout as MindmapLayout,
+    theme: row.theme ?? 'classic',
+    createdAt: row.created_at, updatedAt: row.updated_at,
+  }
 }
 
 function rowToNode(row: NodeRow): MindmapNode {
-  return { id: row.id, mindmapId: row.mindmap_id, parentId: row.parent_id, annotationId: row.annotation_id, title: row.title, content: row.content, color: row.color, positionX: row.position_x, positionY: row.position_y, sortOrder: row.sort_order, collapsed: row.collapsed === 1, createdAt: row.created_at }
+  return {
+    id: row.id, mindmapId: row.mindmap_id, parentId: row.parent_id,
+    nodeType: (row.node_type ?? 'text') as MindmapNodeType,
+    annotationId: row.annotation_id, noteId: row.note_id, docId: row.doc_id,
+    hyperlink: row.hyperlink, imageUrl: row.image_url, tagId: row.tag_id,
+    title: row.title, content: row.content, color: row.color,
+    notes: row.notes, shape: row.shape, styleOverrides: row.style_overrides,
+    positionX: row.position_x, positionY: row.position_y,
+    sortOrder: row.sort_order, collapsed: row.collapsed === 1,
+    createdAt: row.created_at,
+  }
 }
 
 function rowToEdge(row: EdgeRow): MindmapEdge {
@@ -55,17 +74,18 @@ export class MindmapService {
   async create(input: MindmapCreateInput): Promise<Mindmap> {
     const id = uuid()
     const now = new Date().toISOString()
-    const layout = input.layout ?? 'tree'
+    const layout = input.layout ?? 'mindmap'
+    const theme = input.theme ?? 'classic'
 
     const fileData: MindmapFileData = {
-      id, title: input.title, docId: input.docId ?? null, layout,
+      id, title: input.title, docId: input.docId ?? null, layout, theme,
       tags: [], nodes: [], edges: [], createdAt: now, updatedAt: now,
     }
     this.writeFileData(fileData)
 
-    this.db.prepare('INSERT INTO mindmaps (id, title, doc_id, layout, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, input.title, input.docId ?? null, layout, now, now)
+    this.db.prepare('INSERT INTO mindmaps (id, title, doc_id, layout, theme, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, input.title, input.docId ?? null, layout, theme, now, now)
 
-    const mindmap = { id, title: input.title, docId: input.docId ?? null, layout, createdAt: now, updatedAt: now }
+    const mindmap = { id, title: input.title, docId: input.docId ?? null, layout, theme, createdAt: now, updatedAt: now }
     this.events.emit('mindmap:created', { mindmap })
     return mindmap
   }
@@ -82,7 +102,7 @@ export class MindmapService {
     return row ? rowToMindmap(row) : undefined
   }
 
-  async update(id: string, updates: Partial<Pick<Mindmap, 'title' | 'layout' | 'docId'>>): Promise<Mindmap> {
+  async update(id: string, updates: Partial<Pick<Mindmap, 'title' | 'layout' | 'docId' | 'theme'>>): Promise<Mindmap> {
     const now = new Date().toISOString()
 
     const fileData = this.readFileData(id)
@@ -90,6 +110,7 @@ export class MindmapService {
       if (updates.title !== undefined) fileData.title = updates.title
       if (updates.layout !== undefined) fileData.layout = updates.layout
       if (updates.docId !== undefined) fileData.docId = updates.docId
+      if (updates.theme !== undefined) fileData.theme = updates.theme
       fileData.updatedAt = now
       this.writeFileData(fileData)
     }
@@ -99,6 +120,7 @@ export class MindmapService {
     if (updates.title !== undefined) { fields.push('title = ?'); values.push(updates.title) }
     if (updates.layout !== undefined) { fields.push('layout = ?'); values.push(updates.layout) }
     if (updates.docId !== undefined) { fields.push('doc_id = ?'); values.push(updates.docId) }
+    if (updates.theme !== undefined) { fields.push('theme = ?'); values.push(updates.theme) }
     values.push(id)
     this.db.prepare(`UPDATE mindmaps SET ${fields.join(', ')} WHERE id = ?`).run(...values)
 
@@ -131,8 +153,14 @@ export class MindmapService {
     const sortOrder = maxRow.max_sort + 1
 
     const nodeData = {
-      id, parentId, annotationId: input.annotationId ?? null,
+      id, parentId, nodeType: input.nodeType ?? 'text' as MindmapNodeType,
+      annotationId: input.annotationId ?? null,
+      noteId: input.noteId ?? null, docId: input.docId ?? null,
+      hyperlink: input.hyperlink ?? null, imageUrl: input.imageUrl ?? null,
+      tagId: input.tagId ?? null,
       title: input.title, content: input.content ?? null, color: input.color ?? null,
+      notes: input.notes ?? null, shape: input.shape ?? null,
+      styleOverrides: input.styleOverrides ?? null,
       positionX: input.positionX ?? null, positionY: input.positionY ?? null,
       sortOrder, collapsed: false,
     }
@@ -145,9 +173,9 @@ export class MindmapService {
     }
 
     this.db.prepare(
-      `INSERT INTO mindmap_nodes (id, mindmap_id, parent_id, annotation_id, title, content, color, position_x, position_y, sort_order, collapsed, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`
-    ).run(id, mindmapId, parentId, input.annotationId ?? null, input.title, input.content ?? null, input.color ?? null, input.positionX ?? null, input.positionY ?? null, sortOrder, now)
+      `INSERT INTO mindmap_nodes (id, mindmap_id, parent_id, node_type, annotation_id, note_id, doc_id, hyperlink, image_url, tag_id, title, content, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`
+    ).run(id, mindmapId, parentId, nodeData.nodeType, nodeData.annotationId, nodeData.noteId, nodeData.docId, nodeData.hyperlink, nodeData.imageUrl, nodeData.tagId, input.title, nodeData.content, nodeData.color, nodeData.notes, nodeData.shape, nodeData.styleOverrides, nodeData.positionX, nodeData.positionY, sortOrder, now)
 
     const node: MindmapNode = { ...nodeData, mindmapId, createdAt: now }
     this.events.emit('mindmap:node:added', { node })
@@ -158,7 +186,7 @@ export class MindmapService {
     return (this.db.prepare('SELECT * FROM mindmap_nodes WHERE mindmap_id = ? ORDER BY sort_order').all(mindmapId) as NodeRow[]).map(rowToNode)
   }
 
-  async updateNode(id: string, updates: Partial<Pick<MindmapNode, 'title' | 'content' | 'color' | 'positionX' | 'positionY' | 'collapsed' | 'sortOrder'>>): Promise<MindmapNode> {
+  async updateNode(id: string, updates: Partial<Pick<MindmapNode, 'title' | 'content' | 'color' | 'notes' | 'shape' | 'styleOverrides' | 'nodeType' | 'noteId' | 'docId' | 'hyperlink' | 'imageUrl' | 'tagId' | 'parentId' | 'positionX' | 'positionY' | 'collapsed' | 'sortOrder'>>): Promise<MindmapNode> {
     const nodeRow = this.db.prepare('SELECT mindmap_id FROM mindmap_nodes WHERE id = ?').get(id) as { mindmap_id: string } | undefined
     if (!nodeRow) throw new Error(`Node not found: ${id}`)
 
@@ -169,6 +197,16 @@ export class MindmapService {
         if (updates.title !== undefined) nodeInFile.title = updates.title
         if (updates.content !== undefined) nodeInFile.content = updates.content
         if (updates.color !== undefined) nodeInFile.color = updates.color
+        if (updates.notes !== undefined) nodeInFile.notes = updates.notes
+        if (updates.shape !== undefined) nodeInFile.shape = updates.shape
+        if (updates.styleOverrides !== undefined) nodeInFile.styleOverrides = updates.styleOverrides
+        if (updates.nodeType !== undefined) nodeInFile.nodeType = updates.nodeType
+        if (updates.noteId !== undefined) nodeInFile.noteId = updates.noteId
+        if (updates.docId !== undefined) nodeInFile.docId = updates.docId
+        if (updates.hyperlink !== undefined) nodeInFile.hyperlink = updates.hyperlink
+        if (updates.imageUrl !== undefined) nodeInFile.imageUrl = updates.imageUrl
+        if (updates.tagId !== undefined) nodeInFile.tagId = updates.tagId
+        if (updates.parentId !== undefined) nodeInFile.parentId = updates.parentId
         if (updates.positionX !== undefined) nodeInFile.positionX = updates.positionX
         if (updates.positionY !== undefined) nodeInFile.positionY = updates.positionY
         if (updates.collapsed !== undefined) nodeInFile.collapsed = updates.collapsed
@@ -183,6 +221,16 @@ export class MindmapService {
     if (updates.title !== undefined) { fields.push('title = ?'); values.push(updates.title) }
     if (updates.content !== undefined) { fields.push('content = ?'); values.push(updates.content) }
     if (updates.color !== undefined) { fields.push('color = ?'); values.push(updates.color) }
+    if (updates.notes !== undefined) { fields.push('notes = ?'); values.push(updates.notes) }
+    if (updates.shape !== undefined) { fields.push('shape = ?'); values.push(updates.shape) }
+    if (updates.styleOverrides !== undefined) { fields.push('style_overrides = ?'); values.push(updates.styleOverrides) }
+    if (updates.nodeType !== undefined) { fields.push('node_type = ?'); values.push(updates.nodeType) }
+    if (updates.noteId !== undefined) { fields.push('note_id = ?'); values.push(updates.noteId) }
+    if (updates.docId !== undefined) { fields.push('doc_id = ?'); values.push(updates.docId) }
+    if (updates.hyperlink !== undefined) { fields.push('hyperlink = ?'); values.push(updates.hyperlink) }
+    if (updates.imageUrl !== undefined) { fields.push('image_url = ?'); values.push(updates.imageUrl) }
+    if (updates.tagId !== undefined) { fields.push('tag_id = ?'); values.push(updates.tagId) }
+    if (updates.parentId !== undefined) { fields.push('parent_id = ?'); values.push(updates.parentId) }
     if (updates.positionX !== undefined) { fields.push('position_x = ?'); values.push(updates.positionX) }
     if (updates.positionY !== undefined) { fields.push('position_y = ?'); values.push(updates.positionY) }
     if (updates.collapsed !== undefined) { fields.push('collapsed = ?'); values.push(updates.collapsed ? 1 : 0) }
