@@ -34,7 +34,7 @@ export default function NodeShell({ id, data, selected, icon, accentColor, child
       const rect = containerRef.current.getBoundingClientRect()
       setNodeSize(id, rect.width, rect.height)
     }
-  })
+  }, [id, data.title, data.nodeType, data.collapsed, isEditing, setNodeSize])
 
   useEffect(() => {
     setEditValue(data.title)
