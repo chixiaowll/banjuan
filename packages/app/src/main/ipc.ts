@@ -290,7 +290,7 @@ export function registerIpcHandlers() {
     tagId?: string; content?: string; color?: string; notes?: string;
     shape?: string; styleOverrides?: string; positionX?: number; positionY?: number
   }) => {
-    return getLib(event).mindmaps.addNode(mindmapId, input)
+    return getLib(event).mindmaps.addNode(mindmapId, input as any)
   })
 
   ipcMain.handle('mindmaps:getNodes', async (event, mindmapId: string) => {
@@ -304,7 +304,7 @@ export function registerIpcHandlers() {
     tagId?: string; parentId?: string; positionX?: number; positionY?: number;
     collapsed?: boolean; sortOrder?: number
   }) => {
-    return getLib(event).mindmaps.updateNode(id, updates)
+    return getLib(event).mindmaps.updateNode(id, updates as any)
   })
 
   ipcMain.handle('mindmaps:removeNode', async (event, id: string) => {
