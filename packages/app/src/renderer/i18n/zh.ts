@@ -16,6 +16,7 @@ const zh = {
   // Common
   'common.save': '保存',
   'common.cancel': '取消',
+  'common.confirm': '确定',
   'common.delete': '删除',
   'common.edit': '编辑',
   'common.back': '← 返回',
@@ -39,6 +40,8 @@ const zh = {
 
   // Library content
   'library.newNote': '新建笔记',
+  'library.newFolder': '新建文件夹',
+  'library.rename': '重命名',
   'library.newMindmap': '新建脑图',
   'library.colTitle': '标题',
   'library.colType': '类型',
@@ -105,6 +108,13 @@ const zh = {
   'mindmap.label': '脑图',
   'mindmap.addRoot': '+ 根节点',
   'mindmap.addChild': '+ 子节点',
+  'mindmap.delete': '删除',
+  'mindmap.undo': '撤销',
+  'mindmap.redo': '重做',
+  'mindmap.export': '导出',
+  'mindmap.search': '搜索节点...',
+  'mindmap.properties': '属性',
+  'mindmap.themes': '主题',
 
   // Sync
   'sync.title': 'WebDAV 同步配置',

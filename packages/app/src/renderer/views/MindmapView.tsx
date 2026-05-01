@@ -1,94 +1,97 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { ReactFlowProvider } from '@xyflow/react'
 import MindmapCanvas from '../components/mindmap/MindmapCanvas.js'
 import MindmapToolbar from '../components/mindmap/MindmapToolbar.js'
+import MindmapContextMenu from '../components/mindmap/MindmapContextMenu.js'
+import MindmapSearch from '../components/mindmap/MindmapSearch.js'
+import NodePropertyPanel from '../components/mindmap/panels/NodePropertyPanel.js'
+import NoteEditorPanel from '../components/mindmap/panels/NoteEditorPanel.js'
+import ThemePanel from '../components/mindmap/panels/ThemePanel.js'
+import { useMindmapStore } from '../components/mindmap/useMindmapStore.js'
+import { useKeyboardShortcuts } from '../components/mindmap/useKeyboardShortcuts.js'
 
-interface MindmapInfo { id: string; title: string }
-interface Props { mindmap: MindmapInfo; onBack: () => void }
+interface Props {
+  mindmap: { id: string; title: string }
+  onBack: () => void
+}
 
-export default function MindmapView({ mindmap, onBack }: Props) {
-  const [title, setTitle] = useState(mindmap.title)
-  const [nodes, setNodes] = useState<any[]>([])
-  const [edges, setEdges] = useState<any[]>([])
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+function MindmapViewInner({ mindmap, onBack }: Props) {
+  const { init, sidePanelType, sidePanelNodeId, closeSidePanel, rfNodes } = useMindmapStore()
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
 
-  const reload = useCallback(async () => {
-    const [n, e] = await Promise.all([
-      window.electronAPI.mindmaps.getNodes(mindmap.id),
-      window.electronAPI.mindmaps.getEdges(mindmap.id),
-    ])
-    setNodes(n)
-    setEdges(e)
-  }, [mindmap.id])
+  useKeyboardShortcuts()
 
-  useEffect(() => { reload() }, [reload])
+  useEffect(() => {
+    init(mindmap.id)
+  }, [mindmap.id, init])
 
-  const handleTitleChange = useCallback(async (newTitle: string) => {
-    setTitle(newTitle)
-    await window.electronAPI.mindmaps.update(mindmap.id, { title: newTitle })
-  }, [mindmap.id])
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault()
+        setSearchOpen(v => !v)
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
-  const handleAddRoot = useCallback(async () => {
-    const t = prompt('节点标题：')
-    if (!t) return
-    await window.electronAPI.mindmaps.addNode(mindmap.id, { title: t })
-    await reload()
-  }, [mindmap.id, reload])
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const target = (e.target as HTMLElement).closest('.react-flow__node')
+    if (!target) return
+    const nodeId = target.getAttribute('data-id')
+    if (nodeId) setContextMenu({ x: e.clientX, y: e.clientY, nodeId })
+  }, [])
 
-  const handleAddChild = useCallback(async () => {
-    if (!selectedNodeId) return
-    const t = prompt('子节点标题：')
-    if (!t) return
-    await window.electronAPI.mindmaps.addNode(mindmap.id, { title: t, parentId: selectedNodeId })
-    await reload()
-  }, [mindmap.id, selectedNodeId, reload])
-
-  const handleDeleteNode = useCallback(async () => {
-    if (!selectedNodeId) return
-    await window.electronAPI.mindmaps.removeNode(selectedNodeId)
-    setSelectedNodeId(null)
-    await reload()
-  }, [selectedNodeId, reload])
-
-  const handleEditNode = useCallback(async () => {
-    if (!selectedNodeId) return
-    const node = nodes.find(n => n.id === selectedNodeId)
-    if (!node) return
-    const t = prompt('节点标题：', node.title)
-    if (t === null) return
-    await window.electronAPI.mindmaps.updateNode(selectedNodeId, { title: t })
-    await reload()
-  }, [selectedNodeId, nodes, reload])
-
-  const handleToggleCollapse = useCallback(async (id: string) => {
-    const node = nodes.find(n => n.id === id)
-    if (!node) return
-    await window.electronAPI.mindmaps.updateNode(id, { collapsed: !node.collapsed })
-    await reload()
-  }, [nodes, reload])
-
-  const handleDoubleClickNode = useCallback(async (id: string) => {
-    const node = nodes.find(n => n.id === id)
-    if (!node) return
-    const t = prompt('节点标题：', node.title)
-    if (t === null) return
-    await window.electronAPI.mindmaps.updateNode(id, { title: t })
-    await reload()
-  }, [nodes, reload])
+  const selectedNoteId = sidePanelNodeId
+    ? rfNodes.find(n => n.id === sidePanelNodeId)?.data.noteId
+    : null
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-        <button onClick={onBack}>← 返回</button>
-        <span style={{ fontWeight: 500 }}>{title}</span>
-        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>脑图</span>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }} onContextMenu={handleContextMenu}>
+      <MindmapToolbar onBack={onBack} />
+      <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <MindmapCanvas />
+          {searchOpen && <MindmapSearch onClose={() => setSearchOpen(false)} />}
+        </div>
+
+        {sidePanelType !== 'none' && (
+          <>
+            <div style={{ width: 4, flexShrink: 0, background: 'var(--border, #e0e0e0)' }} />
+            <div style={{ width: 300, flexShrink: 0, overflow: 'hidden', background: 'var(--surface, #fff)' }}>
+              {sidePanelType === 'properties' && sidePanelNodeId && (
+                <NodePropertyPanel nodeId={sidePanelNodeId} onClose={closeSidePanel} />
+              )}
+              {sidePanelType === 'noteEditor' && selectedNoteId && (
+                <NoteEditorPanel noteId={selectedNoteId} onClose={closeSidePanel} />
+              )}
+              {sidePanelType === 'theme' && (
+                <ThemePanel onClose={closeSidePanel} />
+              )}
+            </div>
+          </>
+        )}
       </div>
-      <MindmapToolbar title={title} selectedNodeId={selectedNodeId}
-        onAddRoot={handleAddRoot} onAddChild={handleAddChild}
-        onDeleteNode={handleDeleteNode} onEditNode={handleEditNode} onTitleChange={handleTitleChange} />
-      <div style={{ flex: 1, overflow: 'hidden' }}>
-        <MindmapCanvas nodes={nodes} edges={edges} selectedNodeId={selectedNodeId}
-          onSelectNode={setSelectedNodeId} onDoubleClickNode={handleDoubleClickNode} onToggleCollapse={handleToggleCollapse} />
-      </div>
+
+      {contextMenu && (
+        <MindmapContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          nodeId={contextMenu.nodeId}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
+  )
+}
+
+export default function MindmapView(props: Props) {
+  return (
+    <ReactFlowProvider>
+      <MindmapViewInner {...props} />
+    </ReactFlowProvider>
   )
 }

@@ -16,6 +16,7 @@ const en = {
   // Common
   'common.save': 'Save',
   'common.cancel': 'Cancel',
+  'common.confirm': 'Confirm',
   'common.delete': 'Delete',
   'common.edit': 'Edit',
   'common.back': '← Back',
@@ -39,6 +40,8 @@ const en = {
 
   // Library content
   'library.newNote': 'New Note',
+  'library.newFolder': 'New Folder',
+  'library.rename': 'Rename',
   'library.newMindmap': 'New Mindmap',
   'library.colTitle': 'Title',
   'library.colType': 'Type',
@@ -105,6 +108,13 @@ const en = {
   'mindmap.label': 'Mindmap',
   'mindmap.addRoot': '+ Root',
   'mindmap.addChild': '+ Child',
+  'mindmap.delete': 'Delete',
+  'mindmap.undo': 'Undo',
+  'mindmap.redo': 'Redo',
+  'mindmap.export': 'Export',
+  'mindmap.search': 'Search nodes...',
+  'mindmap.properties': 'Properties',
+  'mindmap.themes': 'Themes',
 
   // Sync
   'sync.title': 'WebDAV Sync Config',
