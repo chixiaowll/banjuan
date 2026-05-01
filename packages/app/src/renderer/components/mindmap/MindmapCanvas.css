@@ -1,0 +1,29 @@
+.mindmap-canvas .react-flow__node {
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.mindmap-canvas .react-flow__handle {
+  border: none;
+  background: transparent;
+}
+
+@keyframes mindmap-edge-flow {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+.mindmap-canvas .react-flow__minimap {
+  border-radius: 8px;
+  border: 1px solid var(--border, #e0e0e0);
+}
+
+.mindmap-canvas .react-flow__controls {
+  border-radius: 8px;
+  border: 1px solid var(--border, #e0e0e0);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
