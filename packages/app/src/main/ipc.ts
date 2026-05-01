@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { join, basename } from 'node:path'
 import { execSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
-import { Library } from '@banjuan/core'
+import { Library, type MindmapNodeCreateInput, type MindmapNode } from '@banjuan/core'
 import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
 
@@ -284,27 +284,16 @@ export function registerIpcHandlers() {
     return getLib(event).mindmaps.delete(id)
   })
 
-  ipcMain.handle('mindmaps:addNode', async (event, mindmapId: string, input: {
-    title: string; parentId?: string; nodeType?: string; annotationId?: string;
-    noteId?: string; docId?: string; hyperlink?: string; imageUrl?: string;
-    tagId?: string; content?: string; color?: string; notes?: string;
-    shape?: string; styleOverrides?: string; positionX?: number; positionY?: number
-  }) => {
-    return getLib(event).mindmaps.addNode(mindmapId, input as any)
+  ipcMain.handle('mindmaps:addNode', async (event, mindmapId: string, input: MindmapNodeCreateInput) => {
+    return getLib(event).mindmaps.addNode(mindmapId, input)
   })
 
   ipcMain.handle('mindmaps:getNodes', async (event, mindmapId: string) => {
     return getLib(event).mindmaps.getNodes(mindmapId)
   })
 
-  ipcMain.handle('mindmaps:updateNode', async (event, id: string, updates: {
-    title?: string; content?: string; color?: string; notes?: string;
-    shape?: string; styleOverrides?: string; nodeType?: string;
-    noteId?: string; docId?: string; hyperlink?: string; imageUrl?: string;
-    tagId?: string; parentId?: string; positionX?: number; positionY?: number;
-    collapsed?: boolean; sortOrder?: number
-  }) => {
-    return getLib(event).mindmaps.updateNode(id, updates as any)
+  ipcMain.handle('mindmaps:updateNode', async (event, id: string, updates: Partial<Pick<MindmapNode, 'title' | 'content' | 'color' | 'notes' | 'shape' | 'styleOverrides' | 'nodeType' | 'noteId' | 'docId' | 'hyperlink' | 'imageUrl' | 'tagId' | 'parentId' | 'positionX' | 'positionY' | 'collapsed' | 'sortOrder'>>) => {
+    return getLib(event).mindmaps.updateNode(id, updates)
   })
 
   ipcMain.handle('mindmaps:removeNode', async (event, id: string) => {

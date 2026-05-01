@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   ReactFlow, MiniMap, Controls,
   useReactFlow, type OnNodesChange, type OnEdgesChange,
@@ -23,19 +23,31 @@ export default function MindmapCanvas() {
   const { fitView } = useReactFlow()
   const theme = getTheme(themeName)
   const layoutRunRef = useRef(0)
+  const isLayoutingRef = useRef(false)
+
+  const structuralFingerprint = useMemo(
+    () => rfNodes.map(n => `${n.id}-${n.data.collapsed}-${n.data.parentId}-${n.data.sortOrder}`).join(','),
+    [rfNodes],
+  )
 
   useEffect(() => {
+    if (isLayoutingRef.current) return
     const run = ++layoutRunRef.current
     const doLayout = async () => {
       if (rfNodes.length === 0) return
-      const result = await computeLayout(rfNodes, rfEdges, layout)
-      if (run !== layoutRunRef.current) return
-      setRfNodes(result.nodes)
-      setRfEdges(result.edges)
-      setTimeout(() => fitView({ duration: 300, padding: 0.2 }), 50)
+      isLayoutingRef.current = true
+      try {
+        const result = await computeLayout(rfNodes, rfEdges, layout)
+        if (run !== layoutRunRef.current) return
+        setRfNodes(result.nodes)
+        setRfEdges(result.edges)
+        setTimeout(() => fitView({ duration: 300, padding: 0.2 }), 50)
+      } finally {
+        isLayoutingRef.current = false
+      }
     }
     doLayout()
-  }, [rfNodes.length, layout, rfNodes.map(n => `${n.id}-${n.data.collapsed}-${n.data.parentId}-${n.data.sortOrder}`).join(',')])
+  }, [structuralFingerprint, layout])
 
   const onNodesChange: OnNodesChange = useCallback((changes) => {
     setRfNodes(applyNodeChanges(changes, rfNodes) as typeof rfNodes)

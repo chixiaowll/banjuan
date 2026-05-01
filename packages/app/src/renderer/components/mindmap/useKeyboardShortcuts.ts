@@ -13,6 +13,8 @@ export function useKeyboardShortcuts() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (editingNodeId) return
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
 
       const selected = selectedNodeIds[0]
       const meta = e.metaKey || e.ctrlKey
