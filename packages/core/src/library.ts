@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs'
-import { join, relative, extname } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs'
+import { join, relative, extname, dirname } from 'node:path'
 import type Database from 'better-sqlite3'
 import { createConnection } from './db/connection.js'
 import { initSchema } from './db/schema.js'
@@ -21,6 +21,7 @@ import { StubService } from './sync/stub-service.js'
 import { IndexService } from './indexing/service.js'
 import { TemplateService } from './notes/template-service.js'
 import { migrateNotesToJson } from './notes/migration.js'
+import { AttachmentService } from './notes/attachment-service.js'
 
 export class Library {
   readonly rootPath: string
@@ -36,6 +37,7 @@ export class Library {
   readonly events: EventBus
   readonly plugins: PluginManager
   readonly templates: TemplateService
+  readonly attachments: AttachmentService
   private db: Database.Database
 
   private constructor(rootPath: string, db: Database.Database) {
@@ -53,6 +55,7 @@ export class Library {
     this.graph = new GraphService(db)
     this.plugins = new PluginManager(this, this.events, rootPath)
     this.templates = new TemplateService(db)
+    this.attachments = new AttachmentService(rootPath)
 
     this.notes.setTemplateService(this.templates)
     this.notes.setLinkService(this.noteLinks)
@@ -71,7 +74,6 @@ export class Library {
     mkdirSync(banjuanDir, { recursive: true })
     mkdirSync(join(banjuanDir, 'data', 'documents'), { recursive: true })
     mkdirSync(join(banjuanDir, 'data', 'annotations'), { recursive: true })
-    mkdirSync(join(banjuanDir, 'data', 'mindmaps'), { recursive: true })
     mkdirSync(join(banjuanDir, 'stubs'), { recursive: true })
     mkdirSync(join(banjuanDir, 'notes'), { recursive: true })
 
@@ -96,7 +98,18 @@ export class Library {
       throw new Error(`${rootPath} is not a library — .banjuan directory not found`)
     }
 
+    // Migrate old mindmap files to unified notes directory
+    Library.migrateExistingMindmapFiles(rootPath)
+
     const dbPath = join(banjuanDir, 'db.sqlite')
+    if (existsSync(dbPath)) {
+      unlinkSync(dbPath)
+    }
+    const walPath = dbPath + '-wal'
+    const shmPath = dbPath + '-shm'
+    if (existsSync(walPath)) unlinkSync(walPath)
+    if (existsSync(shmPath)) unlinkSync(shmPath)
+
     const db = createConnection(dbPath)
     initSchema(db)
 
@@ -144,6 +157,58 @@ export class Library {
     if (!config) throw new Error('No sync configuration found')
     const adapter = new WebDAVAdapter()
     return new StubService(this.rootPath, adapter)
+  }
+
+  private static migrateExistingMindmapFiles(rootPath: string): void {
+    const banjuanDir = join(rootPath, '.banjuan')
+    const notesDir = join(banjuanDir, 'notes')
+    const oldDirs = [
+      join(banjuanDir, 'mindmaps'),
+      join(banjuanDir, 'data', 'mindmaps'),
+    ]
+
+    for (const oldDir of oldDirs) {
+      if (!existsSync(oldDir)) continue
+      const scan = (dir: string, prefix: string) => {
+        const entries = readdirSync(dir, { withFileTypes: true })
+        for (const entry of entries) {
+          const srcPath = join(dir, entry.name)
+          if (entry.isDirectory()) {
+            scan(srcPath, prefix ? `${prefix}/${entry.name}` : entry.name)
+          } else if (entry.name.endsWith('.json')) {
+            try {
+              const raw = JSON.parse(readFileSync(srcPath, 'utf-8'))
+              if (!raw.id) return
+              const meta = {
+                id: raw.id,
+                title: raw.title,
+                type: 'mindmap' as const,
+                docId: raw.docId ?? null,
+                folderId: null,
+                annotationIds: [],
+                tags: raw.tags ?? [],
+                contentFormat: 'json' as const,
+                typeMeta: { layout: raw.layout ?? 'mindmap', theme: raw.theme ?? 'classic' },
+                createdAt: raw.createdAt,
+                updatedAt: raw.updatedAt,
+              }
+              const newFileData = {
+                meta,
+                nodes: raw.nodes ?? [],
+                edges: raw.edges ?? [],
+              }
+              const relPath = prefix ? `${prefix}/${entry.name}` : entry.name
+              const destPath = join(notesDir, relPath)
+              if (!existsSync(destPath)) {
+                mkdirSync(dirname(destPath), { recursive: true })
+                writeFileSync(destPath, JSON.stringify(newFileData, null, 2))
+              }
+            } catch { /* skip malformed files */ }
+          }
+        }
+      }
+      scan(oldDir, '')
+    }
   }
 
   private walkFiles(): string[] {
