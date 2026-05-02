@@ -29,10 +29,12 @@ CREATE TABLE IF NOT EXISTS annotations (
 CREATE TABLE IF NOT EXISTS notes (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'markdown',
     path TEXT NOT NULL,
     doc_id TEXT,
     folder_id TEXT,
     content_format TEXT DEFAULT 'json',
+    type_meta TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (folder_id) REFERENCES folders(id)
@@ -92,25 +94,9 @@ CREATE TABLE IF NOT EXISTS note_tags (
     PRIMARY KEY (note_id, tag_id)
 );
 
-CREATE TABLE IF NOT EXISTS mindmap_tags (
-    mindmap_id TEXT NOT NULL,
-    tag_id TEXT NOT NULL,
-    PRIMARY KEY (mindmap_id, tag_id)
-);
-
 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
     title, content, type,
     tokenize='unicode61'
-);
-
-CREATE TABLE IF NOT EXISTS mindmaps (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    doc_id TEXT,
-    layout TEXT DEFAULT 'mindmap',
-    theme TEXT DEFAULT 'classic',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS mindmap_nodes (
@@ -134,7 +120,8 @@ CREATE TABLE IF NOT EXISTS mindmap_nodes (
     position_y REAL,
     sort_order INTEGER DEFAULT 0,
     collapsed INTEGER DEFAULT 0,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (mindmap_id) REFERENCES notes(id)
 );
 
 CREATE TABLE IF NOT EXISTS mindmap_edges (
@@ -143,7 +130,8 @@ CREATE TABLE IF NOT EXISTS mindmap_edges (
     source_id TEXT NOT NULL,
     target_id TEXT NOT NULL,
     label TEXT,
-    style TEXT
+    style TEXT,
+    FOREIGN KEY (mindmap_id) REFERENCES notes(id)
 );
 `
 
@@ -168,11 +156,5 @@ export function initSchema(db: Database.Database): void {
     if (!nodeColNames.has(name)) {
       db.exec(`ALTER TABLE mindmap_nodes ADD COLUMN ${name} ${type}`)
     }
-  }
-  // Migrate mindmaps: add theme column if missing
-  const mmColumns = db.pragma('table_info(mindmaps)') as Array<{ name: string }>
-  const mmColNames = new Set(mmColumns.map(c => c.name))
-  if (!mmColNames.has('theme')) {
-    db.exec("ALTER TABLE mindmaps ADD COLUMN theme TEXT DEFAULT 'classic'")
   }
 }
