@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import KnowledgeGraph from '../components/graph/KnowledgeGraph.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   onBack: () => void
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function GraphView({ onBack, onOpenDoc, onOpenNote, onOpenMindmap }: Props) {
+  const t = useT()
   const [nodes, setNodes] = useState<any[]>([])
   const [edges, setEdges] = useState<any[]>([])
 
@@ -32,7 +34,7 @@ export default function GraphView({ onBack, onOpenDoc, onOpenNote, onOpenMindmap
         break
       }
       case 'mindmap': {
-        const map = await window.electronAPI.mindmaps.get(id)
+        const map = await window.electronAPI.notes.get(id)
         if (map) onOpenMindmap(map)
         break
       }
@@ -45,10 +47,10 @@ export default function GraphView({ onBack, onOpenDoc, onOpenNote, onOpenMindmap
         padding: '8px 16px', borderBottom: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
       }}>
-        <button onClick={onBack}>← 返回</button>
-        <span style={{ fontWeight: 500 }}>知识图谱</span>
+        <button onClick={onBack}>{t('common.back')}</button>
+        <span style={{ fontWeight: 500 }}>{t('graph.title')}</span>
         <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-          {nodes.length} 节点 · {edges.length} 连接
+          {t('graph.stats', nodes.length, edges.length)}
         </span>
       </div>
       <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -56,7 +58,7 @@ export default function GraphView({ onBack, onOpenDoc, onOpenNote, onOpenMindmap
           <KnowledgeGraph nodes={nodes} edges={edges} onNodeClick={handleNodeClick} />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
-            添加文档和笔记后，知识图谱将自动生成
+            {t('graph.empty')}
           </div>
         )}
       </div>
