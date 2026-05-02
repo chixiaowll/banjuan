@@ -1,5 +1,8 @@
-import { create } from 'zustand'
+import { createStore, useStore, type StoreApi } from 'zustand'
+import { createContext, useContext } from 'react'
 import type { Node, Edge } from '@xyflow/react'
+import { useNodeSizeStore } from './useNodeSizeStore.js'
+import { layoutMindmap } from './useLayoutEngine.js'
 
 export interface MindmapNodeData {
   [key: string]: unknown
@@ -29,7 +32,7 @@ interface HistoryEntry {
   rfEdges: Edge[]
 }
 
-interface MindmapState {
+export interface MindmapState {
   mindmapId: string | null
   mindmapTitle: string
   layout: string
@@ -43,7 +46,7 @@ interface MindmapState {
   history: HistoryEntry[]
   historyIndex: number
 
-  sidePanelType: 'none' | 'properties' | 'noteEditor' | 'theme'
+  sidePanelType: 'none' | 'properties' | 'contentEditor' | 'noteEditor' | 'theme'
   sidePanelNodeId: string | null
 
   init: (mindmapId: string) => Promise<void>
@@ -71,7 +74,7 @@ interface MindmapState {
   redo: () => void
   pushHistory: () => void
 
-  openSidePanel: (type: 'properties' | 'noteEditor' | 'theme', nodeId?: string) => void
+  openSidePanel: (type: 'properties' | 'contentEditor' | 'noteEditor' | 'theme', nodeId?: string) => void
   closeSidePanel: () => void
 
   persist: () => Promise<void>
@@ -175,250 +178,291 @@ function apiEdgesToRfEdges(treeNodes: Node<MindmapNodeData>[], apiEdges: any[]):
   return [...treeEdges, ...relationEdges]
 }
 
-let persistTimer: ReturnType<typeof setTimeout> | null = null
+export type MindmapStoreApi = StoreApi<MindmapState>
 
-export const useMindmapStore = create<MindmapState>((set, get) => ({
-  mindmapId: null,
-  mindmapTitle: '',
-  layout: 'mindmap',
-  theme: 'classic',
+export const MindmapStoreContext = createContext<MindmapStoreApi | null>(null)
 
-  rfNodes: [],
-  rfEdges: [],
-  selectedNodeIds: [],
-  editingNodeId: null,
+export function createMindmapStore(): MindmapStoreApi {
+  let persistTimer: ReturnType<typeof setTimeout> | null = null
 
-  history: [],
-  historyIndex: -1,
+  return createStore<MindmapState>((set, get) => ({
+    mindmapId: null,
+    mindmapTitle: '',
+    layout: 'mindmap',
+    theme: 'classic',
 
-  sidePanelType: 'none',
-  sidePanelNodeId: null,
+    rfNodes: [],
+    rfEdges: [],
+    selectedNodeIds: [],
+    editingNodeId: null,
 
-  init: async (mindmapId: string) => {
-    const mm = await window.electronAPI.mindmaps.get(mindmapId)
-    if (!mm) return
-    const [apiNodes, apiEdges] = await Promise.all([
-      window.electronAPI.mindmaps.getNodes(mindmapId),
-      window.electronAPI.mindmaps.getEdges(mindmapId),
-    ])
-    const rfNodes = apiNodesToRfNodes(apiNodes, mindmapId)
-    const rfEdges = apiEdgesToRfEdges(rfNodes, apiEdges)
-    set({
-      mindmapId,
-      mindmapTitle: mm.title,
-      layout: mm.layout ?? 'mindmap',
-      theme: mm.theme ?? 'classic',
-      rfNodes,
-      rfEdges,
-      selectedNodeIds: [],
-      editingNodeId: null,
-      history: [{ rfNodes, rfEdges }],
-      historyIndex: 0,
-    })
-  },
+    history: [],
+    historyIndex: -1,
 
-  setLayout: (layout) => {
-    set({ layout })
-    get().persist()
-  },
-  setTheme: (theme) => {
-    set({ theme })
-    get().persist()
-  },
-  setTitle: (title) => {
-    set({ mindmapTitle: title })
-    get().persist()
-  },
+    sidePanelType: 'none',
+    sidePanelNodeId: null,
 
-  setRfNodes: (nodes) => set({ rfNodes: nodes }),
-  setRfEdges: (edges) => set({ rfEdges: edges }),
+    init: async (mindmapId: string) => {
+      useNodeSizeStore.getState().reset()
+      const mm = await window.electronAPI.notes.get(mindmapId)
+      if (!mm) return
+      const [apiNodes, apiEdges] = await Promise.all([
+        window.electronAPI.mindmaps.getNodes(mindmapId),
+        window.electronAPI.mindmaps.getEdges(mindmapId),
+      ])
+      const rfNodes = apiNodesToRfNodes(apiNodes, mindmapId)
+      const rfEdges = apiEdgesToRfEdges(rfNodes, apiEdges)
+      const mmLayout = mm.typeMeta?.layout ?? (mm as any).layout ?? 'mindmap'
+      const mmTheme = mm.typeMeta?.theme ?? (mm as any).theme ?? 'classic'
+      const layoutResult = layoutMindmap(rfNodes, rfEdges, {
+        layout: mmLayout,
+        nodeSizes: new Map(),
+      })
+      set({
+        mindmapId,
+        mindmapTitle: mm.title,
+        layout: mmLayout,
+        theme: mmTheme,
+        rfNodes: layoutResult.nodes,
+        rfEdges: layoutResult.edges,
+        selectedNodeIds: [],
+        editingNodeId: null,
+        history: [{ rfNodes: layoutResult.nodes, rfEdges: layoutResult.edges }],
+        historyIndex: 0,
+      })
+    },
 
-  selectNode: (id) => set({ selectedNodeIds: id ? [id] : [] }),
-  selectNodes: (ids) => set({ selectedNodeIds: ids }),
-  toggleSelectNode: (id) => {
-    const { selectedNodeIds } = get()
-    if (selectedNodeIds.includes(id)) {
-      set({ selectedNodeIds: selectedNodeIds.filter(i => i !== id) })
-    } else {
-      set({ selectedNodeIds: [...selectedNodeIds, id] })
-    }
-  },
-  setEditingNodeId: (id) => set({ editingNodeId: id }),
+    setLayout: (layout) => {
+      set({ layout })
+      get().persist()
+    },
+    setTheme: (theme) => {
+      set({ theme })
+      get().persist()
+    },
+    setTitle: (title) => {
+      set({ mindmapTitle: title })
+      get().persist()
+    },
 
-  addNode: async (parentId, nodeType = 'text') => {
-    const { mindmapId, rfNodes } = get()
-    if (!mindmapId) return null
-    const node = await window.electronAPI.mindmaps.addNode(mindmapId, {
-      title: 'New Topic',
-      parentId: parentId ?? undefined,
-      nodeType,
-    })
-    const depths = buildTreeDepths(rfNodes)
-    const parentDepth = parentId ? (depths.get(parentId) ?? 0) : -1
-    const newRfNode: Node<MindmapNodeData> = {
-      id: node.id,
-      type: nodeType,
-      position: { x: 0, y: 0 },
-      data: {
-        id: node.id, mindmapId, parentId: node.parentId,
-        nodeType: node.nodeType ?? nodeType,
-        annotationId: null, noteId: null, docId: null,
-        hyperlink: null, imageUrl: null, tagId: null,
-        title: node.title, content: null, color: null,
-        notes: null, shape: null, styleOverrides: null,
-        sortOrder: node.sortOrder, collapsed: false,
-        depth: parentDepth + 1,
-      },
-    }
-    const updatedNodes = [...rfNodes, newRfNode]
-    const treeEdges: Edge[] = []
-    for (const n of updatedNodes) {
-      if (n.data.parentId) {
-        treeEdges.push({ id: `tree-${n.data.parentId}-${n.id}`, source: n.data.parentId, target: n.id, type: 'treeEdge' })
+    setRfNodes: (nodes) => set({ rfNodes: nodes }),
+    setRfEdges: (edges) => set({ rfEdges: edges }),
+
+    selectNode: (id) => set({ selectedNodeIds: id ? [id] : [] }),
+    selectNodes: (ids) => set({ selectedNodeIds: ids }),
+    toggleSelectNode: (id) => {
+      const { selectedNodeIds } = get()
+      if (selectedNodeIds.includes(id)) {
+        set({ selectedNodeIds: selectedNodeIds.filter(i => i !== id) })
+      } else {
+        set({ selectedNodeIds: [...selectedNodeIds, id] })
       }
-    }
-    const relationEdges = get().rfEdges.filter(e => e.type === 'relationEdge')
-    set({ rfNodes: updatedNodes, rfEdges: [...treeEdges, ...relationEdges], editingNodeId: node.id })
-    get().pushHistory()
-    return node.id
-  },
+    },
+    setEditingNodeId: (id) => set({ editingNodeId: id }),
 
-  addSiblingNode: async (siblingId) => {
-    const sibling = get().rfNodes.find(n => n.id === siblingId)
-    if (!sibling || !sibling.data.parentId) return null
-    return get().addNode(sibling.data.parentId)
-  },
+    addNode: async (parentId, nodeType = 'text') => {
+      const { mindmapId, rfNodes } = get()
+      if (!mindmapId) return null
+      const effectiveParentId = parentId ?? rfNodes.find(n => !n.data.parentId)?.id ?? null
+      const title = 'New Topic'
 
-  removeNode: async (id) => {
-    const { rfNodes, rfEdges } = get()
-    const descendantIds = new Set<string>()
-    function collectDescendants(parentId: string) {
-      for (const n of rfNodes) {
-        if (n.data.parentId === parentId) {
-          descendantIds.add(n.id)
-          collectDescendants(n.id)
+      let noteId: string | null = null
+      if (nodeType === 'note') {
+        const note = await window.electronAPI.notes.create({ title })
+        noteId = note.id
+      }
+
+      const node = await window.electronAPI.mindmaps.addNode(mindmapId, {
+        title,
+        parentId: effectiveParentId ?? undefined,
+        nodeType,
+        ...(noteId ? { noteId } : {}),
+      })
+      const depths = buildTreeDepths(rfNodes)
+      const parentDepth = effectiveParentId ? (depths.get(effectiveParentId) ?? 0) : -1
+      const parentNode = effectiveParentId ? rfNodes.find(n => n.id === effectiveParentId) : null
+      const initPos = parentNode
+        ? { x: parentNode.position.x + 200, y: parentNode.position.y }
+        : { x: 0, y: 0 }
+      const newRfNode: Node<MindmapNodeData> = {
+        id: node.id,
+        type: nodeType,
+        position: initPos,
+        data: {
+          id: node.id, mindmapId, parentId: node.parentId,
+          nodeType: node.nodeType ?? nodeType,
+          annotationId: null, noteId: noteId ?? node.noteId ?? null, docId: null,
+          hyperlink: null, imageUrl: null, tagId: null,
+          title: node.title, content: null, color: null,
+          notes: null, shape: null, styleOverrides: null,
+          sortOrder: node.sortOrder, collapsed: false,
+          depth: parentDepth + 1,
+        },
+      }
+      const updatedNodes = [...rfNodes, newRfNode]
+      const treeEdges: Edge[] = []
+      for (const n of updatedNodes) {
+        if (n.data.parentId) {
+          treeEdges.push({ id: `tree-${n.data.parentId}-${n.id}`, source: n.data.parentId, target: n.id, type: 'treeEdge' })
         }
       }
-    }
-    descendantIds.add(id)
-    collectDescendants(id)
-    await window.electronAPI.mindmaps.removeNode(id)
-    set({
-      rfNodes: rfNodes.filter(n => !descendantIds.has(n.id)),
-      rfEdges: rfEdges.filter(e => !descendantIds.has(e.source) && !descendantIds.has(e.target)),
-      selectedNodeIds: get().selectedNodeIds.filter(i => !descendantIds.has(i)),
-    })
-    get().pushHistory()
-  },
+      const relationEdges = get().rfEdges.filter(e => e.type === 'relationEdge')
+      set({ rfNodes: updatedNodes, rfEdges: [...treeEdges, ...relationEdges], selectedNodeIds: [node.id] })
+      get().pushHistory()
+      return node.id
+    },
 
-  updateNodeData: async (id, updates) => {
-    await window.electronAPI.mindmaps.updateNode(id, updates)
-    set({
-      rfNodes: get().rfNodes.map(n =>
-        n.id === id ? { ...n, data: { ...n.data, ...updates } as MindmapNodeData } : n
-      ),
-    })
-    get().pushHistory()
-  },
+    addSiblingNode: async (siblingId) => {
+      const sibling = get().rfNodes.find(n => n.id === siblingId)
+      if (!sibling || !sibling.data.parentId) return null
+      return get().addNode(sibling.data.parentId)
+    },
 
-  reparentNode: async (nodeId, newParentId, insertIndex) => {
-    const { rfNodes } = get()
-    const descendants = new Set<string>()
-    function collect(pid: string) {
-      for (const n of rfNodes) {
-        if (n.data.parentId === pid) { descendants.add(n.id); collect(n.id) }
+    removeNode: async (id) => {
+      const { rfNodes, rfEdges } = get()
+      const descendantIds = new Set<string>()
+      function collectDescendants(parentId: string) {
+        for (const n of rfNodes) {
+          if (n.data.parentId === parentId) {
+            descendantIds.add(n.id)
+            collectDescendants(n.id)
+          }
+        }
       }
-    }
-    collect(nodeId)
-    if (newParentId && (descendants.has(newParentId) || nodeId === newParentId)) return
+      descendantIds.add(id)
+      collectDescendants(id)
+      await window.electronAPI.mindmaps.removeNode(id)
+      set({
+        rfNodes: rfNodes.filter(n => !descendantIds.has(n.id)),
+        rfEdges: rfEdges.filter(e => !descendantIds.has(e.source) && !descendantIds.has(e.target)),
+        selectedNodeIds: get().selectedNodeIds.filter(i => !descendantIds.has(i)),
+      })
+      get().pushHistory()
+    },
 
-    await window.electronAPI.mindmaps.updateNode(nodeId, { parentId: newParentId ?? undefined })
-    if (insertIndex !== undefined) {
-      await window.electronAPI.mindmaps.updateNode(nodeId, { sortOrder: insertIndex })
-    }
+    updateNodeData: async (id, updates) => {
+      await window.electronAPI.mindmaps.updateNode(id, updates)
+      set({
+        rfNodes: get().rfNodes.map(n =>
+          n.id === id ? { ...n, data: { ...n.data, ...updates } as MindmapNodeData } : n
+        ),
+      })
+      get().pushHistory()
+    },
 
-    const updatedNodes = rfNodes.map(n => {
-      if (n.id === nodeId) {
-        return { ...n, data: { ...n.data, parentId: newParentId, sortOrder: insertIndex ?? n.data.sortOrder } }
+    reparentNode: async (nodeId, newParentId, insertIndex) => {
+      const { rfNodes } = get()
+      const descendants = new Set<string>()
+      function collect(pid: string) {
+        for (const n of rfNodes) {
+          if (n.data.parentId === pid) { descendants.add(n.id); collect(n.id) }
+        }
       }
-      return n
-    })
+      collect(nodeId)
+      if (newParentId && (descendants.has(newParentId) || nodeId === newParentId)) return
 
-    const recalcDepths = buildTreeDepths(updatedNodes)
-    const withDepths = updatedNodes.map(n => ({
-      ...n, data: { ...n.data, depth: recalcDepths.get(n.id) ?? 0 },
-    }))
-
-    const treeEdges: Edge[] = []
-    for (const n of withDepths) {
-      if (n.data.parentId) {
-        treeEdges.push({ id: `tree-${n.data.parentId}-${n.id}`, source: n.data.parentId, target: n.id, type: 'treeEdge' })
+      await window.electronAPI.mindmaps.updateNode(nodeId, { parentId: newParentId ?? undefined })
+      if (insertIndex !== undefined) {
+        await window.electronAPI.mindmaps.updateNode(nodeId, { sortOrder: insertIndex })
       }
-    }
-    const relationEdges = get().rfEdges.filter(e => e.type === 'relationEdge')
-    set({ rfNodes: withDepths, rfEdges: [...treeEdges, ...relationEdges] })
-    get().pushHistory()
-  },
 
-  toggleCollapse: async (id) => {
-    const node = get().rfNodes.find(n => n.id === id)
-    if (!node) return
-    const newCollapsed = !node.data.collapsed
-    await window.electronAPI.mindmaps.updateNode(id, { collapsed: newCollapsed })
-    set({
-      rfNodes: get().rfNodes.map(n =>
-        n.id === id ? { ...n, data: { ...n.data, collapsed: newCollapsed } } : n
-      ),
-    })
-  },
+      const updatedNodes = rfNodes.map(n => {
+        if (n.id === nodeId) {
+          return { ...n, data: { ...n.data, parentId: newParentId, sortOrder: insertIndex ?? n.data.sortOrder } }
+        }
+        return n
+      })
 
-  addRelationEdge: async (sourceId, targetId, label) => {
-    const { mindmapId } = get()
-    if (!mindmapId) return
-    const edge = await window.electronAPI.mindmaps.addEdge(mindmapId, { sourceId, targetId, label })
-    set({
-      rfEdges: [...get().rfEdges, { id: edge.id, source: sourceId, target: targetId, type: 'relationEdge', data: { label } }],
-    })
-    get().pushHistory()
-  },
+      const recalcDepths = buildTreeDepths(updatedNodes)
+      const withDepths = updatedNodes.map(n => ({
+        ...n, data: { ...n.data, depth: recalcDepths.get(n.id) ?? 0 },
+      }))
 
-  removeRelationEdge: async (edgeId) => {
-    await window.electronAPI.mindmaps.removeEdge(edgeId)
-    set({ rfEdges: get().rfEdges.filter(e => e.id !== edgeId) })
-    get().pushHistory()
-  },
+      const treeEdges: Edge[] = []
+      for (const n of withDepths) {
+        if (n.data.parentId) {
+          treeEdges.push({ id: `tree-${n.data.parentId}-${n.id}`, source: n.data.parentId, target: n.id, type: 'treeEdge' })
+        }
+      }
+      const relationEdges = get().rfEdges.filter(e => e.type === 'relationEdge')
+      set({ rfNodes: withDepths, rfEdges: [...treeEdges, ...relationEdges] })
+      get().pushHistory()
+    },
 
-  pushHistory: () => {
-    const { rfNodes, rfEdges, history, historyIndex } = get()
-    const trimmed = history.slice(0, historyIndex + 1)
-    const newHistory = [...trimmed, { rfNodes, rfEdges }]
-    if (newHistory.length > 50) newHistory.shift()
-    set({ history: newHistory, historyIndex: newHistory.length - 1 })
-  },
+    toggleCollapse: async (id) => {
+      const node = get().rfNodes.find(n => n.id === id)
+      if (!node) return
+      const newCollapsed = !node.data.collapsed
+      await window.electronAPI.mindmaps.updateNode(id, { collapsed: newCollapsed })
+      set({
+        rfNodes: get().rfNodes.map(n =>
+          n.id === id ? { ...n, data: { ...n.data, collapsed: newCollapsed } } : n
+        ),
+      })
+    },
 
-  undo: () => {
-    const { historyIndex, history } = get()
-    if (historyIndex <= 0) return
-    const prev = history[historyIndex - 1]
-    set({ rfNodes: prev.rfNodes, rfEdges: prev.rfEdges, historyIndex: historyIndex - 1 })
-  },
-
-  redo: () => {
-    const { historyIndex, history } = get()
-    if (historyIndex >= history.length - 1) return
-    const next = history[historyIndex + 1]
-    set({ rfNodes: next.rfNodes, rfEdges: next.rfEdges, historyIndex: historyIndex + 1 })
-  },
-
-  openSidePanel: (type, nodeId) => set({ sidePanelType: type, sidePanelNodeId: nodeId ?? null }),
-  closeSidePanel: () => set({ sidePanelType: 'none', sidePanelNodeId: null }),
-
-  persist: async () => {
-    if (persistTimer) clearTimeout(persistTimer)
-    persistTimer = setTimeout(async () => {
-      const { mindmapId, mindmapTitle, layout, theme } = get()
+    addRelationEdge: async (sourceId, targetId, label) => {
+      const { mindmapId } = get()
       if (!mindmapId) return
-      await window.electronAPI.mindmaps.update(mindmapId, { title: mindmapTitle, layout, theme })
-    }, 500)
-  },
-}))
+      const edge = await window.electronAPI.mindmaps.addEdge(mindmapId, { sourceId, targetId, label })
+      set({
+        rfEdges: [...get().rfEdges, { id: edge.id, source: sourceId, target: targetId, type: 'relationEdge', data: { label } }],
+      })
+      get().pushHistory()
+    },
+
+    removeRelationEdge: async (edgeId) => {
+      await window.electronAPI.mindmaps.removeEdge(edgeId)
+      set({ rfEdges: get().rfEdges.filter(e => e.id !== edgeId) })
+      get().pushHistory()
+    },
+
+    pushHistory: () => {
+      const { rfNodes, rfEdges, history, historyIndex } = get()
+      const trimmed = history.slice(0, historyIndex + 1)
+      const newHistory = [...trimmed, { rfNodes, rfEdges }]
+      if (newHistory.length > 50) newHistory.shift()
+      set({ history: newHistory, historyIndex: newHistory.length - 1 })
+    },
+
+    undo: () => {
+      const { historyIndex, history } = get()
+      if (historyIndex <= 0) return
+      const prev = history[historyIndex - 1]
+      set({ rfNodes: prev.rfNodes, rfEdges: prev.rfEdges, historyIndex: historyIndex - 1 })
+    },
+
+    redo: () => {
+      const { historyIndex, history } = get()
+      if (historyIndex >= history.length - 1) return
+      const next = history[historyIndex + 1]
+      set({ rfNodes: next.rfNodes, rfEdges: next.rfEdges, historyIndex: historyIndex + 1 })
+    },
+
+    openSidePanel: (type, nodeId) => set({ sidePanelType: type, sidePanelNodeId: nodeId ?? null }),
+    closeSidePanel: () => set({ sidePanelType: 'none', sidePanelNodeId: null }),
+
+    persist: async () => {
+      if (persistTimer) clearTimeout(persistTimer)
+      persistTimer = setTimeout(async () => {
+        const { mindmapId, mindmapTitle, layout, theme } = get()
+        if (!mindmapId) return
+        await window.electronAPI.notes.update(mindmapId, { title: mindmapTitle, typeMeta: { layout, theme } })
+      }, 500)
+    },
+  }))
+}
+
+export function useMindmapStore(): MindmapState
+export function useMindmapStore<T>(selector: (state: MindmapState) => T): T
+export function useMindmapStore<T>(selector?: (state: MindmapState) => T): T | MindmapState {
+  const store = useContext(MindmapStoreContext)
+  if (!store) throw new Error('useMindmapStore must be used within MindmapStoreContext.Provider')
+  return useStore(store, selector as (state: MindmapState) => T)
+}
+
+export function useMindmapStoreApi(): MindmapStoreApi {
+  const store = useContext(MindmapStoreContext)
+  if (!store) throw new Error('useMindmapStoreApi must be used within MindmapStoreContext.Provider')
+  return store
+}
