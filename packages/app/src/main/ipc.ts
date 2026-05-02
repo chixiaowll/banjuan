@@ -144,13 +144,15 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('notes:create', async (event, input: {
-    title: string; docId?: string; folderId?: string; annotationIds?: string[]; content?: string; templateId?: string
+    title: string; type?: string; docId?: string; folderId?: string;
+    folder?: string; annotationIds?: string[]; content?: string; templateId?: string;
+    layout?: string; theme?: string
   }) => {
-    return getLib(event).notes.create(input)
+    return getLib(event).notes.create(input as any)
   })
 
   ipcMain.handle('notes:list', async (event, options?: {
-    docId?: string; tag?: string; sort?: string; order?: string
+    type?: string; docId?: string; folderId?: string; tag?: string; sort?: string; order?: string
   }) => {
     return getLib(event).notes.list(options as any)
   })
@@ -160,7 +162,7 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('notes:update', async (event, id: string, updates: {
-    title?: string; content?: string
+    title?: string; content?: string; typeMeta?: Record<string, unknown>
   }) => {
     return getLib(event).notes.update(id, updates)
   })
@@ -260,36 +262,16 @@ export function registerIpcHandlers() {
     return getLib(event).templates.delete(id)
   })
 
-  ipcMain.handle('mindmaps:create', async (event, input: {
-    title: string; docId?: string; layout?: string; theme?: string
-  }) => {
-    return getLib(event).mindmaps.create(input as any)
-  })
-
-  ipcMain.handle('mindmaps:list', async (event, options?: { docId?: string }) => {
-    return getLib(event).mindmaps.list(options)
-  })
-
-  ipcMain.handle('mindmaps:get', async (event, id: string) => {
-    return getLib(event).mindmaps.get(id)
-  })
-
-  ipcMain.handle('mindmaps:update', async (event, id: string, updates: {
-    title?: string; layout?: string; docId?: string; theme?: string
-  }) => {
-    return getLib(event).mindmaps.update(id, updates as any)
-  })
-
-  ipcMain.handle('mindmaps:delete', async (event, id: string) => {
-    return getLib(event).mindmaps.delete(id)
-  })
-
   ipcMain.handle('mindmaps:addNode', async (event, mindmapId: string, input: MindmapNodeCreateInput) => {
     return getLib(event).mindmaps.addNode(mindmapId, input)
   })
 
   ipcMain.handle('mindmaps:getNodes', async (event, mindmapId: string) => {
     return getLib(event).mindmaps.getNodes(mindmapId)
+  })
+
+  ipcMain.handle('mindmaps:findNodesByNoteId', async (event, noteId: string) => {
+    return getLib(event).mindmaps.findNodesByNoteId(noteId)
   })
 
   ipcMain.handle('mindmaps:updateNode', async (event, id: string, updates: Partial<Pick<MindmapNode, 'title' | 'content' | 'color' | 'notes' | 'shape' | 'styleOverrides' | 'nodeType' | 'noteId' | 'docId' | 'hyperlink' | 'imageUrl' | 'tagId' | 'parentId' | 'positionX' | 'positionY' | 'collapsed' | 'sortOrder'>>) => {
