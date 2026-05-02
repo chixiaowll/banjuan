@@ -267,13 +267,18 @@ export class NoteService {
   }
 
   async delete(id: string): Promise<void> {
-    const row = this.db.prepare('SELECT path FROM notes WHERE id = ?').get(id) as { path: string } | undefined
+    const row = this.db.prepare('SELECT path, type FROM notes WHERE id = ?').get(id) as { path: string; type: string } | undefined
     if (!row) return
     const filePath = join(this.notesDir, row.path)
     if (existsSync(filePath)) { unlinkSync(filePath) }
     this.search.removeById(id)
     if (this.linkService) { await this.linkService.removeAllForNote(id) }
     this.db.prepare('DELETE FROM note_annotations WHERE note_id = ?').run(id)
+    if (row.type === 'mindmap') {
+      this.db.prepare('DELETE FROM mindmap_edges WHERE mindmap_id = ?').run(id)
+      this.db.prepare('DELETE FROM mindmap_nodes WHERE mindmap_id = ?').run(id)
+    }
+    this.db.prepare('DELETE FROM note_tags WHERE note_id = ?').run(id)
     this.db.prepare('DELETE FROM notes WHERE id = ?').run(id)
     this.events.emit('note:deleted', { id })
   }
