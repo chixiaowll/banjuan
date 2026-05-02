@@ -35,10 +35,16 @@ interface ElectronAPI {
     delete: (id: string) => Promise<void>
   }
   notes: {
-    create: (input: { title: string; docId?: string; folder?: string; annotationIds?: string[]; content?: string; templateId?: string }) => Promise<any>
-    list: (options?: { docId?: string; folderId?: string; tag?: string; sort?: string; order?: string }) => Promise<any[]>
+    create: (input: {
+      title: string; type?: string; docId?: string; folder?: string;
+      annotationIds?: string[]; content?: string; templateId?: string;
+      layout?: string; theme?: string
+    }) => Promise<any>
+    list: (options?: {
+      type?: string; docId?: string; folderId?: string; tag?: string; sort?: string; order?: string
+    }) => Promise<any[]>
     get: (id: string) => Promise<any>
-    update: (id: string, updates: { title?: string; content?: string }) => Promise<any>
+    update: (id: string, updates: { title?: string; content?: string; typeMeta?: Record<string, unknown> }) => Promise<any>
     delete: (id: string) => Promise<void>
     getAnnotations: (noteId: string) => Promise<any[]>
     move: (id: string, targetFolder: string | null) => Promise<any>
@@ -72,18 +78,14 @@ interface ElectronAPI {
     delete: (id: string) => Promise<void>
   }
   mindmaps: {
-    create: (input: { title: string; docId?: string; layout?: string; theme?: string }) => Promise<any>
-    list: (options?: { docId?: string }) => Promise<any[]>
-    get: (id: string) => Promise<any>
-    update: (id: string, updates: { title?: string; layout?: string; docId?: string; theme?: string }) => Promise<any>
-    delete: (id: string) => Promise<void>
-    addNode: (mindmapId: string, input: {
+    addNode: (noteId: string, input: {
       title: string; parentId?: string; nodeType?: string; annotationId?: string;
       noteId?: string; docId?: string; hyperlink?: string; imageUrl?: string;
       tagId?: string; content?: string; color?: string; notes?: string;
       shape?: string; styleOverrides?: string; positionX?: number; positionY?: number
     }) => Promise<any>
-    getNodes: (mindmapId: string) => Promise<any[]>
+    getNodes: (noteId: string) => Promise<any[]>
+    findNodesByNoteId: (noteId: string) => Promise<Array<any & { mindmapTitle: string }>>
     updateNode: (id: string, updates: {
       title?: string; content?: string; color?: string; notes?: string;
       shape?: string; styleOverrides?: string; nodeType?: string;
@@ -92,8 +94,8 @@ interface ElectronAPI {
       collapsed?: boolean; sortOrder?: number
     }) => Promise<any>
     removeNode: (id: string) => Promise<void>
-    addEdge: (mindmapId: string, input: { sourceId: string; targetId: string; label?: string }) => Promise<any>
-    getEdges: (mindmapId: string) => Promise<any[]>
+    addEdge: (noteId: string, input: { sourceId: string; targetId: string; label?: string }) => Promise<any>
+    getEdges: (noteId: string) => Promise<any[]>
     removeEdge: (id: string) => Promise<void>
   }
   graph: {
