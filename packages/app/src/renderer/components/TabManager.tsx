@@ -35,28 +35,18 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
   }, [tabs, tabData])
 
   const openNote = useCallback((note: any) => {
-    const existingTab = tabs.find(t => t.type === 'note' && tabData.get(t.id)?.id === note.id)
+    const noteType = note.type ?? 'markdown'
+    const tabType = noteType === 'mindmap' ? 'mindmap' : 'note'
+    const tabPrefix = noteType === 'mindmap' ? 'mindmap' : 'note'
+    const existingTab = tabs.find(t => t.type === tabType && tabData.get(t.id)?.id === note.id)
     if (existingTab) {
       setActiveTabId(existingTab.id)
       return
     }
-    const tabId = `note-${note.id}`
-    const newTab: Tab = { id: tabId, type: 'note', title: note.title, closable: true }
+    const tabId = `${tabPrefix}-${note.id}`
+    const newTab: Tab = { id: tabId, type: tabType, title: note.title, closable: true }
     setTabs(prev => [...prev, newTab])
     setTabData(prev => new Map(prev).set(tabId, note))
-    setActiveTabId(tabId)
-  }, [tabs, tabData])
-
-  const openMindmap = useCallback((mm: any) => {
-    const existingTab = tabs.find(t => t.type === 'mindmap' && tabData.get(t.id)?.id === mm.id)
-    if (existingTab) {
-      setActiveTabId(existingTab.id)
-      return
-    }
-    const tabId = `mindmap-${mm.id}`
-    const newTab: Tab = { id: tabId, type: 'mindmap', title: mm.title, closable: true }
-    setTabs(prev => [...prev, newTab])
-    setTabData(prev => new Map(prev).set(tabId, mm))
     setActiveTabId(tabId)
   }, [tabs, tabData])
 
@@ -112,7 +102,7 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
                 libraryName={libraryName}
                 onOpenDoc={openDocument}
                 onOpenNote={openNote}
-                onOpenMindmap={openMindmap}
+                onOpenMindmap={openNote}
                 onOpenGraph={() => {}}
               />
             )}
@@ -128,12 +118,14 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
                 note={tabData.get(tab.id)}
                 onBack={() => closeTab(tab.id)}
                 onOpenNote={openNote}
+                onOpenMindmap={openNote}
               />
             )}
             {tab.type === 'mindmap' && tabData.get(tab.id) && (
               <MindmapView
                 mindmap={tabData.get(tab.id)}
                 onBack={() => closeTab(tab.id)}
+                onOpenMindmap={openNote}
               />
             )}
           </div>
