@@ -1,17 +1,12 @@
 import type Database from 'better-sqlite3'
 import { join } from 'node:path'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { v4 as uuid } from 'uuid'
 import type {
-  Mindmap, MindmapCreateInput, MindmapNode, MindmapNodeCreateInput,
-  MindmapEdge, MindmapEdgeCreateInput, MindmapLayout, MindmapNodeType, MindmapFileData,
+  MindmapNode, MindmapNodeCreateInput,
+  MindmapEdge, MindmapEdgeCreateInput, MindmapNodeType,
 } from '../types.js'
 import type { EventBus } from '../events/bus.js'
-import { JsonStore } from '../storage/json-store.js'
-
-interface MindmapRow {
-  id: string; title: string; doc_id: string | null; layout: string
-  theme: string | null; created_at: string; updated_at: string
-}
 
 interface NodeRow {
   id: string; mindmap_id: string; parent_id: string | null
@@ -27,15 +22,6 @@ interface NodeRow {
 interface EdgeRow {
   id: string; mindmap_id: string; source_id: string; target_id: string
   label: string | null; style: string | null
-}
-
-function rowToMindmap(row: MindmapRow): Mindmap {
-  return {
-    id: row.id, title: row.title, docId: row.doc_id,
-    layout: row.layout as MindmapLayout,
-    theme: row.theme ?? 'classic',
-    createdAt: row.created_at, updatedAt: row.updated_at,
-  }
 }
 
 function rowToNode(row: NodeRow): MindmapNode {
@@ -57,99 +43,39 @@ function rowToEdge(row: EdgeRow): MindmapEdge {
 }
 
 export class MindmapService {
-  private store: JsonStore<MindmapFileData>
+  private notesDir: string
 
   constructor(private db: Database.Database, rootPath: string, private events: EventBus) {
-    this.store = new JsonStore(join(rootPath, '.banjuan', 'data', 'mindmaps'))
+    this.notesDir = join(rootPath, '.banjuan', 'notes')
   }
 
-  private readFileData(id: string): MindmapFileData | null {
-    return this.store.read(id)
+  // --- Filesystem operations ---
+
+  private readFileData(noteId: string): { meta: any; nodes: any[]; edges: any[] } | null {
+    const row = this.db.prepare('SELECT path FROM notes WHERE id = ?').get(noteId) as { path: string } | undefined
+    if (!row?.path) return null
+    const fullPath = join(this.notesDir, row.path)
+    if (!existsSync(fullPath)) return null
+    try { return JSON.parse(readFileSync(fullPath, 'utf-8')) } catch { return null }
   }
 
-  private writeFileData(data: MindmapFileData): void {
-    this.store.write(data)
-  }
-
-  async create(input: MindmapCreateInput): Promise<Mindmap> {
-    const id = uuid()
-    const now = new Date().toISOString()
-    const layout = input.layout ?? 'mindmap'
-    const theme = input.theme ?? 'classic'
-
-    const fileData: MindmapFileData = {
-      id, title: input.title, docId: input.docId ?? null, layout, theme,
-      tags: [], nodes: [], edges: [], createdAt: now, updatedAt: now,
+  private writeFileDataById(noteId: string, fileData: any): void {
+    const row = this.db.prepare('SELECT path FROM notes WHERE id = ?').get(noteId) as { path: string } | undefined
+    if (row?.path) {
+      writeFileSync(join(this.notesDir, row.path), JSON.stringify(fileData, null, 2))
     }
-    this.writeFileData(fileData)
-
-    this.db.prepare('INSERT INTO mindmaps (id, title, doc_id, layout, theme, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, input.title, input.docId ?? null, layout, theme, now, now)
-
-    const mindmap = { id, title: input.title, docId: input.docId ?? null, layout, theme, createdAt: now, updatedAt: now }
-    this.events.emit('mindmap:created', { mindmap })
-    return mindmap
-  }
-
-  async list(options?: { docId?: string }): Promise<Mindmap[]> {
-    if (options?.docId) {
-      return (this.db.prepare('SELECT * FROM mindmaps WHERE doc_id = ? ORDER BY created_at DESC').all(options.docId) as MindmapRow[]).map(rowToMindmap)
-    }
-    return (this.db.prepare('SELECT * FROM mindmaps ORDER BY created_at DESC').all() as MindmapRow[]).map(rowToMindmap)
-  }
-
-  async get(id: string): Promise<Mindmap | undefined> {
-    const row = this.db.prepare('SELECT * FROM mindmaps WHERE id = ?').get(id) as MindmapRow | undefined
-    return row ? rowToMindmap(row) : undefined
-  }
-
-  async update(id: string, updates: Partial<Pick<Mindmap, 'title' | 'layout' | 'docId' | 'theme'>>): Promise<Mindmap> {
-    const now = new Date().toISOString()
-
-    const fileData = this.readFileData(id)
-    if (fileData) {
-      if (updates.title !== undefined) fileData.title = updates.title
-      if (updates.layout !== undefined) fileData.layout = updates.layout
-      if (updates.docId !== undefined) fileData.docId = updates.docId
-      if (updates.theme !== undefined) fileData.theme = updates.theme
-      fileData.updatedAt = now
-      this.writeFileData(fileData)
-    }
-
-    const fields: string[] = ['updated_at = ?']
-    const values: unknown[] = [now]
-    if (updates.title !== undefined) { fields.push('title = ?'); values.push(updates.title) }
-    if (updates.layout !== undefined) { fields.push('layout = ?'); values.push(updates.layout) }
-    if (updates.docId !== undefined) { fields.push('doc_id = ?'); values.push(updates.docId) }
-    if (updates.theme !== undefined) { fields.push('theme = ?'); values.push(updates.theme) }
-    values.push(id)
-    this.db.prepare(`UPDATE mindmaps SET ${fields.join(', ')} WHERE id = ?`).run(...values)
-
-    const row = this.db.prepare('SELECT * FROM mindmaps WHERE id = ?').get(id) as MindmapRow
-    const mindmap = rowToMindmap(row)
-    this.events.emit('mindmap:updated', { mindmap })
-    return mindmap
-  }
-
-  async delete(id: string): Promise<void> {
-    this.store.delete(id)
-    this.db.transaction(() => {
-      this.db.prepare('DELETE FROM mindmap_edges WHERE mindmap_id = ?').run(id)
-      this.db.prepare('DELETE FROM mindmap_nodes WHERE mindmap_id = ?').run(id)
-      this.db.prepare('DELETE FROM mindmaps WHERE id = ?').run(id)
-    })()
-    this.events.emit('mindmap:deleted', { id })
   }
 
   // --- Nodes ---
 
-  async addNode(mindmapId: string, input: MindmapNodeCreateInput): Promise<MindmapNode> {
+  async addNode(noteId: string, input: MindmapNodeCreateInput): Promise<MindmapNode> {
     const id = uuid()
     const now = new Date().toISOString()
     const parentId = input.parentId ?? null
 
     const maxRow = this.db
       .prepare('SELECT COALESCE(MAX(sort_order), -1) as max_sort FROM mindmap_nodes WHERE mindmap_id = ? AND parent_id IS ?')
-      .get(mindmapId, parentId) as { max_sort: number }
+      .get(noteId, parentId) as { max_sort: number }
     const sortOrder = maxRow.max_sort + 1
 
     const nodeData = {
@@ -165,25 +91,36 @@ export class MindmapService {
       sortOrder, collapsed: false,
     }
 
-    const fileData = this.readFileData(mindmapId)
+    const fileData = this.readFileData(noteId)
     if (fileData) {
       fileData.nodes.push(nodeData)
-      fileData.updatedAt = now
-      this.writeFileData(fileData)
+      fileData.meta.updatedAt = now
+      this.writeFileDataById(noteId, fileData)
     }
 
     this.db.prepare(
       `INSERT INTO mindmap_nodes (id, mindmap_id, parent_id, node_type, annotation_id, note_id, doc_id, hyperlink, image_url, tag_id, title, content, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`
-    ).run(id, mindmapId, parentId, nodeData.nodeType, nodeData.annotationId, nodeData.noteId, nodeData.docId, nodeData.hyperlink, nodeData.imageUrl, nodeData.tagId, input.title, nodeData.content, nodeData.color, nodeData.notes, nodeData.shape, nodeData.styleOverrides, nodeData.positionX, nodeData.positionY, sortOrder, now)
+    ).run(id, noteId, parentId, nodeData.nodeType, nodeData.annotationId, nodeData.noteId, nodeData.docId, nodeData.hyperlink, nodeData.imageUrl, nodeData.tagId, input.title, nodeData.content, nodeData.color, nodeData.notes, nodeData.shape, nodeData.styleOverrides, nodeData.positionX, nodeData.positionY, sortOrder, now)
 
-    const node: MindmapNode = { ...nodeData, mindmapId, createdAt: now }
+    const node: MindmapNode = { ...nodeData, mindmapId: noteId, createdAt: now }
     this.events.emit('mindmap:node:added', { node })
     return node
   }
 
-  async getNodes(mindmapId: string): Promise<MindmapNode[]> {
-    return (this.db.prepare('SELECT * FROM mindmap_nodes WHERE mindmap_id = ? ORDER BY sort_order').all(mindmapId) as NodeRow[]).map(rowToNode)
+  async getNodes(noteId: string): Promise<MindmapNode[]> {
+    return (this.db.prepare('SELECT * FROM mindmap_nodes WHERE mindmap_id = ? ORDER BY sort_order').all(noteId) as NodeRow[]).map(rowToNode)
+  }
+
+  async findNodesByNoteId(noteId: string): Promise<Array<MindmapNode & { mindmapTitle: string }>> {
+    const contentPattern = `%"noteId":"${noteId}"%`
+    const rows = this.db.prepare(`
+      SELECT n.*, m.title as mindmap_title
+      FROM mindmap_nodes n
+      JOIN notes m ON m.id = n.mindmap_id
+      WHERE n.note_id = ? OR n.content LIKE ?
+    `).all(noteId, contentPattern) as (NodeRow & { mindmap_title: string })[]
+    return rows.map(row => ({ ...rowToNode(row), mindmapTitle: row.mindmap_title }))
   }
 
   async updateNode(id: string, updates: Partial<Pick<MindmapNode, 'title' | 'content' | 'color' | 'notes' | 'shape' | 'styleOverrides' | 'nodeType' | 'noteId' | 'docId' | 'hyperlink' | 'imageUrl' | 'tagId' | 'parentId' | 'positionX' | 'positionY' | 'collapsed' | 'sortOrder'>>): Promise<MindmapNode> {
@@ -192,7 +129,7 @@ export class MindmapService {
 
     const fileData = this.readFileData(nodeRow.mindmap_id)
     if (fileData) {
-      const nodeInFile = fileData.nodes.find(n => n.id === id)
+      const nodeInFile = fileData.nodes.find((n: any) => n.id === id)
       if (nodeInFile) {
         if (updates.title !== undefined) nodeInFile.title = updates.title
         if (updates.content !== undefined) nodeInFile.content = updates.content
@@ -212,8 +149,8 @@ export class MindmapService {
         if (updates.collapsed !== undefined) nodeInFile.collapsed = updates.collapsed
         if (updates.sortOrder !== undefined) nodeInFile.sortOrder = updates.sortOrder
       }
-      fileData.updatedAt = new Date().toISOString()
-      this.writeFileData(fileData)
+      fileData.meta.updatedAt = new Date().toISOString()
+      this.writeFileDataById(nodeRow.mindmap_id, fileData)
     }
 
     const fields: string[] = []
@@ -253,10 +190,10 @@ export class MindmapService {
       if (fileData) {
         const childIds = this.collectChildIds(id, fileData.nodes)
         const removeIds = new Set([id, ...childIds])
-        fileData.nodes = fileData.nodes.filter(n => !removeIds.has(n.id))
-        fileData.edges = fileData.edges.filter(e => !removeIds.has(e.sourceId) && !removeIds.has(e.targetId))
-        fileData.updatedAt = new Date().toISOString()
-        this.writeFileData(fileData)
+        fileData.nodes = fileData.nodes.filter((n: any) => !removeIds.has(n.id))
+        fileData.edges = fileData.edges.filter((e: any) => !removeIds.has(e.sourceId) && !removeIds.has(e.targetId))
+        fileData.meta.updatedAt = new Date().toISOString()
+        this.writeFileDataById(nodeRow.mindmap_id, fileData)
       }
 
       const allIds = this.collectDescendantIds(id)
@@ -270,7 +207,7 @@ export class MindmapService {
     }
   }
 
-  private collectDescendantIds(parentId: string): string[] {
+  collectDescendantIds(parentId: string): string[] {
     const children = this.db.prepare('SELECT id FROM mindmap_nodes WHERE parent_id = ?').all(parentId) as { id: string }[]
     const result: string[] = []
     for (const child of children) {
@@ -280,7 +217,7 @@ export class MindmapService {
     return result
   }
 
-  private collectChildIds(parentId: string, nodes: MindmapFileData['nodes']): string[] {
+  collectChildIds(parentId: string, nodes: any[]): string[] {
     const children = nodes.filter(n => n.parentId === parentId)
     const result: string[] = []
     for (const child of children) {
@@ -292,7 +229,7 @@ export class MindmapService {
 
   // --- Edges ---
 
-  async addEdge(mindmapId: string, input: MindmapEdgeCreateInput): Promise<MindmapEdge> {
+  async addEdge(noteId: string, input: MindmapEdgeCreateInput): Promise<MindmapEdge> {
     const id = uuid()
 
     const edgeData = {
@@ -300,22 +237,22 @@ export class MindmapService {
       label: input.label ?? null, style: null,
     }
 
-    const fileData = this.readFileData(mindmapId)
+    const fileData = this.readFileData(noteId)
     if (fileData) {
       fileData.edges.push(edgeData)
-      fileData.updatedAt = new Date().toISOString()
-      this.writeFileData(fileData)
+      fileData.meta.updatedAt = new Date().toISOString()
+      this.writeFileDataById(noteId, fileData)
     }
 
-    this.db.prepare('INSERT INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)').run(id, mindmapId, input.sourceId, input.targetId, input.label ?? null, null)
+    this.db.prepare('INSERT INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)').run(id, noteId, input.sourceId, input.targetId, input.label ?? null, null)
 
-    const edge: MindmapEdge = { ...edgeData, mindmapId }
+    const edge: MindmapEdge = { ...edgeData, mindmapId: noteId }
     this.events.emit('mindmap:edge:added', { edge })
     return edge
   }
 
-  async getEdges(mindmapId: string): Promise<MindmapEdge[]> {
-    return (this.db.prepare('SELECT * FROM mindmap_edges WHERE mindmap_id = ?').all(mindmapId) as EdgeRow[]).map(rowToEdge)
+  async getEdges(noteId: string): Promise<MindmapEdge[]> {
+    return (this.db.prepare('SELECT * FROM mindmap_edges WHERE mindmap_id = ?').all(noteId) as EdgeRow[]).map(rowToEdge)
   }
 
   async removeEdge(id: string): Promise<void> {
@@ -324,9 +261,9 @@ export class MindmapService {
     if (edgeRow) {
       const fileData = this.readFileData(edgeRow.mindmap_id)
       if (fileData) {
-        fileData.edges = fileData.edges.filter(e => e.id !== id)
-        fileData.updatedAt = new Date().toISOString()
-        this.writeFileData(fileData)
+        fileData.edges = fileData.edges.filter((e: any) => e.id !== id)
+        fileData.meta.updatedAt = new Date().toISOString()
+        this.writeFileDataById(edgeRow.mindmap_id, fileData)
       }
     }
 
