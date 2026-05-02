@@ -111,11 +111,13 @@ export function migrateNotesToJson(notesDir: string): MigrationResult {
       const meta: NoteFileData = {
         id: data.id ?? id,
         title: data.title ?? id,
+        type: data.type ?? 'markdown',
         docId: data.docId ?? null,
         folderId: data.folderId ?? null,
         annotationIds: data.annotationIds ?? [],
         tags: data.tags ?? [],
         contentFormat: 'json',
+        typeMeta: data.typeMeta ?? null,
         createdAt: data.createdAt ?? now,
         updatedAt: now,
       }
