@@ -131,29 +131,37 @@ export interface AnnotationListOptions {
   color?: string
 }
 
+export type NoteType = 'markdown' | 'mindmap'
+
 export interface Note {
   id: string
   title: string
+  type: NoteType
   path: string
   docId: string | null
   folderId: string | null
   content: string
   contentFormat: 'json' | 'markdown'
+  typeMeta: Record<string, unknown> | null
   createdAt: string
   updatedAt: string
 }
 
 export interface NoteCreateInput {
   title: string
+  type?: NoteType
   docId?: string
   folderId?: string
   folder?: string
   annotationIds?: string[]
   content?: string
   templateId?: string
+  layout?: string
+  theme?: string
 }
 
 export interface NoteListOptions {
+  type?: NoteType
   docId?: string
   folderId?: string
   tag?: string
@@ -205,7 +213,7 @@ export interface Tag {
   color: string | null
 }
 
-export type TagTarget = 'document' | 'note' | 'mindmap'
+export type TagTarget = 'document' | 'note'
 
 export interface SearchResult {
   type: 'document' | 'note' | 'annotation'
@@ -233,6 +241,7 @@ export type MindmapNodeType = 'text' | 'note' | 'document' | 'annotation' | 'ima
 export interface Mindmap {
   id: string
   title: string
+  path: string
   docId: string | null
   layout: MindmapLayout
   theme: string
@@ -243,6 +252,7 @@ export interface Mindmap {
 export interface MindmapCreateInput {
   title: string
   docId?: string
+  folder?: string
   layout?: MindmapLayout
   theme?: string
 }
@@ -308,14 +318,15 @@ export interface MindmapEdgeCreateInput {
 export interface GraphNode {
   id: string
   label: string
-  type: 'document' | 'note' | 'mindmap'
+  type: 'document' | 'note'
+  noteType?: NoteType
   docType?: DocumentType
 }
 
 export interface GraphEdge {
   source: string
   target: string
-  type: 'note-doc' | 'note-note' | 'annotation-link' | 'mindmap-doc'
+  type: 'note-doc' | 'note-note' | 'annotation-link'
 }
 
 export interface GraphData {
@@ -379,11 +390,13 @@ export interface AnnotationFileData {
 export interface NoteFileData {
   id: string
   title: string
+  type: NoteType
   docId: string | null
   folderId: string | null
   annotationIds: string[]
   tags: string[]
   contentFormat: 'json' | 'markdown'
+  typeMeta: Record<string, unknown> | null
   createdAt: string
   updatedAt: string
 }
