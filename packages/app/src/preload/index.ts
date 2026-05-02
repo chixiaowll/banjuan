@@ -40,12 +40,16 @@ const api = {
     delete: (id: string) => ipcRenderer.invoke('annotations:delete', id),
   },
   notes: {
-    create: (input: { title: string; docId?: string; folder?: string; annotationIds?: string[]; content?: string; templateId?: string }) =>
-      ipcRenderer.invoke('notes:create', input),
-    list: (options?: { docId?: string; folderId?: string; tag?: string; sort?: string; order?: string }) =>
-      ipcRenderer.invoke('notes:list', options),
+    create: (input: {
+      title: string; type?: string; docId?: string; folder?: string;
+      annotationIds?: string[]; content?: string; templateId?: string;
+      layout?: string; theme?: string
+    }) => ipcRenderer.invoke('notes:create', input),
+    list: (options?: {
+      type?: string; docId?: string; folderId?: string; tag?: string; sort?: string; order?: string
+    }) => ipcRenderer.invoke('notes:list', options),
     get: (id: string) => ipcRenderer.invoke('notes:get', id),
-    update: (id: string, updates: { title?: string; content?: string }) =>
+    update: (id: string, updates: { title?: string; content?: string; typeMeta?: Record<string, unknown> }) =>
       ipcRenderer.invoke('notes:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('notes:delete', id),
     getAnnotations: (noteId: string) => ipcRenderer.invoke('notes:getAnnotations', noteId),
@@ -89,20 +93,14 @@ const api = {
     delete: (id: string) => ipcRenderer.invoke('templates:delete', id),
   },
   mindmaps: {
-    create: (input: { title: string; docId?: string; layout?: string; theme?: string }) =>
-      ipcRenderer.invoke('mindmaps:create', input),
-    list: (options?: { docId?: string }) => ipcRenderer.invoke('mindmaps:list', options),
-    get: (id: string) => ipcRenderer.invoke('mindmaps:get', id),
-    update: (id: string, updates: { title?: string; layout?: string; docId?: string; theme?: string }) =>
-      ipcRenderer.invoke('mindmaps:update', id, updates),
-    delete: (id: string) => ipcRenderer.invoke('mindmaps:delete', id),
-    addNode: (mindmapId: string, input: {
+    addNode: (noteId: string, input: {
       title: string; parentId?: string; nodeType?: string; annotationId?: string;
       noteId?: string; docId?: string; hyperlink?: string; imageUrl?: string;
       tagId?: string; content?: string; color?: string; notes?: string;
       shape?: string; styleOverrides?: string; positionX?: number; positionY?: number
-    }) => ipcRenderer.invoke('mindmaps:addNode', mindmapId, input),
-    getNodes: (mindmapId: string) => ipcRenderer.invoke('mindmaps:getNodes', mindmapId),
+    }) => ipcRenderer.invoke('mindmaps:addNode', noteId, input),
+    getNodes: (noteId: string) => ipcRenderer.invoke('mindmaps:getNodes', noteId),
+    findNodesByNoteId: (noteId: string) => ipcRenderer.invoke('mindmaps:findNodesByNoteId', noteId),
     updateNode: (id: string, updates: {
       title?: string; content?: string; color?: string; notes?: string;
       shape?: string; styleOverrides?: string; nodeType?: string;
@@ -111,9 +109,9 @@ const api = {
       collapsed?: boolean; sortOrder?: number
     }) => ipcRenderer.invoke('mindmaps:updateNode', id, updates),
     removeNode: (id: string) => ipcRenderer.invoke('mindmaps:removeNode', id),
-    addEdge: (mindmapId: string, input: { sourceId: string; targetId: string; label?: string }) =>
-      ipcRenderer.invoke('mindmaps:addEdge', mindmapId, input),
-    getEdges: (mindmapId: string) => ipcRenderer.invoke('mindmaps:getEdges', mindmapId),
+    addEdge: (noteId: string, input: { sourceId: string; targetId: string; label?: string }) =>
+      ipcRenderer.invoke('mindmaps:addEdge', noteId, input),
+    getEdges: (noteId: string) => ipcRenderer.invoke('mindmaps:getEdges', noteId),
     removeEdge: (id: string) => ipcRenderer.invoke('mindmaps:removeEdge', id),
   },
   graph: {
