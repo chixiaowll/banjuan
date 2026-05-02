@@ -15,21 +15,12 @@ export class GraphService {
       nodeIds.add(doc.id)
     }
 
-    const notes = this.db.prepare('SELECT id, title, doc_id FROM notes').all() as Array<{ id: string; title: string; doc_id: string | null }>
+    const notes = this.db.prepare('SELECT id, title, type, doc_id FROM notes').all() as Array<{ id: string; title: string; type: string; doc_id: string | null }>
     for (const note of notes) {
-      nodes.push({ id: note.id, label: note.title, type: 'note' })
+      nodes.push({ id: note.id, label: note.title, type: 'note', noteType: note.type as any })
       nodeIds.add(note.id)
       if (note.doc_id && nodeIds.has(note.doc_id)) {
         edges.push({ source: note.id, target: note.doc_id, type: 'note-doc' })
-      }
-    }
-
-    const maps = this.db.prepare('SELECT id, title, doc_id FROM mindmaps').all() as Array<{ id: string; title: string; doc_id: string | null }>
-    for (const map of maps) {
-      nodes.push({ id: map.id, label: map.title, type: 'mindmap' })
-      nodeIds.add(map.id)
-      if (map.doc_id && nodeIds.has(map.doc_id)) {
-        edges.push({ source: map.id, target: map.doc_id, type: 'mindmap-doc' })
       }
     }
 
