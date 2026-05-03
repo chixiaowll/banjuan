@@ -43,6 +43,7 @@ const en = {
   'library.newFolder': 'New Folder',
   'library.rename': 'Rename',
   'library.newMindmap': 'New Mindmap',
+  'library.untitledMindmap': 'Untitled Mindmap',
   'library.colTitle': 'Title',
   'library.colType': 'Type',
   'library.colCreatedAt': 'Created',
@@ -52,6 +53,30 @@ const en = {
   'library.recentNotes': 'Recent',
   'library.emptyNotes': 'No notes yet',
   'library.emptyMindmaps': 'No mindmaps yet',
+  'library.newHandwriting': 'New Handwriting',
+  'library.untitledHandwriting': 'Untitled Handwriting',
+
+  // Handwriting
+  'handwriting.pages': 'Pages',
+  'handwriting.newPage': 'New Page',
+  'handwriting.deletePage': 'Delete Page',
+  'handwriting.changeTemplate': 'Change Template',
+  'handwriting.insertBefore': 'Insert Before',
+  'handwriting.insertAfter': 'Insert After',
+  'handwriting.duplicatePage': 'Duplicate Page',
+  'handwriting.template.blank': 'Blank',
+  'handwriting.template.lined': 'Lined',
+  'handwriting.template.grid': 'Grid',
+  'handwriting.template.dotted': 'Dotted',
+  'handwriting.template.cornell': 'Cornell',
+  'handwriting.tool.pen': 'Pen',
+  'handwriting.tool.highlighter': 'Highlighter',
+  'handwriting.tool.eraser': 'Eraser',
+  'handwriting.tool.shape': 'Shape',
+  'handwriting.tool.lasso': 'Lasso',
+  'handwriting.exportPdf': 'Export PDF',
+  'handwriting.exportPng': 'Export PNG',
+  'handwriting.exportAllPng': 'Export All Pages (ZIP)',
 
   // Library detail
   'detail.title': 'Details',
@@ -103,6 +128,22 @@ const en = {
   // Note view
   'note.saving': 'Saving...',
   'note.saved': 'Saved',
+  'note.export': 'Export',
+  'note.readMode': 'Read',
+  'note.editMode': 'Edit',
+  'note.notes': 'Notes',
+  'note.outline': 'Outline',
+  'note.backlinks': 'Backlinks',
+  'note.properties': 'Properties',
+
+  // Folder tree
+  'folderTree.newNote': 'New Note',
+  'folderTree.newFolder': 'New Folder',
+  'folderTree.rename': 'Rename',
+  'folderTree.delete': 'Delete',
+  'folderTree.cancel': 'Cancel',
+  'folderTree.confirmDeleteDir': 'Delete folder "{0}"?',
+  'folderTree.confirmDeleteNote': 'Delete note "{0}"?',
 
   // Mindmap
   'mindmap.label': 'Mindmap',
@@ -115,6 +156,7 @@ const en = {
   'mindmap.search': 'Search nodes...',
   'mindmap.properties': 'Properties',
   'mindmap.themes': 'Themes',
+  'mindmap.selectNodeHint': 'Select a node to view properties',
 
   // Sync
   'sync.title': 'WebDAV Sync Config',
@@ -170,6 +212,25 @@ const en = {
 
   // Note creation from PDF
   'note.defaultTitle': '{0} — Notes',
+
+  // Backlinks panel
+  'backlinks.title': 'Related',
+  'backlinks.forwardLinks': 'References ({0})',
+  'backlinks.backlinks': 'Backlinks ({0})',
+  'backlinks.noBacklinks': 'No backlinks',
+  'backlinks.mindmapRefs': 'Mindmap Refs ({0})',
+  'backlinks.mindmapNode': 'Node: {0}',
+  'backlinks.linkedDoc': 'Linked Document',
+  'backlinks.linkedAnnotations': 'Linked Annotations ({0})',
+
+  // Mindmap file tree
+  'mindmapTree.newMindmap': 'New Mindmap',
+  'mindmapTree.newFolder': 'New Folder',
+  'mindmapTree.rename': 'Rename',
+  'mindmapTree.delete': 'Delete',
+  'mindmapTree.cancel': 'Cancel',
+  'mindmapTree.confirmDeleteDir': 'Delete folder "{0}"?',
+  'mindmapTree.confirmDeleteMindmap': 'Delete mindmap "{0}"?',
 
   // Multi-window
   'library.openAnother': 'Open Another Library',

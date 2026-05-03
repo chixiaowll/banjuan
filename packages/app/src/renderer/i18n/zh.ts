@@ -43,6 +43,7 @@ const zh = {
   'library.newFolder': '新建文件夹',
   'library.rename': '重命名',
   'library.newMindmap': '新建脑图',
+  'library.untitledMindmap': '未命名脑图',
   'library.colTitle': '标题',
   'library.colType': '类型',
   'library.colCreatedAt': '创建时间',
@@ -52,6 +53,30 @@ const zh = {
   'library.recentNotes': '最近',
   'library.emptyNotes': '还没有笔记',
   'library.emptyMindmaps': '还没有脑图',
+  'library.newHandwriting': '新建手写',
+  'library.untitledHandwriting': '未命名手写',
+
+  // Handwriting
+  'handwriting.pages': '页面',
+  'handwriting.newPage': '新建页面',
+  'handwriting.deletePage': '删除页面',
+  'handwriting.changeTemplate': '更换模板',
+  'handwriting.insertBefore': '在前方插入',
+  'handwriting.insertAfter': '在后方插入',
+  'handwriting.duplicatePage': '复制页面',
+  'handwriting.template.blank': '空白',
+  'handwriting.template.lined': '横线',
+  'handwriting.template.grid': '网格',
+  'handwriting.template.dotted': '点阵',
+  'handwriting.template.cornell': '康奈尔',
+  'handwriting.tool.pen': '钢笔',
+  'handwriting.tool.highlighter': '荧光笔',
+  'handwriting.tool.eraser': '橡皮擦',
+  'handwriting.tool.shape': '形状',
+  'handwriting.tool.lasso': '套索',
+  'handwriting.exportPdf': '导出 PDF',
+  'handwriting.exportPng': '导出 PNG',
+  'handwriting.exportAllPng': '导出全部页面 (ZIP)',
 
   // Library detail
   'detail.title': '详情',
@@ -103,6 +128,22 @@ const zh = {
   // Note view
   'note.saving': '保存中...',
   'note.saved': '已保存',
+  'note.export': '导出',
+  'note.readMode': '阅读',
+  'note.editMode': '编辑',
+  'note.notes': '笔记',
+  'note.outline': '大纲',
+  'note.backlinks': '引用',
+  'note.properties': '属性',
+
+  // Folder tree
+  'folderTree.newNote': '新建笔记',
+  'folderTree.newFolder': '新建文件夹',
+  'folderTree.rename': '重命名',
+  'folderTree.delete': '删除',
+  'folderTree.cancel': '取消',
+  'folderTree.confirmDeleteDir': '确定删除文件夹「{0}」？',
+  'folderTree.confirmDeleteNote': '确定删除笔记「{0}」？',
 
   // Mindmap
   'mindmap.label': '脑图',
@@ -115,6 +156,7 @@ const zh = {
   'mindmap.search': '搜索节点...',
   'mindmap.properties': '属性',
   'mindmap.themes': '主题',
+  'mindmap.selectNodeHint': '选择一个节点以查看属性',
 
   // Sync
   'sync.title': 'WebDAV 同步配置',
@@ -170,6 +212,25 @@ const zh = {
 
   // Note creation from PDF
   'note.defaultTitle': '{0} — 笔记',
+
+  // Backlinks panel
+  'backlinks.title': '关联信息',
+  'backlinks.forwardLinks': '引用 ({0})',
+  'backlinks.backlinks': '反向引用 ({0})',
+  'backlinks.noBacklinks': '暂无引用',
+  'backlinks.mindmapRefs': '脑图引用 ({0})',
+  'backlinks.mindmapNode': '节点: {0}',
+  'backlinks.linkedDoc': '关联文档',
+  'backlinks.linkedAnnotations': '关联标注 ({0})',
+
+  // Mindmap file tree
+  'mindmapTree.newMindmap': '新建思维导图',
+  'mindmapTree.newFolder': '新建文件夹',
+  'mindmapTree.rename': '重命名',
+  'mindmapTree.delete': '删除',
+  'mindmapTree.cancel': '取消',
+  'mindmapTree.confirmDeleteDir': '确定删除文件夹「{0}」？',
+  'mindmapTree.confirmDeleteMindmap': '确定删除思维导图「{0}」？',
 
   // Multi-window
   'library.openAnother': '打开其他书房',
