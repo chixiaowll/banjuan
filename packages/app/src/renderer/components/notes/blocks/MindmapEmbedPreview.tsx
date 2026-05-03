@@ -9,13 +9,13 @@ interface Props {
   noteTitle: string
 }
 
-const PADDING = 40
+const PADDING = 20
 
 function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapStoreApi }) {
   const [ready, setReady] = useState(false)
-  const [size, setSize] = useState<{ width: number; height: number } | null>(null)
+  const [height, setHeight] = useState(400)
   const containerRef = useRef<HTMLDivElement>(null)
-  const { fitView, getNodes } = useReactFlow()
+  const { fitView, getNodes, getViewport } = useReactFlow()
   const nodesInitialized = useNodesInitialized()
   const sizedRef = useRef(false)
 
@@ -28,19 +28,17 @@ function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapSt
     if (!nodesInitialized || sizedRef.current) return
     const nodes = getNodes()
     if (nodes.length === 0) return
+    sizedRef.current = true
+
     const bounds = getNodesBounds(nodes)
     const fullW = bounds.width + PADDING * 2
     const fullH = bounds.height + PADDING * 2
+    const containerW = containerRef.current?.clientWidth ?? fullW
+    const scale = Math.min(1, containerW / fullW)
+    setHeight(fullH * scale)
 
-    const editorEl = containerRef.current?.closest('.bn-editor') ?? containerRef.current?.closest('.note-embed-clean')
-    const availableWidth = editorEl ? editorEl.clientWidth : (containerRef.current?.parentElement?.clientWidth ?? fullW)
-    const scale = Math.min(1, availableWidth / fullW)
-    const displayH = fullH * scale
-
-    setSize({ width: availableWidth, height: displayH })
-    sizedRef.current = true
-    setTimeout(() => fitView({ duration: 0, padding: 0.02, maxZoom: scale, minZoom: scale }), 60)
-  }, [nodesInitialized, getNodes, fitView])
+    setTimeout(() => fitView({ duration: 0, padding: 0.02 }), 60)
+  }, [nodesInitialized, getNodes, fitView, getViewport])
 
   const handleScreenshot = useCallback(async (e: Event) => {
     const detail = (e as CustomEvent).detail
@@ -84,9 +82,8 @@ function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapSt
   }
 
   const style: React.CSSProperties = {
-    width: size ? size.width : '100%',
-    height: size ? size.height : 400,
-    maxWidth: '100%',
+    width: '100%',
+    height,
     borderRadius: 6,
     overflow: 'hidden',
   }
