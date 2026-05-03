@@ -3,7 +3,7 @@ import TitleBar, { type Tab } from './TitleBar.js'
 import LibraryView from '../views/LibraryView.js'
 import DocumentViewer from './viewers/DocumentViewer.js'
 import NoteView from '../views/NoteView.js'
-import MindmapView from '../views/MindmapView.js'
+import TagManagerView from '../views/TagManagerView.js'
 import { useT } from '../i18n/index.js'
 
 const LIBRARY_TAB_ID = 'library'
@@ -34,21 +34,32 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
     setActiveTabId(tabId)
   }, [tabs, tabData])
 
-  const openNote = useCallback((note: any) => {
-    const noteType = note.type ?? 'markdown'
-    const tabType = noteType === 'mindmap' ? 'mindmap' : 'note'
-    const tabPrefix = noteType === 'mindmap' ? 'mindmap' : 'note'
-    const existingTab = tabs.find(t => t.type === tabType && tabData.get(t.id)?.id === note.id)
+  const openNote = useCallback(async (note: any) => {
+    const existingTab = tabs.find(t => t.type === 'note' && tabData.get(t.id)?.id === note.id)
     if (existingTab) {
       setActiveTabId(existingTab.id)
       return
     }
-    const tabId = `${tabPrefix}-${note.id}`
-    const newTab: Tab = { id: tabId, type: tabType, title: note.title, closable: true }
+    const full = note.type ? note : await window.electronAPI.notes.get(note.id)
+    if (!full) return
+    const tabId = `note-${full.id}`
+    const newTab: Tab = { id: tabId, type: 'note', title: full.title, closable: true }
     setTabs(prev => [...prev, newTab])
-    setTabData(prev => new Map(prev).set(tabId, note))
+    setTabData(prev => new Map(prev).set(tabId, full))
     setActiveTabId(tabId)
   }, [tabs, tabData])
+
+  const openTagManager = useCallback(() => {
+    const existingTab = tabs.find(t => t.type === 'tag-manager')
+    if (existingTab) {
+      setActiveTabId(existingTab.id)
+      return
+    }
+    const tabId = 'tag-manager'
+    const newTab: Tab = { id: tabId, type: 'tag-manager', title: t('tags.manager'), closable: true }
+    setTabs(prev => [...prev, newTab])
+    setActiveTabId(tabId)
+  }, [tabs, t])
 
   useEffect(() => {
     const syncTabTitles = async () => {
@@ -104,6 +115,7 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
                 onOpenNote={openNote}
                 onOpenMindmap={openNote}
                 onOpenGraph={() => {}}
+                onOpenTagManager={openTagManager}
               />
             )}
             {tab.type === 'document' && tabData.get(tab.id) && (
@@ -118,15 +130,10 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
                 note={tabData.get(tab.id)}
                 onBack={() => closeTab(tab.id)}
                 onOpenNote={openNote}
-                onOpenMindmap={openNote}
               />
             )}
-            {tab.type === 'mindmap' && tabData.get(tab.id) && (
-              <MindmapView
-                mindmap={tabData.get(tab.id)}
-                onBack={() => closeTab(tab.id)}
-                onOpenMindmap={openNote}
-              />
+            {tab.type === 'tag-manager' && (
+              <TagManagerView />
             )}
           </div>
         ))}
