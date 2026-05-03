@@ -14,8 +14,22 @@ const MERMAID_CONFIG = {
   sequence: { mirrorActors: false, messageMargin: 30, boxMargin: 6, noteMargin: 6, messageFontSize: 11, actorFontSize: 11 },
   gantt: { barHeight: 18, fontSize: 11, sectionFontSize: 11 },
   themeVariables: {
-    fontSize: '11px',
-    flowchartTitleFontSize: '11px',
+    fontSize: '12px',
+    fontFamily: 'inherit',
+    // flowchart
+    nodeFontSize: '12px',
+    edgeLabelFontSize: '11px',
+    // state
+    stateFontSize: '12px',
+    stateLabelFontSize: '12px',
+    // class
+    classFontSize: '12px',
+    // er
+    erFontSize: '12px',
+    // pie
+    pieTitleFontSize: '13px',
+    pieSectionTextSize: '12px',
+    pieLegendTextSize: '11px',
   },
 }
 
