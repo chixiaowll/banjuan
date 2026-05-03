@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import { ChevronDown, ChevronRight, FilePlus, Brain, PenTool, Download, Upload, Trash2, FolderPlus, Check, Pencil } from 'lucide-react'
 import SyncConfigPanel from '../components/sync/SyncConfigPanel.js'
 import TemplatePicker from '../components/notes/TemplatePicker.js'
+import TagInput from '../components/tags/TagInput.js'
+import TagPill from '../components/tags/TagPill.js'
 import { useI18n } from '../i18n/index.js'
 import type { Locale } from '../i18n/index.js'
 
@@ -18,7 +21,7 @@ interface Document {
 interface Tag {
   id: string
   name: string
-  color: string
+  color: string | null
 }
 
 interface Props {
@@ -28,6 +31,7 @@ interface Props {
   onOpenNote: (note: any) => void
   onOpenMindmap: (mindmap: any) => void
   onOpenGraph: () => void
+  onOpenTagManager?: () => void
 }
 
 type SidebarSection = 'documents' | 'notes' | 'graph' | 'sync' | 'plugins' | 'settings'
@@ -66,7 +70,19 @@ function buildDirTree(docs: Document[]): DirNode[] {
   return toNodes(root)
 }
 
-const TYPE_COLOR = 'var(--text-muted)'
+const TYPE_PILLS: Record<string, { bg: string; color: string; label: string }> = {
+  markdown:    { bg: '#e8eff8', color: '#4a7ab5', label: 'Note' },
+  mindmap:     { bg: '#eeebf6', color: '#7b6ba8', label: 'Mind' },
+  handwriting: { bg: '#f4ede4', color: '#a07842', label: 'Hand' },
+  pdf:         { bg: '#f0e8e4', color: '#a06b4a', label: 'PDF' },
+  epub:        { bg: '#e6f2ec', color: '#3d8a66', label: 'EPUB' },
+  txt:         { bg: '#edeef0', color: '#737a84', label: 'TXT' },
+  md:          { bg: '#eaeaf5', color: '#5d5da0', label: 'MD' },
+  image:       { bg: '#f3efe3', color: '#9a8035', label: 'IMG' },
+  video:       { bg: '#f3e8ef', color: '#a35882', label: 'Video' },
+  html:        { bg: '#e4f0f1', color: '#3a7f86', label: 'HTML' },
+  other:       { bg: '#edeef0', color: '#737a84', label: 'Other' },
+}
 
 function formatDate(dateStr: string, locale: string): string {
   try {
@@ -119,7 +135,7 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
           onClick={(e) => { if (hasChildren) { e.stopPropagation(); onToggle(node.path) } }}
           style={{ width: 14, textAlign: 'center', fontSize: 9, color: 'var(--text-muted)', flexShrink: 0, opacity: hasChildren ? 1 : 0 }}
         >
-          {isExpanded ? '▼' : '▶'}
+          {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </span>
         {icon && <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{icon}</span>}
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isSelected ? 500 : 400 }}>
@@ -143,7 +159,7 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
   )
 }
 
-export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNote, onOpenMindmap, onOpenGraph }: Props) {
+export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNote, onOpenMindmap, onOpenGraph, onOpenTagManager }: Props) {
   const { t, locale, setLocale } = useI18n()
   const [documents, setDocuments] = useState<Document[]>([])
   const [notes, setNotes] = useState<any[]>([])
@@ -169,6 +185,9 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [noteDirs, setNoteDirs] = useState<string[]>([])
   const [selectedNoteDir, setSelectedNoteDir] = useState<string | null>(null)
   const [expandedNoteDirs, setExpandedNoteDirs] = useState<Set<string>>(new Set())
+  const [tagsWithCounts, setTagsWithCounts] = useState<Array<{ id: string; name: string; color: string | null; count: number }>>([])
+  const [tagSearch, setTagSearch] = useState('')
+  const [showAllTags, setShowAllTags] = useState(false)
 
   useEffect(() => {
     if (!contextMenu) return
@@ -230,8 +249,11 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   }
 
   const loadTags = async () => {
-    try { const list = await window.electronAPI.tags.list(); setTags(list) }
-    catch { setTags([]) }
+    try {
+      const list = await window.electronAPI.tags.listWithCounts()
+      setTagsWithCounts(list)
+      setTags(list)
+    } catch { setTagsWithCounts([]); setTags([]) }
   }
 
   const loadNoteDirs = async () => {
@@ -252,10 +274,6 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     return () => document.removeEventListener('notes-changed', refresh)
   }, [])
 
-  const handleImport = async () => {
-    const result = await window.electronAPI.documents.import()
-    if (result) await loadDocuments()
-  }
 
   const handleCreateNote = () => {
     setContextMenu(null)
@@ -428,6 +446,18 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
       }
     } else if (selectedSection === 'plugins') items = plugins
 
+    if (selectedTag) {
+      const tagName = tagsWithCounts.find(t => t.id === selectedTag)?.name
+      if (tagName) {
+        // TODO: document/note list data does not include tags array; tag filtering here is a no-op.
+        // To enable filtering, load tags per-item or add tags to the list query.
+        items = items.filter((item: any) => {
+          const itemTags: string[] = item.tags || []
+          return itemTags.includes(tagName)
+        })
+      }
+    }
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
       items = items.filter((item: any) => (item.title || item.name || '').toLowerCase().includes(q))
@@ -506,7 +536,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             onMouseLeave={e => { if (!(selectedSection === 'documents' && selectedDir === null)) e.currentTarget.style.background = 'transparent' }}
           >
             <span style={{ width: 14, textAlign: 'center', fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>
-              {selectedSection === 'documents' && dirTree.length > 0 ? '▼' : dirTree.length > 0 ? '▶' : ''}
+              {selectedSection === 'documents' && dirTree.length > 0 ? <ChevronDown size={12} /> : dirTree.length > 0 ? <ChevronRight size={12} /> : null}
             </span>
             <span style={{ fontSize: 15, lineHeight: 1 }}>📄</span>
             {t('library.documents')}
@@ -533,7 +563,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             onMouseLeave={e => { if (!(selectedSection === 'notes' && selectedNoteDir === null)) e.currentTarget.style.background = 'transparent' }}
           >
             <span style={{ width: 14, textAlign: 'center', fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>
-              {selectedSection === 'notes' && noteDirTree.length > 0 ? '▼' : noteDirTree.length > 0 ? '▶' : ''}
+              {selectedSection === 'notes' && noteDirTree.length > 0 ? <ChevronDown size={12} /> : noteDirTree.length > 0 ? <ChevronRight size={12} /> : null}
             </span>
             <span style={{ fontSize: 15, lineHeight: 1 }}>📝</span>
             {t('library.notes')}
@@ -616,23 +646,72 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
           {/* Tags */}
           <div style={{ padding: '4px 12px' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('library.tags')}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('library.tags')}</div>
+              <span
+                onClick={() => onOpenTagManager?.()}
+                title={t('tags.manager')}
+                style={{ cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13 }}
+              >⚙</span>
+            </div>
+            {tagsWithCounts.length > 0 && (
+              <input
+                value={tagSearch}
+                onChange={(e) => setTagSearch(e.target.value)}
+                placeholder={t('tags.search')}
+                style={{
+                  width: '100%', fontSize: 11, padding: '3px 6px', marginBottom: 6,
+                  border: '1px solid var(--border)', borderRadius: 4,
+                  background: 'var(--surface)', color: 'var(--text)', outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+            )}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {tags.map((tag) => (
-                <span
-                  key={tag.id}
-                  onClick={() => setSelectedTag(selectedTag === tag.id ? null : tag.id)}
-                  style={{
-                    fontSize: 11, padding: '2px 6px', borderRadius: 3, cursor: 'pointer',
-                    background: selectedTag === tag.id ? 'var(--selected)' : 'var(--hover)',
-                    color: tag.color || 'var(--text-muted)',
-                    border: selectedTag === tag.id ? '1px solid var(--accent)' : '1px solid transparent',
-                  }}
-                >
-                  {tag.name}
-                </span>
-              ))}
-              {tags.length === 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('library.noTags')}</span>}
+              {(() => {
+                const filtered = tagsWithCounts.filter(tag =>
+                  !tagSearch || tag.name.toLowerCase().includes(tagSearch.toLowerCase())
+                )
+                const MAX_VISIBLE = 10
+                const visible = showAllTags ? filtered : filtered.slice(0, MAX_VISIBLE)
+                const remaining = filtered.length - MAX_VISIBLE
+                return (
+                  <>
+                    {visible.map((tag) => (
+                      <span
+                        key={tag.id}
+                        onClick={() => setSelectedTag(selectedTag === tag.id ? null : tag.id)}
+                        style={{
+                          fontSize: 11, padding: '2px 6px', borderRadius: 9999, cursor: 'pointer',
+                          background: selectedTag === tag.id ? (tag.color || 'var(--accent)') : 'var(--hover)',
+                          color: selectedTag === tag.id ? '#fff' : (tag.color || 'var(--text-muted)'),
+                          border: selectedTag === tag.id ? `1px solid ${tag.color || 'var(--accent)'}` : '1px solid transparent',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {tag.name.split('/').pop()} ({tag.count})
+                      </span>
+                    ))}
+                    {!showAllTags && remaining > 0 && (
+                      <span
+                        onClick={() => setShowAllTags(true)}
+                        style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}
+                      >
+                        {t('tags.more', remaining)}
+                      </span>
+                    )}
+                    {showAllTags && filtered.length > MAX_VISIBLE && (
+                      <span
+                        onClick={() => setShowAllTags(false)}
+                        style={{ fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 4px' }}
+                      >
+                        ▲
+                      </span>
+                    )}
+                  </>
+                )
+              })()}
+              {tagsWithCounts.length === 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('library.noTags')}</span>}
             </div>
           </div>
 
@@ -673,14 +752,11 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
           <>
             <div style={toolbarStyle}>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                {selectedSection === 'documents' && (
-                  <button onClick={handleImport} style={{ fontSize: 12, padding: '4px 10px' }}>{t('common.import')}</button>
-                )}
                 {selectedSection === 'notes' && (
                   <>
-                    <button onClick={handleCreateNote} style={{ fontSize: 12, padding: '4px 10px' }}>{t('library.newNote')}</button>
-                    <button onClick={handleCreateMindmapNote} style={{ fontSize: 12, padding: '4px 10px' }}>{t('library.newMindmap')}</button>
-                    <button onClick={handleCreateHandwritingNote} style={{ fontSize: 12, padding: '4px 10px' }}>{t('library.newHandwriting')}</button>
+                    <button onClick={handleCreateNote} title={t('library.newNote')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><FilePlus size={16} /></button>
+                    <button onClick={handleCreateMindmapNote} title={t('library.newMindmap')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><Brain size={16} /></button>
+                    <button onClick={handleCreateHandwritingNote} title={t('library.newHandwriting')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><PenTool size={16} /></button>
                   </>
                 )}
                 {selectedSection === 'documents' && selectedDir && (
@@ -699,8 +775,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               display: 'flex', padding: '0 12px', borderBottom: '1px solid var(--border)',
               fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: 0.5, flexShrink: 0,
             }}>
+              {(selectedSection === 'documents' || selectedSection === 'notes') && <div style={{ width: 80, padding: '6px 4px' }}>{t('library.colType')}</div>}
               <div style={{ flex: 1, padding: '6px 4px' }}>{t('library.colTitle')}</div>
-              {selectedSection === 'documents' && <div style={{ width: 70, padding: '6px 4px', textAlign: 'center' }}>{t('library.colType')}</div>}
               <div style={{ width: 100, padding: '6px 4px', textAlign: 'right' }}>{t('library.colCreatedAt')}</div>
             </div>
 
@@ -739,19 +815,32 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                       if (selectedSection === 'notes') handleNoteItemContextMenu(e, item.id, item.title)
                     }}
                   >
-                    <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {selectedSection === 'notes' && (
-                        <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{item.type === 'mindmap' ? '🧠' : item.type === 'handwriting' ? '✏️' : '📝'}</span>
-                      )}
-                      {item.title || item.name}
-                    </div>
-                    {selectedSection === 'documents' && (
-                      <div style={{ width: 70, textAlign: 'center', padding: '0 4px' }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, color: TYPE_COLOR, letterSpacing: 0.5 }}>
-                          {item.type}
-                        </span>
+                    {(selectedSection === 'documents' || selectedSection === 'notes') && (
+                      <div style={{ width: 80, padding: '0 4px' }}>
+                        {TYPE_PILLS[item.type] ? (
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, letterSpacing: 0.3,
+                            display: 'inline-block',
+                            ...(selectedSection === 'notes' ? { width: 48, textAlign: 'center' as const, padding: '2px 0' } : { padding: '2px 8px' }),
+                            borderRadius: 9999,
+                            background: TYPE_PILLS[item.type].bg,
+                            color: TYPE_PILLS[item.type].color,
+                          }}>
+                            {TYPE_PILLS[item.type].label}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, color: 'var(--text-muted)', letterSpacing: 0.5 }}>
+                            {item.type}
+                          </span>
+                        )}
                       </div>
                     )}
+                    <div style={{ flex: 1, overflow: 'hidden', padding: '0 4px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 1 }}>
+                        {item.title || item.name}
+                      </span>
+                      {/* TODO: item.tags not included in list query; tag pills would go here once list returns tags */}
+                    </div>
                     <div style={{ width: 100, textAlign: 'right', padding: '0 4px', fontSize: 12, color: 'var(--text-muted)' }}>
                       {formatDate(item.createdAt, locale)}
                     </div>
@@ -769,7 +858,9 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>{t('detail.title')}</div>
           <DetailField label={t('detail.docTitle')} value={selectedItemDetail.title} />
           <DetailField label={t('detail.type')} value={
-            <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: TYPE_COLOR }}>{selectedItemDetail.type}</span>
+            TYPE_PILLS[selectedItemDetail.type]
+              ? <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.3, padding: '2px 8px', borderRadius: 9999, background: TYPE_PILLS[selectedItemDetail.type].bg, color: TYPE_PILLS[selectedItemDetail.type].color }}>{TYPE_PILLS[selectedItemDetail.type].label}</span>
+              : <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{selectedItemDetail.type}</span>
           } />
           <DetailField label={t('detail.path')} value={<span style={{ fontSize: 11, wordBreak: 'break-all' }}>{selectedItemDetail.path}</span>} />
           {selectedItemDetail.hash && (
@@ -785,24 +876,18 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               {docStatuses[selectedItemId] === 'synced' ? t('detail.synced') : docStatuses[selectedItemId] === 'cloud' ? t('detail.cloud') : t('detail.local')}
             </span>
           } />
-          {selectedItemTags.length > 0 && (
-            <div style={{ marginTop: 8, marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{t('library.tags')}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {selectedItemTags.map((tag) => (
-                  <span key={tag.id} style={{ fontSize: 11, padding: '1px 6px', borderRadius: 3, background: 'var(--hover)', color: tag.color || 'var(--text-muted)' }}>{tag.name}</span>
-                ))}
-              </div>
-            </div>
-          )}
+          <div style={{ marginTop: 8, marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{t('library.tags')}</div>
+            <TagInput targetId={selectedItemId!} targetType={selectedSection === 'documents' ? 'document' : 'note'} />
+          </div>
           <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {docStatuses[selectedItemId] === 'cloud' && (
-              <button onClick={() => handleDownload(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%' }}>{t('detail.download')}</button>
+              <button onClick={() => handleDownload(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Download size={14} />{t('detail.download')}</button>
             )}
             {docStatuses[selectedItemId] === 'local' && (
-              <button onClick={() => handleUpload(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%' }}>{t('detail.upload')}</button>
+              <button onClick={() => handleUpload(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Upload size={14} />{t('detail.upload')}</button>
             )}
-            <button onClick={() => handleDelete(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%', color: '#c44040', borderColor: '#c44040' }}>{t('common.delete')}</button>
+            <button onClick={() => handleDelete(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%', color: '#c44040', borderColor: '#c44040', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Trash2 size={14} />{t('common.delete')}</button>
           </div>
         </div>
       )}
@@ -818,7 +903,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 <DetailField label={t('detail.docTitle')} value={item.title} />
                 <DetailField label={t('detail.createdAt')} value={formatDate(item.createdAt, locale)} />
                 <div style={{ marginTop: 16 }}>
-                  <button onClick={() => handleDelete(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%', color: '#c44040', borderColor: '#c44040' }}>{t('common.delete')}</button>
+                  <button onClick={() => handleDelete(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%', color: '#c44040', borderColor: '#c44040', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Trash2 size={14} />{t('common.delete')}</button>
                 </div>
               </>
             )
@@ -916,40 +1001,40 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         }}>
           {(contextMenu.type === 'notes' || contextMenu.type === 'noteDir') && (
             <>
-              <div onClick={handleCreateNote} style={ctxItemStyle}
+              <div onClick={handleCreateNote} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >{t('library.newNote')}</div>
-              <div onClick={() => { setContextMenu(null); handleCreateMindmapNote() }} style={ctxItemStyle}
+              ><FilePlus size={14} />{t('library.newNote')}</div>
+              <div onClick={() => { setContextMenu(null); handleCreateMindmapNote() }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >{t('library.newMindmap')}</div>
-              <div onClick={() => { setContextMenu(null); handleCreateHandwritingNote() }} style={ctxItemStyle}
+              ><Brain size={14} />{t('library.newMindmap')}</div>
+              <div onClick={() => { setContextMenu(null); handleCreateHandwritingNote() }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >{t('library.newHandwriting')}</div>
-              <div onClick={handleCreateFolder} style={ctxItemStyle}
+              ><PenTool size={14} />{t('library.newHandwriting')}</div>
+              <div onClick={handleCreateFolder} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >{t('library.newFolder')}</div>
+              ><FolderPlus size={14} />{t('library.newFolder')}</div>
               {contextMenu.type === 'noteDir' && contextMenu.dirPath && (
-                <div onClick={handleRenameDir} style={ctxItemStyle}
+                <div onClick={handleRenameDir} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >{t('library.rename')}</div>
+                ><Pencil size={14} />{t('library.rename')}</div>
               )}
             </>
           )}
           {contextMenu.type === 'noteItem' && (
             <>
-              <div onClick={handleRenameNote} style={ctxItemStyle}
+              <div onClick={handleRenameNote} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >{t('library.rename')}</div>
-              <div onClick={() => { if (contextMenu.noteId) { handleDelete(contextMenu.noteId); setContextMenu(null) } }} style={{ ...ctxItemStyle, color: '#c44040' }}
+              ><Pencil size={14} />{t('library.rename')}</div>
+              <div onClick={() => { if (contextMenu.noteId) { handleDelete(contextMenu.noteId); setContextMenu(null) } }} style={{ ...ctxItemStyle, color: '#c44040', display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >{t('common.delete')}</div>
+              ><Trash2 size={14} />{t('common.delete')}</div>
             </>
           )}
         </div>
