@@ -14,7 +14,7 @@ export const MermaidBlock = createReactBlockSpec(
     propSchema: {
       code: { default: FLOWCHART_TEMPLATE },
       viewMode: { default: 'split' as const },
-      theme: { default: 'default' as const },
+      theme: { default: 'neutral' as const },
     },
     content: 'none' as const,
   },
@@ -26,7 +26,7 @@ export const MermaidBlock = createReactBlockSpec(
         <MermaidBlockContent
           code={code}
           viewMode={viewMode as ViewMode}
-          theme={(theme || 'default') as MermaidTheme}
+          theme={(theme || 'neutral') as MermaidTheme}
           onCodeChange={(newCode) => {
             props.editor.updateBlock(props.block, {
               props: { code: newCode },
