@@ -162,6 +162,19 @@ function renderMindmapTreeHtml(title: string, nodes: any[]): string {
   return `<div class="mindmap-export"><p>🧠 <strong>${title}</strong></p><ul><li>${root.title || title}${renderList(root.id)}</li></ul></div>`
 }
 
+async function screenshotMindmapEmbed(noteId: string): Promise<string | null> {
+  const embed = document.querySelector(`.note-embed-clean[data-embed-note-id="${noteId}"]`)
+  if (!embed) return null
+  const rfEl = embed.querySelector('.react-flow') as HTMLElement | null
+  if (!rfEl) return null
+  try {
+    const { toPng } = await import('html-to-image')
+    return await toPng(rfEl, { backgroundColor: '#ffffff', pixelRatio: 2 })
+  } catch {
+    return null
+  }
+}
+
 async function uploadFile(noteId: string, file: File): Promise<{ relativePath: string; isImage: boolean }> {
   const buffer = await file.arrayBuffer()
   const relativePath = await window.electronAPI.attachments.save(noteId, file.name, buffer)
@@ -265,8 +278,13 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
             try {
               const note = await window.electronAPI.notes.get(p.noteId)
               if (note?.type === 'mindmap') {
-                const nodes = await window.electronAPI.mindmaps.getNodes(p.noteId)
-                segments.push(renderMindmapTreeMd(noteTitle, nodes))
+                const imgDataUrl = await screenshotMindmapEmbed(p.noteId)
+                if (imgDataUrl) {
+                  segments.push(`🧠 **${noteTitle}**\n\n![${noteTitle}](${imgDataUrl})`)
+                } else {
+                  const nodes = await window.electronAPI.mindmaps.getNodes(p.noteId)
+                  segments.push(renderMindmapTreeMd(noteTitle, nodes))
+                }
               } else {
                 segments.push(`> 📝 **${noteTitle}**`)
               }
@@ -340,8 +358,13 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
             try {
               const note = await window.electronAPI.notes.get(p.noteId)
               if (note?.type === 'mindmap') {
-                const nodes = await window.electronAPI.mindmaps.getNodes(p.noteId)
-                segments.push(renderMindmapTreeHtml(noteTitle, nodes))
+                const imgDataUrl = await screenshotMindmapEmbed(p.noteId)
+                if (imgDataUrl) {
+                  segments.push(`<div class="mindmap-export"><p>🧠 <strong>${noteTitle}</strong></p><img src="${imgDataUrl}" style="max-width:100%" /></div>`)
+                } else {
+                  const nodes = await window.electronAPI.mindmaps.getNodes(p.noteId)
+                  segments.push(renderMindmapTreeHtml(noteTitle, nodes))
+                }
               } else {
                 segments.push(`<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`)
               }
