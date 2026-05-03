@@ -9,7 +9,7 @@ interface Props {
   theme?: MermaidTheme
 }
 
-export default function MermaidPreview({ code, theme = 'default' }: Props) {
+export default function MermaidPreview({ code, theme = 'neutral' }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
 
