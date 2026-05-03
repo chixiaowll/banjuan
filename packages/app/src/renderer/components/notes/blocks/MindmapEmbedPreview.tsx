@@ -15,7 +15,7 @@ function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapSt
   const [ready, setReady] = useState(false)
   const [height, setHeight] = useState(400)
   const containerRef = useRef<HTMLDivElement>(null)
-  const { fitView, getNodes, getViewport } = useReactFlow()
+  const { fitView, getNodes } = useReactFlow()
   const nodesInitialized = useNodesInitialized()
   const sizedRef = useRef(false)
 
@@ -38,7 +38,7 @@ function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapSt
     setHeight(fullH * scale)
 
     setTimeout(() => fitView({ duration: 0, padding: 0.02 }), 60)
-  }, [nodesInitialized, getNodes, fitView, getViewport])
+  }, [nodesInitialized, getNodes, fitView])
 
   const handleScreenshot = useCallback(async (e: Event) => {
     const detail = (e as CustomEvent).detail
@@ -46,31 +46,19 @@ function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapSt
     const container = containerRef.current
     if (!container) { detail.resolve(null); return }
 
-    const nodes = getNodes()
-    if (nodes.length === 0) { detail.resolve(null); return }
-
-    const bounds = getNodesBounds(nodes)
-    const fullWidth = bounds.width + PADDING * 2
-    const fullHeight = bounds.height + PADDING * 2
-
-    fitView({ duration: 0, padding: 0.05, maxZoom: 1, minZoom: 1 })
-    await new Promise(r => setTimeout(r, 100))
-
     try {
-      const viewport = container.querySelector('.react-flow__viewport') as HTMLElement
-      if (!viewport) { detail.resolve(null); return }
+      const rfEl = container.querySelector('.react-flow') as HTMLElement
+      if (!rfEl) { detail.resolve(null); return }
       const { toPng } = await import('html-to-image')
-      const dataUrl = await toPng(viewport, {
+      const dataUrl = await toPng(rfEl, {
         backgroundColor: '#ffffff',
         pixelRatio: 2,
-        width: fullWidth,
-        height: fullHeight,
       })
       detail.resolve(dataUrl)
     } catch {
       detail.resolve(null)
     }
-  }, [noteId, getNodes, fitView])
+  }, [noteId, fitView])
 
   useEffect(() => {
     document.addEventListener('mindmap-screenshot-request', handleScreenshot)
