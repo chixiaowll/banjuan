@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { ReactFlowProvider, useReactFlow, getNodesBounds } from '@xyflow/react'
+import { ReactFlowProvider, useReactFlow, useNodesInitialized, getNodesBounds } from '@xyflow/react'
 import MindmapCanvas from '../../mindmap/MindmapCanvas.js'
-import { MindmapStoreContext, createMindmapStore, useMindmapStore } from '../../mindmap/useMindmapStore.js'
+import { MindmapStoreContext, createMindmapStore } from '../../mindmap/useMindmapStore.js'
 import type { MindmapStoreApi } from '../../mindmap/useMindmapStore.js'
 
 interface Props {
@@ -9,15 +9,32 @@ interface Props {
   noteTitle: string
 }
 
+const PADDING = 40
+
 function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapStoreApi }) {
   const [ready, setReady] = useState(false)
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { fitView, getNodes } = useReactFlow()
+  const nodesInitialized = useNodesInitialized()
+  const sizedRef = useRef(false)
 
   useEffect(() => {
     if (!noteId) return
     store.getState().init(noteId).then(() => setReady(true))
   }, [noteId, store])
+
+  useEffect(() => {
+    if (!nodesInitialized || sizedRef.current) return
+    const nodes = getNodes()
+    if (nodes.length === 0) return
+    const bounds = getNodesBounds(nodes)
+    const w = bounds.width + PADDING * 2
+    const h = bounds.height + PADDING * 2
+    setSize({ width: w, height: h })
+    sizedRef.current = true
+    setTimeout(() => fitView({ duration: 0, padding: 0.05, maxZoom: 1, minZoom: 1 }), 60)
+  }, [nodesInitialized, getNodes, fitView])
 
   const handleScreenshot = useCallback(async (e: Event) => {
     const detail = (e as CustomEvent).detail
@@ -29,19 +46,9 @@ function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapSt
     if (nodes.length === 0) { detail.resolve(null); return }
 
     const bounds = getNodesBounds(nodes)
-    const padding = 40
-    const fullWidth = bounds.width + padding * 2
-    const fullHeight = bounds.height + padding * 2
+    const fullWidth = bounds.width + PADDING * 2
+    const fullHeight = bounds.height + PADDING * 2
 
-    const origWidth = container.style.width
-    const origHeight = container.style.height
-    const origOverflow = container.style.overflow
-
-    container.style.width = `${fullWidth}px`
-    container.style.height = `${fullHeight}px`
-    container.style.overflow = 'hidden'
-
-    await new Promise(r => setTimeout(r, 50))
     fitView({ duration: 0, padding: 0.05, maxZoom: 1, minZoom: 1 })
     await new Promise(r => setTimeout(r, 100))
 
@@ -58,11 +65,6 @@ function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapSt
       detail.resolve(dataUrl)
     } catch {
       detail.resolve(null)
-    } finally {
-      container.style.width = origWidth
-      container.style.height = origHeight
-      container.style.overflow = origOverflow
-      setTimeout(() => fitView({ duration: 0, padding: 0.2, maxZoom: 1 }), 50)
     }
   }, [noteId, getNodes, fitView])
 
@@ -75,8 +77,16 @@ function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapSt
     return <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading mindmap...</span>
   }
 
+  const style: React.CSSProperties = {
+    width: size ? size.width : '100%',
+    height: size ? size.height : 400,
+    maxWidth: '100%',
+    borderRadius: 6,
+    overflow: 'hidden',
+  }
+
   return (
-    <div ref={containerRef} style={{ width: '100%', height: 400, borderRadius: 6, overflow: 'hidden' }}>
+    <div ref={containerRef} style={style}>
       <MindmapCanvas readonly />
     </div>
   )
