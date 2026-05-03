@@ -8,11 +8,11 @@ const MERMAID_CONFIG = {
   startOnLoad: false,
   securityLevel: 'strict' as const,
   fontFamily: 'inherit',
-  fontSize: 13,
+  fontSize: 11,
   flowchart: { padding: 8, nodeSpacing: 30, rankSpacing: 40, curve: 'basis' as const },
-  sequence: { mirrorActors: false, messageMargin: 30, boxMargin: 6, noteMargin: 6 },
-  gantt: { barHeight: 20, fontSize: 12, sectionFontSize: 13 },
-  themeVariables: { fontSize: '13px' },
+  sequence: { mirrorActors: false, messageMargin: 30, boxMargin: 6, noteMargin: 6, messageFontSize: 11, actorFontSize: 11 },
+  gantt: { barHeight: 18, fontSize: 11, sectionFontSize: 11 },
+  themeVariables: { fontSize: '11px' },
 }
 
 interface Props {
