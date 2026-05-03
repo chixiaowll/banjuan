@@ -191,54 +191,111 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   useImperativeHandle(ref, () => ({
     exportMarkdown: async () => {
       const blocks = editor.document as any[]
-      const fileEmbeds: Array<{ id: string; fileName: string; safeName: string }> = []
+      const segments: string[] = []
+      let stdBatch: any[] = []
+
+      const flushStd = async () => {
+        if (stdBatch.length === 0) return
+        try {
+          let md = await editor.blocksToMarkdownLossy(stdBatch)
+          md = md.replace(/!\[[^\]]*\]\(banjuan-attachment:\/\/attachments\/[^/]+\/([^\s)]+)\)/g,
+            (_match, fileName) => `[${decodeURIComponent(fileName)}](attachments/${fileName})`)
+          md = md.replace(/banjuan-attachment:\/\/attachments\/[^/]+\/([^\s)]+)/g, 'attachments/$1')
+          segments.push(md)
+        } catch { /* skip */ }
+        stdBatch = []
+      }
+
       for (const block of blocks) {
-        if (block.type === 'fileEmbed' && block.props?.src) {
-          const fileName = block.props.fileName || block.props.src.split('/').pop() || 'attachment'
-          const safeName = block.props.src.split('/').pop() || fileName
-          fileEmbeds.push({ id: block.id, fileName, safeName })
-        }
-      }
-      let md: string
-      try {
-        md = await editor.blocksToMarkdownLossy(blocks)
-      } catch {
-        md = ''
-      }
-      md = md.replace(/!\[[^\]]*\]\(banjuan-attachment:\/\/attachments\/[^/]+\/([^\s)]+)\)/g,
-        (_match, fileName) => `[${decodeURIComponent(fileName)}](attachments/${fileName})`)
-      md = md.replace(/banjuan-attachment:\/\/attachments\/[^/]+\/([^\s)]+)/g, 'attachments/$1')
-      for (const fe of fileEmbeds) {
-        const escaped = fe.fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const pattern = new RegExp(`^.*${escaped}.*$`, 'm')
-        if (pattern.test(md)) {
-          md = md.replace(pattern, `[${fe.fileName}](attachments/${fe.safeName})`)
+        const p = block.props || {}
+        if (block.type === 'mermaidBlock' && p.code) {
+          await flushStd()
+          segments.push(`\`\`\`mermaid\n${p.code}\n\`\`\``)
+        } else if (block.type === 'noteEmbed') {
+          await flushStd()
+          segments.push(`> 📝 **${p.noteTitle || 'Untitled'}**`)
+        } else if (block.type === 'documentEmbed') {
+          await flushStd()
+          const parts = [`📄 **${p.docTitle || 'Document'}**`]
+          if (p.authors) parts.push(p.authors)
+          if (p.pageCount > 0) parts.push(`${p.pageCount} pages`)
+          segments.push(`> ${parts.join(' · ')}`)
+        } else if (block.type === 'annotationEmbed') {
+          await flushStd()
+          const lines = [`> 📄 ${p.docTitle || 'Document'}${p.page ? ` p.${p.page}` : ''}`]
+          if (p.quote) lines.push(`> "${p.quote}"`)
+          if (p.comment) lines.push(`> ${p.comment}`)
+          segments.push(lines.join('\n'))
+        } else if (block.type === 'fileEmbed' && p.src) {
+          await flushStd()
+          const fileName = p.fileName || p.src.split('/').pop() || 'attachment'
+          const safeName = p.src.split('/').pop() || fileName
+          segments.push(`[${fileName}](attachments/${safeName})`)
         } else {
-          md += `\n\n[${fe.fileName}](attachments/${fe.safeName})`
+          stdBatch.push(block)
         }
       }
-      return md
+      await flushStd()
+      return segments.join('\n\n')
     },
     exportHTML: async () => {
       const blocks = editor.document as any[]
-      const fileEmbeds: Map<string, { fileName: string }> = new Map()
+      const segments: string[] = []
+      let stdBatch: any[] = []
+
+      const flushStd = async () => {
+        if (stdBatch.length === 0) return
+        try {
+          segments.push(await editor.blocksToHTMLLossy(stdBatch))
+        } catch { /* skip */ }
+        stdBatch = []
+      }
+
       for (const block of blocks) {
-        if (block.type === 'fileEmbed' && block.props?.src) {
-          fileEmbeds.set(block.id, { fileName: block.props.fileName || block.props.src.split('/').pop() || 'attachment' })
+        const p = block.props || {}
+        if (block.type === 'mermaidBlock' && p.code) {
+          await flushStd()
+          try {
+            const mermaid = (await import('mermaid')).default
+            mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: (p.theme as any) || 'neutral' })
+            const id = `mermaid-export-${Date.now()}-${Math.random().toString(36).slice(2)}`
+            const w = p.renderWidth || 500
+            const tempDiv = document.createElement('div')
+            tempDiv.style.width = `${w}px`
+            tempDiv.style.position = 'absolute'
+            tempDiv.style.left = '-9999px'
+            document.body.appendChild(tempDiv)
+            const { svg } = await mermaid.render(id, p.code, tempDiv)
+            document.body.removeChild(tempDiv)
+            segments.push(`<div class="mermaid-diagram">${svg}</div>`)
+          } catch {
+            segments.push(`<pre><code class="language-mermaid">${p.code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`)
+          }
+        } else if (block.type === 'noteEmbed') {
+          await flushStd()
+          segments.push(`<blockquote><p>📝 <strong>${p.noteTitle || 'Untitled'}</strong></p></blockquote>`)
+        } else if (block.type === 'documentEmbed') {
+          await flushStd()
+          const parts = [`📄 <strong>${p.docTitle || 'Document'}</strong>`]
+          if (p.authors) parts.push(p.authors)
+          if (p.pageCount > 0) parts.push(`${p.pageCount} pages`)
+          segments.push(`<blockquote><p>${parts.join(' · ')}</p></blockquote>`)
+        } else if (block.type === 'annotationEmbed') {
+          await flushStd()
+          let inner = `<p>📄 ${p.docTitle || 'Document'}${p.page ? ` p.${p.page}` : ''}</p>`
+          if (p.quote) inner += `<p><em>"${p.quote}"</em></p>`
+          if (p.comment) inner += `<p>${p.comment}</p>`
+          segments.push(`<blockquote>${inner}</blockquote>`)
+        } else if (block.type === 'fileEmbed' && p.src) {
+          await flushStd()
+          const fileName = p.fileName || p.src.split('/').pop() || 'attachment'
+          segments.push(`<p>📎 <strong>${fileName}</strong></p>`)
+        } else {
+          stdBatch.push(block)
         }
       }
-      let html: string
-      try {
-        html = await editor.blocksToHTMLLossy(blocks)
-      } catch {
-        html = ''
-      }
-      for (const [, fe] of fileEmbeds) {
-        const escaped = fe.fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const pattern = new RegExp(`<p[^>]*>\\s*${escaped}\\s*</p>`, 'g')
-        html = html.replace(pattern, `<p>📎 <strong>${fe.fileName}</strong></p>`)
-      }
-      return html
+      await flushStd()
+      return segments.join('\n')
     },
     getAttachmentPaths: () => {
       return [...extractAttachmentPaths(editor.document)]
