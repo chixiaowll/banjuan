@@ -911,6 +911,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               <>
                 <DetailField label={t('detail.docTitle')} value={item.title} />
                 <DetailField label={t('detail.createdAt')} value={formatDate(item.createdAt, locale)} />
+                <div style={{ marginTop: 8, marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{t('library.tags')}</div>
+                  <TagInput targetId={selectedItemId!} targetType={item.type === 'mindmap' ? 'mindmap' : 'note'} />
+                </div>
                 <div style={{ marginTop: 16 }}>
                   <button onClick={() => handleDelete(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%', color: '#c44040', borderColor: '#c44040', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Trash2 size={14} />{t('common.delete')}</button>
                 </div>
