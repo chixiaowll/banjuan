@@ -188,6 +188,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [tagsWithCounts, setTagsWithCounts] = useState<Array<{ id: string; name: string; color: string | null; count: number }>>([])
   const [tagSearch, setTagSearch] = useState('')
   const [showAllTags, setShowAllTags] = useState(false)
+  const [tagFilteredItems, setTagFilteredItems] = useState<any[] | null>(null)
 
   useEffect(() => {
     if (!contextMenu) return
@@ -274,6 +275,22 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     return () => document.removeEventListener('notes-changed', refresh)
   }, [])
 
+  useEffect(() => {
+    if (!selectedTag) {
+      setTagFilteredItems(null)
+      return
+    }
+    const tagName = tagsWithCounts.find(t => t.id === selectedTag)?.name
+    if (!tagName) { setTagFilteredItems(null); return }
+    const load = async () => {
+      const [docs, noteList] = await Promise.all([
+        window.electronAPI.documents.list({ tag: tagName }),
+        window.electronAPI.notes.list({ tag: tagName }),
+      ])
+      setTagFilteredItems([...docs, ...noteList])
+    }
+    load()
+  }, [selectedTag, tagsWithCounts])
 
   const handleCreateNote = () => {
     setContextMenu(null)
@@ -446,16 +463,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
       }
     } else if (selectedSection === 'plugins') items = plugins
 
-    if (selectedTag) {
-      const tagName = tagsWithCounts.find(t => t.id === selectedTag)?.name
-      if (tagName) {
-        // TODO: document/note list data does not include tags array; tag filtering here is a no-op.
-        // To enable filtering, load tags per-item or add tags to the list query.
-        items = items.filter((item: any) => {
-          const itemTags: string[] = item.tags || []
-          return itemTags.includes(tagName)
-        })
-      }
+    if (selectedTag && tagFilteredItems) {
+      items = tagFilteredItems
     }
 
     if (searchQuery) {
