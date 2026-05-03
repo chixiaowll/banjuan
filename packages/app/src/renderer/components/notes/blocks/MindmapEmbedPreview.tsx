@@ -29,11 +29,17 @@ function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapSt
     const nodes = getNodes()
     if (nodes.length === 0) return
     const bounds = getNodesBounds(nodes)
-    const w = bounds.width + PADDING * 2
-    const h = bounds.height + PADDING * 2
-    setSize({ width: w, height: h })
+    const fullW = bounds.width + PADDING * 2
+    const fullH = bounds.height + PADDING * 2
+
+    const editorEl = containerRef.current?.closest('.bn-editor') ?? containerRef.current?.closest('.note-embed-clean')
+    const availableWidth = editorEl ? editorEl.clientWidth : (containerRef.current?.parentElement?.clientWidth ?? fullW)
+    const scale = Math.min(1, availableWidth / fullW)
+    const displayH = fullH * scale
+
+    setSize({ width: availableWidth, height: displayH })
     sizedRef.current = true
-    setTimeout(() => fitView({ duration: 0, padding: 0.05, maxZoom: 1, minZoom: 1 }), 60)
+    setTimeout(() => fitView({ duration: 0, padding: 0.02, maxZoom: scale, minZoom: scale }), 60)
   }, [nodesInitialized, getNodes, fitView])
 
   const handleScreenshot = useCallback(async (e: Event) => {
