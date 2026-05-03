@@ -1,8 +1,9 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
+import { X } from 'lucide-react'
 
 export interface Tab {
   id: string
-  type: 'library' | 'document' | 'note' | 'mindmap'
+  type: 'library' | 'document' | 'note' | 'tag-manager'
   title: string
   closable: boolean
 }
@@ -156,15 +157,16 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
             }}
           >
             <span className="title-bar-tab-icon">
-              {tab.type === 'library' ? '📚' : tab.type === 'document' ? '📄' : '📝'}
+              {tab.type === 'library' ? '📚' : tab.type === 'document' ? '📄' : tab.type === 'tag-manager' ? '🏷' : '📝'}
             </span>
             <span className="title-bar-tab-title">{tab.title}</span>
             {tab.closable && (
               <button
                 className="title-bar-tab-close"
                 onClick={(e) => { e.stopPropagation(); onCloseTab(tab.id) }}
+                title="Close"
               >
-                ×
+                <X size={12} />
               </button>
             )}
           </div>
