@@ -17,6 +17,8 @@ import { useKeyboardShortcuts } from '../components/mindmap/useKeyboardShortcuts
 import HandwritingCenterContent from '../components/handwriting/HandwritingCenterContent.js'
 import PageListPanel from '../components/handwriting/PageListPanel.js'
 import { createHandwritingStore, HandwritingStoreContext } from '../components/handwriting/useHandwritingStore.js'
+import { FileDown, FileText, FileImage, Eye, Pencil, PanelLeft, PanelRight } from 'lucide-react'
+import TagInput from '../components/tags/TagInput.js'
 import { useT } from '../i18n/index.js'
 
 interface NoteInfo {
@@ -382,13 +384,9 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
             height: 40, padding: '0 12px', borderBottom: '1px solid var(--border)',
             display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
           }}>
-            <button onClick={() => setLeftSidebarOpen(v => !v)}
-              style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}>
-              ☰
-            </button>
-            <button onClick={onBack}
-              style={{ background: 'none', border: 'none', fontSize: 12, cursor: 'pointer', color: 'var(--text-muted)', padding: '4px 6px' }}>
-              {t('common.back')}
+            <button onClick={() => setLeftSidebarOpen(v => !v)} title={t('common.toggleSidebar')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'inline-flex', alignItems: 'center' }}>
+              <PanelLeft size={16} />
             </button>
             <span style={{
               flex: 1, fontWeight: 600, fontSize: 15, color: 'var(--text)',
@@ -399,15 +397,27 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
             <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
               {saving ? t('note.saving') : t('note.saved')}
             </span>
+            <button onClick={() => setReadingMode(r => !r)}
+              title={readingMode ? t('note.editMode') : t('note.readMode')}
+              style={{
+                background: 'none', border: 'none', borderRadius: 4,
+                cursor: 'pointer', padding: '4px',
+                color: readingMode ? 'var(--accent)' : 'var(--text-muted)',
+                display: 'inline-flex', alignItems: 'center',
+              }}>
+              {readingMode ? <Pencil size={16} /> : <Eye size={16} />}
+            </button>
             <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
               <button
                 onClick={() => setExportMenuOpen(v => !v)}
+                title={t('note.export')}
                 style={{
-                  background: 'none', border: '1px solid var(--border)', borderRadius: 4,
-                  fontSize: 12, cursor: 'pointer', padding: '3px 8px', color: 'var(--text-muted)',
+                  background: 'none', border: 'none', borderRadius: 4,
+                  cursor: 'pointer', padding: '4px', color: 'var(--text-muted)',
+                  display: 'inline-flex', alignItems: 'center',
                 }}
               >
-                {t('note.export')}
+                <FileDown size={16} />
               </button>
               {exportMenuOpen && (
                 <div
@@ -427,14 +437,14 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
                       await window.electronAPI.export.markdown({ title, markdown, attachments })
                     }}
                     style={{
-                      display: 'block', width: '100%', padding: '8px 16px', border: 'none',
+                      display: 'flex', width: '100%', padding: '8px 16px', border: 'none',
                       background: 'none', textAlign: 'left', fontSize: 13, cursor: 'pointer',
-                      color: 'var(--text)',
+                      color: 'var(--text)', alignItems: 'center', gap: 6,
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'none'}
                   >
-                    Markdown
+                    <FileText size={14} />Markdown
                   </button>
                   <button
                     onClick={async () => {
@@ -445,31 +455,34 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
                       await window.electronAPI.export.pdf({ title, html, attachments })
                     }}
                     style={{
-                      display: 'block', width: '100%', padding: '8px 16px', border: 'none',
+                      display: 'flex', width: '100%', padding: '8px 16px', border: 'none',
                       background: 'none', textAlign: 'left', fontSize: 13, cursor: 'pointer',
-                      color: 'var(--text)',
+                      color: 'var(--text)', alignItems: 'center', gap: 6,
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'none'}
                   >
-                    PDF
+                    <FileImage size={14} />PDF
                   </button>
                 </div>
               )}
             </div>
-            <button onClick={() => setReadingMode(r => !r)}
-              style={{
-                background: 'none', border: '1px solid var(--border)', borderRadius: 4,
-                fontSize: 12, cursor: 'pointer', padding: '3px 8px',
-                color: readingMode ? 'var(--accent)' : 'var(--text-muted)',
-                fontWeight: readingMode ? 500 : 400,
-              }}>
-              {readingMode ? t('note.editMode') : t('note.readMode')}
+            <button onClick={() => setRightSidebarOpen(v => !v)} title={t('common.toggleSidebar')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'inline-flex', alignItems: 'center' }}>
+              <PanelRight size={16} />
             </button>
-            <button onClick={() => setRightSidebarOpen(v => !v)}
-              style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}>
-              ≡
-            </button>
+          </div>
+
+          {/* Tag row */}
+          <div style={{
+            padding: '4px 12px', borderBottom: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+          }}>
+            <TagInput
+              targetId={note.id}
+              targetType={note.type === 'mindmap' ? 'mindmap' : 'note'}
+              compact
+            />
           </div>
 
           {/* Editor */}
