@@ -61,6 +61,9 @@ export default function MermaidPreview({ code, theme = 'neutral' }: Props) {
       if (svgEl) {
         svgEl.style.maxWidth = '100%'
         svgEl.style.height = 'auto'
+        svgEl.querySelectorAll('text, .nodeLabel, .edgeLabel, .label, tspan, foreignObject span, foreignObject p, foreignObject div').forEach((el) => {
+          ;(el as HTMLElement).style.fontSize = '12px'
+        })
       }
       setError(null)
     }).catch((err) => {
