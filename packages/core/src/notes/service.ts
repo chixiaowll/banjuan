@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3'
 import { writeFileSync, readFileSync, existsSync, unlinkSync, mkdirSync, readdirSync, renameSync } from 'node:fs'
 import { join, dirname, relative } from 'node:path'
 import { v4 as uuid } from 'uuid'
-import type { Note, NoteCreateInput, NoteListOptions, Annotation, NoteFileData, NoteType } from '../types.js'
+import type { Note, NoteCreateInput, NoteListOptions, Annotation, NoteFileData, NoteType, HandwritingNoteJsonFile } from '../types.js'
 import type { SearchService } from '../search/service.js'
 import type { EventBus } from '../events/bus.js'
 import type { TemplateService } from './template-service.js'
@@ -49,7 +49,8 @@ export class NoteService {
           const relPath = prefix ? `${prefix}/${entry.name}` : entry.name
           if (!knownPaths.has(relPath)) {
             try {
-              const raw = JSON.parse(readFileSync(join(dir, entry.name), 'utf-8'))
+              const rawText = readFileSync(join(dir, entry.name), 'utf-8')
+              const raw = JSON.parse(rawText)
               const m = raw.meta as NoteFileData
               const noteType = m.type ?? 'markdown'
               const typeMeta = m.typeMeta ? JSON.stringify(m.typeMeta) : null
@@ -59,12 +60,31 @@ export class NoteService {
               if (noteType === 'mindmap' && raw.nodes) {
                 this.importMindmapNodesFromFile(m.id, raw.nodes, raw.edges ?? [])
               }
+              this.syncLinksFromFile(m.id, rawText)
             } catch { /* skip malformed files */ }
           }
         }
       }
     }
     scan(this.notesDir, '')
+  }
+
+  private syncLinksFromFile(noteId: string, rawJson: string): void {
+    if (!this.linkService) return
+    const seen = new Set<string>()
+    const links: Array<{ targetId: string; context: string }> = []
+    const re = /"noteId"\s*:\s*"([a-f0-9-]{36})"/g
+    let match: RegExpExecArray | null
+    while ((match = re.exec(rawJson)) !== null) {
+      const targetId = match[1]
+      if (targetId !== noteId && !seen.has(targetId)) {
+        seen.add(targetId)
+        links.push({ targetId, context: '' })
+      }
+    }
+    if (links.length > 0) {
+      this.linkService.sync(noteId, links)
+    }
   }
   setLinkService(svc: NoteLinkService): void { this.linkService = svc }
 
@@ -120,6 +140,12 @@ export class NoteService {
     if (noteType === 'mindmap') {
       typeMeta = { layout: input.layout ?? 'mindmap', theme: input.theme ?? 'classic' }
     }
+    if (noteType === 'handwriting') {
+      typeMeta = {
+        pageSize: { width: 1024, height: 768 },
+        defaultTemplate: 'blank',
+      }
+    }
 
     const meta: NoteFileData = {
       id, title: input.title, type: noteType, docId: input.docId ?? null,
@@ -131,6 +157,12 @@ export class NoteService {
     if (noteType === 'mindmap') {
       writeFileSync(fullPath, JSON.stringify({ meta, nodes: [], edges: [] }, null, 2))
       contentStr = JSON.stringify({ nodes: [], edges: [] })
+    } else if (noteType === 'handwriting') {
+      const initialPageId = uuid()
+      const initialPage = { id: initialPageId, template: 'blank', tldrawSnapshot: null }
+      const fileData = { meta, pages: [initialPage], currentPageIndex: 0 }
+      writeFileSync(fullPath, JSON.stringify(fileData, null, 2))
+      contentStr = JSON.stringify({ pages: [initialPage], currentPageIndex: 0 })
     } else {
       let blocks: unknown[] = []
       if (input.templateId && this.templateService) {
@@ -191,6 +223,9 @@ export class NoteService {
       if (note.type === 'mindmap') {
         const parsed = JSON.parse(raw) as MindmapNoteJsonFile
         note.content = JSON.stringify({ nodes: parsed.nodes ?? [], edges: parsed.edges ?? [] })
+      } else if (note.type === 'handwriting') {
+        const parsed = JSON.parse(raw) as HandwritingNoteJsonFile
+        note.content = JSON.stringify({ pages: parsed.pages ?? [], currentPageIndex: parsed.currentPageIndex ?? 0 })
       } else if (note.contentFormat === 'json') {
         const parsed = JSON.parse(raw) as NoteJsonFile
         note.content = JSON.stringify(parsed.blocks)
@@ -221,6 +256,19 @@ export class NoteService {
         if (updates.title !== undefined) raw.meta.title = updates.title
         if (updates.typeMeta !== undefined) raw.meta.typeMeta = updates.typeMeta
         raw.meta.updatedAt = now
+        writeFileSync(filePath, JSON.stringify(raw, null, 2))
+      } else if ((row.type as string) === 'handwriting') {
+        const raw = JSON.parse(readFileSync(filePath, 'utf-8')) as HandwritingNoteJsonFile
+        if (updates.title !== undefined) raw.meta.title = updates.title
+        if (updates.typeMeta !== undefined) raw.meta.typeMeta = updates.typeMeta
+        raw.meta.updatedAt = now
+        if (updates.content !== undefined) {
+          try {
+            const parsed = JSON.parse(updates.content)
+            raw.pages = parsed.pages ?? raw.pages
+            raw.currentPageIndex = parsed.currentPageIndex ?? raw.currentPageIndex
+          } catch { /* keep existing */ }
+        }
         writeFileSync(filePath, JSON.stringify(raw, null, 2))
       } else {
         const raw = JSON.parse(readFileSync(filePath, 'utf-8')) as NoteJsonFile
@@ -298,19 +346,19 @@ export class NoteService {
 
   importMindmapNodesFromFile(noteId: string, nodes: Array<Record<string, unknown>>, edges: Array<Record<string, unknown>>): void {
     const insertNode = this.db.prepare(
-      `INSERT OR IGNORE INTO mindmap_nodes (id, mindmap_id, parent_id, node_type, annotation_id, note_id, doc_id, hyperlink, image_url, tag_id, title, content, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT OR IGNORE INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     const insertEdge = this.db.prepare(
       'INSERT OR IGNORE INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)'
     )
     for (const n of nodes) {
       insertNode.run(
-        n.id, noteId, n.parentId ?? null, n.nodeType ?? 'text',
-        n.annotationId ?? null, n.noteId ?? null, n.docId ?? null,
-        n.hyperlink ?? null, n.imageUrl ?? null, n.tagId ?? null,
-        n.title, n.content ?? null, n.color ?? null,
-        n.notes ?? null, n.shape ?? null, n.styleOverrides ?? null,
+        n.id, noteId, n.parentId ?? null,
+        n.title, n.content ?? null,
+        n.hyperlink ?? null, n.imageUrl ?? null,
+        n.color ?? null, n.notes ?? null,
+        n.shape ?? null, n.styleOverrides ?? null,
         n.positionX ?? null, n.positionY ?? null,
         n.sortOrder ?? 0, n.collapsed ? 1 : 0, n.createdAt ?? new Date().toISOString()
       )
