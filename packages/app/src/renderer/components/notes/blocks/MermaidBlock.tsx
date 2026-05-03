@@ -1,6 +1,7 @@
 import React, { useState, useCallback, lazy, Suspense } from 'react'
 import { createReactBlockSpec } from '@blocknote/react'
-import { FLOWCHART_TEMPLATE, MERMAID_TEMPLATES } from './mermaidTemplates.js'
+import { FLOWCHART_TEMPLATE, MERMAID_TEMPLATES, MERMAID_THEMES } from './mermaidTemplates.js'
+import type { MermaidTheme } from './mermaidTemplates.js'
 
 const MermaidCodeEditor = lazy(() => import('./MermaidCodeEditor.js'))
 const MermaidPreview = lazy(() => import('./MermaidPreview.js'))
@@ -13,17 +14,19 @@ export const MermaidBlock = createReactBlockSpec(
     propSchema: {
       code: { default: FLOWCHART_TEMPLATE },
       viewMode: { default: 'split' as const },
+      theme: { default: 'default' as const },
     },
     content: 'none' as const,
   },
   {
     render: (props) => {
-      const { code, viewMode } = props.block.props
+      const { code, viewMode, theme } = props.block.props
 
       return (
         <MermaidBlockContent
           code={code}
           viewMode={viewMode as ViewMode}
+          theme={(theme || 'default') as MermaidTheme}
           onCodeChange={(newCode) => {
             props.editor.updateBlock(props.block, {
               props: { code: newCode },
@@ -32,6 +35,11 @@ export const MermaidBlock = createReactBlockSpec(
           onViewModeChange={(mode) => {
             props.editor.updateBlock(props.block, {
               props: { viewMode: mode },
+            })
+          }}
+          onThemeChange={(t) => {
+            props.editor.updateBlock(props.block, {
+              props: { theme: t },
             })
           }}
           readOnly={!props.editor.isEditable}
@@ -44,14 +52,20 @@ export const MermaidBlock = createReactBlockSpec(
 interface ContentProps {
   code: string
   viewMode: ViewMode
+  theme: MermaidTheme
   onCodeChange: (code: string) => void
   onViewModeChange: (mode: ViewMode) => void
+  onThemeChange: (theme: MermaidTheme) => void
   readOnly: boolean
 }
 
-function MermaidBlockContent({ code, viewMode, onCodeChange, onViewModeChange, readOnly }: ContentProps) {
+function MermaidBlockContent({ code, viewMode, theme, onCodeChange, onViewModeChange, onThemeChange, readOnly }: ContentProps) {
   const [localCode, setLocalCode] = useState(code)
+  const [templateOpen, setTemplateOpen] = useState(false)
+  const [themeOpen, setThemeOpen] = useState(false)
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const templateRef = React.useRef<HTMLDivElement>(null)
+  const themeRef = React.useRef<HTMLDivElement>(null)
 
   const handleCodeChange = useCallback((newCode: string) => {
     setLocalCode(newCode)
@@ -64,6 +78,7 @@ function MermaidBlockContent({ code, viewMode, onCodeChange, onViewModeChange, r
   const handleTemplateSelect = useCallback((templateCode: string) => {
     setLocalCode(templateCode)
     onCodeChange(templateCode)
+    setTemplateOpen(false)
   }, [onCodeChange])
 
   React.useEffect(() => {
@@ -74,55 +89,107 @@ function MermaidBlockContent({ code, viewMode, onCodeChange, onViewModeChange, r
     setLocalCode(code)
   }, [code])
 
+  React.useEffect(() => {
+    if (!templateOpen && !themeOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (templateOpen && templateRef.current && !templateRef.current.contains(e.target as Node)) {
+        setTemplateOpen(false)
+      }
+      if (themeOpen && themeRef.current && !themeRef.current.contains(e.target as Node)) {
+        setThemeOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [templateOpen, themeOpen])
+
   if (readOnly) {
     return (
       <div className="mermaid-block" contentEditable={false}>
         <Suspense fallback={<div className="mermaid-loading">Loading diagram...</div>}>
-          <MermaidPreview code={localCode} />
+          <MermaidPreview code={localCode} theme={theme} />
         </Suspense>
       </div>
     )
   }
 
   const activeMode = viewMode || 'split'
+  const currentThemeLabel = MERMAID_THEMES.find(t => t.value === theme)?.label || 'Default'
 
   return (
     <div className="mermaid-block" contentEditable={false}>
       <div className="mermaid-toolbar">
-        <div className="mermaid-toolbar__modes">
-          <button
-            className={`mermaid-toolbar__btn ${activeMode === 'code' ? 'mermaid-toolbar__btn--active' : ''}`}
-            onClick={() => onViewModeChange('code')}
-            title="Code"
-          >
-            {'</>'}
-          </button>
-          <button
-            className={`mermaid-toolbar__btn ${activeMode === 'split' ? 'mermaid-toolbar__btn--active' : ''}`}
-            onClick={() => onViewModeChange('split')}
-            title="Split"
-          >
-            ⬜⬜
-          </button>
-          <button
-            className={`mermaid-toolbar__btn ${activeMode === 'preview' ? 'mermaid-toolbar__btn--active' : ''}`}
-            onClick={() => onViewModeChange('preview')}
-            title="Preview"
-          >
-            ▶
-          </button>
-        </div>
-        <div className="mermaid-toolbar__templates">
-          {MERMAID_TEMPLATES.map((t) => (
+        <div className="mermaid-toolbar__left">
+          <div className="mermaid-toolbar__modes">
             <button
-              key={t.label}
-              className="mermaid-toolbar__btn"
-              onClick={() => handleTemplateSelect(t.code)}
-              title={t.label}
+              className={`mermaid-toolbar__btn ${activeMode === 'code' ? 'mermaid-toolbar__btn--active' : ''}`}
+              onClick={() => onViewModeChange('code')}
+              title="Code"
             >
-              {t.label}
+              {'</>'}
             </button>
-          ))}
+            <button
+              className={`mermaid-toolbar__btn ${activeMode === 'split' ? 'mermaid-toolbar__btn--active' : ''}`}
+              onClick={() => onViewModeChange('split')}
+              title="Split"
+            >
+              ⬜⬜
+            </button>
+            <button
+              className={`mermaid-toolbar__btn ${activeMode === 'preview' ? 'mermaid-toolbar__btn--active' : ''}`}
+              onClick={() => onViewModeChange('preview')}
+              title="Preview"
+            >
+              ▶
+            </button>
+          </div>
+        </div>
+
+        <div className="mermaid-toolbar__right">
+          <div className="mermaid-dropdown" ref={themeRef}>
+            <button
+              className="mermaid-toolbar__btn"
+              onClick={() => { setThemeOpen(!themeOpen); setTemplateOpen(false) }}
+            >
+              🎨 {currentThemeLabel}
+            </button>
+            {themeOpen && (
+              <div className="mermaid-dropdown__menu">
+                {MERMAID_THEMES.map((t) => (
+                  <button
+                    key={t.value}
+                    className={`mermaid-dropdown__item ${theme === t.value ? 'mermaid-dropdown__item--active' : ''}`}
+                    onClick={() => { onThemeChange(t.value); setThemeOpen(false) }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mermaid-dropdown" ref={templateRef}>
+            <button
+              className="mermaid-toolbar__btn"
+              onClick={() => { setTemplateOpen(!templateOpen); setThemeOpen(false) }}
+            >
+              📋 Template
+            </button>
+            {templateOpen && (
+              <div className="mermaid-dropdown__menu">
+                {MERMAID_TEMPLATES.map((t) => (
+                  <button
+                    key={t.label}
+                    className="mermaid-dropdown__item"
+                    onClick={() => handleTemplateSelect(t.code)}
+                  >
+                    <span className="mermaid-dropdown__icon">{t.icon}</span>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -135,7 +202,7 @@ function MermaidBlockContent({ code, viewMode, onCodeChange, onViewModeChange, r
           )}
           {(activeMode === 'preview' || activeMode === 'split') && (
             <div className="mermaid-body__preview">
-              <MermaidPreview code={localCode} />
+              <MermaidPreview code={localCode} theme={theme} />
             </div>
           )}
         </div>

@@ -1,22 +1,26 @@
 import React, { useEffect, useRef, useState } from 'react'
 import mermaid from 'mermaid'
-
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'default',
-  securityLevel: 'strict',
-  fontFamily: 'inherit',
-})
+import type { MermaidTheme } from './mermaidTemplates.js'
 
 let renderCounter = 0
 
 interface Props {
   code: string
+  theme?: MermaidTheme
 }
 
-export default function MermaidPreview({ code }: Props) {
+export default function MermaidPreview({ code, theme = 'default' }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme,
+      securityLevel: 'strict',
+      fontFamily: 'inherit',
+    })
+  }, [theme])
 
   useEffect(() => {
     if (!code.trim()) {
@@ -24,6 +28,13 @@ export default function MermaidPreview({ code }: Props) {
       setError(null)
       return
     }
+
+    mermaid.initialize({
+      startOnLoad: false,
+      theme,
+      securityLevel: 'strict',
+      fontFamily: 'inherit',
+    })
 
     const id = `mermaid-${++renderCounter}`
     let cancelled = false
@@ -39,7 +50,7 @@ export default function MermaidPreview({ code }: Props) {
     })
 
     return () => { cancelled = true }
-  }, [code])
+  }, [code, theme])
 
   if (!code.trim()) {
     return (
