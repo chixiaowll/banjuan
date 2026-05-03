@@ -163,16 +163,17 @@ function renderMindmapTreeHtml(title: string, nodes: any[]): string {
 }
 
 async function screenshotMindmapEmbed(noteId: string): Promise<string | null> {
-  const embed = document.querySelector(`.note-embed-clean[data-embed-note-id="${noteId}"]`)
-  if (!embed) return null
-  const rfEl = embed.querySelector('.react-flow') as HTMLElement | null
-  if (!rfEl) return null
-  try {
-    const { toPng } = await import('html-to-image')
-    return await toPng(rfEl, { backgroundColor: '#ffffff', pixelRatio: 2 })
-  } catch {
-    return null
-  }
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(null), 5000)
+    const detail = {
+      noteId,
+      resolve: (result: string | null) => {
+        clearTimeout(timeout)
+        resolve(result)
+      },
+    }
+    document.dispatchEvent(new CustomEvent('mindmap-screenshot-request', { detail }))
+  })
 }
 
 async function uploadFile(noteId: string, file: File): Promise<{ relativePath: string; isImage: boolean }> {
