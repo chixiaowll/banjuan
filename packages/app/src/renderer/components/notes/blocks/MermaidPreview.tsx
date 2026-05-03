@@ -9,10 +9,14 @@ const MERMAID_CONFIG = {
   securityLevel: 'strict' as const,
   fontFamily: 'inherit',
   fontSize: 11,
-  flowchart: { padding: 8, nodeSpacing: 30, rankSpacing: 40, curve: 'basis' as const },
+  flowchart: { padding: 6, nodeSpacing: 30, rankSpacing: 40, curve: 'basis' as const, htmlLabels: true, defaultRenderer: 'dagre-wrapper' as any },
+  state: { defaultRenderer: 'dagre-wrapper' as any },
   sequence: { mirrorActors: false, messageMargin: 30, boxMargin: 6, noteMargin: 6, messageFontSize: 11, actorFontSize: 11 },
   gantt: { barHeight: 18, fontSize: 11, sectionFontSize: 11 },
-  themeVariables: { fontSize: '11px' },
+  themeVariables: {
+    fontSize: '11px',
+    flowchartTitleFontSize: '11px',
+  },
 }
 
 interface Props {
