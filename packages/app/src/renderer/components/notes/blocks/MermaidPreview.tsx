@@ -4,6 +4,17 @@ import type { MermaidTheme } from './mermaidTemplates.js'
 
 let renderCounter = 0
 
+const MERMAID_CONFIG = {
+  startOnLoad: false,
+  securityLevel: 'strict' as const,
+  fontFamily: 'inherit',
+  fontSize: 13,
+  flowchart: { padding: 8, nodeSpacing: 30, rankSpacing: 40, curve: 'basis' as const },
+  sequence: { mirrorActors: false, messageMargin: 30, boxMargin: 6, noteMargin: 6 },
+  gantt: { barHeight: 20, fontSize: 12, sectionFontSize: 13 },
+  themeVariables: { fontSize: '13px' },
+}
+
 interface Props {
   code: string
   theme?: MermaidTheme
@@ -14,27 +25,13 @@ export default function MermaidPreview({ code, theme = 'neutral' }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme,
-      securityLevel: 'strict',
-      fontFamily: 'inherit',
-    })
-  }, [theme])
-
-  useEffect(() => {
     if (!code.trim()) {
       if (containerRef.current) containerRef.current.innerHTML = ''
       setError(null)
       return
     }
 
-    mermaid.initialize({
-      startOnLoad: false,
-      theme,
-      securityLevel: 'strict',
-      fontFamily: 'inherit',
-    })
+    mermaid.initialize({ ...MERMAID_CONFIG, theme })
 
     const id = `mermaid-${++renderCounter}`
     let cancelled = false
