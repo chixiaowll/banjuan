@@ -44,7 +44,6 @@ export default function MermaidPreview({ code, theme = 'neutral' }: Props) {
       containerRef.current.innerHTML = svg
       const svgEl = containerRef.current.querySelector('svg')
       if (svgEl) {
-        svgEl.removeAttribute('width')
         svgEl.style.maxWidth = '100%'
         svgEl.style.height = 'auto'
       }
