@@ -43,6 +43,14 @@ export default function MermaidPreview({ code, theme = 'neutral' }: Props) {
       if (svgEl) {
         svgEl.style.maxWidth = '100%'
         svgEl.style.height = 'auto'
+        const styleEl = svgEl.querySelector('style')
+        if (styleEl) {
+          styleEl.textContent += `
+            .node .label, .nodeLabel, .edgeLabel, .label,
+            .statediagram-state .state-title, .state-note-text,
+            text, tspan { font-size: 12px !important; }
+          `
+        }
       }
       setError(null)
     }).catch((err) => {
