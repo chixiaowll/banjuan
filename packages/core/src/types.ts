@@ -213,7 +213,7 @@ export interface Tag {
   color: string | null
 }
 
-export type TagTarget = 'document' | 'note'
+export type TagTarget = 'document' | 'note' | 'mindmap'
 
 export interface SearchResult {
   type: 'document' | 'note' | 'annotation'
@@ -425,10 +425,28 @@ export interface MindmapFileData {
 
 export type HandwritingTemplate = 'blank' | 'lined' | 'grid' | 'dotted' | 'cornell'
 
+export interface StrokePoint {
+  x: number
+  y: number
+  pressure?: number
+}
+
+export interface Stroke {
+  id: string
+  points: StrokePoint[]
+  color: string
+  width: number
+  opacity: number
+}
+
+export interface CanvasSnapshot {
+  strokes: Stroke[]
+}
+
 export interface HandwritingPage {
   id: string
   template: HandwritingTemplate
-  tldrawSnapshot: unknown
+  snapshot: CanvasSnapshot
 }
 
 export interface HandwritingNoteJsonFile {
