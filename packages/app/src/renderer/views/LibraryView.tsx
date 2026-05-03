@@ -336,7 +336,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   }
 
   const handleCreateMindmapNote = async () => {
-    const title = '未命名脑图'
+    const title = t('library.untitledMindmap')
     const map = await window.electronAPI.notes.create({
       title,
       type: 'mindmap',
@@ -345,6 +345,18 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     await loadNotes()
     await loadNoteDirs()
     onOpenMindmap(map)
+  }
+
+  const handleCreateHandwritingNote = async () => {
+    const title = t('library.untitledHandwriting')
+    const note = await window.electronAPI.notes.create({
+      title,
+      type: 'handwriting',
+      folder: selectedNoteDir ?? undefined,
+    })
+    await loadNotes()
+    await loadNoteDirs()
+    onOpenNote(note)
   }
 
   const handleDelete = async (id: string) => {
@@ -667,7 +679,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 {selectedSection === 'notes' && (
                   <>
                     <button onClick={handleCreateNote} style={{ fontSize: 12, padding: '4px 10px' }}>{t('library.newNote')}</button>
-                    <button onClick={handleCreateMindmapNote} style={{ fontSize: 12, padding: '4px 10px' }}>{'新建脑图'}</button>
+                    <button onClick={handleCreateMindmapNote} style={{ fontSize: 12, padding: '4px 10px' }}>{t('library.newMindmap')}</button>
+                    <button onClick={handleCreateHandwritingNote} style={{ fontSize: 12, padding: '4px 10px' }}>{t('library.newHandwriting')}</button>
                   </>
                 )}
                 {selectedSection === 'documents' && selectedDir && (
@@ -728,7 +741,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   >
                     <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
                       {selectedSection === 'notes' && (
-                        <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{item.type === 'mindmap' ? '🧠' : '📝'}</span>
+                        <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{item.type === 'mindmap' ? '🧠' : item.type === 'handwriting' ? '✏️' : '📝'}</span>
                       )}
                       {item.title || item.name}
                     </div>
@@ -910,7 +923,11 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               <div onClick={() => { setContextMenu(null); handleCreateMindmapNote() }} style={ctxItemStyle}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >{'新建脑图'}</div>
+              >{t('library.newMindmap')}</div>
+              <div onClick={() => { setContextMenu(null); handleCreateHandwritingNote() }} style={ctxItemStyle}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >{t('library.newHandwriting')}</div>
               <div onClick={handleCreateFolder} style={ctxItemStyle}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
