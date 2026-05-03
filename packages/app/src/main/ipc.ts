@@ -108,12 +108,36 @@ export function registerIpcHandlers() {
     return getLib(event).tags.list()
   })
 
+  ipcMain.handle('tags:listWithCounts', async (event) => {
+    return getLib(event).tags.listWithCounts()
+  })
+
   ipcMain.handle('tags:create', async (event, input: { name: string; color?: string }) => {
     return getLib(event).tags.create(input)
   })
 
   ipcMain.handle('tags:forTarget', async (event, targetId: string, targetType: string) => {
     return getLib(event).tags.forTarget(targetId, targetType as any)
+  })
+
+  ipcMain.handle('tags:assign', async (event, targetId: string, targetType: string, tagNames: string[]) => {
+    return getLib(event).tags.assign(targetId, targetType as any, tagNames)
+  })
+
+  ipcMain.handle('tags:unassign', async (event, targetId: string, targetType: string, tagName: string) => {
+    return getLib(event).tags.unassign(targetId, targetType as any, tagName)
+  })
+
+  ipcMain.handle('tags:delete', async (event, tagId: string) => {
+    return getLib(event).tags.delete(tagId)
+  })
+
+  ipcMain.handle('tags:rename', async (event, tagId: string, newName: string) => {
+    return getLib(event).tags.rename(tagId, newName)
+  })
+
+  ipcMain.handle('tags:updateColor', async (event, tagId: string, color: string) => {
+    return getLib(event).tags.updateColor(tagId, color)
   })
 
   ipcMain.handle('annotations:create', async (event, input: {
@@ -274,7 +298,7 @@ export function registerIpcHandlers() {
     return getLib(event).mindmaps.findNodesByNoteId(noteId)
   })
 
-  ipcMain.handle('mindmaps:updateNode', async (event, id: string, updates: Partial<Pick<MindmapNode, 'title' | 'content' | 'color' | 'notes' | 'shape' | 'styleOverrides' | 'nodeType' | 'noteId' | 'docId' | 'hyperlink' | 'imageUrl' | 'tagId' | 'parentId' | 'positionX' | 'positionY' | 'collapsed' | 'sortOrder'>>) => {
+  ipcMain.handle('mindmaps:updateNode', async (event, id: string, updates: Partial<Pick<MindmapNode, 'title' | 'content' | 'color' | 'notes' | 'shape' | 'styleOverrides' | 'hyperlink' | 'imageUrl' | 'parentId' | 'positionX' | 'positionY' | 'collapsed' | 'sortOrder'>>) => {
     return getLib(event).mindmaps.updateNode(id, updates)
   })
 
@@ -486,7 +510,9 @@ export function registerIpcHandlers() {
   h2 { font-size: 20px; margin: 20px 0 12px; }
   h3 { font-size: 16px; margin: 16px 0 8px; }
   p { margin: 8px 0; }
-  img { max-width: 100%; border-radius: 4px; }
+  img { max-width: 100%; border-radius: 4px; break-inside: avoid; }
+  .mindmap-export, .handwriting-export { break-inside: avoid; }
+  blockquote { break-inside: avoid; }
   table { border-collapse: collapse; width: 100%; margin: 12px 0; }
   th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
   th { background: #f5f5f5; font-weight: 600; }

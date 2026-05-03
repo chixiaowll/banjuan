@@ -24,8 +24,16 @@ const api = {
   },
   tags: {
     list: () => ipcRenderer.invoke('tags:list'),
+    listWithCounts: () => ipcRenderer.invoke('tags:listWithCounts'),
     create: (input: { name: string; color?: string }) => ipcRenderer.invoke('tags:create', input),
     forTarget: (id: string, type: string) => ipcRenderer.invoke('tags:forTarget', id, type),
+    assign: (targetId: string, targetType: string, tagNames: string[]) =>
+      ipcRenderer.invoke('tags:assign', targetId, targetType, tagNames),
+    unassign: (targetId: string, targetType: string, tagName: string) =>
+      ipcRenderer.invoke('tags:unassign', targetId, targetType, tagName),
+    delete: (tagId: string) => ipcRenderer.invoke('tags:delete', tagId),
+    rename: (tagId: string, newName: string) => ipcRenderer.invoke('tags:rename', tagId, newName),
+    updateColor: (tagId: string, color: string) => ipcRenderer.invoke('tags:updateColor', tagId, color),
   },
   annotations: {
     create: (input: {
@@ -94,18 +102,17 @@ const api = {
   },
   mindmaps: {
     addNode: (noteId: string, input: {
-      title: string; parentId?: string; nodeType?: string; annotationId?: string;
-      noteId?: string; docId?: string; hyperlink?: string; imageUrl?: string;
-      tagId?: string; content?: string; color?: string; notes?: string;
+      title: string; parentId?: string; content?: string;
+      hyperlink?: string; imageUrl?: string;
+      color?: string; notes?: string;
       shape?: string; styleOverrides?: string; positionX?: number; positionY?: number
     }) => ipcRenderer.invoke('mindmaps:addNode', noteId, input),
     getNodes: (noteId: string) => ipcRenderer.invoke('mindmaps:getNodes', noteId),
     findNodesByNoteId: (noteId: string) => ipcRenderer.invoke('mindmaps:findNodesByNoteId', noteId),
     updateNode: (id: string, updates: {
       title?: string; content?: string; color?: string; notes?: string;
-      shape?: string; styleOverrides?: string; nodeType?: string;
-      noteId?: string; docId?: string; hyperlink?: string; imageUrl?: string;
-      tagId?: string; parentId?: string; positionX?: number; positionY?: number;
+      shape?: string; styleOverrides?: string; hyperlink?: string; imageUrl?: string;
+      parentId?: string; positionX?: number; positionY?: number;
       collapsed?: boolean; sortOrder?: number
     }) => ipcRenderer.invoke('mindmaps:updateNode', id, updates),
     removeNode: (id: string) => ipcRenderer.invoke('mindmaps:removeNode', id),

@@ -21,8 +21,14 @@ interface ElectronAPI {
   }
   tags: {
     list: () => Promise<any[]>
+    listWithCounts: () => Promise<Array<{ id: string; name: string; color: string | null; count: number }>>
     create: (input: { name: string; color?: string }) => Promise<any>
     forTarget: (id: string, type: string) => Promise<any[]>
+    assign: (targetId: string, targetType: string, tagNames: string[]) => Promise<void>
+    unassign: (targetId: string, targetType: string, tagName: string) => Promise<void>
+    delete: (tagId: string) => Promise<void>
+    rename: (tagId: string, newName: string) => Promise<void>
+    updateColor: (tagId: string, color: string) => Promise<void>
   }
   annotations: {
     create: (input: {
@@ -79,18 +85,17 @@ interface ElectronAPI {
   }
   mindmaps: {
     addNode: (noteId: string, input: {
-      title: string; parentId?: string; nodeType?: string; annotationId?: string;
-      noteId?: string; docId?: string; hyperlink?: string; imageUrl?: string;
-      tagId?: string; content?: string; color?: string; notes?: string;
+      title: string; parentId?: string; content?: string;
+      hyperlink?: string; imageUrl?: string;
+      color?: string; notes?: string;
       shape?: string; styleOverrides?: string; positionX?: number; positionY?: number
     }) => Promise<any>
     getNodes: (noteId: string) => Promise<any[]>
     findNodesByNoteId: (noteId: string) => Promise<Array<any & { mindmapTitle: string }>>
     updateNode: (id: string, updates: {
       title?: string; content?: string; color?: string; notes?: string;
-      shape?: string; styleOverrides?: string; nodeType?: string;
-      noteId?: string; docId?: string; hyperlink?: string; imageUrl?: string;
-      tagId?: string; parentId?: string; positionX?: number; positionY?: number;
+      shape?: string; styleOverrides?: string; hyperlink?: string; imageUrl?: string;
+      parentId?: string; positionX?: number; positionY?: number;
       collapsed?: boolean; sortOrder?: number
     }) => Promise<any>
     removeNode: (id: string) => Promise<void>
