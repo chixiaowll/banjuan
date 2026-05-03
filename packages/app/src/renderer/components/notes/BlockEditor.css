@@ -787,10 +787,8 @@
 }
 
 .mermaid-preview__svg svg {
-  width: 100% !important;
   max-width: 100%;
-  height: auto !important;
-  min-height: 120px;
+  height: auto;
 }
 
 .mermaid-preview__error {
