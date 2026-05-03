@@ -679,12 +679,19 @@
   gap: 4px;
 }
 
-.mermaid-toolbar__modes {
+.mermaid-toolbar__left {
   display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mermaid-toolbar__right {
+  display: flex;
+  align-items: center;
   gap: 2px;
 }
 
-.mermaid-toolbar__templates {
+.mermaid-toolbar__modes {
   display: flex;
   gap: 2px;
 }
@@ -784,5 +791,55 @@
   color: var(--text-muted, #6a737d);
   font-size: 13px;
   padding: 16px;
+  text-align: center;
+}
+
+/* ── Mermaid Dropdown ── */
+
+.mermaid-dropdown {
+  position: relative;
+}
+
+.mermaid-dropdown__menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 100;
+  min-width: 160px;
+  padding: 4px;
+  margin-top: 4px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e1e4e8);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.mermaid-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text, #24292e);
+  text-align: left;
+}
+
+.mermaid-dropdown__item:hover {
+  background: var(--hover, rgba(0, 0, 0, 0.06));
+}
+
+.mermaid-dropdown__item--active {
+  background: var(--hover, rgba(0, 0, 0, 0.06));
+  font-weight: 600;
+}
+
+.mermaid-dropdown__icon {
+  font-size: 15px;
+  width: 20px;
   text-align: center;
 }
