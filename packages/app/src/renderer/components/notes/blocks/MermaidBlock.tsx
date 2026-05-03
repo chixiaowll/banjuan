@@ -70,6 +70,7 @@ interface ContentProps {
 
 function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange, onViewModeChange, onThemeChange, onRenderWidthChange, readOnly }: ContentProps) {
   const [localCode, setLocalCode] = useState(code)
+  const [localWidth, setLocalWidth] = useState(renderWidth)
   const [templateOpen, setTemplateOpen] = useState(false)
   const [themeOpen, setThemeOpen] = useState(false)
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -91,15 +92,19 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
     setTemplateOpen(false)
   }, [onCodeChange])
 
+  const latestWidthRef = React.useRef(localWidth)
+  latestWidthRef.current = localWidth
+
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    resizeRef.current = { startX: e.clientX, startWidth: renderWidth }
+    e.stopPropagation()
+    resizeRef.current = { startX: e.clientX, startWidth: latestWidthRef.current }
 
     const onMouseMove = (ev: MouseEvent) => {
       if (!resizeRef.current) return
       const delta = ev.clientX - resizeRef.current.startX
       const newWidth = Math.max(300, Math.min(1200, resizeRef.current.startWidth + delta))
-      onRenderWidthChange(newWidth)
+      setLocalWidth(newWidth)
     }
 
     const onMouseUp = () => {
@@ -108,13 +113,14 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
       document.removeEventListener('mouseup', onMouseUp)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      onRenderWidthChange(latestWidthRef.current)
     }
 
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)
     document.body.style.cursor = 'ew-resize'
     document.body.style.userSelect = 'none'
-  }, [renderWidth, onRenderWidthChange])
+  }, [onRenderWidthChange])
 
   React.useEffect(() => {
     return () => clearTimeout(debounceRef.current)
@@ -123,6 +129,10 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
   React.useEffect(() => {
     setLocalCode(code)
   }, [code])
+
+  React.useEffect(() => {
+    setLocalWidth(renderWidth)
+  }, [renderWidth])
 
   React.useEffect(() => {
     if (!templateOpen && !themeOpen) return
@@ -142,7 +152,7 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
     return (
       <div className="mermaid-block" contentEditable={false}>
         <Suspense fallback={<div className="mermaid-loading">Loading diagram...</div>}>
-          <MermaidPreview code={localCode} theme={theme} renderWidth={renderWidth} />
+          <MermaidPreview code={localCode} theme={theme} renderWidth={localWidth} />
         </Suspense>
       </div>
     )
@@ -181,7 +191,7 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
         </div>
 
         <div className="mermaid-toolbar__right">
-          <span className="mermaid-toolbar__size-label">{renderWidth}px</span>
+          <span className="mermaid-toolbar__size-label">{localWidth}px</span>
 
           <div className="mermaid-dropdown" ref={themeRef}>
             <button
@@ -239,7 +249,7 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
           )}
           {(activeMode === 'preview' || activeMode === 'split') && (
             <div className="mermaid-body__preview">
-              <MermaidPreview code={localCode} theme={theme} renderWidth={renderWidth} />
+              <MermaidPreview code={localCode} theme={theme} renderWidth={localWidth} />
             </div>
           )}
         </div>
