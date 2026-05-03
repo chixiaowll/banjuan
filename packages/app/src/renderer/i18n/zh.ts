@@ -19,12 +19,13 @@ const zh = {
   'common.confirm': '确定',
   'common.delete': '删除',
   'common.edit': '编辑',
-  'common.back': '← 返回',
+  'common.back': '返回',
+  'common.toggleSidebar': '切换侧边栏',
   'common.loading': '加载中...',
   'common.search': '搜索...',
   'common.import': '导入',
   'common.unload': '卸载',
-  'common.new': '+ 新建',
+  'common.new': '新建',
 
   // Library sidebar
   'library.documents': '文档库',
@@ -77,6 +78,10 @@ const zh = {
   'handwriting.exportPdf': '导出 PDF',
   'handwriting.exportPng': '导出 PNG',
   'handwriting.exportAllPng': '导出全部页面 (ZIP)',
+  'handwriting.clearPage': '清空页面',
+  'handwriting.zoomIn': '放大',
+  'handwriting.zoomOut': '缩小',
+  'handwriting.zoomFit': '适应页面',
 
   // Library detail
   'detail.title': '详情',
@@ -234,6 +239,23 @@ const zh = {
 
   // Multi-window
   'library.openAnother': '打开其他书房',
+
+  // Tags
+  'tags.search': '搜索标签...',
+  'tags.addTag': '添加标签...',
+  'tags.manager': '标签管理',
+  'tags.newTag': '新建标签',
+  'tags.rename': '重命名',
+  'tags.delete': '删除',
+  'tags.deleteConfirm': '删除标签「{0}」？将从所有内容中移除。',
+  'tags.color': '颜色',
+  'tags.count': '关联数',
+  'tags.more': '+{0} 更多',
+  'tags.name': '名称',
+  'tags.actions': '操作',
+  'tags.noTags': '还没有标签',
+  'tags.sortByName': '按名称排序',
+  'tags.sortByCount': '按关联数排序',
 } as const
 
 export default zh

@@ -19,12 +19,13 @@ const en = {
   'common.confirm': 'Confirm',
   'common.delete': 'Delete',
   'common.edit': 'Edit',
-  'common.back': '← Back',
+  'common.back': 'Back',
+  'common.toggleSidebar': 'Toggle Sidebar',
   'common.loading': 'Loading...',
   'common.search': 'Search...',
   'common.import': 'Import',
   'common.unload': 'Unload',
-  'common.new': '+ New',
+  'common.new': 'New',
 
   // Library sidebar
   'library.documents': 'Documents',
@@ -77,6 +78,10 @@ const en = {
   'handwriting.exportPdf': 'Export PDF',
   'handwriting.exportPng': 'Export PNG',
   'handwriting.exportAllPng': 'Export All Pages (ZIP)',
+  'handwriting.clearPage': 'Clear Page',
+  'handwriting.zoomIn': 'Zoom In',
+  'handwriting.zoomOut': 'Zoom Out',
+  'handwriting.zoomFit': 'Fit to Page',
 
   // Library detail
   'detail.title': 'Details',
@@ -234,6 +239,23 @@ const en = {
 
   // Multi-window
   'library.openAnother': 'Open Another Library',
+
+  // Tags
+  'tags.search': 'Search tags...',
+  'tags.addTag': 'Add tag...',
+  'tags.manager': 'Tag Manager',
+  'tags.newTag': 'New Tag',
+  'tags.rename': 'Rename',
+  'tags.delete': 'Delete',
+  'tags.deleteConfirm': 'Delete tag "{0}"? It will be removed from all items.',
+  'tags.color': 'Color',
+  'tags.count': 'Items',
+  'tags.more': '+{0} more',
+  'tags.name': 'Name',
+  'tags.actions': 'Actions',
+  'tags.noTags': 'No tags yet',
+  'tags.sortByName': 'Sort by name',
+  'tags.sortByCount': 'Sort by count',
 } as const
 
 export default en
