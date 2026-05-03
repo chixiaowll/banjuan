@@ -789,6 +789,15 @@
 .mermaid-preview__svg svg {
   max-width: 100%;
   height: auto;
+  font-size: 12px !important;
+}
+
+.mermaid-preview__svg svg .nodeLabel,
+.mermaid-preview__svg svg .edgeLabel,
+.mermaid-preview__svg svg .label,
+.mermaid-preview__svg svg .statediagram-state .state-title,
+.mermaid-preview__svg svg text {
+  font-size: 12px !important;
 }
 
 .mermaid-preview__error {
