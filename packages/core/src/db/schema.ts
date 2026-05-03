@@ -94,6 +94,12 @@ CREATE TABLE IF NOT EXISTS note_tags (
     PRIMARY KEY (note_id, tag_id)
 );
 
+CREATE TABLE IF NOT EXISTS mindmap_tags (
+    mindmap_id TEXT NOT NULL,
+    tag_id TEXT NOT NULL,
+    PRIMARY KEY (mindmap_id, tag_id)
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
     title, content, type,
     tokenize='unicode61'
@@ -103,15 +109,10 @@ CREATE TABLE IF NOT EXISTS mindmap_nodes (
     id TEXT PRIMARY KEY,
     mindmap_id TEXT NOT NULL,
     parent_id TEXT,
-    node_type TEXT DEFAULT 'text',
-    annotation_id TEXT,
-    note_id TEXT,
-    doc_id TEXT,
-    hyperlink TEXT,
-    image_url TEXT,
-    tag_id TEXT,
     title TEXT NOT NULL,
     content TEXT,
+    hyperlink TEXT,
+    image_url TEXT,
     color TEXT,
     notes TEXT,
     shape TEXT,
@@ -142,12 +143,8 @@ export function initSchema(db: Database.Database): void {
   const nodeColumns = db.pragma('table_info(mindmap_nodes)') as Array<{ name: string }>
   const nodeColNames = new Set(nodeColumns.map(c => c.name))
   const newNodeCols: Array<[string, string]> = [
-    ['node_type', "TEXT DEFAULT 'text'"],
-    ['note_id', 'TEXT'],
-    ['doc_id', 'TEXT'],
     ['hyperlink', 'TEXT'],
     ['image_url', 'TEXT'],
-    ['tag_id', 'TEXT'],
     ['notes', 'TEXT'],
     ['shape', 'TEXT'],
     ['style_overrides', 'TEXT'],
