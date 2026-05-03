@@ -18,9 +18,10 @@ const MERMAID_CONFIG = {
 interface Props {
   code: string
   theme?: MermaidTheme
+  renderWidth?: number
 }
 
-export default function MermaidPreview({ code, theme = 'neutral' }: Props) {
+export default function MermaidPreview({ code, theme = 'neutral', renderWidth }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,7 +38,7 @@ export default function MermaidPreview({ code, theme = 'neutral' }: Props) {
     let cancelled = false
 
     const tempDiv = document.createElement('div')
-    tempDiv.style.width = '500px'
+    tempDiv.style.width = `${renderWidth || 500}px`
     tempDiv.style.position = 'absolute'
     tempDiv.style.left = '-9999px'
     document.body.appendChild(tempDiv)
@@ -60,7 +61,7 @@ export default function MermaidPreview({ code, theme = 'neutral' }: Props) {
     })
 
     return () => { cancelled = true }
-  }, [code, theme])
+  }, [code, theme, renderWidth])
 
   if (!code.trim()) {
     return (
