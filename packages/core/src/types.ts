@@ -131,7 +131,7 @@ export interface AnnotationListOptions {
   color?: string
 }
 
-export type NoteType = 'markdown' | 'mindmap'
+export type NoteType = 'markdown' | 'mindmap' | 'handwriting'
 
 export interface Note {
   id: string
@@ -236,8 +236,6 @@ export interface LibraryConfig {
 
 export type MindmapLayout = 'mindmap' | 'logical' | 'organization'
 
-export type MindmapNodeType = 'text' | 'note' | 'document' | 'annotation' | 'image' | 'link' | 'tag'
-
 export interface Mindmap {
   id: string
   title: string
@@ -261,15 +259,10 @@ export interface MindmapNode {
   id: string
   mindmapId: string
   parentId: string | null
-  nodeType: MindmapNodeType
-  annotationId: string | null
-  noteId: string | null
-  docId: string | null
-  hyperlink: string | null
-  imageUrl: string | null
-  tagId: string | null
   title: string
   content: string | null
+  hyperlink: string | null
+  imageUrl: string | null
   color: string | null
   notes: string | null
   shape: string | null
@@ -284,14 +277,9 @@ export interface MindmapNode {
 export interface MindmapNodeCreateInput {
   title: string
   parentId?: string
-  nodeType?: MindmapNodeType
-  annotationId?: string
-  noteId?: string
-  docId?: string
+  content?: string
   hyperlink?: string
   imageUrl?: string
-  tagId?: string
-  content?: string
   color?: string
   notes?: string
   shape?: string
@@ -411,15 +399,10 @@ export interface MindmapFileData {
   nodes: Array<{
     id: string
     parentId: string | null
-    nodeType: MindmapNodeType
-    annotationId: string | null
-    noteId: string | null
-    docId: string | null
-    hyperlink: string | null
-    imageUrl: string | null
-    tagId: string | null
     title: string
     content: string | null
+    hyperlink: string | null
+    imageUrl: string | null
     color: string | null
     notes: string | null
     shape: string | null
@@ -438,6 +421,20 @@ export interface MindmapFileData {
   }>
   createdAt: string
   updatedAt: string
+}
+
+export type HandwritingTemplate = 'blank' | 'lined' | 'grid' | 'dotted' | 'cornell'
+
+export interface HandwritingPage {
+  id: string
+  template: HandwritingTemplate
+  tldrawSnapshot: unknown
+}
+
+export interface HandwritingNoteJsonFile {
+  meta: NoteFileData
+  pages: HandwritingPage[]
+  currentPageIndex: number
 }
 
 export interface SyncConfig {
