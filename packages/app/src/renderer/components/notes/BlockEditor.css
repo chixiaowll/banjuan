@@ -802,42 +802,37 @@
   margin-bottom: 8px;
 }
 
-.mermaid-toolbar__size-label {
-  font-size: 11px;
-  color: var(--text-muted, #6a737d);
-  padding: 0 4px;
-  min-width: 40px;
-  text-align: center;
+.mermaid-block {
+  position: relative;
 }
 
 .mermaid-resize-handle {
-  height: 14px;
-  cursor: ew-resize;
-  background: transparent;
-  border-top: 1px solid var(--border, #e1e4e8);
-  transition: background 0.15s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
   pointer-events: auto;
   user-select: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.mermaid-block:hover .mermaid-resize-handle {
+  opacity: 1;
 }
 
 .mermaid-resize-handle::after {
   content: '';
-  width: 32px;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--border, #d1d5db);
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-muted, #9ca3af);
+  border-bottom: 2px solid var(--text-muted, #9ca3af);
   pointer-events: none;
-}
-
-.mermaid-resize-handle:hover {
-  background: var(--hover, rgba(0, 0, 0, 0.04));
-}
-
-.mermaid-resize-handle:hover::after {
-  background: var(--text-muted, #9ca3af);
 }
 
 .mermaid-loading {

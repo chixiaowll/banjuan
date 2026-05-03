@@ -118,7 +118,7 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
 
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)
-    document.body.style.cursor = 'ew-resize'
+    document.body.style.cursor = 'nwse-resize'
     document.body.style.userSelect = 'none'
   }, [onRenderWidthChange])
 
@@ -150,7 +150,7 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
 
   if (readOnly) {
     return (
-      <div className="mermaid-block" contentEditable={false}>
+      <div className="mermaid-block" style={{ width: localWidth, maxWidth: '100%' }} contentEditable={false}>
         <Suspense fallback={<div className="mermaid-loading">Loading diagram...</div>}>
           <MermaidPreview code={localCode} theme={theme} renderWidth={localWidth} />
         </Suspense>
@@ -162,7 +162,7 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
   const currentThemeLabel = MERMAID_THEMES.find(t => t.value === theme)?.label || 'Default'
 
   return (
-    <div className="mermaid-block" contentEditable={false}>
+    <div className="mermaid-block" style={{ width: localWidth, maxWidth: '100%' }} contentEditable={false}>
       <div className="mermaid-toolbar">
         <div className="mermaid-toolbar__left">
           <div className="mermaid-toolbar__modes">
@@ -191,8 +191,6 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
         </div>
 
         <div className="mermaid-toolbar__right">
-          <span className="mermaid-toolbar__size-label">{localWidth}px</span>
-
           <div className="mermaid-dropdown" ref={themeRef}>
             <button
               className="mermaid-toolbar__btn"
