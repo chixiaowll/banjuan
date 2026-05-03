@@ -36,24 +36,24 @@ export default function MermaidPreview({ code, theme = 'neutral' }: Props) {
     const id = `mermaid-${++renderCounter}`
     let cancelled = false
 
-    mermaid.render(id, code).then(({ svg }) => {
+    const tempDiv = document.createElement('div')
+    tempDiv.style.width = '500px'
+    tempDiv.style.position = 'absolute'
+    tempDiv.style.left = '-9999px'
+    document.body.appendChild(tempDiv)
+
+    mermaid.render(id, code, tempDiv).then(({ svg }) => {
+      document.body.removeChild(tempDiv)
       if (cancelled || !containerRef.current) return
       containerRef.current.innerHTML = svg
       const svgEl = containerRef.current.querySelector('svg')
       if (svgEl) {
         svgEl.style.maxWidth = '100%'
         svgEl.style.height = 'auto'
-        const styleEl = svgEl.querySelector('style')
-        if (styleEl) {
-          styleEl.textContent += `
-            .node .label, .nodeLabel, .edgeLabel, .label,
-            .statediagram-state .state-title, .state-note-text,
-            text, tspan { font-size: 12px !important; }
-          `
-        }
       }
       setError(null)
     }).catch((err) => {
+      if (document.body.contains(tempDiv)) document.body.removeChild(tempDiv)
       if (cancelled) return
       setError(err?.message || 'Invalid Mermaid syntax')
       if (containerRef.current) containerRef.current.innerHTML = ''
