@@ -791,6 +791,13 @@
   height: auto;
 }
 
+.mermaid-preview__svg svg foreignObject div,
+.mermaid-preview__svg svg foreignObject span,
+.mermaid-preview__svg svg foreignObject p {
+  font-size: 12px !important;
+  line-height: 1.3 !important;
+}
+
 .mermaid-preview__error {
   color: #d73a49;
   font-size: 12px;

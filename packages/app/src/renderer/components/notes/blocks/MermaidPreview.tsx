@@ -61,8 +61,6 @@ export default function MermaidPreview({ code, theme = 'neutral' }: Props) {
       if (svgEl) {
         svgEl.style.maxWidth = '100%'
         svgEl.style.height = 'auto'
-        svgEl.style.transform = 'scale(0.75)'
-        svgEl.style.transformOrigin = 'top center'
       }
       setError(null)
     }).catch((err) => {
