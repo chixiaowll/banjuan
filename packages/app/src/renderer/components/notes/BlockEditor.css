@@ -802,6 +802,41 @@
   margin-bottom: 8px;
 }
 
+.mermaid-toolbar__size-label {
+  font-size: 11px;
+  color: var(--text-muted, #6a737d);
+  padding: 0 4px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.mermaid-resize-handle {
+  height: 6px;
+  cursor: ew-resize;
+  background: transparent;
+  border-top: 1px solid var(--border, #e1e4e8);
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mermaid-resize-handle::after {
+  content: '';
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border, #d1d5db);
+}
+
+.mermaid-resize-handle:hover {
+  background: var(--hover, rgba(0, 0, 0, 0.04));
+}
+
+.mermaid-resize-handle:hover::after {
+  background: var(--text-muted, #9ca3af);
+}
+
 .mermaid-loading {
   color: var(--text-muted, #6a737d);
   font-size: 13px;

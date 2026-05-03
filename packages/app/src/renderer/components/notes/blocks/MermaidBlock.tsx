@@ -15,18 +15,20 @@ export const MermaidBlock = createReactBlockSpec(
       code: { default: FLOWCHART_TEMPLATE },
       viewMode: { default: 'split' as const },
       theme: { default: 'neutral' as const },
+      renderWidth: { default: 500 },
     },
     content: 'none' as const,
   },
   {
     render: (props) => {
-      const { code, viewMode, theme } = props.block.props
+      const { code, viewMode, theme, renderWidth } = props.block.props
 
       return (
         <MermaidBlockContent
           code={code}
           viewMode={viewMode as ViewMode}
           theme={(theme || 'neutral') as MermaidTheme}
+          renderWidth={renderWidth || 500}
           onCodeChange={(newCode) => {
             props.editor.updateBlock(props.block, {
               props: { code: newCode },
@@ -42,6 +44,11 @@ export const MermaidBlock = createReactBlockSpec(
               props: { theme: t },
             })
           }}
+          onRenderWidthChange={(w) => {
+            props.editor.updateBlock(props.block, {
+              props: { renderWidth: w },
+            })
+          }}
           readOnly={!props.editor.isEditable}
         />
       )
@@ -53,19 +60,22 @@ interface ContentProps {
   code: string
   viewMode: ViewMode
   theme: MermaidTheme
+  renderWidth: number
   onCodeChange: (code: string) => void
   onViewModeChange: (mode: ViewMode) => void
   onThemeChange: (theme: MermaidTheme) => void
+  onRenderWidthChange: (width: number) => void
   readOnly: boolean
 }
 
-function MermaidBlockContent({ code, viewMode, theme, onCodeChange, onViewModeChange, onThemeChange, readOnly }: ContentProps) {
+function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange, onViewModeChange, onThemeChange, onRenderWidthChange, readOnly }: ContentProps) {
   const [localCode, setLocalCode] = useState(code)
   const [templateOpen, setTemplateOpen] = useState(false)
   const [themeOpen, setThemeOpen] = useState(false)
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const templateRef = React.useRef<HTMLDivElement>(null)
   const themeRef = React.useRef<HTMLDivElement>(null)
+  const resizeRef = React.useRef<{ startX: number; startWidth: number } | null>(null)
 
   const handleCodeChange = useCallback((newCode: string) => {
     setLocalCode(newCode)
@@ -80,6 +90,31 @@ function MermaidBlockContent({ code, viewMode, theme, onCodeChange, onViewModeCh
     onCodeChange(templateCode)
     setTemplateOpen(false)
   }, [onCodeChange])
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    resizeRef.current = { startX: e.clientX, startWidth: renderWidth }
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!resizeRef.current) return
+      const delta = ev.clientX - resizeRef.current.startX
+      const newWidth = Math.max(300, Math.min(1200, resizeRef.current.startWidth + delta))
+      onRenderWidthChange(newWidth)
+    }
+
+    const onMouseUp = () => {
+      resizeRef.current = null
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+    document.body.style.cursor = 'ew-resize'
+    document.body.style.userSelect = 'none'
+  }, [renderWidth, onRenderWidthChange])
 
   React.useEffect(() => {
     return () => clearTimeout(debounceRef.current)
@@ -107,7 +142,7 @@ function MermaidBlockContent({ code, viewMode, theme, onCodeChange, onViewModeCh
     return (
       <div className="mermaid-block" contentEditable={false}>
         <Suspense fallback={<div className="mermaid-loading">Loading diagram...</div>}>
-          <MermaidPreview code={localCode} theme={theme} />
+          <MermaidPreview code={localCode} theme={theme} renderWidth={renderWidth} />
         </Suspense>
       </div>
     )
@@ -146,6 +181,8 @@ function MermaidBlockContent({ code, viewMode, theme, onCodeChange, onViewModeCh
         </div>
 
         <div className="mermaid-toolbar__right">
+          <span className="mermaid-toolbar__size-label">{renderWidth}px</span>
+
           <div className="mermaid-dropdown" ref={themeRef}>
             <button
               className="mermaid-toolbar__btn"
@@ -202,11 +239,15 @@ function MermaidBlockContent({ code, viewMode, theme, onCodeChange, onViewModeCh
           )}
           {(activeMode === 'preview' || activeMode === 'split') && (
             <div className="mermaid-body__preview">
-              <MermaidPreview code={localCode} theme={theme} />
+              <MermaidPreview code={localCode} theme={theme} renderWidth={renderWidth} />
             </div>
           )}
         </div>
       </Suspense>
+
+      {!readOnly && (
+        <div className="mermaid-resize-handle" onMouseDown={handleResizeStart} title="Drag to resize diagram" />
+      )}
     </div>
   )
 }
