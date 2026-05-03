@@ -811,7 +811,7 @@
 }
 
 .mermaid-resize-handle {
-  height: 6px;
+  height: 14px;
   cursor: ew-resize;
   background: transparent;
   border-top: 1px solid var(--border, #e1e4e8);
@@ -819,6 +819,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: auto;
+  user-select: none;
 }
 
 .mermaid-resize-handle::after {
@@ -827,6 +829,7 @@
   height: 3px;
   border-radius: 2px;
   background: var(--border, #d1d5db);
+  pointer-events: none;
 }
 
 .mermaid-resize-handle:hover {

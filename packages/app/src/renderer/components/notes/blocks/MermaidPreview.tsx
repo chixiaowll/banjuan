@@ -24,6 +24,16 @@ interface Props {
 export default function MermaidPreview({ code, theme = 'neutral', renderWidth }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
+  const [debouncedWidth, setDebouncedWidth] = useState(renderWidth)
+  const widthTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(() => {
+    clearTimeout(widthTimerRef.current)
+    widthTimerRef.current = setTimeout(() => {
+      setDebouncedWidth(renderWidth)
+    }, 200)
+    return () => clearTimeout(widthTimerRef.current)
+  }, [renderWidth])
 
   useEffect(() => {
     if (!code.trim()) {
@@ -38,7 +48,7 @@ export default function MermaidPreview({ code, theme = 'neutral', renderWidth }:
     let cancelled = false
 
     const tempDiv = document.createElement('div')
-    tempDiv.style.width = `${renderWidth || 500}px`
+    tempDiv.style.width = `${debouncedWidth || 500}px`
     tempDiv.style.position = 'absolute'
     tempDiv.style.left = '-9999px'
     document.body.appendChild(tempDiv)
@@ -61,7 +71,7 @@ export default function MermaidPreview({ code, theme = 'neutral', renderWidth }:
     })
 
     return () => { cancelled = true }
-  }, [code, theme, renderWidth])
+  }, [code, theme, debouncedWidth])
 
   if (!code.trim()) {
     return (
