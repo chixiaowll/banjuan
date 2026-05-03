@@ -115,6 +115,53 @@ function getMermaidSlashItem(editor: any) {
   }
 }
 
+function buildMindmapTree(nodes: any[]): { root: any | null; childrenMap: Map<string, any[]> } {
+  const childrenMap = new Map<string, any[]>()
+  let root: any = null
+  for (const n of nodes) {
+    if (!n.parentId) root = n
+    else {
+      const siblings = childrenMap.get(n.parentId) ?? []
+      siblings.push(n)
+      childrenMap.set(n.parentId, siblings)
+    }
+  }
+  for (const children of childrenMap.values()) {
+    children.sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+  }
+  return { root, childrenMap }
+}
+
+function renderMindmapTreeMd(title: string, nodes: any[]): string {
+  const { root, childrenMap } = buildMindmapTree(nodes)
+  if (!root) return `> 🧠 **${title}**`
+  const lines = [`🧠 **${title}**`, '']
+  const walk = (nodeId: string, depth: number) => {
+    const children = childrenMap.get(nodeId) ?? []
+    for (const child of children) {
+      lines.push(`${'  '.repeat(depth)}- ${child.title || 'Untitled'}`)
+      walk(child.id, depth + 1)
+    }
+  }
+  lines.push(`- ${root.title || title}`)
+  walk(root.id, 1)
+  return lines.join('\n')
+}
+
+function renderMindmapTreeHtml(title: string, nodes: any[]): string {
+  const { root, childrenMap } = buildMindmapTree(nodes)
+  if (!root) return `<blockquote><p>🧠 <strong>${title}</strong></p></blockquote>`
+  const renderList = (nodeId: string): string => {
+    const children = childrenMap.get(nodeId) ?? []
+    if (children.length === 0) return ''
+    const items = children.map(c =>
+      `<li>${c.title || 'Untitled'}${renderList(c.id)}</li>`
+    ).join('')
+    return `<ul>${items}</ul>`
+  }
+  return `<div class="mindmap-export"><p>🧠 <strong>${title}</strong></p><ul><li>${root.title || title}${renderList(root.id)}</li></ul></div>`
+}
+
 async function uploadFile(noteId: string, file: File): Promise<{ relativePath: string; isImage: boolean }> {
   const buffer = await file.arrayBuffer()
   const relativePath = await window.electronAPI.attachments.save(noteId, file.name, buffer)
@@ -213,7 +260,22 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
           segments.push(`\`\`\`mermaid\n${p.code}\n\`\`\``)
         } else if (block.type === 'noteEmbed') {
           await flushStd()
-          segments.push(`> 📝 **${p.noteTitle || 'Untitled'}**`)
+          const noteTitle = p.noteTitle || 'Untitled'
+          if (p.noteId) {
+            try {
+              const note = await window.electronAPI.notes.get(p.noteId)
+              if (note?.type === 'mindmap') {
+                const nodes = await window.electronAPI.mindmaps.getNodes(p.noteId)
+                segments.push(renderMindmapTreeMd(noteTitle, nodes))
+              } else {
+                segments.push(`> 📝 **${noteTitle}**`)
+              }
+            } catch {
+              segments.push(`> 📝 **${noteTitle}**`)
+            }
+          } else {
+            segments.push(`> 📝 **${noteTitle}**`)
+          }
         } else if (block.type === 'documentEmbed') {
           await flushStd()
           const parts = [`📄 **${p.docTitle || 'Document'}**`]
@@ -273,7 +335,22 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
           }
         } else if (block.type === 'noteEmbed') {
           await flushStd()
-          segments.push(`<blockquote><p>📝 <strong>${p.noteTitle || 'Untitled'}</strong></p></blockquote>`)
+          const noteTitle = p.noteTitle || 'Untitled'
+          if (p.noteId) {
+            try {
+              const note = await window.electronAPI.notes.get(p.noteId)
+              if (note?.type === 'mindmap') {
+                const nodes = await window.electronAPI.mindmaps.getNodes(p.noteId)
+                segments.push(renderMindmapTreeHtml(noteTitle, nodes))
+              } else {
+                segments.push(`<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`)
+              }
+            } catch {
+              segments.push(`<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`)
+            }
+          } else {
+            segments.push(`<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`)
+          }
         } else if (block.type === 'documentEmbed') {
           await flushStd()
           const parts = [`📄 <strong>${p.docTitle || 'Document'}</strong>`]
