@@ -1,12 +1,14 @@
 import React, { useState } from 'react'
-import { useI18n } from '../i18n/index.js'
-import type { Locale } from '../i18n/index.js'
+import { useBanjuanAPI } from '@banjuan/shared-ui'
+import { useI18n } from '@banjuan/shared-ui'
+import type { Locale } from '@banjuan/shared-ui'
 
 interface Props {
   onOpen: (path: string, name: string) => void
 }
 
 export default function WelcomeView({ onOpen }: Props) {
+  const api = useBanjuanAPI()
   const { t, locale, setLocale } = useI18n()
   const [showNameDialog, setShowNameDialog] = useState(false)
   const [pendingDir, setPendingDir] = useState<string | null>(null)
@@ -14,15 +16,15 @@ export default function WelcomeView({ onOpen }: Props) {
   const [loading, setLoading] = useState(false)
 
   const handleSelectDir = async () => {
-    const dir = await window.electronAPI.dialog.openDirectory()
+    const dir = await api.dialog.openDirectory()
     if (!dir) return
 
-    const isLibrary = await window.electronAPI.library.check(dir)
+    const isLibrary = await api.library.check(dir)
     if (isLibrary) {
       setLoading(true)
       try {
-        const result = await window.electronAPI.library.open(dir)
-        onOpen(result.rootPath, result.name)
+        const result = await api.library.open(dir)
+        onOpen((result as any).rootPath, (result as any).name)
       } catch (e: any) {
         alert(e.message)
       } finally {
@@ -39,8 +41,8 @@ export default function WelcomeView({ onOpen }: Props) {
     if (!pendingDir || !libraryName.trim()) return
     setLoading(true)
     try {
-      const result = await window.electronAPI.library.init(pendingDir, libraryName.trim())
-      onOpen(result.rootPath, result.name)
+      const result = await api.library.init(pendingDir, libraryName.trim())
+      onOpen((result as any).rootPath, (result as any).name)
     } catch (e: any) {
       alert(e.message)
     } finally {
