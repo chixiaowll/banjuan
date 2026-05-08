@@ -57,4 +57,8 @@ export class NodeFS implements PlatformFS {
   async rename(from: string, to: string): Promise<void> {
     fs.renameSync(from, to)
   }
+
+  watch(dirPath: string, options: { recursive?: boolean }, callback: (event: string, filename: string | null) => void): { close(): void } {
+    return fs.watch(dirPath, { recursive: options.recursive }, callback)
+  }
 }

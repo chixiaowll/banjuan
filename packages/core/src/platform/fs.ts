@@ -11,4 +11,5 @@ export interface PlatformFS {
   rmdir(path: string, options?: { recursive?: boolean }): Promise<void>
   stat(path: string): Promise<{ mtime: number; size: number }>
   rename(from: string, to: string): Promise<void>
+  watch?(path: string, options: { recursive?: boolean }, callback: (event: string, filename: string | null) => void): { close(): void }
 }

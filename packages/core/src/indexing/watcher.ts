@@ -1,12 +1,11 @@
 import type { PlatformDatabase, PlatformFS } from '../platform/index.js'
-import { watch, type FSWatcher } from 'node:fs'
 import { join } from '../platform/path.js'
 import { JsonStore } from '../storage/json-store.js'
 import { parseFrontmatter } from '../storage/frontmatter.js'
 import type { DocumentFileData, AnnotationFileData, MindmapFileData, NoteFileData } from '../types.js'
 
 export class FileWatcher {
-  private watchers: FSWatcher[] = []
+  private watchers: Array<{ close(): void }> = []
   private debounceTimers = new Map<string, NodeJS.Timeout>()
   private docStore: JsonStore<DocumentFileData>
   private annStore: JsonStore<AnnotationFileData>
@@ -23,10 +22,12 @@ export class FileWatcher {
     const dataDir = join(this.rootPath, '.banjuan', 'data')
     const notesDir = join(this.rootPath, '.banjuan', 'notes')
 
+    if (!this.fs.watch) return
+
     const watchDir = async (dir: string) => {
       if (!(await this.fs.exists(dir))) return
       try {
-        const watcher = watch(dir, { recursive: true }, (_event, filename) => {
+        const watcher = this.fs.watch!(dir, { recursive: true }, (_event, filename) => {
           if (filename) this.handleChange(dir, filename)
         })
         this.watchers.push(watcher)
