@@ -1,7 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs'
-import { join, relative, extname, dirname } from 'node:path'
-import type Database from 'better-sqlite3'
-import { createConnection } from './db/connection.js'
+import type { PlatformDatabase } from './platform/index.js'
+import type { PlatformDeps, PlatformFS } from './platform/index.js'
+import { join, relative, dirname } from './platform/path.js'
 import { initSchema } from './db/schema.js'
 import { DocumentService } from './documents/service.js'
 import { AnnotationService } from './annotations/service.js'
@@ -40,130 +39,127 @@ export class Library {
   readonly plugins: PluginManager
   readonly templates: TemplateService
   readonly attachments: AttachmentService
-  private db: Database.Database
+  private db: PlatformDatabase
+  private fs: PlatformFS
 
-  private constructor(rootPath: string, db: Database.Database) {
+  private constructor(rootPath: string, db: PlatformDatabase, private deps: PlatformDeps) {
     this.rootPath = rootPath
     this.db = db
+    this.fs = deps.fs
     this.events = new EventBus()
     this.search = new SearchService(db)
-    this.documents = new DocumentService(db, rootPath, this.search, this.events)
-    this.annotations = new AnnotationService(db, rootPath, this.events)
-    this.notes = new NoteService(db, rootPath, this.search, this.events)
+    this.documents = new DocumentService(db, rootPath, this.search, this.events, deps.fs, deps.crypto)
+    this.annotations = new AnnotationService(db, rootPath, this.events, deps.fs)
+    this.notes = new NoteService(db, rootPath, this.search, this.events, deps.fs)
     this.folders = new FolderService(db, this.events)
     this.noteLinks = new NoteLinkService(db)
     this.docLinks = new DocLinkService(db)
-    this.tags = new TagService(db, rootPath, this.events)
-    this.mindmaps = new MindmapService(db, rootPath, this.events)
+    this.tags = new TagService(db, rootPath, this.events, deps.fs)
+    this.mindmaps = new MindmapService(db, rootPath, this.events, deps.fs)
     this.graph = new GraphService(db)
-    this.plugins = new PluginManager(this, this.events, rootPath)
+    this.plugins = new PluginManager(this, this.events, rootPath, deps.fs)
     this.templates = new TemplateService(db)
-    this.attachments = new AttachmentService(rootPath)
+    this.attachments = new AttachmentService(rootPath, deps.fs)
 
     this.notes.setTemplateService(this.templates)
     this.notes.setLinkService(this.noteLinks)
     this.mindmaps.setLinkService(this.noteLinks)
   }
 
-  static isLibrary(rootPath: string): boolean {
-    return existsSync(join(rootPath, '.banjuan'))
+  static async isLibrary(rootPath: string, deps: PlatformDeps): Promise<boolean> {
+    return deps.fs.exists(join(rootPath, '.banjuan'))
   }
 
-  static init(rootPath: string, name?: string): Library {
+  static async init(rootPath: string, deps: PlatformDeps, name?: string): Promise<Library> {
     const banjuanDir = join(rootPath, '.banjuan')
-    if (existsSync(banjuanDir)) {
+    if (await deps.fs.exists(banjuanDir)) {
       throw new Error(`Library already exists at ${rootPath}`)
     }
 
-    mkdirSync(banjuanDir, { recursive: true })
-    mkdirSync(join(banjuanDir, 'data', 'documents'), { recursive: true })
-    mkdirSync(join(banjuanDir, 'data', 'annotations'), { recursive: true })
-    mkdirSync(join(banjuanDir, 'stubs'), { recursive: true })
-    mkdirSync(join(banjuanDir, 'notes'), { recursive: true })
+    await deps.fs.mkdir(banjuanDir, { recursive: true })
+    await deps.fs.mkdir(join(banjuanDir, 'data', 'documents'), { recursive: true })
+    await deps.fs.mkdir(join(banjuanDir, 'data', 'annotations'), { recursive: true })
+    await deps.fs.mkdir(join(banjuanDir, 'stubs'), { recursive: true })
+    await deps.fs.mkdir(join(banjuanDir, 'notes'), { recursive: true })
 
     const config: LibraryConfig = {
       name: name || 'My Library',
       version: '1',
       createdAt: new Date().toISOString(),
     }
-    writeFileSync(join(banjuanDir, 'config.json'), JSON.stringify(config, null, 2))
-    writeFileSync(join(banjuanDir, 'tags.json'), '[]')
+    await deps.fs.writeTextFile(join(banjuanDir, 'config.json'), JSON.stringify(config, null, 2))
+    await deps.fs.writeTextFile(join(banjuanDir, 'tags.json'), '[]')
 
     const dbPath = join(banjuanDir, 'db.sqlite')
-    const db = createConnection(dbPath)
+    const db = await deps.dbFactory.open(dbPath)
     initSchema(db)
 
-    return new Library(rootPath, db)
+    return new Library(rootPath, db, deps)
   }
 
-  static open(rootPath: string): Library {
+  static async open(rootPath: string, deps: PlatformDeps): Promise<Library> {
     const banjuanDir = join(rootPath, '.banjuan')
-    if (!existsSync(banjuanDir)) {
+    if (!(await deps.fs.exists(banjuanDir))) {
       throw new Error(`${rootPath} is not a library — .banjuan directory not found`)
     }
 
     // Migrate old mindmap files to unified notes directory
-    Library.migrateExistingMindmapFiles(rootPath)
+    await Library.migrateExistingMindmapFiles(rootPath, deps.fs)
 
     const dbPath = join(banjuanDir, 'db.sqlite')
-    if (existsSync(dbPath)) {
-      unlinkSync(dbPath)
+    if (await deps.fs.exists(dbPath)) {
+      await deps.fs.remove(dbPath)
     }
     const walPath = dbPath + '-wal'
     const shmPath = dbPath + '-shm'
-    if (existsSync(walPath)) unlinkSync(walPath)
-    if (existsSync(shmPath)) unlinkSync(shmPath)
+    if (await deps.fs.exists(walPath)) await deps.fs.remove(walPath)
+    if (await deps.fs.exists(shmPath)) await deps.fs.remove(shmPath)
 
-    const db = createConnection(dbPath)
+    const db = await deps.dbFactory.open(dbPath)
     initSchema(db)
 
-    return new Library(rootPath, db)
+    return new Library(rootPath, db, deps)
   }
 
-  static async migrateNotes(rootPath: string): Promise<{ migrated: number; errors: string[] }> {
+  static async migrateNotes(rootPath: string, fs: PlatformFS): Promise<{ migrated: number; errors: string[] }> {
     const notesDir = join(rootPath, '.banjuan', 'notes')
     return migrateNotesToJson(notesDir)
   }
 
-  getConfig(): LibraryConfig {
+  async getConfig(): Promise<LibraryConfig> {
     const configPath = join(this.rootPath, '.banjuan', 'config.json')
-    return JSON.parse(readFileSync(configPath, 'utf-8')) as LibraryConfig
+    return JSON.parse(await this.fs.readTextFile(configPath)) as LibraryConfig
   }
 
-  get name(): string {
-    return this.getConfig().name
+  async getName(): Promise<string> {
+    const config = await this.getConfig()
+    return config.name
   }
 
-  getSyncConfig(): SyncConfig | null {
+  async getSyncConfig(): Promise<SyncConfig | null> {
     const syncPath = join(this.rootPath, '.banjuan', 'sync.json')
-    if (!existsSync(syncPath)) return null
-    return JSON.parse(readFileSync(syncPath, 'utf-8')) as SyncConfig
+    if (!(await this.fs.exists(syncPath))) return null
+    return JSON.parse(await this.fs.readTextFile(syncPath)) as SyncConfig
   }
 
-  saveSyncConfig(config: SyncConfig): void {
+  async saveSyncConfig(config: SyncConfig): Promise<void> {
     const syncPath = join(this.rootPath, '.banjuan', 'sync.json')
-    writeFileSync(syncPath, JSON.stringify(config, null, 2))
+    await this.fs.writeTextFile(syncPath, JSON.stringify(config, null, 2))
   }
 
   createSyncService(): SyncService {
-    const config = this.getSyncConfig()
-    if (!config) throw new Error('No sync configuration found')
-    const adapter = new WebDAVAdapter()
-    return new SyncService(this.rootPath, adapter, this.events)
+    return new SyncService(this.rootPath, new WebDAVAdapter(this.fs), this.events, this.fs)
   }
 
   createIndexService(): IndexService {
-    return new IndexService(this.db, this.rootPath)
+    return new IndexService(this.db, this.rootPath, this.fs)
   }
 
   createStubService(): StubService {
-    const config = this.getSyncConfig()
-    if (!config) throw new Error('No sync configuration found')
-    const adapter = new WebDAVAdapter()
-    return new StubService(this.rootPath, adapter)
+    return new StubService(this.rootPath, new WebDAVAdapter(this.fs), this.fs)
   }
 
-  private static migrateExistingMindmapFiles(rootPath: string): void {
+  private static async migrateExistingMindmapFiles(rootPath: string, fs: PlatformFS): Promise<void> {
     const banjuanDir = join(rootPath, '.banjuan')
     const notesDir = join(banjuanDir, 'notes')
     const oldDirs = [
@@ -172,16 +168,16 @@ export class Library {
     ]
 
     for (const oldDir of oldDirs) {
-      if (!existsSync(oldDir)) continue
-      const scan = (dir: string, prefix: string) => {
-        const entries = readdirSync(dir, { withFileTypes: true })
+      if (!(await fs.exists(oldDir))) continue
+      const scan = async (dir: string, prefix: string) => {
+        const entries = await fs.readdirWithTypes(dir)
         for (const entry of entries) {
           const srcPath = join(dir, entry.name)
-          if (entry.isDirectory()) {
-            scan(srcPath, prefix ? `${prefix}/${entry.name}` : entry.name)
+          if (entry.isDirectory) {
+            await scan(srcPath, prefix ? `${prefix}/${entry.name}` : entry.name)
           } else if (entry.name.endsWith('.json')) {
             try {
-              const raw = JSON.parse(readFileSync(srcPath, 'utf-8'))
+              const raw = JSON.parse(await fs.readTextFile(srcPath))
               if (!raw.id) return
               const meta = {
                 id: raw.id,
@@ -203,41 +199,41 @@ export class Library {
               }
               const relPath = prefix ? `${prefix}/${entry.name}` : entry.name
               const destPath = join(notesDir, relPath)
-              if (!existsSync(destPath)) {
-                mkdirSync(dirname(destPath), { recursive: true })
-                writeFileSync(destPath, JSON.stringify(newFileData, null, 2))
+              if (!(await fs.exists(destPath))) {
+                await fs.mkdir(dirname(destPath), { recursive: true })
+                await fs.writeTextFile(destPath, JSON.stringify(newFileData, null, 2))
               }
             } catch { /* skip malformed files */ }
           }
         }
       }
-      scan(oldDir, '')
+      await scan(oldDir, '')
     }
   }
 
-  private walkFiles(): string[] {
+  private async walkFiles(): Promise<string[]> {
     const skipDirs = new Set(['.banjuan', 'node_modules', '.git'])
     const files: string[] = []
-    const walk = (dir: string) => {
-      const entries = readdirSync(dir, { withFileTypes: true })
+    const walk = async (dir: string) => {
+      const entries = await this.fs.readdirWithTypes(dir)
       for (const entry of entries) {
         if (entry.name.startsWith('.')) continue
         const fullPath = join(dir, entry.name)
-        if (entry.isDirectory()) {
+        if (entry.isDirectory) {
           const topDir = relative(this.rootPath, fullPath).split('/')[0]
           if (skipDirs.has(topDir)) continue
-          walk(fullPath)
+          await walk(fullPath)
         } else {
           files.push(fullPath)
         }
       }
     }
-    walk(this.rootPath)
+    await walk(this.rootPath)
     return files
   }
 
   async scanAndImport(): Promise<{ imported: number; skipped: number; errors: string[] }> {
-    const files = this.walkFiles()
+    const files = await this.walkFiles()
     const result = { imported: 0, skipped: 0, errors: [] as string[] }
     for (const file of files) {
       try {
@@ -251,7 +247,8 @@ export class Library {
   }
 
   async syncWithDisk(): Promise<{ imported: number; removed: number }> {
-    const diskFiles = new Set(this.walkFiles().map(f => relative(this.rootPath, f)))
+    const walkedFiles = await this.walkFiles()
+    const diskFiles = new Set(walkedFiles.map(f => relative(this.rootPath, f)))
 
     const removed = this.documents.purgeOrphanMetadata(diskFiles)
 
