@@ -117,7 +117,7 @@ function MindmapPanels() {
 function MindmapRightSidebar({ noteId, onOpenNote, rightPanel }: {
   noteId: string
   onOpenNote: (note: NoteInfo) => void
-  rightPanel: { width: number; onMouseDown: (e: React.MouseEvent) => void }
+  rightPanel: { width: number; onPointerDown: (e: React.PointerEvent) => void }
 }) {
   const t = useT()
   const { sidePanelNodeId } = useMindmapStore()
@@ -134,7 +134,7 @@ function MindmapRightSidebar({ noteId, onOpenNote, rightPanel }: {
 
   return (
     <>
-      <ResizeHandle onMouseDown={rightPanel.onMouseDown} />
+      <ResizeHandle onPointerDown={rightPanel.onPointerDown} />
       <div style={{ width: rightPanel.width, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', height: 40, alignItems: 'stretch', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           {tabs.map(([id, label]) => (
@@ -329,7 +329,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
               {leftTab === 'pages' && isHandwriting && <PageListPanel />}
             </div>
           </div>
-          <ResizeHandle onMouseDown={leftPanel.onMouseDown} />
+          <ResizeHandle onPointerDown={leftPanel.onPointerDown} />
         </>
       )}
 
@@ -478,7 +478,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
           <MindmapRightSidebar noteId={note.id} onOpenNote={onOpenNote} rightPanel={rightPanel} />
         ) : (
           <>
-            <ResizeHandle onMouseDown={rightPanel.onMouseDown} />
+            <ResizeHandle onPointerDown={rightPanel.onPointerDown} />
             <div style={{ width: rightPanel.width, flexShrink: 0, overflow: 'hidden' }}>
               <BacklinksPanel noteId={note.id} docId={docId} onOpenNote={onOpenNote} onOpenMindmap={onOpenNote} />
             </div>

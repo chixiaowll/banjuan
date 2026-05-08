@@ -74,7 +74,7 @@ export default function InkLassoTool({ active, pageNum, docId, existingAnnotatio
   const dragStartRef = useRef({ x: 0, y: 0 })
   const dragOffsetRef = useRef({ x: 0, y: 0 })
 
-  const getRelativePos = (e: React.MouseEvent): { x: number; y: number } => {
+  const getRelativePos = (e: React.PointerEvent): { x: number; y: number } => {
     const rect = containerRef.current!.getBoundingClientRect()
     return { x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height }
   }
@@ -178,7 +178,7 @@ export default function InkLassoTool({ active, pageNum, docId, existingAnnotatio
            pos.y >= b.y - SEL_MARGIN && pos.y <= b.y + b.h + SEL_MARGIN
   }, [])
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (!active) return
     e.preventDefault()
     const pos = getRelativePos(e)
@@ -198,7 +198,7 @@ export default function InkLassoTool({ active, pageNum, docId, existingAnnotatio
     lassoPointsRef.current = [pos]
   }, [active, isInsideSelection])
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (modeRef.current === 'lasso') {
       lassoPointsRef.current.push(getRelativePos(e))
       redraw({ lassoPoints: lassoPointsRef.current, selected: new Set() })
@@ -233,7 +233,7 @@ export default function InkLassoTool({ active, pageNum, docId, existingAnnotatio
     onUpdated()
   }, [existingStrokes, existingAnnotationId, pageNum, onUpdated])
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback(() => {
     if (modeRef.current === 'dragging') {
       modeRef.current = 'idle'
       setMode('idle')
@@ -305,14 +305,15 @@ export default function InkLassoTool({ active, pageNum, docId, existingAnnotatio
   return (
     <div
       ref={containerRef}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
       style={{
         position: 'absolute', inset: 0,
         cursor,
         pointerEvents: active ? 'auto' : 'none',
         zIndex: active ? 10 : 2,
+        touchAction: 'none',
         display: active || existingStrokes.length > 0 ? undefined : 'none',
       }}
     >

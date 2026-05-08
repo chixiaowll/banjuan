@@ -108,7 +108,6 @@ function BoundaryBox({ boundary, rfNodes, onUpdateLabel, onRemove }: {
       <div
         onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
-        onMouseDown={e => e.stopPropagation()}
         onPointerDown={e => e.stopPropagation()}
         style={{
           position: 'absolute',

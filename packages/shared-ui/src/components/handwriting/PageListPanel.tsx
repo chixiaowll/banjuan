@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react'
+import { useLongPress } from '../../hooks/useLongPress.js'
 import { Plus, CopyPlus, LayoutTemplate, Trash2 } from 'lucide-react'
 import { useHandwritingStore } from './useHandwritingStore.js'
 import { useT } from '../../i18n/index.js'
@@ -33,6 +34,14 @@ export default function PageListPanel() {
     setContextMenu({ x: e.clientX, y: e.clientY, pageIndex })
   }, [])
 
+  const longPressPageRef = useRef<number | null>(null)
+  const longPressHandlers = useLongPress(useCallback((e: React.PointerEvent) => {
+    if (longPressPageRef.current !== null) {
+      e.preventDefault()
+      setContextMenu({ x: e.clientX, y: e.clientY, pageIndex: longPressPageRef.current })
+    }
+  }, []))
+
   const handleDragStart = useCallback((index: number) => {
     dragIndexRef.current = index
   }, [])
@@ -66,6 +75,10 @@ export default function PageListPanel() {
             onDrop={() => handleDrop(index)}
             onClick={() => setCurrentPage(index)}
             onContextMenu={(e) => handleContextMenu(e, index)}
+            onPointerDown={(e) => { longPressPageRef.current = index; longPressHandlers.onPointerDown(e) }}
+            onPointerUp={longPressHandlers.onPointerUp}
+            onPointerCancel={longPressHandlers.onPointerCancel}
+            onPointerLeave={longPressHandlers.onPointerLeave}
             style={{
               padding: 6,
               marginBottom: 8,

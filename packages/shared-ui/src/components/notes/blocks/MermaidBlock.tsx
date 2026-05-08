@@ -95,29 +95,29 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
   const latestWidthRef = React.useRef(localWidth)
   latestWidthRef.current = localWidth
 
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+  const handleResizeStart = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
     resizeRef.current = { startX: e.clientX, startWidth: latestWidthRef.current }
 
-    const onMouseMove = (ev: MouseEvent) => {
+    const onPointerMove = (ev: PointerEvent) => {
       if (!resizeRef.current) return
       const delta = ev.clientX - resizeRef.current.startX
       const newWidth = Math.max(300, Math.min(1200, resizeRef.current.startWidth + delta))
       setLocalWidth(newWidth)
     }
 
-    const onMouseUp = () => {
+    const onPointerUp = () => {
       resizeRef.current = null
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
+      document.removeEventListener('pointermove', onPointerMove)
+      document.removeEventListener('pointerup', onPointerUp)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
       onRenderWidthChange(latestWidthRef.current)
     }
 
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
+    document.addEventListener('pointermove', onPointerMove)
+    document.addEventListener('pointerup', onPointerUp)
     document.body.style.cursor = 'nwse-resize'
     document.body.style.userSelect = 'none'
   }, [onRenderWidthChange])
@@ -254,7 +254,7 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
       </Suspense>
 
       {!readOnly && (
-        <div className="mermaid-resize-handle" onMouseDown={handleResizeStart} title="Drag to resize diagram" />
+        <div className="mermaid-resize-handle" onPointerDown={handleResizeStart} title="Drag to resize diagram" />
       )}
     </div>
   )

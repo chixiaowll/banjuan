@@ -246,7 +246,7 @@ export default function PdfPage({
     onAnnotationCreated?.()
   }, [annotations, onAnnotationCreated])
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback(() => {
     if (!onTextSelect) return
     const sel = window.getSelection()
     if (!sel || sel.isCollapsed || !sel.toString().trim()) return
@@ -338,7 +338,7 @@ export default function PdfPage({
     <div
       ref={containerRef}
       data-page={pageNum}
-      onMouseUp={handleMouseUp}
+      onPointerUp={handlePointerUp}
       style={{
         position: 'relative',
         width: baseSize.w,

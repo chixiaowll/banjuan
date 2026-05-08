@@ -17,7 +17,7 @@ export default function AreaSelectTool({ active, color, pageNum, docId, canvasRe
   const [current, setCurrent] = useState<{ x: number; y: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const getRelativePos = (e: React.MouseEvent): { x: number; y: number } => {
+  const getRelativePos = (e: React.PointerEvent): { x: number; y: number } => {
     const rect = containerRef.current!.getBoundingClientRect()
     return { x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height }
   }
@@ -42,19 +42,19 @@ export default function AreaSelectTool({ active, color, pageNum, docId, canvasRe
     return offscreen.toDataURL('image/png')
   }
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (!active) return
     e.preventDefault()
     setStart(getRelativePos(e))
     setDragging(true)
   }, [active])
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragging) return
     setCurrent(getRelativePos(e))
   }, [dragging])
 
-  const handleMouseUp = useCallback(async () => {
+  const handlePointerUp = useCallback(async () => {
     if (!dragging || !start || !current) { setDragging(false); return }
     const x = Math.min(start.x, current.x)
     const y = Math.min(start.y, current.y)
@@ -73,9 +73,9 @@ export default function AreaSelectTool({ active, color, pageNum, docId, canvasRe
   }, [dragging, start, current, docId, pageNum, color, onCreated])
 
   return (
-    <div ref={containerRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
+    <div ref={containerRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}
       style={{ position: 'absolute', inset: 0, cursor: active ? 'crosshair' : 'default',
-        pointerEvents: active ? 'auto' : 'none', zIndex: active ? 10 : -1 }}>
+        pointerEvents: active ? 'auto' : 'none', zIndex: active ? 10 : -1, touchAction: 'none' }}>
       {start && current && (
         <div style={{
           position: 'absolute',

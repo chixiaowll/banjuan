@@ -55,7 +55,7 @@ export default function ResizableAreaOverlay({ id, rect, color, canvasRef, onRes
     currentRectRef.current = rect
   }, [rect.x, rect.y, rect.w, rect.h])
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, handle: Handle) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent, handle: Handle) => {
     e.preventDefault()
     e.stopPropagation()
     setDragging(handle)
@@ -69,7 +69,7 @@ export default function ResizableAreaOverlay({ id, rect, color, canvasRef, onRes
     if (!parent) return
     const parentRect = parent.getBoundingClientRect()
 
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
       const dx = (e.clientX - startMouseRef.current.mx) / parentRect.width
       const dy = (e.clientY - startMouseRef.current.my) / parentRect.height
       const r = startRectRef.current
@@ -97,11 +97,11 @@ export default function ResizableAreaOverlay({ id, rect, color, canvasRef, onRes
       onResized(id, r, imageData)
     }
 
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
     return () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
     }
   }, [dragging, id, canvasRef, onResized])
 
@@ -110,8 +110,8 @@ export default function ResizableAreaOverlay({ id, rect, color, canvasRef, onRes
   return (
     <div
       ref={containerRef}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { if (!dragging) setHovered(false) }}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => { if (!dragging) setHovered(false) }}
       style={{
         position: 'absolute',
         left: `${r.x * 100}%`, top: `${r.y * 100}%`,
@@ -121,6 +121,7 @@ export default function ResizableAreaOverlay({ id, rect, color, canvasRef, onRes
         background: `${color}15`,
         pointerEvents: 'auto',
         cursor: 'default',
+        touchAction: 'none',
       }}
     >
       {(hovered || dragging) && handles.map(h => {
@@ -128,7 +129,7 @@ export default function ResizableAreaOverlay({ id, rect, color, canvasRef, onRes
         return (
           <div
             key={h.key}
-            onMouseDown={(e) => handleMouseDown(e, h.key)}
+            onPointerDown={(e) => handlePointerDown(e, h.key)}
             style={{
               position: 'absolute',
               left: pos.left, top: pos.top,

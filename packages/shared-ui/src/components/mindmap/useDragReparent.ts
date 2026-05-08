@@ -31,7 +31,7 @@ export function useDragReparent() {
     return false
   }, [rfNodes])
 
-  const onNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string) => {
+  const onNodePointerDown = useCallback((e: React.PointerEvent, nodeId: string) => {
     const node = rfNodes.find(n => n.id === nodeId)
     if (!node || !node.data.parentId) return
 
@@ -44,7 +44,7 @@ export function useDragReparent() {
     }, 200)
   }, [rfNodes])
 
-  const onMouseMove = useCallback((e: MouseEvent) => {
+  const onPointerMove = useCallback((e: PointerEvent) => {
     if (!dragRef.current?.isDragging) return
 
     const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY })
@@ -70,7 +70,7 @@ export function useDragReparent() {
     }
   }, [rfNodes, screenToFlowPosition, isDescendant])
 
-  const onMouseUp = useCallback(() => {
+  const onPointerUp = useCallback(() => {
     if (holdTimerRef.current) clearTimeout(holdTimerRef.current)
 
     if (dragRef.current?.isDragging && dropTarget) {
@@ -85,8 +85,8 @@ export function useDragReparent() {
   return {
     draggingNodeId,
     dropTarget,
-    onNodeMouseDown,
-    onMouseMove,
-    onMouseUp,
+    onNodePointerDown,
+    onPointerMove,
+    onPointerUp,
   }
 }

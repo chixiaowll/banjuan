@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useT } from '../../i18n/index.js'
 import TemplatePicker, { type NoteType } from '../notes/TemplatePicker.js'
 import { useBanjuanAPI } from '../../api.js'
+import { useLongPress } from '../../hooks/useLongPress.js'
 
 interface NoteInfo {
   id: string
@@ -24,6 +25,13 @@ export default function NotesPanel({ docId, onOpenNote, onCreateNote, onDeleteNo
   const [loading, setLoading] = useState(true)
   const [showPicker, setShowPicker] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
+  const longPressNoteRef = useRef<string | null>(null)
+  const longPressHandlers = useLongPress(useCallback((e: React.PointerEvent) => {
+    if (longPressNoteRef.current) {
+      e.preventDefault()
+      setContextMenu({ x: e.clientX, y: e.clientY, noteId: longPressNoteRef.current })
+    }
+  }, []))
 
   const loadNotes = useCallback(async () => {
     const result = await api.notes.list({ docId })
@@ -82,6 +90,10 @@ export default function NotesPanel({ docId, onOpenNote, onCreateNote, onDeleteNo
             key={note.id}
             onClick={() => onOpenNote(note)}
             onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, noteId: note.id }) }}
+            onPointerDown={(e) => { longPressNoteRef.current = note.id; longPressHandlers.onPointerDown(e) }}
+            onPointerUp={longPressHandlers.onPointerUp}
+            onPointerCancel={longPressHandlers.onPointerCancel}
+            onPointerLeave={longPressHandlers.onPointerLeave}
             style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}
             onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}

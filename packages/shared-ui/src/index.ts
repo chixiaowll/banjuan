@@ -21,3 +21,4 @@ export { ResizeHandle, useResizable } from './components/ResizeHandle.js'
 
 // Hooks
 export { useAnnotations } from './hooks/useAnnotations.js'
+export { useLongPress } from './hooks/useLongPress.js'

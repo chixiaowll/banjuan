@@ -298,7 +298,7 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
           onDeleteNote={(noteId) => { if (sidebarNoteId === noteId) setSidebarNoteId(null) }}
           width={leftResize.width}
         />
-        {ctx.leftSidebarOpen && <ResizeHandle onMouseDown={leftResize.onMouseDown} />}
+        {ctx.leftSidebarOpen && <ResizeHandle onPointerDown={leftResize.onPointerDown} />}
         <PdfContentArea
           annotations={annotations}
           docId={doc.id}
@@ -309,7 +309,7 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
           onAnnotationUpdate={handleAnnotationUpdate}
           onPageSizesComputed={onPageSizesComputed}
         />
-        {(sidebarNoteId || ctx.rightSidebarOpen) && <ResizeHandle onMouseDown={rightResize.onMouseDown} />}
+        {(sidebarNoteId || ctx.rightSidebarOpen) && <ResizeHandle onPointerDown={rightResize.onPointerDown} />}
         {sidebarNoteId ? (
           <PdfNoteSidebar
             noteId={sidebarNoteId}
