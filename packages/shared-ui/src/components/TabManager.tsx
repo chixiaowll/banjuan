@@ -1,4 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
+import { useMediaQuery } from '@mantine/hooks'
+import { Drawer, ActionIcon } from '@mantine/core'
+import { Menu } from 'lucide-react'
 import TitleBar, { type Tab, type PluginViewInfo } from './TitleBar.js'
 import LibraryView from '../views/LibraryView.js'
 import DocumentViewer from './viewers/DocumentViewer.js'
@@ -7,6 +10,7 @@ import TagManagerView from '../views/TagManagerView.js'
 import PluginViewHost from '../views/PluginViewHost.js'
 import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
+import '../styles/mobile.css'
 
 const LIBRARY_TAB_ID = 'library'
 
@@ -18,6 +22,8 @@ interface Props {
 export default function TabManager({ libraryPath, libraryName }: Props) {
   const api = useBanjuanAPI()
   const t = useT()
+  const isNarrow = useMediaQuery('(max-width: 768px)')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [tabs, setTabs] = useState<Tab[]>([
     { id: LIBRARY_TAB_ID, type: 'library', title: libraryName, closable: false },
   ])
@@ -29,6 +35,7 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
 
   const activateTab = useCallback((tabId: string) => {
     setActiveTabId(tabId)
+    setSidebarOpen(false)
     const history = tabHistoryRef.current
     const idx = history.lastIndexOf(tabId)
     if (idx !== -1) history.splice(idx, 1)
@@ -179,18 +186,45 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
     }
   }, [activeTabId])
 
+  const titleBarElement = (
+    <TitleBar
+      tabs={tabs}
+      activeTabId={activeTabId}
+      onSelectTab={activateTab}
+      onCloseTab={closeTab}
+      onReorderTabs={setTabs}
+      pluginViews={pluginViews}
+      activePanelPlugin={sidePanel?.pluginId ?? null}
+      onTogglePluginPanel={togglePluginPanel}
+    />
+  )
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <TitleBar
-        tabs={tabs}
-        activeTabId={activeTabId}
-        onSelectTab={activateTab}
-        onCloseTab={closeTab}
-        onReorderTabs={setTabs}
-        pluginViews={pluginViews}
-        activePanelPlugin={sidePanel?.pluginId ?? null}
-        onTogglePluginPanel={togglePluginPanel}
-      />
+    <div className="app-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      {isNarrow ? (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '4px 8px', borderBottom: '1px solid var(--mantine-color-default-border, #dee2e6)' }}>
+            <ActionIcon variant="subtle" onClick={() => setSidebarOpen(true)} aria-label="Open tabs">
+              <Menu size={20} />
+            </ActionIcon>
+            <span style={{ marginLeft: 8, fontWeight: 500, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {tabs.find(t => t.id === activeTabId)?.title ?? ''}
+            </span>
+          </div>
+          <Drawer
+            opened={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            size="80%"
+            padding="xs"
+            title={libraryName}
+            position="left"
+          >
+            {titleBarElement}
+          </Drawer>
+        </>
+      ) : (
+        titleBarElement
+      )}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           {tabs.map(tab => (
