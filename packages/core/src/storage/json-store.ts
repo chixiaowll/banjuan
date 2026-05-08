@@ -1,8 +1,8 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import type { PlatformFS } from '../platform/index.js'
+import { join } from '../platform/path.js'
 
 export class JsonStore<T extends { id: string }> {
-  constructor(private baseDir: string) {}
+  constructor(private baseDir: string, private fs: PlatformFS) {}
 
   private dirFor(id: string): string {
     return join(this.baseDir, id.slice(0, 2))
@@ -12,35 +12,36 @@ export class JsonStore<T extends { id: string }> {
     return join(this.dirFor(id), `${id}.json`)
   }
 
-  read(id: string): T | null {
+  async read(id: string): Promise<T | null> {
     const p = this.pathFor(id)
-    if (!existsSync(p)) return null
-    return JSON.parse(readFileSync(p, 'utf-8'))
+    if (!(await this.fs.exists(p))) return null
+    const text = await this.fs.readTextFile(p)
+    return JSON.parse(text)
   }
 
-  write(data: T): void {
+  async write(data: T): Promise<void> {
     const dir = this.dirFor(data.id)
-    mkdirSync(dir, { recursive: true })
-    writeFileSync(this.pathFor(data.id), JSON.stringify(data, null, 2))
+    await this.fs.mkdir(dir, { recursive: true })
+    await this.fs.writeTextFile(this.pathFor(data.id), JSON.stringify(data, null, 2))
   }
 
-  delete(id: string): boolean {
+  async delete(id: string): Promise<boolean> {
     const p = this.pathFor(id)
-    if (!existsSync(p)) return false
-    unlinkSync(p)
+    if (!(await this.fs.exists(p))) return false
+    await this.fs.remove(p)
     return true
   }
 
-  listAll(): T[] {
-    if (!existsSync(this.baseDir)) return []
+  async listAll(): Promise<T[]> {
+    if (!(await this.fs.exists(this.baseDir))) return []
     const results: T[] = []
-    const prefixes = readdirSync(this.baseDir, { withFileTypes: true })
+    const prefixes = await this.fs.readdirWithTypes(this.baseDir)
     for (const prefix of prefixes) {
-      if (!prefix.isDirectory()) continue
-      const files = readdirSync(join(this.baseDir, prefix.name), { withFileTypes: true })
+      if (!prefix.isDirectory) continue
+      const files = await this.fs.readdirWithTypes(join(this.baseDir, prefix.name))
       for (const file of files) {
         if (!file.name.endsWith('.json')) continue
-        const content = readFileSync(join(this.baseDir, prefix.name, file.name), 'utf-8')
+        const content = await this.fs.readTextFile(join(this.baseDir, prefix.name, file.name))
         results.push(JSON.parse(content))
       }
     }
