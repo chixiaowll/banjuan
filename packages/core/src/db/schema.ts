@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3'
+import type { PlatformDatabase } from '../platform/index.js'
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS documents (
@@ -163,8 +163,8 @@ CREATE TABLE IF NOT EXISTS mindmap_summaries (
 );
 `
 
-export function initSchema(db: Database.Database): void {
-  db.exec(SCHEMA_SQL)
+export function initSchema(db: PlatformDatabase): void {
+  db.execute(SCHEMA_SQL)
 
   // Migrate mindmap_nodes: add new columns if missing
   const nodeColumns = db.pragma('table_info(mindmap_nodes)') as Array<{ name: string }>
@@ -179,7 +179,7 @@ export function initSchema(db: Database.Database): void {
   ]
   for (const [name, type] of newNodeCols) {
     if (!nodeColNames.has(name)) {
-      db.exec(`ALTER TABLE mindmap_nodes ADD COLUMN ${name} ${type}`)
+      db.execute(`ALTER TABLE mindmap_nodes ADD COLUMN ${name} ${type}`)
     }
   }
 }
