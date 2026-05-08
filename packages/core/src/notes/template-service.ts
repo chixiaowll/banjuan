@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3'
+import type { PlatformDatabase } from '../platform/index.js'
 import { v4 as uuid } from 'uuid'
 import type { NoteTemplate, NoteTemplateCreateInput } from '../types.js'
 
@@ -80,19 +80,19 @@ function rowToTemplate(row: TemplateRow): NoteTemplate {
 export class TemplateService {
   private builtinsSeeded = false
 
-  constructor(private db: Database.Database) {}
+  constructor(private db: PlatformDatabase) {}
 
   private ensureBuiltins(): void {
     if (this.builtinsSeeded) return
 
-    const count = this.db.prepare('SELECT COUNT(*) as cnt FROM note_templates WHERE is_builtin = 1').get() as { cnt: number }
-    if (count.cnt === 0) {
-      const insert = this.db.prepare(
-        'INSERT INTO note_templates (id, name, description, content, is_builtin, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)',
-      )
+    const count = this.db.queryOne<{ cnt: number }>('SELECT COUNT(*) as cnt FROM note_templates WHERE is_builtin = 1')
+    if (count && count.cnt === 0) {
       const now = new Date().toISOString()
       for (const tpl of BUILTIN_TEMPLATES) {
-        insert.run(uuid(), tpl.name, tpl.description, tpl.content, tpl.sortOrder, now, now)
+        this.db.run(
+          'INSERT INTO note_templates (id, name, description, content, is_builtin, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?)',
+          [uuid(), tpl.name, tpl.description, tpl.content, tpl.sortOrder, now, now],
+        )
       }
     }
 
@@ -101,25 +101,26 @@ export class TemplateService {
 
   async list(): Promise<NoteTemplate[]> {
     this.ensureBuiltins()
-    const rows = this.db.prepare('SELECT * FROM note_templates ORDER BY sort_order ASC, created_at ASC').all() as TemplateRow[]
+    const rows = this.db.query<TemplateRow>('SELECT * FROM note_templates ORDER BY sort_order ASC, created_at ASC')
     return rows.map(rowToTemplate)
   }
 
   async get(id: string): Promise<NoteTemplate | null> {
     this.ensureBuiltins()
-    const row = this.db.prepare('SELECT * FROM note_templates WHERE id = ?').get(id) as TemplateRow | undefined
+    const row = this.db.queryOne<TemplateRow>('SELECT * FROM note_templates WHERE id = ?', [id])
     return row ? rowToTemplate(row) : null
   }
 
   async create(input: NoteTemplateCreateInput): Promise<NoteTemplate> {
     const id = uuid()
     const now = new Date().toISOString()
-    const maxOrder = this.db.prepare('SELECT MAX(sort_order) as max_order FROM note_templates').get() as { max_order: number | null }
-    const sortOrder = (maxOrder.max_order ?? 0) + 1
+    const maxOrder = this.db.queryOne<{ max_order: number | null }>('SELECT MAX(sort_order) as max_order FROM note_templates')
+    const sortOrder = (maxOrder?.max_order ?? 0) + 1
 
-    this.db.prepare(
+    this.db.run(
       'INSERT INTO note_templates (id, name, description, content, is_builtin, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?)',
-    ).run(id, input.name, input.description ?? '', input.content, sortOrder, now, now)
+      [id, input.name, input.description ?? '', input.content, sortOrder, now, now],
+    )
 
     return {
       id,
@@ -142,9 +143,10 @@ export class TemplateService {
     const description = updates.description ?? existing.description
     const content = updates.content ?? existing.content
 
-    this.db.prepare(
+    this.db.run(
       'UPDATE note_templates SET name = ?, description = ?, content = ?, updated_at = ? WHERE id = ?',
-    ).run(name, description, content, now, id)
+      [name, description, content, now, id],
+    )
 
     return { ...existing, name, description, content, updatedAt: now }
   }
@@ -154,6 +156,6 @@ export class TemplateService {
     if (!existing) throw new Error(`Template not found: ${id}`)
     if (existing.isBuiltin) throw new Error('Cannot delete builtin template')
 
-    this.db.prepare('DELETE FROM note_templates WHERE id = ?').run(id)
+    this.db.run('DELETE FROM note_templates WHERE id = ?', [id])
   }
 }

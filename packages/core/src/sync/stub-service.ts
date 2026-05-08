@@ -1,12 +1,12 @@
-import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, readdirSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import type { PlatformFS } from '../platform/index.js'
+import { join, dirname } from '../platform/path.js'
 import type { SyncAdapter } from './adapter.js'
 import type { StubData, DocumentSyncStatus } from '../types.js'
 
 export class StubService {
   private stubsDir: string
 
-  constructor(private rootPath: string, private adapter: SyncAdapter) {
+  constructor(private rootPath: string, private adapter: SyncAdapter, private fs: PlatformFS) {
     this.stubsDir = join(rootPath, '.banjuan', 'stubs')
   }
 
@@ -14,55 +14,55 @@ export class StubService {
     return join(this.stubsDir, id.slice(0, 2), `${id}.stub.json`)
   }
 
-  createStub(input: Omit<StubData, 'createdAt'>): void {
+  async createStub(input: Omit<StubData, 'createdAt'>): Promise<void> {
     const data: StubData = { ...input, createdAt: new Date().toISOString() }
     const path = this.stubPath(data.id)
-    mkdirSync(dirname(path), { recursive: true })
-    writeFileSync(path, JSON.stringify(data, null, 2))
+    await this.fs.mkdir(dirname(path), { recursive: true })
+    await this.fs.writeTextFile(path, JSON.stringify(data, null, 2))
   }
 
-  getStub(id: string): StubData | null {
+  async getStub(id: string): Promise<StubData | null> {
     const path = this.stubPath(id)
-    if (!existsSync(path)) return null
-    return JSON.parse(readFileSync(path, 'utf-8'))
+    if (!(await this.fs.exists(path))) return null
+    return JSON.parse(await this.fs.readTextFile(path))
   }
 
-  listStubs(): StubData[] {
-    if (!existsSync(this.stubsDir)) return []
+  async listStubs(): Promise<StubData[]> {
+    if (!(await this.fs.exists(this.stubsDir))) return []
     const results: StubData[] = []
-    const prefixes = readdirSync(this.stubsDir, { withFileTypes: true })
+    const prefixes = await this.fs.readdirWithTypes(this.stubsDir)
     for (const prefix of prefixes) {
-      if (!prefix.isDirectory()) continue
-      const files = readdirSync(join(this.stubsDir, prefix.name), { withFileTypes: true })
+      if (!prefix.isDirectory) continue
+      const files = await this.fs.readdirWithTypes(join(this.stubsDir, prefix.name))
       for (const file of files) {
         if (!file.name.endsWith('.stub.json')) continue
-        const content = readFileSync(join(this.stubsDir, prefix.name, file.name), 'utf-8')
+        const content = await this.fs.readTextFile(join(this.stubsDir, prefix.name, file.name))
         results.push(JSON.parse(content))
       }
     }
     return results
   }
 
-  removeStub(id: string): void {
+  async removeStub(id: string): Promise<void> {
     const path = this.stubPath(id)
-    if (existsSync(path)) unlinkSync(path)
+    if (await this.fs.exists(path)) await this.fs.remove(path)
   }
 
   async downloadFile(id: string, localPath: string): Promise<void> {
-    const stub = this.getStub(id)
+    const stub = await this.getStub(id)
     if (!stub) throw new Error(`Stub not found: ${id}`)
-    mkdirSync(dirname(localPath), { recursive: true })
+    await this.fs.mkdir(dirname(localPath), { recursive: true })
     await this.adapter.download('/' + stub.remotePath, localPath)
-    this.removeStub(id)
+    await this.removeStub(id)
   }
 
   async uploadFile(localPath: string, remotePath: string): Promise<void> {
     await this.adapter.upload(localPath, '/' + remotePath)
   }
 
-  getStatus(docId: string, localFilePath: string): DocumentSyncStatus {
-    const hasLocal = existsSync(localFilePath)
-    const hasStub = this.getStub(docId) !== null
+  async getStatus(docId: string, localFilePath: string): Promise<DocumentSyncStatus> {
+    const hasLocal = await this.fs.exists(localFilePath)
+    const hasStub = (await this.getStub(docId)) !== null
     if (hasStub && !hasLocal) return 'cloud'
     if (hasLocal && !hasStub) return 'local'
     return 'local'

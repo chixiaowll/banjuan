@@ -1,7 +1,5 @@
-import type Database from 'better-sqlite3'
-import { readFileSync, existsSync, unlinkSync } from 'node:fs'
-import { join, relative, isAbsolute } from 'node:path'
-import { createHash } from 'node:crypto'
+import type { PlatformDatabase, PlatformFS, PlatformCrypto } from '../platform/index.js'
+import { join, relative, isAbsolute } from '../platform/path.js'
 import type { Document, DocumentListOptions, DocumentFileData } from '../types.js'
 import { detectDocumentType, extractTitle } from './metadata.js'
 import type { SearchService } from '../search/service.js'
@@ -12,12 +10,14 @@ export class DocumentService {
   private store: JsonStore<DocumentFileData>
 
   constructor(
-    private db: Database.Database,
+    private db: PlatformDatabase,
     private rootPath: string,
     private search: SearchService,
     private events: EventBus,
+    private fs: PlatformFS,
+    private crypto: PlatformCrypto,
   ) {
-    this.store = new JsonStore(join(rootPath, '.banjuan', 'data', 'documents'))
+    this.store = new JsonStore(join(rootPath, '.banjuan', 'data', 'documents'), fs)
   }
 
   async import(
@@ -25,7 +25,7 @@ export class DocumentService {
     options?: { title?: string; tags?: string[] },
   ): Promise<Document> {
     const absPath = isAbsolute(filePath) ? filePath : join(this.rootPath, filePath)
-    if (!existsSync(absPath)) {
+    if (!(await this.fs.exists(absPath))) {
       throw new Error(`File not found: ${absPath}`)
     }
 
@@ -34,21 +34,19 @@ export class DocumentService {
       throw new Error('File must be inside the library directory')
     }
 
-    const content = readFileSync(absPath)
-    const hash = createHash('sha256').update(content).digest('hex')
+    const content = await this.fs.readFile(absPath)
+    const hash = await this.crypto.sha256(content)
 
-    const existingByPath = this.db
-      .prepare('SELECT id FROM documents WHERE path = ?')
-      .get(relPath) as { id: string } | undefined
+    const existingByPath = this.db.queryOne<{ id: string }>('SELECT id FROM documents WHERE path = ?', [relPath])
     if (existingByPath) {
       throw new Error(`File already imported at path: ${relPath}`)
     }
 
-    const existing = this.findExistingByPath(relPath)
+    const existing = await this.findExistingByPath(relPath)
 
     const type = detectDocumentType(absPath)
     const title = options?.title ?? existing?.title ?? extractTitle(absPath)
-    const id = existing?.id ?? createHash('sha256').update(relPath).digest('hex').slice(0, 32)
+    const id = existing?.id ?? (await this.crypto.sha256(new TextEncoder().encode(relPath))).slice(0, 32)
     const now = new Date().toISOString()
     const tags = options?.tags ?? existing?.tags ?? []
 
@@ -56,14 +54,13 @@ export class DocumentService {
       id, title, authors: existing?.authors ?? [], path: relPath, type, hash,
       tags, metadata: existing?.metadata ?? {}, createdAt: existing?.createdAt ?? now, updatedAt: now,
     }
-    this.store.write(fileData)
+    await this.store.write(fileData)
 
-    this.db
-      .prepare(
-        `INSERT INTO documents (id, title, authors, path, type, hash, metadata, created_at, updated_at)
+    this.db.run(
+      `INSERT INTO documents (id, title, authors, path, type, hash, metadata, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(id, title, JSON.stringify(fileData.authors), relPath, type, hash, JSON.stringify(fileData.metadata), fileData.createdAt, fileData.updatedAt)
+      [id, title, JSON.stringify(fileData.authors), relPath, type, hash, JSON.stringify(fileData.metadata), fileData.createdAt, fileData.updatedAt],
+    )
 
     this.search.index({ id, title, content: title, type: 'document' })
 
@@ -75,8 +72,8 @@ export class DocumentService {
     return doc
   }
 
-  private findExistingByPath(relPath: string): DocumentFileData | null {
-    for (const doc of this.store.listAll()) {
+  private async findExistingByPath(relPath: string): Promise<DocumentFileData | null> {
+    for (const doc of await this.store.listAll()) {
       if (doc.path === relPath) return doc
     }
     return null
@@ -101,14 +98,12 @@ export class DocumentService {
     const order = options?.order ?? 'desc'
     sql += ` ORDER BY ${sort} ${order}`
 
-    const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>
+    const rows = this.db.query<Record<string, unknown>>(sql, params)
     return rows.map(rowToDocument)
   }
 
   async get(id: string): Promise<Document | null> {
-    const row = this.db.prepare('SELECT * FROM documents WHERE id = ?').get(id) as
-      | Record<string, unknown>
-      | undefined
+    const row = this.db.queryOne<Record<string, unknown>>('SELECT * FROM documents WHERE id = ?', [id])
     return row ? rowToDocument(row) : null
   }
 
@@ -121,17 +116,18 @@ export class DocumentService {
     const newAuthors = updates.authors ?? existing.authors
     const newMetadata = updates.metadata ?? existing.metadata
 
-    this.db.prepare(
-      `UPDATE documents SET title = ?, authors = ?, metadata = ?, updated_at = ? WHERE id = ?`
-    ).run(newTitle, JSON.stringify(newAuthors), JSON.stringify(newMetadata), now, id)
+    this.db.run(
+      `UPDATE documents SET title = ?, authors = ?, metadata = ?, updated_at = ? WHERE id = ?`,
+      [newTitle, JSON.stringify(newAuthors), JSON.stringify(newMetadata), now, id],
+    )
 
-    const fileData = this.store.read(id)
+    const fileData = await this.store.read(id)
     if (fileData) {
       fileData.title = newTitle
       fileData.authors = newAuthors
       fileData.metadata = newMetadata
       fileData.updatedAt = now
-      this.store.write(fileData)
+      await this.store.write(fileData)
     }
 
     this.search.index({ id, title: newTitle, content: newTitle, type: 'document' })
@@ -139,11 +135,11 @@ export class DocumentService {
     return { ...existing, title: newTitle, authors: newAuthors, metadata: newMetadata, updatedAt: now }
   }
 
-  purgeOrphanMetadata(diskFiles: Set<string>): number {
+  async purgeOrphanMetadata(diskFiles: Set<string>): Promise<number> {
     let removed = 0
-    for (const meta of this.store.listAll()) {
+    for (const meta of await this.store.listAll()) {
       if (!diskFiles.has(meta.path)) {
-        this.store.delete(meta.id)
+        await this.store.delete(meta.id)
         removed++
       }
     }
@@ -155,13 +151,13 @@ export class DocumentService {
     if (!doc) return
 
     const absPath = join(this.rootPath, doc.path)
-    if (existsSync(absPath)) {
-      unlinkSync(absPath)
+    if (await this.fs.exists(absPath)) {
+      await this.fs.remove(absPath)
     }
 
-    this.store.delete(id)
+    await this.store.delete(id)
     this.search.removeById(id)
-    this.db.prepare('DELETE FROM documents WHERE id = ?').run(id)
+    this.db.run('DELETE FROM documents WHERE id = ?', [id])
     this.events.emit('document:deleted', { id })
   }
 }

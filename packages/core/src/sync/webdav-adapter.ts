@@ -1,6 +1,6 @@
 import { createClient, type WebDAVClient } from 'webdav'
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
+import type { PlatformFS } from '../platform/index.js'
+import { dirname } from '../platform/path.js'
 import type { SyncConfig, RemoteFile } from '../types.js'
 import type { SyncAdapter } from './adapter.js'
 
@@ -14,6 +14,8 @@ interface WebDAVStat {
 
 export class WebDAVAdapter implements SyncAdapter {
   private client: WebDAVClient | null = null
+
+  constructor(private fs: PlatformFS) {}
 
   async connect(config: SyncConfig): Promise<void> {
     this.client = createClient(config.url, {
@@ -46,15 +48,15 @@ export class WebDAVAdapter implements SyncAdapter {
 
   async upload(localPath: string, remotePath: string): Promise<void> {
     const client = this.getClient()
-    const content = readFileSync(localPath)
-    await client.putFileContents(remotePath, content)
+    const content = await this.fs.readFile(localPath)
+    await client.putFileContents(remotePath, Buffer.from(content))
   }
 
   async download(remotePath: string, localPath: string): Promise<void> {
     const client = this.getClient()
-    const content = (await client.getFileContents(remotePath)) as Buffer
-    mkdirSync(dirname(localPath), { recursive: true })
-    writeFileSync(localPath, content)
+    const content = (await client.getFileContents(remotePath)) as ArrayBuffer
+    await this.fs.mkdir(dirname(localPath), { recursive: true })
+    await this.fs.writeFile(localPath, new Uint8Array(content))
   }
 
   async delete(remotePath: string): Promise<void> {
