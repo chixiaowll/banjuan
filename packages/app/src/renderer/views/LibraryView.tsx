@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
-import { ChevronDown, ChevronRight, FilePlus, Brain, PenTool, Download, Upload, Trash2, FolderPlus, Check, Pencil } from 'lucide-react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { ChevronDown, ChevronRight, FilePlus, Download, Upload, Trash2, FolderPlus, Check, Pencil, LibraryBig, PenLine, Cloud, Puzzle, Settings, Folder, Tag } from 'lucide-react'
+import type { NoteType } from '../components/notes/TemplatePicker.js'
 import SyncConfigPanel from '../components/sync/SyncConfigPanel.js'
 import TemplatePicker from '../components/notes/TemplatePicker.js'
 import TagInput from '../components/tags/TagInput.js'
 import TagPill from '../components/tags/TagPill.js'
+import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
 import { useI18n } from '../i18n/index.js'
 import type { Locale } from '../i18n/index.js'
 
@@ -30,11 +32,12 @@ interface Props {
   onOpenDoc: (doc: Document) => void
   onOpenNote: (note: any) => void
   onOpenMindmap: (mindmap: any) => void
-  onOpenGraph: () => void
+  onOpenGraph?: () => void
   onOpenTagManager?: () => void
+  onOpenPluginView?: (pluginId: string, viewType: string) => void
 }
 
-type SidebarSection = 'documents' | 'notes' | 'graph' | 'sync' | 'plugins' | 'settings'
+type SidebarSection = 'documents' | 'notes' | 'sync' | 'plugins' | 'settings'
 
 interface DirNode {
   name: string
@@ -92,7 +95,7 @@ function formatDate(dateStr: string, locale: string): string {
   } catch { return dateStr }
 }
 
-function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onContextMenu, depth, icon }: {
+function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onContextMenu, depth, icon, textColor }: {
   node: DirNode
   selectedDir: string | null
   onSelect: (path: string | null) => void
@@ -100,7 +103,8 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
   onToggle: (path: string) => void
   onContextMenu?: (e: React.MouseEvent, path: string) => void
   depth: number
-  icon?: string
+  icon?: React.ReactNode
+  textColor?: string
 }) {
   const isExpanded = expandedDirs.has(node.path)
   const isSelected = selectedDir === node.path
@@ -137,8 +141,8 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
         >
           {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </span>
-        {icon && <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>{icon}</span>}
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isSelected ? 500 : 400 }}>
+        {icon && <span style={{ flexShrink: 0, lineHeight: 1, display: 'inline-flex', color: 'var(--text-muted)' }}>{icon}</span>}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 400, color: textColor }}>
           {node.name}
         </span>
       </div>
@@ -153,13 +157,14 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
           onContextMenu={onContextMenu}
           depth={depth + 1}
           icon={icon}
+          textColor={textColor}
         />
       ))}
     </>
   )
 }
 
-export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNote, onOpenMindmap, onOpenGraph, onOpenTagManager }: Props) {
+export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNote, onOpenMindmap, onOpenTagManager, onOpenPluginView }: Props) {
   const { t, locale, setLocale } = useI18n()
   const [documents, setDocuments] = useState<Document[]>([])
   const [notes, setNotes] = useState<any[]>([])
@@ -185,10 +190,15 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [noteDirs, setNoteDirs] = useState<string[]>([])
   const [selectedNoteDir, setSelectedNoteDir] = useState<string | null>(null)
   const [expandedNoteDirs, setExpandedNoteDirs] = useState<Set<string>>(new Set())
+  const [docSectionExpanded, setDocSectionExpanded] = useState(true)
+  const [noteSectionExpanded, setNoteSectionExpanded] = useState(true)
   const [tagsWithCounts, setTagsWithCounts] = useState<Array<{ id: string; name: string; color: string | null; count: number }>>([])
   const [tagSearch, setTagSearch] = useState('')
   const [showAllTags, setShowAllTags] = useState(false)
   const [tagFilteredItems, setTagFilteredItems] = useState<any[] | null>(null)
+  const [pluginViews, setPluginViews] = useState<Array<{ viewType: string; pluginId: string; displayText: string; icon?: string; singleton?: boolean }>>([])
+  const leftResize = useResizable(220, 160, 400, 'left')
+  const rightResize = useResizable(280, 200, 500, 'right')
 
   useEffect(() => {
     if (!contextMenu) return
@@ -263,8 +273,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   }
 
   const loadPlugins = async () => {
-    const list = await window.electronAPI.plugins.list()
+    const list = await window.electronAPI.plugins.listAll()
     setPlugins(list)
+    try {
+      const views = await window.electronAPI.plugins.getViews()
+      setPluginViews(views)
+    } catch { setPluginViews([]) }
   }
 
   useEffect(() => { loadDocuments(); loadNotes(); loadTags(); loadNoteDirs() }, [])
@@ -273,6 +287,11 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     const refresh = () => { loadNotes(); loadNoteDirs() }
     document.addEventListener('notes-changed', refresh)
     return () => document.removeEventListener('notes-changed', refresh)
+  }, [])
+
+  useEffect(() => {
+    document.addEventListener('tags-changed', loadTags)
+    return () => document.removeEventListener('tags-changed', loadTags)
   }, [])
 
   useEffect(() => {
@@ -349,15 +368,28 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     setRenameTarget(null)
   }
 
-  const handleNoteTemplateSelect = async (templateId: string | null, title: string) => {
-    setShowNotePicker(false)
-    const note = await window.electronAPI.notes.create({
-      title,
-      folder: selectedNoteDir ?? undefined,
-      templateId: templateId ?? undefined,
-    })
-    await loadNotes()
-    onOpenNote(note)
+  const [notePickerError, setNotePickerError] = useState<string | null>(null)
+
+  const handleNoteTemplateSelect = async (templateId: string | null, title: string, type: NoteType) => {
+    try {
+      const note = await window.electronAPI.notes.create({
+        title,
+        folder: selectedNoteDir ?? undefined,
+        ...(type !== 'markdown' ? { type } : { templateId: templateId ?? undefined }),
+      })
+      setNotePickerError(null)
+      setShowNotePicker(false)
+      await loadNotes()
+      await loadNoteDirs()
+      if (type === 'mindmap') onOpenMindmap(note)
+      else onOpenNote(note)
+    } catch (err: any) {
+      if (err?.message?.includes('DUPLICATE_TITLE')) {
+        setNotePickerError(t('note.duplicateTitle' as any))
+      } else {
+        throw err
+      }
+    }
   }
 
   const handleSidebarContextMenu = (e: React.MouseEvent, type: string, dirPath?: string) => {
@@ -368,30 +400,6 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const handleNoteItemContextMenu = (e: React.MouseEvent, noteId: string, noteTitle: string) => {
     e.preventDefault()
     setContextMenu({ x: e.clientX, y: e.clientY, type: 'noteItem', noteId, noteTitle })
-  }
-
-  const handleCreateMindmapNote = async () => {
-    const title = t('library.untitledMindmap')
-    const map = await window.electronAPI.notes.create({
-      title,
-      type: 'mindmap',
-      folder: selectedNoteDir ?? undefined,
-    })
-    await loadNotes()
-    await loadNoteDirs()
-    onOpenMindmap(map)
-  }
-
-  const handleCreateHandwritingNote = async () => {
-    const title = t('library.untitledHandwriting')
-    const note = await window.electronAPI.notes.create({
-      title,
-      type: 'handwriting',
-      folder: selectedNoteDir ?? undefined,
-    })
-    await loadNotes()
-    await loadNoteDirs()
-    onOpenNote(note)
   }
 
   const handleDelete = async (id: string) => {
@@ -437,8 +445,9 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const handleSectionChange = (section: SidebarSection) => {
     if (section === 'sync') { setShowSync(true); return }
     if (section === 'plugins') loadPlugins()
-    if (section === 'graph') { onOpenGraph(); return }
     setSelectedSection(section)
+    setSelectedTag(null)
+    setTagFilteredItems(null)
     setSelectedDir(null)
     setSelectedNoteDir(null)
     setSelectedItemId(null)
@@ -461,7 +470,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         const prefix = selectedNoteDir + '/'
         items = items.filter((n: any) => n.path && n.path.startsWith(prefix))
       }
-    } else if (selectedSection === 'plugins') items = plugins
+    }
 
     if (selectedTag && tagFilteredItems) {
       items = tagFilteredItems
@@ -477,15 +486,15 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const displayItems = getDisplayItems()
 
   const sidebarStyle: React.CSSProperties = {
-    width: 220, minWidth: 220, background: 'var(--surface)',
-    borderRight: '1px solid var(--border)', display: 'flex',
+    width: leftResize.width, minWidth: 160, background: 'var(--surface)',
+    borderRight: 'none', display: 'flex',
     flexDirection: 'column', overflow: 'hidden', userSelect: 'none',
   }
 
   const sidebarItemStyle = (active: boolean): React.CSSProperties => ({
     height: 26, display: 'flex', alignItems: 'center', gap: 6,
     padding: '0 12px', fontSize: 13, cursor: 'pointer',
-    fontWeight: active ? 500 : 400, color: 'var(--text)',
+    fontWeight: 600, color: 'var(--text)',
     background: active ? 'var(--selected)' : 'transparent',
   })
 
@@ -503,7 +512,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   }
 
   const detailPanelStyle: React.CSSProperties = {
-    width: 280, minWidth: 280, borderLeft: '1px solid var(--border)',
+    width: rightResize.width, minWidth: 200, borderLeft: 'none',
     background: 'var(--surface)', overflow: 'auto', padding: '16px', flexShrink: 0,
   }
 
@@ -523,6 +532,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             </div>
           </div>
         </div>
+        <ResizeHandle onMouseDown={leftResize.onMouseDown} />
         <SyncConfigPanel onClose={() => { setShowSync(false); loadDocuments() }} />
       </div>
     )
@@ -539,25 +549,25 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         <div style={{ flex: 1, overflow: 'auto', paddingTop: 4 }}>
           {/* Documents */}
           <div
-            style={sidebarItemStyle(selectedSection === 'documents' && selectedDir === null)}
-            onClick={() => handleSectionChange('documents')}
-            onMouseEnter={e => { if (!(selectedSection === 'documents' && selectedDir === null)) e.currentTarget.style.background = 'var(--hover)' }}
-            onMouseLeave={e => { if (!(selectedSection === 'documents' && selectedDir === null)) e.currentTarget.style.background = 'transparent' }}
+            style={sidebarItemStyle(selectedSection === 'documents' && selectedDir === null && !selectedTag)}
+            onClick={() => { handleSectionChange('documents'); setDocSectionExpanded(prev => selectedSection === 'documents' ? !prev : true) }}
+            onMouseEnter={e => { if (!(selectedSection === 'documents' && selectedDir === null && !selectedTag)) e.currentTarget.style.background = 'var(--hover)' }}
+            onMouseLeave={e => { if (!(selectedSection === 'documents' && selectedDir === null && !selectedTag)) e.currentTarget.style.background = 'transparent' }}
           >
             <span style={{ width: 14, textAlign: 'center', fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>
-              {selectedSection === 'documents' && dirTree.length > 0 ? <ChevronDown size={12} /> : dirTree.length > 0 ? <ChevronRight size={12} /> : null}
+              {dirTree.length > 0 ? (docSectionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />) : null}
             </span>
-            <span style={{ fontSize: 15, lineHeight: 1 }}>📄</span>
+            <LibraryBig size={15} style={{ flexShrink: 0 }} />
             {t('library.documents')}
           </div>
 
-          {selectedSection === 'documents' && dirTree.length > 0 && (
+          {docSectionExpanded && dirTree.length > 0 && (
             <div>
               {dirTree.map(node => (
                 <DirTreeItem
                   key={node.path} node={node} selectedDir={selectedDir}
-                  onSelect={(p) => { setSelectedDir(p); setSelectedItemId(null); setSelectedItemDetail(null) }}
-                  expandedDirs={expandedDirs} onToggle={toggleDir} depth={1} icon="📁"
+                  onSelect={(p) => { setSelectedSection('documents'); setSelectedDir(p); setSelectedTag(null); setTagFilteredItems(null); setSelectedNoteDir(null); setSelectedItemId(null); setSelectedItemDetail(null) }}
+                  expandedDirs={expandedDirs} onToggle={toggleDir} depth={1} icon={<Folder size={14} />}
                 />
               ))}
             </div>
@@ -565,47 +575,35 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
           {/* Notes */}
           <div
-            style={sidebarItemStyle(selectedSection === 'notes' && selectedNoteDir === null)}
-            onClick={() => handleSectionChange('notes')}
+            style={sidebarItemStyle(selectedSection === 'notes' && selectedNoteDir === null && !selectedTag)}
+            onClick={() => { handleSectionChange('notes'); setNoteSectionExpanded(prev => selectedSection === 'notes' ? !prev : true) }}
             onContextMenu={(e) => handleSidebarContextMenu(e, 'notes')}
-            onMouseEnter={e => { if (!(selectedSection === 'notes' && selectedNoteDir === null)) e.currentTarget.style.background = 'var(--hover)' }}
-            onMouseLeave={e => { if (!(selectedSection === 'notes' && selectedNoteDir === null)) e.currentTarget.style.background = 'transparent' }}
+            onMouseEnter={e => { if (!(selectedSection === 'notes' && selectedNoteDir === null && !selectedTag)) e.currentTarget.style.background = 'var(--hover)' }}
+            onMouseLeave={e => { if (!(selectedSection === 'notes' && selectedNoteDir === null && !selectedTag)) e.currentTarget.style.background = 'transparent' }}
           >
             <span style={{ width: 14, textAlign: 'center', fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>
-              {selectedSection === 'notes' && noteDirTree.length > 0 ? <ChevronDown size={12} /> : noteDirTree.length > 0 ? <ChevronRight size={12} /> : null}
+              {noteDirTree.length > 0 ? (noteSectionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />) : null}
             </span>
-            <span style={{ fontSize: 15, lineHeight: 1 }}>📝</span>
+            <PenLine size={15} style={{ flexShrink: 0 }} />
             {t('library.notes')}
           </div>
 
-          {selectedSection === 'notes' && noteDirTree.length > 0 && (
+          {noteSectionExpanded && noteDirTree.length > 0 && (
             <div>
               {noteDirTree.map(node => (
                 <DirTreeItem
                   key={node.path} node={node} selectedDir={selectedNoteDir}
-                  onSelect={(p) => { setSelectedNoteDir(p); setSelectedItemId(null); setSelectedItemDetail(null) }}
+                  onSelect={(p) => { setSelectedSection('notes'); setSelectedNoteDir(p); setSelectedTag(null); setTagFilteredItems(null); setSelectedDir(null); setSelectedItemId(null); setSelectedItemDetail(null) }}
                   expandedDirs={expandedNoteDirs}
                   onToggle={(path) => setExpandedNoteDirs(prev => {
                     const next = new Set(prev); if (next.has(path)) next.delete(path); else next.add(path); return next
                   })}
                   onContextMenu={(e, path) => handleSidebarContextMenu(e, 'noteDir', path)}
-                  depth={1} icon="📁"
+                  depth={1} icon={<Folder size={14} />}
                 />
               ))}
             </div>
           )}
-
-          {/* Graph */}
-          <div
-            style={sidebarItemStyle(false)}
-            onClick={() => handleSectionChange('graph')}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-          >
-            <span style={{ width: 14, flexShrink: 0 }} />
-            <span style={{ fontSize: 15, lineHeight: 1 }}>🔗</span>
-            {t('library.graph')}
-          </div>
 
           <div style={{ margin: '6px 12px', borderTop: '1px solid var(--border)' }} />
 
@@ -617,7 +615,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
           >
             <span style={{ width: 14, flexShrink: 0 }} />
-            <span style={{ fontSize: 15, lineHeight: 1 }}>☁️</span>
+            <Cloud size={15} style={{ flexShrink: 0 }} />
             {t('library.sync')}
           </div>
           <div
@@ -627,7 +625,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             onMouseLeave={e => { if (selectedSection !== 'plugins') e.currentTarget.style.background = 'transparent' }}
           >
             <span style={{ width: 14, flexShrink: 0 }} />
-            <span style={{ fontSize: 15, lineHeight: 1 }}>🧩</span>
+            <Puzzle size={15} style={{ flexShrink: 0 }} />
             {t('library.plugins')}{plugins.length > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>({plugins.length})</span>}
           </div>
           <div
@@ -637,31 +635,21 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             onMouseLeave={e => { if (selectedSection !== 'settings') e.currentTarget.style.background = 'transparent' }}
           >
             <span style={{ width: 14, flexShrink: 0 }} />
-            <span style={{ fontSize: 15, lineHeight: 1 }}>⚙️</span>
+            <Settings size={15} style={{ flexShrink: 0 }} />
             {t('settings.title')}
           </div>
-          <div
-            style={sidebarItemStyle(false)}
-            onClick={() => window.electronAPI.library.openNewWindow()}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-          >
-            <span style={{ width: 14, flexShrink: 0 }} />
-            <span style={{ fontSize: 15, lineHeight: 1 }}>➕</span>
-            {t('library.openAnother')}
-          </div>
-
           <div style={{ margin: '6px 12px', borderTop: '1px solid var(--border)' }} />
 
           {/* Tags */}
           <div style={{ padding: '4px 12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('library.tags')}</div>
-              <span
+              <Settings
+                size={13}
                 onClick={() => onOpenTagManager?.()}
                 title={t('tags.manager')}
-                style={{ cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13 }}
-              >⚙</span>
+                style={{ cursor: 'pointer', color: 'var(--text-muted)' }}
+              />
             </div>
             {tagsWithCounts.length > 0 && (
               <input
@@ -724,21 +712,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             </div>
           </div>
 
-          {selectedSection === 'plugins' && (
-            <div style={{ padding: '4px 12px 12px', borderTop: '1px solid var(--border)', marginTop: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>{t('library.plugins')}</div>
-              {plugins.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('library.noPlugins')}</div>}
-              {plugins.map((p) => (
-                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', fontSize: 12 }}>
-                  <span>{p.name} <span style={{ color: 'var(--text-muted)' }}>v{p.version}</span></span>
-                  <span onClick={async () => { await window.electronAPI.plugins.unload(p.id); setPlugins(ps => ps.filter(x => x.id !== p.id)) }}
-                    style={{ fontSize: 11, cursor: 'pointer', color: '#c44040' }}>{t('common.unload')}</span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
+
+      <ResizeHandle onMouseDown={leftResize.onMouseDown} />
 
       {/* Center Panel */}
       <div style={centerStyle}>
@@ -757,6 +734,89 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               </select>
             </div>
           </div>
+        ) : selectedSection === 'plugins' ? (
+          <div style={{ padding: 20, overflow: 'auto', flex: 1 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+              {plugins.length === 0 && (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: 'var(--text-muted)', fontSize: 13 }}>
+                  {t('library.noPlugins')}
+                </div>
+              )}
+              {plugins.map((p) => (
+                <div key={p.id} style={{
+                  background: 'var(--surface)',
+                  borderRadius: 10,
+                  padding: 16,
+                  border: '1px solid var(--border)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 8,
+                        background: p.enabled ? '#4a6cf7' : 'var(--bg-secondary, #333)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 18, flexShrink: 0,
+                      }}>
+                        🧩
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>v{p.version}</div>
+                      </div>
+                    </div>
+                    <div
+                      onClick={async () => {
+                        if (p.enabled) {
+                          await window.electronAPI.plugins.disable(p.id)
+                        } else {
+                          await window.electronAPI.plugins.enable(p.id)
+                        }
+                        await loadPlugins()
+                        document.dispatchEvent(new CustomEvent('plugins-changed'))
+                      }}
+                      style={{
+                        width: 38, height: 20, borderRadius: 10, cursor: 'pointer',
+                        background: p.enabled ? '#4a6cf7' : 'var(--bg-secondary, #555)',
+                        position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+                      }}
+                    >
+                      <div style={{
+                        width: 16, height: 16, borderRadius: 8,
+                        background: '#fff',
+                        position: 'absolute', top: 2,
+                        left: p.enabled ? 20 : 2,
+                        transition: 'left 0.2s',
+                      }} />
+                    </div>
+                  </div>
+                  {p.description && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{p.description}</div>
+                  )}
+                  {p.enabled && pluginViews.filter(v => v.pluginId === p.id).length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+                      {pluginViews.filter(v => v.pluginId === p.id).map(view => (
+                        <button
+                          key={view.viewType}
+                          onClick={() => onOpenPluginView?.(view.pluginId, view.viewType)}
+                          style={{
+                            background: '#4a6cf7', color: '#fff', border: 'none',
+                            borderRadius: 6, padding: '5px 12px', fontSize: 12,
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                          }}
+                        >
+                          <span>{view.icon || '🧩'}</span>
+                          {t('plugin.openPanel')} {view.displayText}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
           <>
             <div style={toolbarStyle}>
@@ -764,8 +824,6 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 {selectedSection === 'notes' && (
                   <>
                     <button onClick={handleCreateNote} title={t('library.newNote')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><FilePlus size={16} /></button>
-                    <button onClick={handleCreateMindmapNote} title={t('library.newMindmap')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><Brain size={16} /></button>
-                    <button onClick={handleCreateHandwritingNote} title={t('library.newHandwriting')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><PenTool size={16} /></button>
                   </>
                 )}
                 {selectedSection === 'documents' && selectedDir && (
@@ -795,7 +853,6 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 <div style={{ padding: '24px 16px', color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
                   {selectedSection === 'documents' && (selectedDir ? t('library.emptyDir') : t('library.emptyDocuments'))}
                   {selectedSection === 'notes' && t('library.emptyNotes')}
-                  {selectedSection === 'plugins' && t('library.noPlugins')}
                 </div>
               )}
               {displayItems.map((item: any, idx: number) => {
@@ -863,6 +920,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
       {/* Right Detail Panel */}
       {selectedItemId && selectedSection === 'documents' && selectedItemDetail && (
+        <>
+        <ResizeHandle onMouseDown={rightResize.onMouseDown} />
         <div style={detailPanelStyle}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>{t('detail.title')}</div>
           <DetailField label={t('detail.docTitle')} value={selectedItemDetail.title} />
@@ -899,9 +958,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             <button onClick={() => handleDelete(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%', color: '#c44040', borderColor: '#c44040', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Trash2 size={14} />{t('common.delete')}</button>
           </div>
         </div>
+        </>
       )}
 
       {selectedItemId && selectedSection !== 'documents' && selectedSection !== 'plugins' && selectedSection !== 'settings' && (
+        <>
+        <ResizeHandle onMouseDown={rightResize.onMouseDown} />
         <div style={detailPanelStyle}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>{t('detail.title')}</div>
           {(() => {
@@ -922,10 +984,11 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             )
           })()}
         </div>
+        </>
       )}
 
       {showNotePicker && (
-        <TemplatePicker onSelect={handleNoteTemplateSelect} onClose={() => setShowNotePicker(false)} />
+        <TemplatePicker onSelect={handleNoteTemplateSelect} onClose={() => { setShowNotePicker(false); setNotePickerError(null) }} error={notePickerError} />
       )}
 
       {showFolderInput && (
@@ -1018,14 +1081,6 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><FilePlus size={14} />{t('library.newNote')}</div>
-              <div onClick={() => { setContextMenu(null); handleCreateMindmapNote() }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              ><Brain size={14} />{t('library.newMindmap')}</div>
-              <div onClick={() => { setContextMenu(null); handleCreateHandwritingNote() }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              ><PenTool size={14} />{t('library.newHandwriting')}</div>
               <div onClick={handleCreateFolder} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}

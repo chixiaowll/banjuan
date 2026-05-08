@@ -1,225 +1,248 @@
-import { useCallback, useRef } from 'react'
-import ELK from 'elkjs/lib/elk.bundled.js'
+import { useCallback } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import type { MindmapNodeData } from './useMindmapStore.js'
-
-const elk = new ELK()
+import { useNodeSizeStore } from './useNodeSizeStore.js'
 
 interface LayoutOptions {
   layout: string
   nodeSizes: Map<string, { width: number; height: number }>
+  summaries?: Array<{ id: string; nodeIds: string[]; summaryNodeId: string }>
 }
 
-function getElkOptions(layout: string): Record<string, string> {
-  const common: Record<string, string> = {
-    'elk.algorithm': 'mrtree',
-    'elk.spacing.nodeNode': '40',
-    'elk.mrtree.weighting': 'MODEL_ORDER',
-  }
+const DEFAULT_SIZE = { width: 160, height: 40 }
+const DEFAULT_SIZE_WITH_CONTENT = { width: 420, height: 260 }
+const H_GAP = 48
+const V_GAP = 32
 
-  switch (layout) {
-    case 'mindmap':
-      return { ...common, 'elk.direction': 'RIGHT' }
-    case 'logical':
-      return { ...common, 'elk.direction': 'RIGHT', 'elk.spacing.nodeNode': '30' }
-    case 'organization':
-      return { ...common, 'elk.direction': 'DOWN', 'elk.spacing.nodeNode': '50' }
-    default:
-      return { ...common, 'elk.direction': 'RIGHT' }
-  }
-}
-
-function getVisibleNodes(nodes: Node<MindmapNodeData>[]): Set<string> {
+function getVisibleIds(nodes: Node<MindmapNodeData>[]): Set<string> {
   const collapsed = new Set<string>()
   for (const n of nodes) {
     if (n.data.collapsed) collapsed.add(n.id)
   }
 
-  const visible = new Set<string>()
   const childrenMap = new Map<string, string[]>()
-  let rootId: string | null = null
 
   for (const n of nodes) {
-    if (!n.data.parentId) rootId = n.id
-    else {
+    if (n.data.parentId) {
       const siblings = childrenMap.get(n.data.parentId) ?? []
       siblings.push(n.id)
       childrenMap.set(n.data.parentId, siblings)
     }
   }
 
+  const visible = new Set<string>()
   function walk(id: string) {
     visible.add(id)
     if (collapsed.has(id)) return
-    for (const childId of childrenMap.get(id) ?? []) {
-      walk(childId)
-    }
+    for (const childId of childrenMap.get(id) ?? []) walk(childId)
   }
-  if (rootId) walk(rootId)
+
+  for (const n of nodes) {
+    if (!n.data.parentId) walk(n.id)
+  }
   return visible
 }
 
-async function layoutMindmap(
+interface TreeNode {
+  id: string
+  width: number
+  height: number
+  children: TreeNode[]
+  subtreeHeight: number
+  x: number
+  y: number
+}
+
+function buildTree(
+  nodes: Node<MindmapNodeData>[],
+  visible: Set<string>,
+  sizes: Map<string, { width: number; height: number }>,
+  rootId: string,
+): TreeNode | null {
+  const nodeMap = new Map<string, Node<MindmapNodeData>>()
+  const childrenMap = new Map<string, Node<MindmapNodeData>[]>()
+  let root: Node<MindmapNodeData> | null = null
+
+  for (const n of nodes) {
+    if (!visible.has(n.id)) continue
+    nodeMap.set(n.id, n)
+    if (n.id === rootId) root = n
+    else if (n.data.parentId) {
+      const siblings = childrenMap.get(n.data.parentId) ?? []
+      siblings.push(n)
+      childrenMap.set(n.data.parentId, siblings)
+    }
+  }
+
+  if (!root) return null
+
+  function build(node: Node<MindmapNodeData>): TreeNode {
+    const size = sizes.get(node.id) ?? (node.data.content ? DEFAULT_SIZE_WITH_CONTENT : DEFAULT_SIZE)
+    const children = (childrenMap.get(node.id) ?? [])
+      .sort((a, b) => a.data.sortOrder - b.data.sortOrder)
+      .map(build)
+
+    const childrenHeight = children.length > 0
+      ? children.reduce((sum, c) => sum + c.subtreeHeight, 0) + (children.length - 1) * V_GAP
+      : 0
+
+    return {
+      id: node.id,
+      width: size.width,
+      height: size.height,
+      children,
+      subtreeHeight: Math.max(size.height, childrenHeight),
+      x: 0,
+      y: 0,
+    }
+  }
+
+  return build(root)
+}
+
+function assignPositions(node: TreeNode, x: number, y: number): void {
+  node.x = x
+  node.y = y + (node.subtreeHeight - node.height) / 2
+
+  if (node.children.length === 0) return
+
+  const childX = x + node.width + H_GAP
+  let childY = y
+
+  for (const child of node.children) {
+    assignPositions(child, childX, childY)
+    childY += child.subtreeHeight + V_GAP
+  }
+}
+
+function shiftTree(node: TreeNode, dx: number, dy: number): void {
+  node.x += dx
+  node.y += dy
+  for (const child of node.children) shiftTree(child, dx, dy)
+}
+
+function collectPositions(node: TreeNode, map: Map<string, { x: number; y: number }>): void {
+  map.set(node.id, { x: node.x, y: node.y })
+  for (const child of node.children) collectPositions(child, map)
+}
+
+export function layoutMindmap(
   nodes: Node<MindmapNodeData>[],
   edges: Edge[],
   options: LayoutOptions,
-): Promise<{ nodes: Node<MindmapNodeData>[]; edges: Edge[] }> {
-  const visible = getVisibleNodes(nodes)
-  const visibleNodes = nodes.filter(n => visible.has(n.id))
+): { nodes: Node<MindmapNodeData>[]; edges: Edge[] } {
+  const visible = getVisibleIds(nodes)
 
-  const defaultSize = { width: 160, height: 44 }
-
-  if (options.layout === 'mindmap') {
-    return layoutBalancedMindmap(visibleNodes, edges, options, defaultSize)
-  }
-
-  const elkOptions = getElkOptions(options.layout)
-  const elkNodes = visibleNodes.map(n => {
-    const size = options.nodeSizes.get(n.id) ?? defaultSize
-    return { id: n.id, width: size.width, height: size.height }
-  })
-
-  const treeEdges = edges.filter(e => e.type === 'treeEdge' && visible.has(e.source) && visible.has(e.target))
-  const elkEdges = treeEdges.map(e => ({ id: e.id, sources: [e.source], targets: [e.target] }))
-
-  const graph = await elk.layout({
-    id: 'root',
-    layoutOptions: elkOptions,
-    children: elkNodes,
-    edges: elkEdges,
-  })
+  const summaryNodeIds = new Set((options.summaries ?? []).map(s => s.summaryNodeId))
+  const rootNode = nodes.find(n => !n.data.parentId && !n.data.floating)
+  const floatingRoots = nodes.filter(n => n.data.floating && !n.data.parentId && !summaryNodeIds.has(n.id))
 
   const posMap = new Map<string, { x: number; y: number }>()
-  for (const child of graph.children ?? []) {
-    posMap.set(child.id, { x: child.x ?? 0, y: child.y ?? 0 })
+
+  let rootRenderedPos = { x: 0, y: 0 }
+
+  if (rootNode) {
+    const tree = buildTree(nodes, visible, options.nodeSizes, rootNode.id)
+    if (tree) {
+      assignPositions(tree, 0, 0)
+      const rootDx = rootNode.data.positionX ?? 0
+      const rootDy = rootNode.data.positionY ?? 0
+      if (rootDx !== 0 || rootDy !== 0) {
+        shiftTree(tree, rootDx, rootDy)
+      }
+      collectPositions(tree, posMap)
+      rootRenderedPos = { x: tree.x, y: tree.y }
+    }
+  }
+
+  for (const fr of floatingRoots) {
+    if (!visible.has(fr.id)) continue
+    const tree = buildTree(nodes, visible, options.nodeSizes, fr.id)
+    if (tree) {
+      assignPositions(tree, 0, 0)
+      const offsetX = fr.data.positionX ?? 300
+      const offsetY = fr.data.positionY ?? -200
+      const dx = rootRenderedPos.x + offsetX - tree.x
+      const dy = rootRenderedPos.y + offsetY - tree.y
+      shiftTree(tree, dx, dy)
+      collectPositions(tree, posMap)
+    }
+  }
+
+  const BRACE_WIDTH = 20
+  const BRACE_GAP = 16
+  for (const s of options.summaries ?? []) {
+    const matchedPositions: Array<{ x: number; y: number; w: number; h: number }> = []
+    for (const nid of s.nodeIds) {
+      const pos = posMap.get(nid)
+      if (!pos || !visible.has(nid)) continue
+      const size = options.nodeSizes.get(nid) ?? DEFAULT_SIZE
+      matchedPositions.push({ x: pos.x, y: pos.y, w: size.width, h: size.height })
+    }
+    if (matchedPositions.length === 0) continue
+    let minY = Infinity, maxY = -Infinity, maxX = -Infinity
+    for (const p of matchedPositions) {
+      if (p.y < minY) minY = p.y
+      if (p.y + p.h > maxY) maxY = p.y + p.h
+      if (p.x + p.w > maxX) maxX = p.x + p.w
+    }
+    const sNode = nodes.find(n => n.id === s.summaryNodeId)
+    const snSize = sNode ? (options.nodeSizes.get(s.summaryNodeId) ?? DEFAULT_SIZE) : DEFAULT_SIZE
+    const braceX = maxX + BRACE_GAP
+    const midY = (minY + maxY) / 2
+    posMap.set(s.summaryNodeId, {
+      x: braceX + BRACE_WIDTH + BRACE_GAP,
+      y: midY - snSize.height / 2,
+    })
   }
 
   const layoutedNodes = nodes.map(n => {
     const pos = posMap.get(n.id)
-    if (pos) return { ...n, position: pos, hidden: false }
+    if (pos) {
+      const size = options.nodeSizes.get(n.id)
+      return {
+        ...n,
+        position: pos,
+        hidden: false,
+        draggable: true,
+        ...(size ? { width: size.width, height: size.height } : {}),
+      }
+    }
     if (!visible.has(n.id)) return { ...n, hidden: true }
     return n
   })
 
-  return { nodes: layoutedNodes, edges }
-}
-
-async function layoutBalancedMindmap(
-  visibleNodes: Node<MindmapNodeData>[],
-  edges: Edge[],
-  options: LayoutOptions,
-  defaultSize: { width: number; height: number },
-): Promise<{ nodes: Node<MindmapNodeData>[]; edges: Edge[] }> {
-  const root = visibleNodes.find(n => !n.data.parentId)
-  if (!root) return { nodes: visibleNodes, edges }
-
-  const directChildren = visibleNodes.filter(n => n.data.parentId === root.id)
-  const midpoint = Math.ceil(directChildren.length / 2)
-  const rightChildIds = new Set(directChildren.slice(0, midpoint).map(n => n.id))
-  const leftChildIds = new Set(directChildren.slice(midpoint).map(n => n.id))
-
-  function getSubtreeIds(parentId: string): Set<string> {
-    const ids = new Set<string>([parentId])
-    let changed = true
-    while (changed) {
-      changed = false
-      for (const n of visibleNodes) {
-        if (n.data.parentId && ids.has(n.data.parentId) && !ids.has(n.id)) {
-          ids.add(n.id)
-          changed = true
-        }
-      }
-    }
-    return ids
-  }
-
-  const rightSubtreeIds = new Set<string>()
-  for (const id of rightChildIds) {
-    for (const sid of getSubtreeIds(id)) rightSubtreeIds.add(sid)
-  }
-  const leftSubtreeIds = new Set<string>()
-  for (const id of leftChildIds) {
-    for (const sid of getSubtreeIds(id)) leftSubtreeIds.add(sid)
-  }
-
-  const rightNodes = visibleNodes.filter(n => rightSubtreeIds.has(n.id) || n.id === root.id)
-  const leftNodes = visibleNodes.filter(n => leftSubtreeIds.has(n.id) || n.id === root.id)
-
-  const treeEdges = edges.filter(e => e.type === 'treeEdge')
-
-  async function layoutSide(sideNodes: Node<MindmapNodeData>[], direction: string) {
-    const elkNodes = sideNodes.map(n => {
-      const size = options.nodeSizes.get(n.id) ?? defaultSize
-      return { id: n.id, width: size.width, height: size.height }
-    })
-    const sideIds = new Set(sideNodes.map(n => n.id))
-    const sideEdges = treeEdges
-      .filter(e => sideIds.has(e.source) && sideIds.has(e.target))
-      .map(e => ({ id: e.id, sources: [e.source], targets: [e.target] }))
-
-    return elk.layout({
-      id: `side-${direction}`,
-      layoutOptions: { ...getElkOptions('logical'), 'elk.direction': direction },
-      children: elkNodes,
-      edges: sideEdges,
-    })
-  }
-
-  const [rightResult, leftResult] = await Promise.all([
-    rightNodes.length > 1 ? layoutSide(rightNodes, 'RIGHT') : null,
-    leftNodes.length > 1 ? layoutSide(leftNodes, 'LEFT') : null,
-  ])
-
-  const posMap = new Map<string, { x: number; y: number }>()
-  const rootSize = options.nodeSizes.get(root.id) ?? defaultSize
-
-  posMap.set(root.id, { x: 0, y: 0 })
-
-  if (rightResult) {
-    const rootInRight = rightResult.children?.find(c => c.id === root.id)
-    const offsetX = rootSize.width + 80
-    const offsetY = -(rootInRight?.y ?? 0)
-    for (const child of rightResult.children ?? []) {
-      if (child.id !== root.id) {
-        posMap.set(child.id, { x: (child.x ?? 0) - (rootInRight?.x ?? 0) + offsetX, y: (child.y ?? 0) + offsetY })
-      }
+  const treeEdges: Edge[] = []
+  for (const n of layoutedNodes) {
+    if (n.data.parentId && visible.has(n.id)) {
+      treeEdges.push({
+        id: `tree-${n.data.parentId}-${n.id}`,
+        source: n.data.parentId,
+        target: n.id,
+        type: 'treeEdge',
+        sourceHandle: 'source-right',
+        targetHandle: 'target-left',
+      })
     }
   }
+  const relationEdges = edges.filter(e => e.type !== 'treeEdge')
 
-  if (leftResult) {
-    const rootInLeft = leftResult.children?.find(c => c.id === root.id)
-    const offsetY = -(rootInLeft?.y ?? 0)
-    for (const child of leftResult.children ?? []) {
-      if (child.id !== root.id) {
-        const childWidth = options.nodeSizes.get(child.id)?.width ?? defaultSize.width
-        posMap.set(child.id, { x: -((rootInLeft?.x ?? 0) - (child.x ?? 0)) - childWidth - 80, y: (child.y ?? 0) + offsetY })
-      }
-    }
-  }
-
-  const allNodes = visibleNodes.map(n => {
-    const pos = posMap.get(n.id)
-    return pos ? { ...n, position: pos, hidden: false } : n
-  })
-
-  return { nodes: allNodes, edges }
+  return { nodes: layoutedNodes, edges: [...treeEdges, ...relationEdges] }
 }
 
 export function useLayoutEngine() {
-  const nodeSizesRef = useRef(new Map<string, { width: number; height: number }>())
+  const sizes = useNodeSizeStore(s => s.sizes)
+  const sizeVersion = useNodeSizeStore(s => s.version)
 
-  const setNodeSize = useCallback((nodeId: string, width: number, height: number) => {
-    nodeSizesRef.current.set(nodeId, { width, height })
-  }, [])
-
-  const computeLayout = useCallback(async (
+  const computeLayout = useCallback((
     nodes: Node<MindmapNodeData>[],
     edges: Edge[],
     layout: string,
-  ): Promise<{ nodes: Node<MindmapNodeData>[]; edges: Edge[] }> => {
+    summaries?: Array<{ id: string; nodeIds: string[]; summaryNodeId: string }>,
+  ): { nodes: Node<MindmapNodeData>[]; edges: Edge[] } => {
     if (nodes.length === 0) return { nodes, edges }
-    return layoutMindmap(nodes, edges, { layout, nodeSizes: nodeSizesRef.current })
-  }, [])
+    return layoutMindmap(nodes, edges, { layout, nodeSizes: sizes, summaries })
+  }, [sizes])
 
-  return { computeLayout, setNodeSize, nodeSizesRef }
+  return { computeLayout, sizeVersion }
 }

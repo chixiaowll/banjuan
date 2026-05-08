@@ -132,6 +132,23 @@ export class NoteService {
     const targetDir = folder ? join(this.notesDir, folder) : this.notesDir
     mkdirSync(targetDir, { recursive: true })
 
+    if (input.docId) {
+      const dup = this.db.prepare(
+        'SELECT id FROM notes WHERE title = ? AND doc_id = ?'
+      ).get(input.title, input.docId) as { id: string } | undefined
+      if (dup) throw new Error('DUPLICATE_TITLE')
+    } else {
+      const pathPrefix = folder ? folder + '/' : ''
+      const dup = pathPrefix
+        ? this.db.prepare(
+            'SELECT id FROM notes WHERE title = ? AND path LIKE ? AND path NOT LIKE ?'
+          ).get(input.title, pathPrefix + '%', pathPrefix + '%/%')
+        : this.db.prepare(
+            'SELECT id FROM notes WHERE title = ? AND path NOT LIKE ? AND doc_id IS NULL'
+          ).get(input.title, '%/%')
+      if (dup) throw new Error('DUPLICATE_TITLE')
+    }
+
     const filename = `${id}.json`
     const relPath = folder ? `${folder}/${filename}` : filename
     const fullPath = join(this.notesDir, relPath)
@@ -154,12 +171,23 @@ export class NoteService {
     }
 
     let contentStr: string
+    let pendingRootNode: { id: string; title: string } | null = null
     if (noteType === 'mindmap') {
-      writeFileSync(fullPath, JSON.stringify({ meta, nodes: [], edges: [] }, null, 2))
-      contentStr = JSON.stringify({ nodes: [], edges: [] })
+      const rootNodeId = uuid()
+      const rootNode = {
+        id: rootNodeId, parentId: null,
+        title: input.title || 'Central Topic',
+        content: null, hyperlink: null, imageUrl: null,
+        color: null, notes: null, shape: null, styleOverrides: null,
+        positionX: null, positionY: null,
+        sortOrder: 0, collapsed: false, floating: false,
+      }
+      writeFileSync(fullPath, JSON.stringify({ meta, nodes: [rootNode], edges: [] }, null, 2))
+      pendingRootNode = { id: rootNodeId, title: rootNode.title }
+      contentStr = JSON.stringify({ nodes: [rootNode], edges: [] })
     } else if (noteType === 'handwriting') {
       const initialPageId = uuid()
-      const initialPage = { id: initialPageId, template: 'blank', tldrawSnapshot: null }
+      const initialPage = { id: initialPageId, template: 'blank', snapshot: { strokes: [] } }
       const fileData = { meta, pages: [initialPage], currentPageIndex: 0 }
       writeFileSync(fullPath, JSON.stringify(fileData, null, 2))
       contentStr = JSON.stringify({ pages: [initialPage], currentPageIndex: 0 })
@@ -180,6 +208,13 @@ export class NoteService {
     this.db.prepare(
       'INSERT INTO notes (id, title, type, path, doc_id, folder_id, content_format, type_meta, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(id, input.title, noteType, relPath, input.docId ?? null, null, 'json', typeMeta ? JSON.stringify(typeMeta) : null, now, now)
+
+    if (pendingRootNode) {
+      this.db.prepare(
+        `INSERT INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, floating, created_at)
+         VALUES (?, ?, NULL, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, ?)`
+      ).run(pendingRootNode.id, id, pendingRootNode.title, now)
+    }
 
     if (input.annotationIds?.length) {
       const insertLink = this.db.prepare('INSERT INTO note_annotations (note_id, annotation_id) VALUES (?, ?)')
@@ -288,8 +323,18 @@ export class NoteService {
 
   async move(id: string, targetFolder: string | null): Promise<Note> {
     const now = new Date().toISOString()
-    const row = this.db.prepare('SELECT path FROM notes WHERE id = ?').get(id) as { path: string } | undefined
+    const row = this.db.prepare('SELECT path, title FROM notes WHERE id = ?').get(id) as { path: string; title: string } | undefined
     if (!row) throw new Error('Note not found')
+
+    const pathPrefix = targetFolder ? targetFolder + '/' : ''
+    const dup = pathPrefix
+      ? this.db.prepare(
+          'SELECT id FROM notes WHERE title = ? AND id != ? AND path LIKE ? AND path NOT LIKE ?'
+        ).get(row.title, id, pathPrefix + '%', pathPrefix + '%/%')
+      : this.db.prepare(
+          'SELECT id FROM notes WHERE title = ? AND id != ? AND path NOT LIKE ? AND doc_id IS NULL'
+        ).get(row.title, id, '%/%')
+    if (dup) throw new Error('DUPLICATE_TITLE')
 
     const oldPath = join(this.notesDir, row.path)
     const filename = `${id}.json`
@@ -346,8 +391,8 @@ export class NoteService {
 
   importMindmapNodesFromFile(noteId: string, nodes: Array<Record<string, unknown>>, edges: Array<Record<string, unknown>>): void {
     const insertNode = this.db.prepare(
-      `INSERT OR IGNORE INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT OR IGNORE INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, floating, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     const insertEdge = this.db.prepare(
       'INSERT OR IGNORE INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)'
@@ -360,7 +405,7 @@ export class NoteService {
         n.color ?? null, n.notes ?? null,
         n.shape ?? null, n.styleOverrides ?? null,
         n.positionX ?? null, n.positionY ?? null,
-        n.sortOrder ?? 0, n.collapsed ? 1 : 0, n.createdAt ?? new Date().toISOString()
+        n.sortOrder ?? 0, n.collapsed ? 1 : 0, n.floating ? 1 : 0, n.createdAt ?? new Date().toISOString()
       )
     }
     for (const e of edges) {

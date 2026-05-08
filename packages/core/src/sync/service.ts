@@ -123,7 +123,7 @@ export class SyncService {
       })
     }
 
-    const notesDir = join(this.rootPath, 'notes')
+    const notesDir = join(this.rootPath, '.banjuan', 'notes')
     if (existsSync(notesDir)) {
       this.walkDir(notesDir, (absPath) => {
         if (!absPath.endsWith('.md')) return
@@ -169,7 +169,7 @@ export class SyncService {
 
   private toLocalPath(relativePath: string): string {
     if (relativePath.startsWith('notes/')) {
-      return join(this.rootPath, relativePath)
+      return join(this.rootPath, '.banjuan', relativePath)
     }
     return join(this.banjuanDir, relativePath)
   }

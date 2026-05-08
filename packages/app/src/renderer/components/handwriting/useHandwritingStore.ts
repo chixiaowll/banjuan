@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import { createStore, useStore, type StoreApi } from 'zustand'
-import type { HandwritingPage, HandwritingTemplate } from '@banjuan/core'
+import type { HandwritingPage, HandwritingTemplate, CanvasSnapshot } from '@banjuan/core'
 
 export interface HandwritingState {
   noteId: string | null
@@ -18,7 +18,7 @@ export interface HandwritingState {
   duplicatePage: (index: number) => void
   movePage: (fromIndex: number, toIndex: number) => void
   setPageTemplate: (index: number, template: HandwritingTemplate) => void
-  saveCurrentPageSnapshot: (snapshot: unknown) => void
+  saveCurrentPageSnapshot: (snapshot: CanvasSnapshot) => void
   save: () => Promise<void>
   updateThumbnail: (pageId: string, dataUrl: string) => void
 }
@@ -69,7 +69,7 @@ export function createHandwritingStore(): HandwritingStoreApi {
       const newPage: HandwritingPage = {
         id: generatePageId(),
         template: template ?? defaultTemplate,
-        tldrawSnapshot: null,
+        snapshot: { strokes: [] },
       }
       const newPages = [...pages]
       newPages.splice(afterIndex + 1, 0, newPage)
@@ -93,7 +93,7 @@ export function createHandwritingStore(): HandwritingStoreApi {
       const newPage: HandwritingPage = {
         id: generatePageId(),
         template: source.template,
-        tldrawSnapshot: source.tldrawSnapshot ? JSON.parse(JSON.stringify(source.tldrawSnapshot)) : null,
+        snapshot: JSON.parse(JSON.stringify(source.snapshot)),
       }
       const newPages = [...pages]
       newPages.splice(index + 1, 0, newPage)
@@ -118,10 +118,10 @@ export function createHandwritingStore(): HandwritingStoreApi {
       get().save()
     },
 
-    saveCurrentPageSnapshot: (snapshot: unknown) => {
+    saveCurrentPageSnapshot: (snapshot: CanvasSnapshot) => {
       const { pages, currentPageIndex } = get()
       const newPages = [...pages]
-      newPages[currentPageIndex] = { ...newPages[currentPageIndex], tldrawSnapshot: snapshot }
+      newPages[currentPageIndex] = { ...newPages[currentPageIndex], snapshot }
       set({ pages: newPages })
 
       if (saveTimer) clearTimeout(saveTimer)

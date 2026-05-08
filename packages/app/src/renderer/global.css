@@ -148,10 +148,18 @@ input[type="search"]::placeholder {
   -webkit-app-region: drag;
 }
 
+.title-bar-spacer {
+  width: 78px;
+  min-width: 78px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  background: var(--surface);
+}
+
 .title-bar-tabs {
   display: flex;
   align-items: stretch;
-  padding-left: 78px;
   overflow-x: auto;
   scrollbar-width: none;
   position: relative;
@@ -167,8 +175,11 @@ input[type="search"]::placeholder {
   align-items: center;
   gap: 6px;
   padding: 0 12px;
-  min-width: 80px;
+  width: 200px;
+  min-width: 200px;
   max-width: 200px;
+  box-sizing: border-box;
+  overflow: hidden;
   font-size: 12px;
   color: var(--text-muted);
   border-right: 1px solid var(--border);
@@ -192,6 +203,7 @@ input[type="search"]::placeholder {
 }
 
 .title-bar-tab-title {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -217,4 +229,52 @@ input[type="search"]::placeholder {
 .title-bar-tab-close:hover {
   background: var(--hover);
   color: var(--text);
+}
+
+/* Title bar plugin buttons */
+.title-bar-plugins {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  margin-left: auto;
+  position: relative;
+  z-index: 2;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+}
+
+.title-bar-plugin-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: var(--text-muted);
+  transition: background 0.15s;
+}
+
+.title-bar-plugin-btn:hover {
+  background: var(--hover);
+}
+
+.title-bar-plugin-btn.active {
+  background: var(--accent, #4a6cf7);
+  color: #fff;
+}
+
+/* Plugin side panel */
+.plugin-side-panel {
+  width: 380px;
+  min-width: 380px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  overflow: hidden;
 }

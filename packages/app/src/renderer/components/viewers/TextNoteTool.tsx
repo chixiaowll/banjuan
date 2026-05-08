@@ -1,4 +1,6 @@
 import React, { useState, useCallback } from 'react'
+import { Save, X } from 'lucide-react'
+import { useT } from '../../i18n/index.js'
 
 interface PointAnnotation {
   id: string
@@ -19,6 +21,7 @@ interface Props {
 }
 
 export default function TextNoteTool({ active, color, pageNum, docId, pointAnnotations, onCreated, onUpdated }: Props) {
+  const t = useT()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [newNote, setNewNote] = useState<{ x: number; y: number } | null>(null)
@@ -88,8 +91,8 @@ export default function TextNoteTool({ active, color, pageNum, docId, pointAnnot
               <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)}
                 style={{ width: '100%', minHeight: 60, fontSize: 12, border: '1px solid var(--border)', borderRadius: 3, padding: 4, resize: 'vertical' }} />
               <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                <button onClick={saveEdit} style={{ fontSize: 11 }}>保存</button>
-                <button onClick={() => setEditingId(null)} style={{ fontSize: 11 }}>取消</button>
+                <button onClick={saveEdit} style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Save size={12} />{t('common.save')}</button>
+                <button onClick={() => setEditingId(null)} style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}><X size={12} />{t('common.cancel')}</button>
               </div>
             </div>
           )}
@@ -106,11 +109,11 @@ export default function TextNoteTool({ active, color, pageNum, docId, pointAnnot
             borderRadius: 6, padding: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 100,
           }}>
             <textarea autoFocus value={newContent} onChange={(e) => setNewContent(e.target.value)}
-              placeholder="输入笔记..."
+              placeholder={t('tool.noteInput')}
               style={{ width: '100%', minHeight: 60, fontSize: 12, border: '1px solid var(--border)', borderRadius: 3, padding: 4, resize: 'vertical' }} />
             <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-              <button onClick={saveNewNote} style={{ fontSize: 11 }}>保存</button>
-              <button onClick={() => setNewNote(null)} style={{ fontSize: 11 }}>取消</button>
+              <button onClick={saveNewNote} style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Save size={12} />{t('common.save')}</button>
+              <button onClick={() => setNewNote(null)} style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}><X size={12} />{t('common.cancel')}</button>
             </div>
           </div>
         </div>

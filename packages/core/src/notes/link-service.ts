@@ -11,9 +11,13 @@ export class NoteLinkService {
 
   async sync(sourceId: string, links: LinkSyncEntry[]): Promise<void> {
     this.db.prepare('DELETE FROM note_links WHERE source_id = ?').run(sourceId)
-    const insert = this.db.prepare('INSERT INTO note_links (source_id, target_id, context) VALUES (?, ?, ?)')
+    const insert = this.db.prepare('INSERT OR IGNORE INTO note_links (source_id, target_id, context) VALUES (?, ?, ?)')
     for (const link of links) {
-      insert.run(sourceId, link.targetId, link.context)
+      try {
+        insert.run(sourceId, link.targetId, link.context)
+      } catch {
+        // target note may not exist yet (deleted or not synced)
+      }
     }
   }
 

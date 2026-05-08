@@ -4,9 +4,9 @@ import BlockEditor, { type BlockEditorHandle } from '../components/notes/BlockEd
 import FolderTree from '../components/notes/FolderTree.js'
 import NoteOutlinePanel, { type HeadingItem } from '../components/notes/NoteOutlinePanel.js'
 import BacklinksPanel from '../components/notes/BacklinksPanel.js'
-import TemplatePicker from '../components/notes/TemplatePicker.js'
+import TemplatePicker, { type NoteType } from '../components/notes/TemplatePicker.js'
 import MindmapCanvas from '../components/mindmap/MindmapCanvas.js'
-import MindmapToolbar from '../components/mindmap/MindmapToolbar.js'
+import { MindmapTitleBar, MindmapFloatingToolbar } from '../components/mindmap/MindmapToolbar.js'
 import MindmapContextMenu from '../components/mindmap/MindmapContextMenu.js'
 import MindmapSearch from '../components/mindmap/MindmapSearch.js'
 import NodePropertyPanel from '../components/mindmap/panels/NodePropertyPanel.js'
@@ -19,6 +19,7 @@ import PageListPanel from '../components/handwriting/PageListPanel.js'
 import { createHandwritingStore, HandwritingStoreContext } from '../components/handwriting/useHandwritingStore.js'
 import { FileDown, FileText, FileImage, Eye, Pencil, PanelLeft, PanelRight } from 'lucide-react'
 import TagInput from '../components/tags/TagInput.js'
+import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
 import { useT } from '../i18n/index.js'
 
 interface NoteInfo {
@@ -34,56 +35,6 @@ interface Props {
   note: NoteInfo
   onBack: () => void
   onOpenNote: (note: NoteInfo) => void
-}
-
-function useResizable(initialWidth: number, minWidth: number, maxWidth: number, side: 'left' | 'right') {
-  const [width, setWidth] = useState(initialWidth)
-  const dragging = useRef(false)
-  const startX = useRef(0)
-  const startWidth = useRef(0)
-
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    dragging.current = true
-    startX.current = e.clientX
-    startWidth.current = width
-
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!dragging.current) return
-      const delta = side === 'left' ? ev.clientX - startX.current : startX.current - ev.clientX
-      const newWidth = Math.min(maxWidth, Math.max(minWidth, startWidth.current + delta))
-      setWidth(newWidth)
-    }
-
-    const onMouseUp = () => {
-      dragging.current = false
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-  }, [width, minWidth, maxWidth, side])
-
-  return { width, onMouseDown }
-}
-
-function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) {
-  return (
-    <div
-      onMouseDown={onMouseDown}
-      style={{
-        width: 4, flexShrink: 0, cursor: 'col-resize',
-        background: 'var(--border)', transition: 'background 0.15s',
-      }}
-      onMouseEnter={e => e.currentTarget.style.background = 'var(--accent)'}
-      onMouseLeave={e => e.currentTarget.style.background = 'var(--border)'}
-    />
-  )
 }
 
 // --- Mindmap center content (inside MindmapStoreContext) ---
@@ -124,12 +75,13 @@ function MindmapCenterContent({ noteId, onToggleLeftSidebar, onToggleRightSideba
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-      <MindmapToolbar
+      <MindmapTitleBar
         onToggleLeftSidebar={onToggleLeftSidebar}
         onToggleRightSidebar={onToggleRightSidebar}
       />
       <div style={{ flex: 1, position: 'relative' }} onContextMenu={handleContextMenu}>
         <MindmapCanvas />
+        <MindmapFloatingToolbar />
         {searchOpen && <MindmapSearch onClose={() => setSearchOpen(false)} />}
       </div>
       {contextMenu && (
@@ -238,6 +190,12 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
   const rightPanel = useResizable(260, 180, 720, 'right')
 
   useEffect(() => {
+    document.dispatchEvent(new CustomEvent('banjuan:context-update', {
+      detail: { noteType: note.type ?? 'markdown' }
+    }))
+  }, [note.id, note.type])
+
+  useEffect(() => {
     if (isMindmap || isHandwriting) {
       setContent('')
       return
@@ -301,14 +259,25 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     return () => document.removeEventListener('click', close)
   }, [exportMenuOpen])
 
-  const handleTemplateSelect = async (templateId: string | null, title: string) => {
-    setShowTemplatePicker(false)
-    const newNote = await window.electronAPI.notes.create({
-      title,
-      folder: selectedFolder ?? undefined,
-      templateId: templateId ?? undefined,
-    })
-    onOpenNote(newNote)
+  const [templatePickerError, setTemplatePickerError] = useState<string | null>(null)
+
+  const handleTemplateSelect = async (templateId: string | null, title: string, type: NoteType) => {
+    try {
+      const newNote = await window.electronAPI.notes.create({
+        title,
+        folder: selectedFolder ?? undefined,
+        ...(type !== 'markdown' ? { type } : { templateId: templateId ?? undefined }),
+      })
+      setTemplatePickerError(null)
+      setShowTemplatePicker(false)
+      onOpenNote(newNote)
+    } catch (err: any) {
+      if (err?.message?.includes('DUPLICATE_TITLE')) {
+        setTemplatePickerError(t('note.duplicateTitle' as any))
+      } else {
+        throw err
+      }
+    }
   }
 
   if (!isMindmap && !isHandwriting && content === null) {
@@ -518,7 +487,8 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
       {showTemplatePicker && (
         <TemplatePicker
           onSelect={handleTemplateSelect}
-          onClose={() => setShowTemplatePicker(false)}
+          onClose={() => { setShowTemplatePicker(false); setTemplatePickerError(null) }}
+          error={templatePickerError}
         />
       )}
     </div>

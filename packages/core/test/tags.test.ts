@@ -78,7 +78,7 @@ describe('TagService (file-first)', () => {
 
       await lib.tags.assign(note.id, 'note', ['Research'])
 
-      const raw = readFileSync(join(libPath, 'notes', note.path), 'utf-8')
+      const raw = readFileSync(join(libPath, '.banjuan', 'notes', note.path), 'utf-8')
       expect(raw).toContain('Research')
 
       const tags = await lib.tags.forTarget(note.id, 'note')
@@ -123,7 +123,7 @@ describe('TagService (file-first)', () => {
 
       await lib.tags.unassign(note.id, 'note', 'Gone')
 
-      const raw = readFileSync(join(libPath, 'notes', note.path), 'utf-8')
+      const raw = readFileSync(join(libPath, '.banjuan', 'notes', note.path), 'utf-8')
       expect(raw).not.toContain('Gone')
       const tags = await lib.tags.forTarget(note.id, 'note')
       expect(tags).toHaveLength(0)

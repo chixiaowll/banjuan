@@ -51,11 +51,20 @@ describe('DocumentService (file-first)', () => {
       await expect(lib.documents.import(join(tempDir, 'outside.pdf'))).rejects.toThrow('must be inside')
     })
 
-    it('deduplicates by hash', async () => {
+    it('allows same content at different paths', async () => {
       createTestFile(libPath, 'a.txt', 'same content')
       createTestFile(libPath, 'b.txt', 'same content')
+      const docA = await lib.documents.import('a.txt')
+      const docB = await lib.documents.import('b.txt')
+      expect(docA.path).toBe('a.txt')
+      expect(docB.path).toBe('b.txt')
+      expect(docA.id).not.toBe(docB.id)
+    })
+
+    it('rejects duplicate path', async () => {
+      createTestFile(libPath, 'a.txt', 'content')
       await lib.documents.import('a.txt')
-      await expect(lib.documents.import('b.txt')).rejects.toThrow('already imported')
+      await expect(lib.documents.import('a.txt')).rejects.toThrow('already imported')
     })
 
     it('stores tags in JSON file', async () => {
@@ -115,13 +124,13 @@ describe('DocumentService (file-first)', () => {
   })
 
   describe('delete', () => {
-    it('deletes metadata JSON but not the original file', async () => {
+    it('deletes original file, metadata JSON, and DB record', async () => {
       createTestFile(libPath, 'deleteme.txt', 'content')
       const doc = await lib.documents.import('deleteme.txt')
 
       await lib.documents.delete(doc.id)
 
-      expect(existsSync(join(libPath, 'deleteme.txt'))).toBe(true)
+      expect(existsSync(join(libPath, 'deleteme.txt'))).toBe(false)
 
       const jsonPath = join(libPath, '.banjuan', 'data', 'documents', doc.id.slice(0, 2), `${doc.id}.json`)
       expect(existsSync(jsonPath)).toBe(false)

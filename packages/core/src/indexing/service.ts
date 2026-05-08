@@ -4,39 +4,29 @@ import { join } from 'node:path'
 import { JsonStore } from '../storage/json-store.js'
 import { parseFrontmatter } from '../storage/frontmatter.js'
 import type { DocumentFileData, AnnotationFileData, MindmapFileData, NoteFileData } from '../types.js'
+import { extractNoteLinks, extractDocumentLinks } from '../notes/extract-links.js'
 
 export class IndexService {
   private docStore: JsonStore<DocumentFileData>
   private annStore: JsonStore<AnnotationFileData>
-  private mmStore: JsonStore<MindmapFileData>
   private metaPath: string
   private tagsPath: string
   private notesDir: string
+  private mindmapsDir: string
 
   constructor(private db: Database.Database, private rootPath: string) {
     const banjuanDir = join(rootPath, '.banjuan')
     this.docStore = new JsonStore(join(banjuanDir, 'data', 'documents'))
     this.annStore = new JsonStore(join(banjuanDir, 'data', 'annotations'))
-    this.mmStore = new JsonStore(join(banjuanDir, 'data', 'mindmaps'))
     this.metaPath = join(banjuanDir, 'db.meta.json')
     this.tagsPath = join(banjuanDir, 'tags.json')
     this.notesDir = join(rootPath, '.banjuan', 'notes')
+    this.mindmapsDir = join(rootPath, '.banjuan', 'mindmaps')
   }
 
   async rebuildFull(): Promise<void> {
-    this.db.prepare('DELETE FROM mindmap_edges').run()
-    this.db.prepare('DELETE FROM mindmap_nodes').run()
-    this.db.prepare('DELETE FROM mindmap_tags').run()
-    this.db.prepare('DELETE FROM note_annotations').run()
-    this.db.prepare('DELETE FROM note_tags').run()
-    this.db.prepare('DELETE FROM doc_tags').run()
-    this.db.prepare('DELETE FROM mindmaps').run()
-    this.db.prepare('DELETE FROM annotations').run()
-    this.db.prepare('DELETE FROM notes').run()
-    this.db.prepare('DELETE FROM documents').run()
-    this.db.prepare('DELETE FROM tags').run()
-    this.db.prepare("DELETE FROM search_index").run()
-
+    this.db.pragma('foreign_keys = OFF')
+    try {
     this.indexTags()
 
     for (const doc of this.docStore.listAll()) {
@@ -47,13 +37,22 @@ export class IndexService {
       this.indexAnnotation(ann)
     }
 
-    this.indexAllNotes()
-
-    for (const mm of this.mmStore.listAll()) {
-      this.indexMindmap(mm)
+    const { noteLinks: pendingLinks, docLinks: pendingDocLinks } = this.indexAllNotes()
+    const insertNoteLink = this.db.prepare('INSERT OR IGNORE INTO note_links (source_id, target_id, context) VALUES (?, ?, ?)')
+    for (const link of pendingLinks) {
+      insertNoteLink.run(link.sourceId, link.targetId, link.context)
+    }
+    const insertDocLink = this.db.prepare('INSERT OR IGNORE INTO doc_links (source_id, target_id, context) VALUES (?, ?, ?)')
+    for (const link of pendingDocLinks) {
+      insertDocLink.run(link.sourceId, link.targetId, link.context)
     }
 
+    this.indexAllMindmaps()
+
     this.writeMetaTimestamp()
+    } finally {
+      this.db.pragma('foreign_keys = ON')
+    }
   }
 
   private indexTags(): void {
@@ -93,35 +92,53 @@ export class IndexService {
     ).run(ann.id, ann.docId, ann.type, ann.page, JSON.stringify(ann.position), ann.content, ann.selectedText, ann.color, ann.createdAt, ann.updatedAt)
   }
 
-  private indexAllNotes(): void {
-    if (!existsSync(this.notesDir)) return
-    const files = readdirSync(this.notesDir, { withFileTypes: true })
-    for (const file of files) {
-      if (!file.isFile()) continue
-      if (file.name.endsWith('.json')) {
-        this.indexNoteJsonFile(file.name)
-      } else if (file.name.endsWith('.md')) {
-        this.indexNoteMdFile(file.name)
+  private indexAllNotes(): { noteLinks: Array<{ sourceId: string; targetId: string; context: string }>; docLinks: Array<{ sourceId: string; targetId: string; context: string }> } {
+    const noteLinks: Array<{ sourceId: string; targetId: string; context: string }> = []
+    const docLinks: Array<{ sourceId: string; targetId: string; context: string }> = []
+    if (!existsSync(this.notesDir)) return { noteLinks, docLinks }
+    this.scanNotesDir(this.notesDir, '', noteLinks, docLinks)
+    return { noteLinks, docLinks }
+  }
+
+  private scanNotesDir(dir: string, prefix: string, pendingLinks: Array<{ sourceId: string; targetId: string; context: string }>, pendingDocLinks: Array<{ sourceId: string; targetId: string; context: string }>): void {
+    const entries = readdirSync(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        this.scanNotesDir(join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name, pendingLinks, pendingDocLinks)
+      } else if (entry.isFile()) {
+        const relPath = prefix ? `${prefix}/${entry.name}` : entry.name
+        if (entry.name.endsWith('.json')) {
+          this.indexNoteJsonFile(relPath, pendingLinks, pendingDocLinks)
+        } else if (entry.name.endsWith('.md')) {
+          this.indexNoteMdFile(relPath)
+        }
       }
     }
   }
 
-  private indexNoteJsonFile(filename: string): void {
-    const filePath = join(this.notesDir, filename)
-    const raw = JSON.parse(readFileSync(filePath, 'utf-8')) as { meta: NoteFileData; blocks: unknown[] }
+  private indexNoteJsonFile(relPath: string, pendingLinks: Array<{ sourceId: string; targetId: string; context: string }>, pendingDocLinks: Array<{ sourceId: string; targetId: string; context: string }>): void {
+    const filePath = join(this.notesDir, relPath)
+    let raw: { meta: NoteFileData; blocks: unknown[] }
+    try {
+      raw = JSON.parse(readFileSync(filePath, 'utf-8'))
+    } catch {
+      return
+    }
     const data = raw.meta
 
     if (!data.id) return
 
+    const noteType = data.type ?? 'markdown'
+    const typeMeta = data.typeMeta ? JSON.stringify(data.typeMeta) : null
     this.db.prepare(
-      `INSERT OR REPLACE INTO notes (id, title, path, doc_id, folder_id, content_format, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(data.id, data.title ?? filename, filename, data.docId ?? null, data.folderId ?? null, 'json', data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString())
+      `INSERT OR REPLACE INTO notes (id, title, type, path, doc_id, folder_id, content_format, type_meta, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(data.id, data.title ?? relPath, noteType, relPath, data.docId ?? null, null, 'json', typeMeta, data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString())
 
     const textContent = this.blocksToText(raw.blocks ?? [])
     this.db.prepare(
       `INSERT INTO search_index (rowid, title, content, type)
        VALUES ((SELECT COALESCE(MAX(rowid), 0) + 1 FROM search_index), ?, ?, ?)`
-    ).run(data.title ?? filename, textContent, `note:${data.id}`)
+    ).run(data.title ?? relPath, textContent, `note:${data.id}`)
 
     if (data.annotationIds?.length) {
       const insertLink = this.db.prepare('INSERT OR IGNORE INTO note_annotations (note_id, annotation_id) VALUES (?, ?)')
@@ -138,23 +155,33 @@ export class IndexService {
         if (tag) insertTag.run(data.id, tag.id)
       }
     }
+
+    const noteLinks = extractNoteLinks(raw.blocks ?? [])
+    for (const link of noteLinks) {
+      pendingLinks.push({ sourceId: data.id, targetId: link.targetId, context: link.context })
+    }
+
+    const docLinksFound = extractDocumentLinks(raw.blocks ?? [])
+    for (const link of docLinksFound) {
+      pendingDocLinks.push({ sourceId: data.id, targetId: link.targetId, context: link.context })
+    }
   }
 
-  private indexNoteMdFile(filename: string): void {
-    const filePath = join(this.notesDir, filename)
+  private indexNoteMdFile(relPath: string): void {
+    const filePath = join(this.notesDir, relPath)
     const raw = readFileSync(filePath, 'utf-8')
     const { data, content } = parseFrontmatter<NoteFileData>(raw)
 
     if (!data.id) return
 
     this.db.prepare(
-      `INSERT OR REPLACE INTO notes (id, title, path, doc_id, folder_id, content_format, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(data.id, data.title ?? filename, filename, data.docId ?? null, data.folderId ?? null, data.contentFormat ?? 'markdown', data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString())
+      `INSERT OR REPLACE INTO notes (id, title, type, path, doc_id, folder_id, content_format, type_meta, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(data.id, data.title ?? relPath, 'markdown', relPath, data.docId ?? null, null, data.contentFormat ?? 'markdown', null, data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString())
 
     this.db.prepare(
       `INSERT INTO search_index (rowid, title, content, type)
        VALUES ((SELECT COALESCE(MAX(rowid), 0) + 1 FROM search_index), ?, ?, ?)`
-    ).run(data.title ?? filename, content, `note:${data.id}`)
+    ).run(data.title ?? relPath, content, `note:${data.id}`)
 
     if (data.annotationIds?.length) {
       const insertLink = this.db.prepare('INSERT OR IGNORE INTO note_annotations (note_id, annotation_id) VALUES (?, ?)')
@@ -186,19 +213,41 @@ export class IndexService {
     return texts.join(' ')
   }
 
-  private indexMindmap(mm: MindmapFileData): void {
-    this.db.prepare(
-      `INSERT OR REPLACE INTO mindmaps (id, title, doc_id, layout, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(mm.id, mm.title, mm.docId, mm.layout, mm.createdAt, mm.updatedAt)
+  private indexAllMindmaps(): void {
+    if (!existsSync(this.mindmapsDir)) return
+    this.scanMindmapsDir(this.mindmapsDir, '')
+  }
 
-    for (const node of mm.nodes) {
+  private scanMindmapsDir(dir: string, prefix: string): void {
+    const entries = readdirSync(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        this.scanMindmapsDir(join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name)
+      } else if (entry.isFile() && entry.name.endsWith('.json')) {
+        const relPath = prefix ? `${prefix}/${entry.name}` : entry.name
+        this.indexMindmapFile(relPath)
+      }
+    }
+  }
+
+  private indexMindmapFile(relPath: string): void {
+    const filePath = join(this.mindmapsDir, relPath)
+    let mm: MindmapFileData
+    try { mm = JSON.parse(readFileSync(filePath, 'utf-8')) } catch { return }
+    if (!mm.id) return
+
+    this.db.prepare(
+      `INSERT OR REPLACE INTO mindmaps (id, title, path, doc_id, layout, theme, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(mm.id, mm.title, relPath, mm.docId, mm.layout, mm.theme ?? 'classic', mm.createdAt, mm.updatedAt)
+
+    for (const node of mm.nodes ?? []) {
       this.db.prepare(
-        `INSERT OR REPLACE INTO mindmap_nodes (id, mindmap_id, parent_id, annotation_id, title, content, color, position_x, position_y, sort_order, collapsed, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(node.id, mm.id, node.parentId, node.annotationId, node.title, node.content, node.color, node.positionX, node.positionY, node.sortOrder, node.collapsed ? 1 : 0, mm.createdAt)
+        `INSERT OR REPLACE INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(node.id, mm.id, node.parentId, node.title, node.content, node.hyperlink, node.imageUrl, node.color, node.notes, node.shape, node.styleOverrides, node.positionX, node.positionY, node.sortOrder, node.collapsed ? 1 : 0, mm.createdAt)
     }
 
-    for (const edge of mm.edges) {
+    for (const edge of mm.edges ?? []) {
       this.db.prepare(
         `INSERT OR REPLACE INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)`
       ).run(edge.id, mm.id, edge.sourceId, edge.targetId, edge.label, edge.style)

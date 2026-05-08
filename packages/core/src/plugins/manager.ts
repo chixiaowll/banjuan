@@ -3,11 +3,12 @@ import { join } from 'node:path'
 import type { EventBus } from '../events/bus.js'
 import type { Library } from '../library.js'
 import { BanjuanPlugin } from './base.js'
-import type { PluginManifest, PluginInfo, PluginCommand } from '../types.js'
+import type { PluginManifest, PluginInfo, PluginCommand, PluginViewInfo } from '../types.js'
 
 export class PluginManager {
   private plugins = new Map<string, { plugin: BanjuanPlugin; manifest: PluginManifest; path: string }>()
   private pluginsDir: string
+  private webContentsSender: ((channel: string, data: any) => void) | null = null
 
   constructor(
     private library: Library,
@@ -17,6 +18,13 @@ export class PluginManager {
     this.pluginsDir = join(rootPath, '.banjuan', 'plugins')
     if (!existsSync(this.pluginsDir)) {
       mkdirSync(this.pluginsDir, { recursive: true })
+    }
+  }
+
+  setWebContentsSender(sender: (channel: string, data: any) => void): void {
+    this.webContentsSender = sender
+    for (const [, { plugin }] of this.plugins) {
+      plugin._setWebContentsSender(sender)
     }
   }
 
@@ -50,13 +58,17 @@ export class PluginManager {
       throw new Error(`No index.js in ${pluginPath}`)
     }
 
+    ;(globalThis as any).BanjuanPlugin = BanjuanPlugin
     const mod = await import(`file://${entryPath}`)
     const PluginClass = mod.default ?? mod
     if (typeof PluginClass !== 'function') {
       throw new Error(`Plugin ${manifest.id} does not export a class`)
     }
 
-    const plugin: BanjuanPlugin = new PluginClass(manifest.id, this.library, this.bus)
+    const plugin: BanjuanPlugin = new PluginClass(manifest.id, this.library, this.bus, pluginPath)
+    if (this.webContentsSender) {
+      plugin._setWebContentsSender(this.webContentsSender)
+    }
     await plugin.onload()
     this.plugins.set(manifest.id, { plugin, manifest, path: pluginPath })
   }
@@ -90,6 +102,56 @@ export class PluginManager {
     return result
   }
 
+  listAll(): PluginInfo[] {
+    if (!existsSync(this.pluginsDir)) return []
+    const result: PluginInfo[] = []
+    const entries = readdirSync(this.pluginsDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const pluginPath = join(this.pluginsDir, entry.name)
+      const manifestPath = join(pluginPath, 'manifest.json')
+      if (!existsSync(manifestPath)) continue
+      try {
+        const manifest: PluginManifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+        result.push({
+          id: manifest.id,
+          name: manifest.name,
+          version: manifest.version,
+          description: manifest.description ?? '',
+          enabled: this.plugins.has(manifest.id),
+          path: pluginPath,
+        })
+      } catch {}
+    }
+    return result
+  }
+
+  async enable(pluginId: string): Promise<void> {
+    if (this.plugins.has(pluginId)) return
+    if (!existsSync(this.pluginsDir)) throw new Error('Plugins directory not found')
+    const entries = readdirSync(this.pluginsDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const manifestPath = join(this.pluginsDir, entry.name, 'manifest.json')
+      if (!existsSync(manifestPath)) continue
+      let manifest: PluginManifest
+      try {
+        manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+      } catch {
+        continue
+      }
+      if (manifest.id === pluginId) {
+        await this.load(entry.name)
+        return
+      }
+    }
+    throw new Error(`Plugin not found: ${pluginId}`)
+  }
+
+  async disable(pluginId: string): Promise<void> {
+    await this.unload(pluginId)
+  }
+
   getCommands(): PluginCommand[] {
     const commands: PluginCommand[] = []
     for (const [, { plugin }] of this.plugins) {
@@ -107,5 +169,50 @@ export class PluginManager {
       }
     }
     throw new Error(`Command not found: ${commandId}`)
+  }
+
+  // === NEW: View Registry ===
+  getViews(): PluginViewInfo[] {
+    const views: PluginViewInfo[] = []
+    for (const [, { plugin }] of this.plugins) {
+      views.push(...plugin.getViews())
+    }
+    return views
+  }
+
+  // === NEW: RPC ===
+  async handleRpc(pluginId: string, method: string, args: any[]): Promise<any> {
+    const entry = this.plugins.get(pluginId)
+    if (!entry) throw new Error(`Plugin not found: ${pluginId}`)
+    return entry.plugin.handleRpc(method, args)
+  }
+
+  // === NEW: CSS Path ===
+  getPluginCssPath(pluginId: string): string | null {
+    const entry = this.plugins.get(pluginId)
+    if (!entry) return null
+    const cssPath = join(entry.path, 'styles.css')
+    return existsSync(cssPath) ? cssPath : null
+  }
+
+  // === NEW: Renderer script path ===
+  getPluginRendererPath(pluginId: string): string | null {
+    const entry = this.plugins.get(pluginId)
+    if (!entry) return null
+    const rendererPath = join(entry.path, 'renderer.js')
+    return existsSync(rendererPath) ? rendererPath : null
+  }
+
+  // === NEW: Config ===
+  async loadPluginData(pluginId: string): Promise<any> {
+    const entry = this.plugins.get(pluginId)
+    if (!entry) return {}
+    return entry.plugin.loadData()
+  }
+
+  async savePluginData(pluginId: string, data: any): Promise<void> {
+    const entry = this.plugins.get(pluginId)
+    if (!entry) return
+    await entry.plugin.saveData(data)
   }
 }

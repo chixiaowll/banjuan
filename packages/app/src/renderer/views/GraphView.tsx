@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import KnowledgeGraph from '../components/graph/KnowledgeGraph.js'
 import { useT } from '../i18n/index.js'
 
@@ -47,7 +48,7 @@ export default function GraphView({ onBack, onOpenDoc, onOpenNote, onOpenMindmap
         padding: '8px 16px', borderBottom: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0,
       }}>
-        <button onClick={onBack}>{t('common.back')}</button>
+        <button onClick={onBack} title={t('common.back')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'inline-flex', alignItems: 'center' }}><ArrowLeft size={16} /></button>
         <span style={{ fontWeight: 500 }}>{t('graph.title')}</span>
         <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
           {t('graph.stats', nodes.length, edges.length)}

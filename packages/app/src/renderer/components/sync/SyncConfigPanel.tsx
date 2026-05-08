@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react'
+import { Save, RefreshCw } from 'lucide-react'
+import { useT } from '../../i18n/index.js'
 
 interface SyncConfig {
   url: string
@@ -20,6 +22,7 @@ interface Props {
 }
 
 export default function SyncConfigPanel({ onClose }: Props) {
+  const t = useT()
   const [config, setConfig] = useState<SyncConfig>({
     url: '',
     username: '',
@@ -42,9 +45,7 @@ export default function SyncConfigPanel({ onClose }: Props) {
             remotePath: existing.remotePath ?? '/banjuan',
           })
         }
-      } catch {
-        // no existing config, keep defaults
-      }
+      } catch {}
     }
     load()
   }, [])
@@ -54,9 +55,9 @@ export default function SyncConfigPanel({ onClose }: Props) {
     setStatus(null)
     try {
       await (window as any).electronAPI.sync.saveConfig(config)
-      setStatus({ message: '配置已保存', isError: false })
+      setStatus({ message: t('sync.configSaved'), isError: false })
     } catch (err: any) {
-      setStatus({ message: `保存失败：${err?.message ?? String(err)}`, isError: true })
+      setStatus({ message: t('sync.saveFailed', err?.message ?? String(err)), isError: true })
     } finally {
       setSaving(false)
     }
@@ -69,15 +70,15 @@ export default function SyncConfigPanel({ onClose }: Props) {
       const result: SyncResult = await (window as any).electronAPI.sync.run()
       const { uploaded, downloaded, deletedLocal, deletedRemote, errors } = result
       if (errors && errors.length > 0) {
-        setStatus({ message: `同步完成（有错误）：${errors.join('；')}`, isError: true })
+        setStatus({ message: t('sync.syncWithErrors', errors.join('; ')), isError: true })
       } else {
         setStatus({
-          message: `同步成功 — 上传 ${uploaded}，下载 ${downloaded}，本地删除 ${deletedLocal}，远端删除 ${deletedRemote}`,
+          message: t('sync.syncSuccess', uploaded, downloaded, deletedLocal, deletedRemote),
           isError: false,
         })
       }
     } catch (err: any) {
-      setStatus({ message: `同步失败：${err?.message ?? String(err)}`, isError: true })
+      setStatus({ message: t('sync.syncFailed', err?.message ?? String(err)), isError: true })
     } finally {
       setSyncing(false)
     }
@@ -122,12 +123,12 @@ export default function SyncConfigPanel({ onClose }: Props) {
         gap: '16px',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontSize: '16px', margin: 0 }}>WebDAV 同步配置</h2>
+          <h2 style={{ fontSize: '16px', margin: 0 }}>{t('sync.title')}</h2>
           <button onClick={onClose} style={{ fontSize: '16px', lineHeight: 1, padding: '2px 8px' }}>×</button>
         </div>
 
         <div style={fieldStyle}>
-          <label style={labelStyle}>WebDAV 地址</label>
+          <label style={labelStyle}>{t('sync.url')}</label>
           <input
             style={inputStyle}
             type="url"
@@ -138,7 +139,7 @@ export default function SyncConfigPanel({ onClose }: Props) {
         </div>
 
         <div style={fieldStyle}>
-          <label style={labelStyle}>用户名</label>
+          <label style={labelStyle}>{t('sync.username')}</label>
           <input
             style={inputStyle}
             type="text"
@@ -148,7 +149,7 @@ export default function SyncConfigPanel({ onClose }: Props) {
         </div>
 
         <div style={fieldStyle}>
-          <label style={labelStyle}>密码</label>
+          <label style={labelStyle}>{t('sync.password')}</label>
           <input
             style={inputStyle}
             type="password"
@@ -158,7 +159,7 @@ export default function SyncConfigPanel({ onClose }: Props) {
         </div>
 
         <div style={fieldStyle}>
-          <label style={labelStyle}>远端路径</label>
+          <label style={labelStyle}>{t('sync.remotePath')}</label>
           <input
             style={inputStyle}
             type="text"
@@ -185,16 +186,16 @@ export default function SyncConfigPanel({ onClose }: Props) {
             className="primary"
             onClick={handleSave}
             disabled={saving}
-            style={{ flex: 1 }}
+            style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
           >
-            {saving ? '保存中…' : '保存配置'}
+            <Save size={14} />{saving ? t('sync.saving') : t('sync.saveConfig')}
           </button>
           <button
             onClick={handleSync}
             disabled={syncing}
-            style={{ flex: 1 }}
+            style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
           >
-            {syncing ? '同步中…' : '立即同步'}
+            <RefreshCw size={14} />{syncing ? t('sync.syncing') : t('sync.syncNow')}
           </button>
         </div>
       </div>

@@ -1,9 +1,14 @@
 .mindmap-canvas .react-flow__node {
-  padding: 0;
-  border: none;
-  background: none;
-  border-radius: 0;
-  box-shadow: none;
+  padding: 0 !important;
+  border: none !important;
+  background: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.mindmap-canvas .react-flow__node > div {
+  overflow: visible !important;
 }
 
 .mindmap-canvas .react-flow__handle {

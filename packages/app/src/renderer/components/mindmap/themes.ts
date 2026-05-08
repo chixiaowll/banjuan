@@ -16,11 +16,6 @@ export interface NodeStyle {
   padding: { x: number; y: number }
 }
 
-export interface NodeTypeStyle {
-  icon: string
-  accentColor: string
-}
-
 export interface MindmapTheme {
   name: string
   canvas: { background: string; gridColor?: string; gridStyle?: 'dots' | 'lines' | 'none' }
@@ -38,17 +33,13 @@ export interface MindmapTheme {
     leaf: EdgeLevelStyle
   }
   relation: { color: string; width: number; dasharray: string; labelFont: string }
-  nodeTypeStyles: {
-    note: NodeTypeStyle
-    document: NodeTypeStyle
-    annotation: NodeTypeStyle
-    image: { borderRadius: number; maxWidth: number }
-    link: NodeTypeStyle
-    tag: { shape: 'capsule'; accentColor: string }
-  }
 }
 
-export function getNodeStyleForLevel(theme: MindmapTheme, depth: number): NodeStyle {
+export function getNodeStyleForLevel(theme: MindmapTheme, depth: number, floating?: boolean): NodeStyle {
+  if (depth === 0 && floating) {
+    const base = theme.levels.level1
+    return { ...base, fontWeight: 700 }
+  }
   if (depth === 0) return theme.levels.root
   if (depth === 1) return theme.levels.level1
   if (depth === 2) return theme.levels.level2
@@ -79,14 +70,6 @@ const classic: MindmapTheme = {
     leaf: { color: '#D5DDE5', width: 1.5 },
   },
   relation: { color: '#E67E22', width: 1.5, dasharray: '6 4', labelFont: '12px sans-serif' },
-  nodeTypeStyles: {
-    note: { icon: '📝', accentColor: '#27AE60' },
-    document: { icon: '📄', accentColor: '#3498DB' },
-    annotation: { icon: '💬', accentColor: '#F39C12' },
-    image: { borderRadius: 8, maxWidth: 200 },
-    link: { icon: '🔗', accentColor: '#8E44AD' },
-    tag: { shape: 'capsule', accentColor: '#1ABC9C' },
-  },
 }
 
 const business: MindmapTheme = {
@@ -106,14 +89,6 @@ const business: MindmapTheme = {
     leaf: { color: '#DEE2E6', width: 1 },
   },
   relation: { color: '#E74C3C', width: 1.5, dasharray: '6 4', labelFont: '12px sans-serif' },
-  nodeTypeStyles: {
-    note: { icon: '📝', accentColor: '#27AE60' },
-    document: { icon: '📄', accentColor: '#2980B9' },
-    annotation: { icon: '💬', accentColor: '#F39C12' },
-    image: { borderRadius: 4, maxWidth: 180 },
-    link: { icon: '🔗', accentColor: '#8E44AD' },
-    tag: { shape: 'capsule', accentColor: '#16A085' },
-  },
 }
 
 const colorful: MindmapTheme = {
@@ -133,14 +108,6 @@ const colorful: MindmapTheme = {
     leaf: { color: '#CCCCCC', width: 1.5 },
   },
   relation: { color: '#9B59B6', width: 1.5, dasharray: '6 4', labelFont: '12px sans-serif' },
-  nodeTypeStyles: {
-    note: { icon: '📝', accentColor: '#2ECC71' },
-    document: { icon: '📄', accentColor: '#3498DB' },
-    annotation: { icon: '💬', accentColor: '#F1C40F' },
-    image: { borderRadius: 12, maxWidth: 200 },
-    link: { icon: '🔗', accentColor: '#9B59B6' },
-    tag: { shape: 'capsule', accentColor: '#1ABC9C' },
-  },
 }
 
 export const BRANCH_COLORS = ['#FF6B6B', '#FFA94D', '#FFD43B', '#69DB7C', '#4DABF7', '#9775FA']
@@ -162,14 +129,6 @@ const dark: MindmapTheme = {
     leaf: { color: '#3A3A4E', width: 1.5 },
   },
   relation: { color: '#FAB387', width: 1.5, dasharray: '6 4', labelFont: '12px sans-serif' },
-  nodeTypeStyles: {
-    note: { icon: '📝', accentColor: '#A6E3A1' },
-    document: { icon: '📄', accentColor: '#89B4FA' },
-    annotation: { icon: '💬', accentColor: '#F9E2AF' },
-    image: { borderRadius: 8, maxWidth: 200 },
-    link: { icon: '🔗', accentColor: '#CBA6F7' },
-    tag: { shape: 'capsule', accentColor: '#94E2D5' },
-  },
 }
 
 const minimal: MindmapTheme = {
@@ -189,14 +148,6 @@ const minimal: MindmapTheme = {
     leaf: { color: '#DDDDDD', width: 1 },
   },
   relation: { color: '#E74C3C', width: 1, dasharray: '4 3', labelFont: '11px sans-serif' },
-  nodeTypeStyles: {
-    note: { icon: '📝', accentColor: '#27AE60' },
-    document: { icon: '📄', accentColor: '#3498DB' },
-    annotation: { icon: '💬', accentColor: '#F39C12' },
-    image: { borderRadius: 4, maxWidth: 160 },
-    link: { icon: '🔗', accentColor: '#8E44AD' },
-    tag: { shape: 'capsule', accentColor: '#16A085' },
-  },
 }
 
 const organic: MindmapTheme = {
@@ -216,14 +167,101 @@ const organic: MindmapTheme = {
     leaf: { color: '#F5CBA7', width: 1.5 },
   },
   relation: { color: '#8E44AD', width: 2, dasharray: '8 5', labelFont: '12px serif' },
-  nodeTypeStyles: {
-    note: { icon: '📝', accentColor: '#27AE60' },
-    document: { icon: '📄', accentColor: '#2E86C1' },
-    annotation: { icon: '💬', accentColor: '#D4AC0D' },
-    image: { borderRadius: 14, maxWidth: 200 },
-    link: { icon: '🔗', accentColor: '#7D3C98' },
-    tag: { shape: 'capsule', accentColor: '#1E8449' },
+}
+
+const light: MindmapTheme = {
+  name: 'Light',
+  canvas: { background: '#FFFFFF', gridStyle: 'none' },
+  levels: {
+    root: { shape: 'roundedRect', fill: '#3A3A3A', stroke: '#2A2A2A', fontSize: 18, fontWeight: 700, color: '#FFFFFF', shadow: '0 2px 8px rgba(0,0,0,0.15)', borderRadius: 6, padding: { x: 28, y: 16 } },
+    level1: { shape: 'roundedRect', fill: '#FFFFFF', stroke: '#CCCCCC', fontSize: 15, fontWeight: 500, color: '#333333', borderRadius: 6, padding: { x: 20, y: 12 } },
+    level2: { shape: 'roundedRect', fill: '#FFFFFF', stroke: '#DDDDDD', fontSize: 13, fontWeight: 400, color: '#555555', borderRadius: 4, padding: { x: 16, y: 8 } },
+    leaf: { shape: 'underline', fill: 'transparent', stroke: '#CCCCCC', fontSize: 13, fontWeight: 400, color: '#555555', padding: { x: 6, y: 4 } },
   },
+  edges: {
+    type: 'bezier',
+    root: { color: '#555555', width: 2 },
+    level1: { color: '#999999', width: 1.5 },
+    level2: { color: '#BBBBBB', width: 1 },
+    leaf: { color: '#CCCCCC', width: 1 },
+  },
+  relation: { color: '#E67E22', width: 1.5, dasharray: '6 4', labelFont: '12px sans-serif' },
+}
+
+const technology: MindmapTheme = {
+  name: 'Technology',
+  canvas: { background: '#1B2A3A', gridStyle: 'none' },
+  levels: {
+    root: { shape: 'roundedRect', fill: '#4CAF50', stroke: '#388E3C', fontSize: 18, fontWeight: 700, color: '#FFFFFF', shadow: '0 3px 12px rgba(76,175,80,0.4)', borderRadius: 8, padding: { x: 26, y: 14 } },
+    level1: { shape: 'roundedRect', fill: '#263D50', stroke: '#4CAF50', fontSize: 15, fontWeight: 600, color: '#E0E0E0', borderRadius: 6, padding: { x: 18, y: 10 } },
+    level2: { shape: 'roundedRect', fill: '#1E3244', stroke: '#37474F', fontSize: 13, fontWeight: 400, color: '#B0BEC5', borderRadius: 4, padding: { x: 14, y: 8 } },
+    leaf: { shape: 'underline', fill: 'transparent', stroke: '#37474F', fontSize: 13, fontWeight: 400, color: '#90A4AE', padding: { x: 6, y: 4 } },
+  },
+  edges: {
+    type: 'bezier',
+    root: { color: '#4CAF50', width: 2.5 },
+    level1: { color: '#66BB6A', width: 2 },
+    level2: { color: '#37474F', width: 1.5 },
+    leaf: { color: '#37474F', width: 1 },
+  },
+  relation: { color: '#FF9800', width: 1.5, dasharray: '6 4', labelFont: '12px sans-serif' },
+}
+
+const steady: MindmapTheme = {
+  name: 'Steady',
+  canvas: { background: '#F5F5F5', gridStyle: 'none' },
+  levels: {
+    root: { shape: 'roundedRect', fill: '#1565C0', stroke: '#0D47A1', fontSize: 18, fontWeight: 700, color: '#FFFFFF', shadow: '0 2px 10px rgba(21,101,192,0.3)', borderRadius: 10, padding: { x: 26, y: 14 } },
+    level1: { shape: 'roundedRect', fill: '#42A5F5', stroke: '#1E88E5', fontSize: 15, fontWeight: 600, color: '#FFFFFF', borderRadius: 8, padding: { x: 20, y: 10 } },
+    level2: { shape: 'roundedRect', fill: '#E3F2FD', stroke: '#90CAF9', fontSize: 13, fontWeight: 400, color: '#1565C0', borderRadius: 6, padding: { x: 14, y: 8 } },
+    leaf: { shape: 'underline', fill: 'transparent', stroke: '#90CAF9', fontSize: 13, fontWeight: 400, color: '#1976D2', padding: { x: 6, y: 4 } },
+  },
+  edges: {
+    type: 'bezier',
+    root: { color: '#1565C0', width: 3 },
+    level1: { color: '#42A5F5', width: 2 },
+    level2: { color: '#90CAF9', width: 1.5 },
+    leaf: { color: '#BBDEFB', width: 1 },
+  },
+  relation: { color: '#FF7043', width: 1.5, dasharray: '6 4', labelFont: '12px sans-serif' },
+}
+
+const snowbrush: MindmapTheme = {
+  name: 'Snowbrush',
+  canvas: { background: '#FAFAFA', gridStyle: 'none' },
+  levels: {
+    root: { shape: 'roundedRect', fill: '#E53935', stroke: '#C62828', fontSize: 18, fontWeight: 700, color: '#FFFFFF', shadow: '0 2px 10px rgba(229,57,53,0.3)', borderRadius: 10, padding: { x: 26, y: 14 } },
+    level1: { shape: 'roundedRect', fill: '#FFFFFF', stroke: '#1565C0', fontSize: 15, fontWeight: 600, color: '#1565C0', borderRadius: 6, padding: { x: 18, y: 10 } },
+    level2: { shape: 'roundedRect', fill: '#FFFFFF', stroke: '#E53935', fontSize: 13, fontWeight: 400, color: '#E53935', borderRadius: 4, padding: { x: 14, y: 8 } },
+    leaf: { shape: 'underline', fill: 'transparent', stroke: '#BDBDBD', fontSize: 13, fontWeight: 400, color: '#616161', padding: { x: 6, y: 4 } },
+  },
+  edges: {
+    type: 'bezier',
+    root: { color: '#424242', width: 2 },
+    level1: { color: '#757575', width: 1.5 },
+    level2: { color: '#BDBDBD', width: 1 },
+    leaf: { color: '#E0E0E0', width: 1 },
+  },
+  relation: { color: '#7B1FA2', width: 1.5, dasharray: '6 4', labelFont: '12px sans-serif' },
+}
+
+const ocean: MindmapTheme = {
+  name: 'Ocean',
+  canvas: { background: '#F0F7FA', gridStyle: 'none' },
+  levels: {
+    root: { shape: 'roundedRect', fill: '#00838F', stroke: '#006064', fontSize: 18, fontWeight: 700, color: '#FFFFFF', shadow: '0 3px 10px rgba(0,131,143,0.3)', borderRadius: 20, padding: { x: 28, y: 16 } },
+    level1: { shape: 'roundedRect', fill: '#B2EBF2', stroke: '#4DD0E1', fontSize: 15, fontWeight: 600, color: '#00695C', borderRadius: 14, padding: { x: 20, y: 10 } },
+    level2: { shape: 'roundedRect', fill: '#E0F7FA', stroke: '#80DEEA', fontSize: 13, fontWeight: 400, color: '#00838F', borderRadius: 10, padding: { x: 14, y: 8 } },
+    leaf: { shape: 'roundedRect', fill: '#F0FDFA', stroke: '#B2DFDB', fontSize: 13, fontWeight: 400, color: '#26A69A', borderRadius: 8, padding: { x: 14, y: 8 } },
+  },
+  edges: {
+    type: 'bezier',
+    root: { color: '#00838F', width: 3 },
+    level1: { color: '#26C6DA', width: 2.5 },
+    level2: { color: '#80DEEA', width: 2 },
+    leaf: { color: '#B2EBF2', width: 1.5 },
+  },
+  relation: { color: '#FF6F00', width: 1.5, dasharray: '6 4', labelFont: '12px sans-serif' },
 }
 
 export const THEMES: Record<string, MindmapTheme> = {
@@ -233,6 +271,11 @@ export const THEMES: Record<string, MindmapTheme> = {
   dark,
   minimal,
   organic,
+  light,
+  technology,
+  steady,
+  snowbrush,
+  ocean,
 }
 
 export function getTheme(name: string): MindmapTheme {

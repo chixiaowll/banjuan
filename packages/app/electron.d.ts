@@ -70,6 +70,11 @@ interface ElectronAPI {
     getForwardLinks: (noteId: string) => Promise<any[]>
     sync: (noteId: string, links: Array<{ targetId: string; context: string }>) => Promise<void>
   }
+  docLinks: {
+    getBacklinks: (docId: string) => Promise<any[]>
+    getForwardLinks: (noteId: string) => Promise<any[]>
+    sync: (noteId: string, links: Array<{ targetId: string; context: string }>) => Promise<void>
+  }
   attachments: {
     save: (noteId: string, fileName: string, data: ArrayBuffer) => Promise<string>
     getPath: (relativePath: string) => Promise<string>
@@ -88,7 +93,8 @@ interface ElectronAPI {
       title: string; parentId?: string; content?: string;
       hyperlink?: string; imageUrl?: string;
       color?: string; notes?: string;
-      shape?: string; styleOverrides?: string; positionX?: number; positionY?: number
+      shape?: string; styleOverrides?: string; positionX?: number; positionY?: number;
+      floating?: boolean
     }) => Promise<any>
     getNodes: (noteId: string) => Promise<any[]>
     findNodesByNoteId: (noteId: string) => Promise<Array<any & { mindmapTitle: string }>>
@@ -101,17 +107,35 @@ interface ElectronAPI {
     removeNode: (id: string) => Promise<void>
     addEdge: (noteId: string, input: { sourceId: string; targetId: string; label?: string }) => Promise<any>
     getEdges: (noteId: string) => Promise<any[]>
+    updateEdge: (id: string, updates: { label?: string; style?: string }) => Promise<any>
     removeEdge: (id: string) => Promise<void>
+    addBoundary: (mindmapId: string, input: { nodeIds: string[]; label?: string; color?: string }) => Promise<any>
+    getBoundaries: (mindmapId: string) => Promise<any[]>
+    updateBoundary: (id: string, updates: { label?: string; color?: string; nodeIds?: string[] }) => Promise<any>
+    removeBoundary: (id: string) => Promise<void>
+    addSummary: (mindmapId: string, input: { nodeIds: string[]; summaryTitle?: string }) => Promise<{ summary: any; summaryNode: any }>
+    getSummaries: (mindmapId: string) => Promise<any[]>
+    removeSummary: (id: string) => Promise<void>
   }
   graph: {
     getData: () => Promise<{ nodes: any[]; edges: any[] }>
   }
   plugins: {
     list: () => Promise<Array<{ id: string; name: string; version: string; description: string; enabled: boolean; path: string }>>
+    listAll: () => Promise<Array<{ id: string; name: string; version: string; description: string; enabled: boolean; path: string }>>
     loadAll: () => Promise<void>
     unload: (pluginId: string) => Promise<void>
+    enable: (pluginId: string) => Promise<void>
+    disable: (pluginId: string) => Promise<void>
     getCommands: () => Promise<Array<{ id: string; name: string; pluginId: string }>>
     runCommand: (commandId: string) => Promise<void>
+    getViews: () => Promise<Array<{ viewType: string; pluginId: string; displayText: string; icon?: string; singleton?: boolean }>>
+    rpc: (pluginId: string, method: string, args: any[]) => Promise<any>
+    getCssPath: (pluginId: string) => Promise<string | null>
+    getRendererPath: (pluginId: string) => Promise<string | null>
+    getRendererSource: (pluginId: string) => Promise<string | null>
+    getCssSource: (pluginId: string) => Promise<string | null>
+    onMessage: (channel: string, handler: (data: any) => void) => () => void
   }
   sync: {
     getConfig: () => Promise<{ type: 'webdav'; url: string; username: string; password: string; remotePath: string } | null>
@@ -132,6 +156,10 @@ interface ElectronAPI {
   }
   index: {
     rebuild: () => Promise<void>
+  }
+  noteRender: {
+    onRequest: (handler: (noteId: string, requestId: string) => void) => () => void
+    sendResult: (requestId: string, dataUrl: string | null) => void
   }
 }
 

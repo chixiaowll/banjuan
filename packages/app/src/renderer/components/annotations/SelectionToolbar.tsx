@@ -1,4 +1,5 @@
 import React from 'react'
+import { useT } from '../../i18n/index.js'
 
 const COLORS = [
   { name: 'yellow', value: '#fde68a' },
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export default function SelectionToolbar({ position, onHighlight, onNote, onDismiss }: Props) {
+  const t = useT()
   return (
     <>
       <div
@@ -64,7 +66,7 @@ export default function SelectionToolbar({ position, onHighlight, onNote, onDism
             padding: '2px 6px',
           }}
         >
-          批注
+          {t('selection.annotate')}
         </button>
       </div>
     </>

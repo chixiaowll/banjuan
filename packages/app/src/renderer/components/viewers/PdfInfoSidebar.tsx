@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { X, FileText } from 'lucide-react'
 import { usePdfViewer } from './PdfViewerContext.js'
+import { useT } from '../../i18n/index.js'
 
 interface DocInfo {
   id: string
@@ -12,9 +14,17 @@ interface DocInfo {
   updatedAt: string
 }
 
+interface BacklinkNote {
+  sourceId: string
+  noteTitle: string
+  context: string
+}
+
 interface Props {
   doc: DocInfo
   onDocUpdated: (doc: DocInfo) => void
+  onOpenNote?: (note: { id: string; title: string }) => void
+  width?: number
 }
 
 function EditableField({ label, value, readOnly, onSave }: {
@@ -66,9 +76,11 @@ function EditableField({ label, value, readOnly, onSave }: {
   )
 }
 
-export default function PdfInfoSidebar({ doc, onDocUpdated }: Props) {
+export default function PdfInfoSidebar({ doc, onDocUpdated, onOpenNote, width = 280 }: Props) {
+  const t = useT()
   const { rightSidebarOpen } = usePdfViewer()
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [backlinks, setBacklinks] = useState<BacklinkNote[]>([])
   const [metadata, setMetadata] = useState<Array<{ key: string; value: string }>>(
     Object.entries(doc.metadata).map(([k, v]) => ({ key: k, value: String(v) }))
   )
@@ -76,6 +88,25 @@ export default function PdfInfoSidebar({ doc, onDocUpdated }: Props) {
   useEffect(() => {
     setMetadata(Object.entries(doc.metadata).map(([k, v]) => ({ key: k, value: String(v) })))
   }, [doc.metadata])
+
+  const loadBacklinks = useCallback(() => {
+    window.electronAPI.docLinks.getBacklinks(doc.id).then(async (links: any[]) => {
+      const items: BacklinkNote[] = []
+      for (const link of links) {
+        const note = await window.electronAPI.notes.get(link.sourceId)
+        if (note) {
+          items.push({ sourceId: link.sourceId, noteTitle: note.title, context: link.context })
+        }
+      }
+      setBacklinks(items)
+    }).catch(() => {})
+  }, [doc.id])
+
+  useEffect(() => {
+    loadBacklinks()
+    document.addEventListener('doc-links-synced', loadBacklinks)
+    return () => document.removeEventListener('doc-links-synced', loadBacklinks)
+  }, [loadBacklinks])
 
   const saveDoc = useCallback((updates: { title?: string; authors?: string[]; metadata?: Record<string, unknown> }) => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -114,7 +145,7 @@ export default function PdfInfoSidebar({ doc, onDocUpdated }: Props) {
 
   return (
     <div style={{
-      width: 280, borderLeft: '1px solid var(--border)',
+      width, borderLeft: 'none',
       display: 'flex', flexDirection: 'column', flexShrink: 0,
       background: 'var(--bg)', overflow: 'auto',
     }}>
@@ -140,13 +171,48 @@ export default function PdfInfoSidebar({ doc, onDocUpdated }: Props) {
             <input value={entry.value} onChange={(e) => updateMetaRow(i, 'value', e.target.value)} placeholder="value"
               style={{ flex: 1, fontSize: 11, border: '1px solid var(--border)', borderRadius: 3, padding: '1px 4px', color: 'var(--text)' }} />
             <button onClick={() => removeMetaRow(i)}
-              style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 2px' }}>×</button>
+              style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 2px', display: 'flex', alignItems: 'center' }}><X size={14} /></button>
           </div>
         ))}
         <button onClick={addMetaRow}
           style={{ margin: '6px 12px', fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-          + 添加字段
+          {t('info.addField')}
         </button>
+      </div>
+      <div style={{ borderTop: '1px solid var(--border)', padding: '8px 0' }}>
+        <div style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
+          {t('pdf.references')}
+        </div>
+        {backlinks.length === 0 ? (
+          <div style={{ padding: '4px 12px', fontSize: 11, color: 'var(--text-muted)' }}>
+            {t('pdf.noReferences')}
+          </div>
+        ) : (
+          backlinks.map((bl) => (
+            <div
+              key={bl.sourceId}
+              onClick={() => onOpenNote?.({ id: bl.sourceId, title: bl.noteTitle })}
+              style={{
+                padding: '6px 12px', cursor: 'pointer', fontSize: 12,
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              <FileText size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {bl.noteTitle}
+                </div>
+                {bl.context && (
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {bl.context}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   )

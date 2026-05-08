@@ -1,8 +1,7 @@
 import type Database from 'better-sqlite3'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, unlinkSync } from 'node:fs'
 import { join, relative, isAbsolute } from 'node:path'
 import { createHash } from 'node:crypto'
-import { v4 as uuid } from 'uuid'
 import type { Document, DocumentListOptions, DocumentFileData } from '../types.js'
 import { detectDocumentType, extractTitle } from './metadata.js'
 import type { SearchService } from '../search/service.js'
@@ -45,24 +44,26 @@ export class DocumentService {
       throw new Error(`File already imported at path: ${relPath}`)
     }
 
+    const existing = this.findExistingByPath(relPath)
+
     const type = detectDocumentType(absPath)
-    const title = options?.title ?? extractTitle(absPath)
-    const id = uuid()
+    const title = options?.title ?? existing?.title ?? extractTitle(absPath)
+    const id = existing?.id ?? createHash('sha256').update(relPath).digest('hex').slice(0, 32)
     const now = new Date().toISOString()
-    const tags = options?.tags ?? []
+    const tags = options?.tags ?? existing?.tags ?? []
 
     const fileData: DocumentFileData = {
-      id, title, authors: [], path: relPath, type, hash,
-      tags, metadata: {}, createdAt: now, updatedAt: now,
+      id, title, authors: existing?.authors ?? [], path: relPath, type, hash,
+      tags, metadata: existing?.metadata ?? {}, createdAt: existing?.createdAt ?? now, updatedAt: now,
     }
     this.store.write(fileData)
 
     this.db
       .prepare(
         `INSERT INTO documents (id, title, authors, path, type, hash, metadata, created_at, updated_at)
-         VALUES (?, ?, '[]', ?, ?, ?, '{}', ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, title, relPath, type, hash, now, now)
+      .run(id, title, JSON.stringify(fileData.authors), relPath, type, hash, JSON.stringify(fileData.metadata), fileData.createdAt, fileData.updatedAt)
 
     this.search.index({ id, title, content: title, type: 'document' })
 
@@ -72,6 +73,13 @@ export class DocumentService {
     }
     this.events.emit('document:imported', { document: doc })
     return doc
+  }
+
+  private findExistingByPath(relPath: string): DocumentFileData | null {
+    for (const doc of this.store.listAll()) {
+      if (doc.path === relPath) return doc
+    }
+    return null
   }
 
   async list(options?: DocumentListOptions): Promise<Document[]> {
@@ -131,9 +139,25 @@ export class DocumentService {
     return { ...existing, title: newTitle, authors: newAuthors, metadata: newMetadata, updatedAt: now }
   }
 
+  purgeOrphanMetadata(diskFiles: Set<string>): number {
+    let removed = 0
+    for (const meta of this.store.listAll()) {
+      if (!diskFiles.has(meta.path)) {
+        this.store.delete(meta.id)
+        removed++
+      }
+    }
+    return removed
+  }
+
   async delete(id: string): Promise<void> {
     const doc = await this.get(id)
     if (!doc) return
+
+    const absPath = join(this.rootPath, doc.path)
+    if (existsSync(absPath)) {
+      unlinkSync(absPath)
+    }
 
     this.store.delete(id)
     this.search.removeById(id)

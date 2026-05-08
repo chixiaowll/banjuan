@@ -7,8 +7,10 @@ import { AnnotationEmbed } from './blocks/AnnotationEmbed.js'
 import { DocumentEmbed } from './blocks/DocumentEmbed.js'
 import { NoteEmbed } from './blocks/NoteEmbed.js'
 import { NoteLink } from './blocks/NoteLink.js'
+import { DocumentLink } from './blocks/DocumentLink.js'
 import { FileEmbed } from './blocks/FileEmbed.js'
 import { MermaidBlock } from './blocks/MermaidBlock.js'
+import { renderAllStrokes } from '../handwriting/renderStrokes.js'
 import '@blocknote/mantine/style.css'
 import './BlockEditor.css'
 
@@ -44,6 +46,7 @@ const schema = BlockNoteSchema.create({
   inlineContentSpecs: {
     ...defaultInlineContentSpecs,
     noteLink: NoteLink,
+    documentLink: DocumentLink,
   },
 })
 
@@ -64,6 +67,7 @@ interface Props {
   onChange: (json: string) => void
   readOnly?: boolean
   skipLinkSync?: boolean
+  autoParseMarkdown?: boolean
   onOpenNote?: (note: NoteItem) => void
   onHeadingsChange?: (headings: HeadingItem[]) => void
 }
@@ -93,6 +97,26 @@ function extractNoteLinks(blocks: any[]): Array<{ targetId: string; context: str
     }
     if (node.type === 'noteEmbed' && node.props?.noteId) {
       links.push({ targetId: node.props.noteId, context: node.props.noteTitle || '' })
+    }
+    if (Array.isArray(node.content)) node.content.forEach(walk)
+    if (Array.isArray(node.children)) node.children.forEach(walk)
+  }
+  blocks.forEach(walk)
+  return links
+}
+
+function extractDocumentLinks(blocks: any[]): Array<{ targetId: string; context: string }> {
+  const links: Array<{ targetId: string; context: string }> = []
+  const walk = (node: any) => {
+    if (!node) return
+    if (node.type === 'documentLink' && node.props?.docId) {
+      const text = Array.isArray(node.content)
+        ? node.content.map((c: any) => (typeof c === 'string' ? c : c.text || '')).join('')
+        : ''
+      links.push({ targetId: node.props.docId, context: text })
+    }
+    if (node.type === 'documentEmbed' && node.props?.docId) {
+      links.push({ targetId: node.props.docId, context: node.props.docTitle || '' })
     }
     if (Array.isArray(node.content)) node.content.forEach(walk)
     if (Array.isArray(node.children)) node.children.forEach(walk)
@@ -176,14 +200,42 @@ async function screenshotMindmapEmbed(noteId: string): Promise<string | null> {
   })
 }
 
+async function screenshotHandwritingEmbed(noteId: string, pageIndex?: number): Promise<string | null> {
+  try {
+    const note = await window.electronAPI.notes.get(noteId)
+    if (!note || note.type !== 'handwriting') return null
+    const parsed = JSON.parse(note.content)
+    const pages = parsed.pages ?? []
+    if (pages.length === 0) return null
+    const pi = pageIndex != null && pageIndex >= 0 && pageIndex < pages.length ? pageIndex : 0
+    const page = pages[pi]
+    const typeMeta = note.typeMeta ?? {}
+    const pageSize = (typeMeta as any).pageSize ?? { width: 1024, height: 768 }
+    const dpr = 2
+    const canvas = document.createElement('canvas')
+    canvas.width = pageSize.width * dpr
+    canvas.height = pageSize.height * dpr
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.scale(dpr, dpr)
+    renderAllStrokes(ctx, page.snapshot?.strokes ?? [], pageSize.width, pageSize.height)
+    return canvas.toDataURL('image/png')
+  } catch {
+    return null
+  }
+}
+
 async function uploadFile(noteId: string, file: File): Promise<{ relativePath: string; isImage: boolean }> {
   const buffer = await file.arrayBuffer()
   const relativePath = await window.electronAPI.attachments.save(noteId, file.name, buffer)
   return { relativePath, isImage: IMAGE_TYPES.has(file.type) }
 }
 
-const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ noteId, initialContent, onChange, readOnly, skipLinkSync, onOpenNote, onHeadingsChange }, ref) {
+const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ noteId, initialContent, onChange, readOnly, skipLinkSync, autoParseMarkdown, onOpenNote, onHeadingsChange }, ref) {
   const [allNotes, setAllNotes] = useState<NoteItem[]>([])
+  const [allDocs, setAllDocs] = useState<Array<{ id: string; title: string }>>([])
   const onOpenNoteRef = useRef(onOpenNote)
   const allNotesRef = useRef(allNotes)
   const editorRef = useRef<any>(null)
@@ -200,6 +252,9 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     window.electronAPI.notes.list().then((notes: any[]) => {
       setAllNotes(notes.map((n: any) => ({ id: n.id, title: n.title })))
     })
+    window.electronAPI.documents.list().then((docs: any[]) => {
+      setAllDocs(docs.map((d: any) => ({ id: d.id, title: d.title })))
+    })
   }, [])
 
   useEffect(() => {
@@ -207,19 +262,33 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       const noteId = (e as CustomEvent).detail?.noteId
       if (noteId) openNoteById(noteId)
     }
+    const docHandler = (e: Event) => {
+      const docId = (e as CustomEvent).detail?.docId
+      if (docId) {
+        document.dispatchEvent(new CustomEvent('banjuan:open-document', { detail: { docId } }))
+      }
+    }
     document.addEventListener('note-link-click', handler)
-    return () => document.removeEventListener('note-link-click', handler)
+    document.addEventListener('document-link-click', docHandler)
+    return () => {
+      document.removeEventListener('note-link-click', handler)
+      document.removeEventListener('document-link-click', docHandler)
+    }
   }, [openNoteById])
 
-  const parsedContent = useMemo(() => {
-    if (!initialContent) return undefined
+  const { parsedContent, rawMarkdown } = useMemo(() => {
+    if (!initialContent) return { parsedContent: undefined, rawMarkdown: null }
     try {
       const blocks = JSON.parse(initialContent)
-      return Array.isArray(blocks) && blocks.length > 0 ? blocks : undefined
+      if (Array.isArray(blocks) && blocks.length > 0) return { parsedContent: blocks, rawMarkdown: null }
+      return { parsedContent: undefined, rawMarkdown: null }
     } catch {
-      return undefined
+      if (autoParseMarkdown && initialContent.trim()) {
+        return { parsedContent: undefined, rawMarkdown: initialContent }
+      }
+      return { parsedContent: undefined, rawMarkdown: null }
     }
-  }, [initialContent])
+  }, [initialContent, autoParseMarkdown])
 
   const handleUploadFile = useCallback(async (file: File): Promise<string> => {
     if (!noteId) return ''
@@ -248,6 +317,18 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     uploadFile: handleUploadFile,
   })
   editorRef.current = editor
+
+  const markdownParsedRef = useRef(false)
+  useEffect(() => {
+    if (!rawMarkdown || markdownParsedRef.current) return
+    markdownParsedRef.current = true
+    ;(async () => {
+      try {
+        const blocks = await (editor as any).tryParseMarkdownToBlocks(rawMarkdown)
+        editor.replaceBlocks(editor.document, blocks)
+      } catch {}
+    })()
+  }, [editor, rawMarkdown])
 
   useImperativeHandle(ref, () => ({
     exportMarkdown: async () => {
@@ -285,6 +366,14 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
                 } else {
                   const nodes = await window.electronAPI.mindmaps.getNodes(p.noteId)
                   segments.push(renderMindmapTreeMd(noteTitle, nodes))
+                }
+              } else if (note?.type === 'handwriting') {
+                const pi = p.pageIndex !== '' && p.pageIndex != null ? parseInt(p.pageIndex, 10) : undefined
+                const imgDataUrl = await screenshotHandwritingEmbed(p.noteId, pi)
+                if (imgDataUrl) {
+                  segments.push(`✏️ **${noteTitle}**\n\n![${noteTitle}](${imgDataUrl})`)
+                } else {
+                  segments.push(`> ✏️ **${noteTitle}**`)
                 }
               } else {
                 segments.push(`> 📝 **${noteTitle}**`)
@@ -365,6 +454,14 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
                 } else {
                   const nodes = await window.electronAPI.mindmaps.getNodes(p.noteId)
                   segments.push(renderMindmapTreeHtml(noteTitle, nodes))
+                }
+              } else if (note?.type === 'handwriting') {
+                const pi = p.pageIndex !== '' && p.pageIndex != null ? parseInt(p.pageIndex, 10) : undefined
+                const imgDataUrl = await screenshotHandwritingEmbed(p.noteId, pi)
+                if (imgDataUrl) {
+                  segments.push(`<div class="handwriting-export"><p>✏️ <strong>${noteTitle}</strong></p><img src="${imgDataUrl}" style="max-width:100%" /></div>`)
+                } else {
+                  segments.push(`<blockquote><p>✏️ <strong>${noteTitle}</strong></p></blockquote>`)
                 }
               } else {
                 segments.push(`<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`)
@@ -466,6 +563,10 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
         window.electronAPI.noteLinks.sync(noteId, links).then(() => {
           document.dispatchEvent(new Event('note-links-synced'))
         })
+        const docLinks = extractDocumentLinks(parsedContent)
+        window.electronAPI.docLinks.sync(noteId, docLinks).then(() => {
+          document.dispatchEvent(new Event('doc-links-synced'))
+        })
       }
       onHeadingsChange?.(extractHeadings(parsedContent))
     }
@@ -480,6 +581,8 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       window.electronAPI.noteLinks.sync(noteId, links).then(() => {
         document.dispatchEvent(new Event('note-links-synced'))
       })
+      const docLinks = extractDocumentLinks(blocks)
+      window.electronAPI.docLinks.sync(noteId, docLinks)
     }
     const currentAttachments = extractAttachmentPaths(blocks)
     for (const path of prevAttachmentsRef.current) {
@@ -492,25 +595,38 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   }, [editor, onChange, noteId, onHeadingsChange])
 
   const getNoteLinkItems = useCallback(async (query: string) => {
-    return filterSuggestionItems(
-      allNotes.map(note => ({
-        title: note.title,
-        aliases: [] as string[],
-        group: 'Notes',
-        onItemClick: () => {
-          editor.insertInlineContent([
-            {
-              type: 'noteLink' as any,
-              props: { noteId: note.id },
-              content: note.title,
-            },
-            ' ',
-          ])
-        },
-      })),
-      query,
-    )
-  }, [allNotes, editor])
+    const noteItems = allNotes.map(note => ({
+      title: note.title,
+      aliases: [] as string[],
+      group: 'Notes',
+      onItemClick: () => {
+        editor.insertInlineContent([
+          {
+            type: 'noteLink' as any,
+            props: { noteId: note.id },
+            content: note.title,
+          },
+          ' ',
+        ])
+      },
+    }))
+    const docItems = allDocs.map(doc => ({
+      title: doc.title,
+      aliases: [] as string[],
+      group: 'Documents',
+      onItemClick: () => {
+        editor.insertInlineContent([
+          {
+            type: 'documentLink' as any,
+            props: { docId: doc.id },
+            content: doc.title,
+          },
+          ' ',
+        ])
+      },
+    }))
+    return filterSuggestionItems([...noteItems, ...docItems], query)
+  }, [allNotes, allDocs, editor])
 
   const getNoteEmbedItems = useCallback(async (query: string) => {
     return filterSuggestionItems(

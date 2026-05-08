@@ -1,135 +1,278 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import ePub, { Book, Rendition, NavItem } from 'epubjs'
+import { EpubViewerProvider, useEpubViewer, type EpubFlowMode } from './EpubViewerContext.js'
+import EpubToolbar from './EpubToolbar.js'
+import EpubLeftSidebar from './EpubLeftSidebar.js'
+import EpubInfoSidebar from './EpubInfoSidebar.js'
+import EpubContentArea from './EpubContentArea.js'
+import EpubSearchPopup from './EpubSearchPopup.js'
+import { useAnnotations } from '../../hooks/useAnnotations.js'
+import { useT } from '../../i18n/index.js'
+import { useResizable, ResizeHandle } from '../ResizeHandle.js'
 
-interface Props {
-  filePath: string
+interface DocInfo {
+  id: string
+  title: string
+  authors: string[]
+  type: string
+  path: string
+  metadata: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
 }
 
-export default function EpubViewer({ filePath }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null)
+interface Props {
+  data: ArrayBuffer
+  doc: DocInfo
+  onOpenNote?: (note: any) => void
+}
+
+function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuffer; doc: DocInfo; onOpenNote?: (note: any) => void }) {
+  const t = useT()
+  const ctx = useEpubViewer()
+  const leftResize = useResizable(240, 160, 480, 'left')
+  const rightResize = useResizable(280, 200, 600, 'right')
+  const { annotations, create, update, remove, reload } = useAnnotations(initialDoc.id)
+  const [doc, setDoc] = useState<DocInfo>(initialDoc)
+
   const bookRef = useRef<Book | null>(null)
-  const renditionRef = useRef<Rendition | null>(null)
-  const [toc, setToc] = useState<NavItem[]>([])
-  const [showToc, setShowToc] = useState(false)
-  const [fontSize, setFontSize] = useState(100)
-  const [currentChapter, setCurrentChapter] = useState('')
+  const flowModeRef = useRef<EpubFlowMode>(ctx.flowMode)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rafRef = useRef<number>(0)
+  const docRef = useRef(initialDoc)
+
+  useEffect(() => { docRef.current = doc }, [doc])
+  useEffect(() => {
+    flowModeRef.current = ctx.flowMode
+  }, [ctx.flowMode])
+
+  const saveReadingPosition = useCallback((cfi: string, percentage: number) => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      const d = docRef.current
+      window.electronAPI.documents.update(d.id, {
+        metadata: { ...d.metadata, readingPosition: { cfi, percentage } },
+      }).catch(() => {})
+    }, 1000)
+  }, [])
 
   useEffect(() => {
-    if (!containerRef.current) return
+    let cancelled = false
 
-    const book = ePub(`file://${filePath}`)
-    bookRef.current = book
+    // Fetch latest metadata first (async), then init epub.js synchronously in RAF
+    window.electronAPI.documents.get(docRef.current.id).then((freshDoc: any) => {
+      if (!cancelled && freshDoc?.metadata) {
+        docRef.current = { ...docRef.current, metadata: freshDoc.metadata }
+        setDoc(prev => ({ ...prev, metadata: freshDoc.metadata }))
+      }
+    }).catch(() => {}).finally(() => {
+      if (cancelled) return
 
-    const rendition = book.renderTo(containerRef.current, {
-      width: '100%',
-      height: '100%',
-      spread: 'none',
-    })
-    renditionRef.current = rendition
+      const raf = requestAnimationFrame(() => {
+        if (cancelled) return
+        const container = document.querySelector('[data-epub-container]') as HTMLElement | null
+        if (!container) return
 
-    rendition.themes.fontSize(`${fontSize}%`)
-    rendition.display()
+        container.innerHTML = ''
 
-    book.loaded.navigation.then((nav) => {
-      setToc(nav.toc)
-    })
+        if (bookRef.current) {
+          bookRef.current.destroy()
+          bookRef.current = null
+        }
 
-    rendition.on('relocated', (location: { start: { href: string } }) => {
-      setCurrentChapter(location.start.href)
+        const epubBook = ePub(data as any)
+        bookRef.current = epubBook
+
+        const isScrolled = flowModeRef.current === 'scrolled'
+        const rend = epubBook.renderTo(container, {
+          width: '100%',
+          height: '100%',
+          spread: 'none',
+          flow: (isScrolled ? 'scrolled-doc' : 'paginated') as any,
+          manager: (isScrolled ? 'continuous' : 'default') as any,
+        })
+
+        rend.themes.default({
+          'body': {
+            'max-width': '720px !important',
+            'margin': '0 auto !important',
+            'padding': '20px 40px !important',
+            'line-height': '1.8 !important',
+            'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important',
+          },
+          'p': {
+            'margin-bottom': '0.8em !important',
+            'text-align': 'justify !important',
+          },
+          'h1, h2, h3, h4, h5, h6': {
+            'margin-top': '1.5em !important',
+            'margin-bottom': '0.5em !important',
+          },
+        })
+
+        ctx.setRendition(rend)
+        ctx.setBook(epubBook)
+
+        const savedPosition = (docRef.current.metadata?.readingPosition as any)?.cfi
+        rend.display(savedPosition || undefined)
+
+        epubBook.loaded.navigation.then((nav) => {
+          if (!cancelled) ctx.setToc(nav.toc)
+        })
+
+        epubBook.ready.then(() => {
+          return epubBook.locations.generate(1024)
+        }).then(() => {
+          if (!cancelled) {
+            ctx.setTotalLocations(epubBook.locations.length())
+            const current = rend.currentLocation() as any
+            if (current?.start?.location != null) {
+              ctx.setCurrentLocation(current.start.location)
+            }
+            if (current?.start?.percentage != null) {
+              ctx.setPercentage(Math.round(current.start.percentage * 100))
+            }
+          }
+        })
+
+        rend.on('relocated', (location: any) => {
+          if (cancelled) return
+          ctx.setCurrentHref(location.start.href)
+          if (location.start.location != null) {
+            ctx.setCurrentLocation(location.start.location)
+          }
+          const pct = location.start.percentage != null
+            ? Math.round(location.start.percentage * 100) : 0
+          ctx.setPercentage(pct)
+
+          const cfi = location.start.cfi
+          if (cfi) saveReadingPosition(cfi, pct)
+        })
+
+        rafRef.current = 0
+      })
+      rafRef.current = raf
     })
 
     return () => {
-      book.destroy()
-      bookRef.current = null
-      renditionRef.current = null
+      cancelled = true
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      if (bookRef.current) {
+        bookRef.current.destroy()
+        bookRef.current = null
+      }
+      ctx.setBook(null)
+      ctx.setRendition(null)
+      ctx.setToc([])
+      ctx.setCurrentHref('')
+      ctx.setCurrentLocation(0)
+      ctx.setTotalLocations(0)
+      ctx.setPercentage(0)
     }
-  }, [filePath])
+  }, [data, ctx.flowMode])
 
-  useEffect(() => {
-    if (renditionRef.current) {
-      renditionRef.current.themes.fontSize(`${fontSize}%`)
+  const handleHighlightCreated = useCallback(async (cfiRange: string, text: string) => {
+    await create({
+      type: 'highlight',
+      page: ctx.currentLocation,
+      position: { type: 'epub', cfi: cfiRange, text },
+      selectedText: text,
+      color: ctx.activeColor,
+    })
+  }, [create, ctx.activeColor, ctx.currentLocation])
+
+  const handleNoteCreated = useCallback(async (cfiRange: string, text: string, noteContent: string) => {
+    await create({
+      type: 'note',
+      page: ctx.currentLocation,
+      position: { type: 'epub', cfi: cfiRange, text },
+      selectedText: text,
+      content: noteContent,
+      color: ctx.activeColor,
+    })
+  }, [create, ctx.activeColor, ctx.currentLocation])
+
+  const handleAnnotationClick = useCallback(async (cfi: string) => {
+    if (!ctx.rendition) return
+    await ctx.rendition.display(cfi)
+  }, [ctx.rendition])
+
+  const handleAnnotationDelete = useCallback(async (id: string) => {
+    const ann = annotations.find(a => a.id === id)
+    if (ann?.position?.cfi && ctx.rendition) {
+      try { ctx.rendition.annotations.remove(ann.position.cfi, 'highlight') } catch {}
     }
-  }, [fontSize])
+    await remove(id)
+  }, [remove, annotations, ctx.rendition])
 
-  const goPrev = () => renditionRef.current?.prev()
-  const goNext = () => renditionRef.current?.next()
+  const handleAnnotationUpdate = useCallback(async (id: string, updates: any) => {
+    await update(id, updates)
+  }, [update])
 
-  const goToChapter = (href: string) => {
-    renditionRef.current?.display(href)
-    setShowToc(false)
-  }
+  const handleCreateNote = useCallback(async () => {
+    let title = t('note.defaultTitle' as any, doc.title)
+    let note: any
+    for (let i = 0; i < 100; i++) {
+      try {
+        note = await window.electronAPI.notes.create({
+          title: i === 0 ? title : `${title} (${i + 1})`,
+          docId: doc.id,
+          content: '',
+        })
+        break
+      } catch (err: any) {
+        if (!err?.message?.includes('DUPLICATE_TITLE')) throw err
+      }
+    }
+    if (note) onOpenNote?.(note)
+  }, [doc, onOpenNote, t])
 
-  const buttonStyle: React.CSSProperties = {
-    background: 'var(--surface, #333)',
-    color: 'var(--text, #eee)',
-    border: '1px solid var(--border, #555)',
-    borderRadius: 4,
-    padding: '4px 10px',
-    cursor: 'pointer',
-    fontSize: 13,
-  }
+  const handleOpenNote = useCallback((note: any) => {
+    onOpenNote?.(note)
+  }, [onOpenNote])
+
+  const handleDocUpdated = useCallback((updated: DocInfo) => {
+    setDoc(updated)
+  }, [])
 
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
-      {/* TOC sidebar */}
-      {showToc && (
-        <div style={{
-          width: 260,
-          borderRight: '1px solid var(--border)',
-          overflow: 'auto',
-          background: 'var(--surface)',
-          flexShrink: 0,
-          padding: '8px 0',
-        }}>
-          <div style={{ padding: '4px 12px 8px', fontWeight: 600, fontSize: 14 }}>
-            Table of Contents
-          </div>
-          {toc.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => goToChapter(item.href)}
-              style={{
-                padding: '6px 12px',
-                cursor: 'pointer',
-                fontSize: 13,
-                background: currentChapter.includes(item.href) ? 'var(--border)' : 'transparent',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {item.label.trim()}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {/* Toolbar */}
-        <div style={{
-          padding: '8px 16px',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex',
-          gap: '8px',
-          alignItems: 'center',
-          flexShrink: 0,
-        }}>
-          <button style={buttonStyle} onClick={() => setShowToc(s => !s)}>
-            {showToc ? '✕ TOC' : '☰ TOC'}
-          </button>
-          <button style={buttonStyle} onClick={goPrev}>← Prev</button>
-          <button style={buttonStyle} onClick={goNext}>Next →</button>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', alignItems: 'center' }}>
-            <button style={buttonStyle} onClick={() => setFontSize(s => Math.max(50, s - 10))}>A−</button>
-            <span style={{ fontSize: 12, minWidth: 36, textAlign: 'center' }}>{fontSize}%</span>
-            <button style={buttonStyle} onClick={() => setFontSize(s => Math.min(200, s + 10))}>A+</button>
-          </div>
-        </div>
-
-        {/* EPUB render area */}
-        <div ref={containerRef} style={{ flex: 1, overflow: 'hidden' }} />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <EpubToolbar docId={doc.id} metadata={doc.metadata} />
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        <EpubLeftSidebar
+          docId={doc.id}
+          annotations={annotations}
+          onAnnotationClick={handleAnnotationClick}
+          onAnnotationDelete={handleAnnotationDelete}
+          onAnnotationUpdate={handleAnnotationUpdate}
+          onOpenNote={handleOpenNote}
+          onCreateNote={handleCreateNote}
+          width={leftResize.width}
+        />
+        {ctx.leftSidebarOpen && <ResizeHandle onMouseDown={leftResize.onMouseDown} />}
+        <EpubContentArea
+          annotations={annotations}
+          docId={doc.id}
+          onHighlightCreated={handleHighlightCreated}
+          onNoteCreated={handleNoteCreated}
+        />
+        {ctx.rightSidebarOpen && <ResizeHandle onMouseDown={rightResize.onMouseDown} />}
+        <EpubInfoSidebar
+          doc={doc}
+          onDocUpdated={handleDocUpdated}
+          width={rightResize.width}
+        />
+        <EpubSearchPopup />
       </div>
     </div>
+  )
+}
+
+export default function EpubViewer({ data, doc, onOpenNote }: Props) {
+  return (
+    <EpubViewerProvider>
+      <EpubViewerInner data={data} doc={doc} onOpenNote={onOpenNote} />
+    </EpubViewerProvider>
   )
 }
