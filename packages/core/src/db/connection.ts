@@ -1,7 +1,5 @@
-import Database from 'better-sqlite3'
+import type { PlatformDatabase, DatabaseFactory } from '../platform/index.js'
 
-export function createConnection(dbPath: string): Database.Database {
-  const db = new Database(dbPath)
-  db.pragma('journal_mode = WAL')
-  return db
+export async function createConnection(dbPath: string, factory: DatabaseFactory): Promise<PlatformDatabase> {
+  return factory.open(dbPath)
 }
