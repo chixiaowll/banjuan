@@ -1,22 +1,25 @@
-import { EventEmitter } from 'node:events'
 import type { BanjuanEventMap, BanjuanEvent } from '../types.js'
 
 export class EventBus {
-  private emitter = new EventEmitter()
+  private listeners = new Map<string, Set<Function>>()
 
   emit<E extends BanjuanEvent>(event: E, data: BanjuanEventMap[E]): void {
-    this.emitter.emit(event, data)
+    const handlers = this.listeners.get(event)
+    if (handlers) {
+      for (const handler of handlers) handler(data)
+    }
   }
 
   on<E extends BanjuanEvent>(event: E, handler: (data: BanjuanEventMap[E]) => void): void {
-    this.emitter.on(event, handler)
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set())
+    this.listeners.get(event)!.add(handler)
   }
 
   off<E extends BanjuanEvent>(event: E, handler: (data: BanjuanEventMap[E]) => void): void {
-    this.emitter.off(event, handler)
+    this.listeners.get(event)?.delete(handler)
   }
 
   removeAllListeners(): void {
-    this.emitter.removeAllListeners()
+    this.listeners.clear()
   }
 }
