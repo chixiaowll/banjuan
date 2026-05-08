@@ -6,43 +6,43 @@ export function useResizable(initialWidth: number, minWidth: number, maxWidth: n
   const startX = useRef(0)
   const startWidth = useRef(0)
 
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
     dragging.current = true
     startX.current = e.clientX
     startWidth.current = width
 
-    const onMouseMove = (ev: MouseEvent) => {
+    const onPointerMove = (ev: PointerEvent) => {
       if (!dragging.current) return
       const delta = side === 'left' ? ev.clientX - startX.current : startX.current - ev.clientX
       const newWidth = Math.min(maxWidth, Math.max(minWidth, startWidth.current + delta))
       setWidth(newWidth)
     }
 
-    const onMouseUp = () => {
+    const onPointerUp = () => {
       dragging.current = false
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
+      document.removeEventListener('pointermove', onPointerMove)
+      document.removeEventListener('pointerup', onPointerUp)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
 
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
+    document.addEventListener('pointermove', onPointerMove)
+    document.addEventListener('pointerup', onPointerUp)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
   }, [width, minWidth, maxWidth, side])
 
-  return { width, onMouseDown }
+  return { width, onPointerDown }
 }
 
-export function ResizeHandle({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) {
+export function ResizeHandle({ onPointerDown }: { onPointerDown: (e: React.PointerEvent) => void }) {
   const [hovered, setHovered] = useState(false)
   return (
     <div
-      onMouseDown={onMouseDown}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onPointerDown={onPointerDown}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
       style={{
         width: 1, flexShrink: 0, cursor: 'col-resize',
         background: hovered ? 'var(--accent)' : 'var(--border)',

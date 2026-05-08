@@ -534,7 +534,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             </div>
           </div>
         </div>
-        <ResizeHandle onMouseDown={leftResize.onMouseDown} />
+        <ResizeHandle onPointerDown={leftResize.onPointerDown} />
         <SyncConfigPanel onClose={() => { setShowSync(false); loadDocuments() }} />
       </div>
     )
@@ -717,7 +717,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         </div>
       </div>
 
-      <ResizeHandle onMouseDown={leftResize.onMouseDown} />
+      <ResizeHandle onPointerDown={leftResize.onPointerDown} />
 
       {/* Center Panel */}
       <div style={centerStyle}>
@@ -923,7 +923,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
       {/* Right Detail Panel */}
       {selectedItemId && selectedSection === 'documents' && selectedItemDetail && (
         <>
-        <ResizeHandle onMouseDown={rightResize.onMouseDown} />
+        <ResizeHandle onPointerDown={rightResize.onPointerDown} />
         <div style={detailPanelStyle}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>{t('detail.title')}</div>
           <DetailField label={t('detail.docTitle')} value={selectedItemDetail.title} />
@@ -965,7 +965,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
       {selectedItemId && selectedSection !== 'documents' && selectedSection !== 'plugins' && selectedSection !== 'settings' && (
         <>
-        <ResizeHandle onMouseDown={rightResize.onMouseDown} />
+        <ResizeHandle onPointerDown={rightResize.onPointerDown} />
         <div style={detailPanelStyle}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>{t('detail.title')}</div>
           {(() => {

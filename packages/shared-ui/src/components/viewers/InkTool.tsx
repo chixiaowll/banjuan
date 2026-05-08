@@ -38,7 +38,7 @@ export default function InkTool({ active, color, lineWidth, pageNum, docId, exis
   const [drawing, setDrawing] = useState(false)
   const currentPointsRef = useRef<StrokePoint[]>([])
 
-  const getRelativePos = (e: React.MouseEvent): { x: number; y: number } => {
+  const getRelativePos = (e: React.PointerEvent): { x: number; y: number } => {
     const rect = containerRef.current!.getBoundingClientRect()
     return { x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height }
   }
@@ -59,7 +59,7 @@ export default function InkTool({ active, color, lineWidth, pageNum, docId, exis
 
   useEffect(() => { redraw() }, [redraw])
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (!active) return
     e.preventDefault()
     setDrawing(true)
@@ -67,7 +67,7 @@ export default function InkTool({ active, color, lineWidth, pageNum, docId, exis
     currentPointsRef.current = [pos]
   }, [active])
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!drawing) return
     const pos = getRelativePos(e)
     currentPointsRef.current.push(pos)
@@ -95,7 +95,7 @@ export default function InkTool({ active, color, lineWidth, pageNum, docId, exis
     renderStroke(ctx, liveStroke)
   }, [drawing, color, lineWidth, existingStrokes])
 
-  const handleMouseUp = useCallback(async () => {
+  const handlePointerUp = useCallback(async () => {
     if (!drawing) return
     setDrawing(false)
     const points = currentPointsRef.current
@@ -121,9 +121,10 @@ export default function InkTool({ active, color, lineWidth, pageNum, docId, exis
   }, [drawing, docId, pageNum, color, lineWidth, onCreated, existingStrokes, existingAnnotationId])
 
   return (
-    <div ref={containerRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
+    <div ref={containerRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}
       style={{ position: 'absolute', inset: 0, cursor: active ? 'crosshair' : 'default',
         pointerEvents: active ? 'auto' : 'none', zIndex: active ? 10 : 2,
+        touchAction: 'none',
         display: active || existingStrokes.length > 0 ? undefined : 'none' }}>
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} />
     </div>

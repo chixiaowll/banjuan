@@ -172,7 +172,7 @@ export default function NodeShell({ id, data, selected, icon, accentColor, child
             onChange={e => setEditValue(e.target.value)}
             onKeyDown={handleEditKeyDown}
             onBlur={handleEditBlur}
-            onMouseDown={e => e.stopPropagation()}
+            onPointerDown={e => e.stopPropagation()}
             onClick={e => e.stopPropagation()}
             style={{
               border: 'none', outline: 'none', background: 'transparent',

@@ -252,14 +252,14 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
           onCreateNote={handleCreateNote}
           width={leftResize.width}
         />
-        {ctx.leftSidebarOpen && <ResizeHandle onMouseDown={leftResize.onMouseDown} />}
+        {ctx.leftSidebarOpen && <ResizeHandle onPointerDown={leftResize.onPointerDown} />}
         <EpubContentArea
           annotations={annotations}
           docId={doc.id}
           onHighlightCreated={handleHighlightCreated}
           onNoteCreated={handleNoteCreated}
         />
-        {ctx.rightSidebarOpen && <ResizeHandle onMouseDown={rightResize.onMouseDown} />}
+        {ctx.rightSidebarOpen && <ResizeHandle onPointerDown={rightResize.onPointerDown} />}
         <EpubInfoSidebar
           doc={doc}
           onDocUpdated={handleDocUpdated}

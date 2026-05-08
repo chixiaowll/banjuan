@@ -54,7 +54,7 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
     }
   }, [])
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, tab: Tab) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent, tab: Tab) => {
     if (!onReorderTabs) return
     if ((e.target as HTMLElement).closest('.title-bar-tab-close')) return
     e.preventDefault()
@@ -62,7 +62,7 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
     const order = tabs.map(t => t.id)
     setDragState({ tabId: tab.id, startX: e.clientX, offsetX: 0, order })
 
-    const handleMouseMove = (ev: MouseEvent) => {
+    const handlePointerMove = (ev: PointerEvent) => {
       const dx = ev.clientX - e.clientX
       setDragState(prev => {
         if (!prev) return null
@@ -95,9 +95,9 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
       })
     }
 
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
+    const handlePointerUp = () => {
+      document.removeEventListener('pointermove', handlePointerMove)
+      document.removeEventListener('pointerup', handlePointerUp)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
       setDragState(prev => {
@@ -113,8 +113,8 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
 
     document.body.style.cursor = 'grabbing'
     document.body.style.userSelect = 'none'
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('pointermove', handlePointerMove)
+    document.addEventListener('pointerup', handlePointerUp)
   }, [tabs, onReorderTabs, measureTabs])
 
   const getTabStyle = (tab: Tab): React.CSSProperties => {
@@ -161,7 +161,7 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
             className={`title-bar-tab ${tab.id === activeTabId ? 'active' : ''}`}
             title={tab.title}
             onClick={() => { if (!dragState) onSelectTab(tab.id) }}
-            onMouseDown={(e) => handleMouseDown(e, tab)}
+            onPointerDown={(e) => handlePointerDown(e, tab)}
             style={{
               cursor: dragState?.tabId === tab.id ? 'grabbing' : 'grab',
               ...getTabStyle(tab),
