@@ -1,6 +1,6 @@
-import type Database from 'better-sqlite3'
-import { watch, type FSWatcher, readFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import type { PlatformDatabase, PlatformFS } from '../platform/index.js'
+import { watch, type FSWatcher } from 'node:fs'
+import { join } from '../platform/path.js'
 import { JsonStore } from '../storage/json-store.js'
 import { parseFrontmatter } from '../storage/frontmatter.js'
 import type { DocumentFileData, AnnotationFileData, MindmapFileData, NoteFileData } from '../types.js'
@@ -12,19 +12,19 @@ export class FileWatcher {
   private annStore: JsonStore<AnnotationFileData>
   private mmStore: JsonStore<MindmapFileData>
 
-  constructor(private db: Database.Database, private rootPath: string) {
+  constructor(private db: PlatformDatabase, private rootPath: string, private fs: PlatformFS) {
     const banjuanDir = join(rootPath, '.banjuan')
-    this.docStore = new JsonStore(join(banjuanDir, 'data', 'documents'))
-    this.annStore = new JsonStore(join(banjuanDir, 'data', 'annotations'))
-    this.mmStore = new JsonStore(join(banjuanDir, 'data', 'mindmaps'))
+    this.docStore = new JsonStore(join(banjuanDir, 'data', 'documents'), fs)
+    this.annStore = new JsonStore(join(banjuanDir, 'data', 'annotations'), fs)
+    this.mmStore = new JsonStore(join(banjuanDir, 'data', 'mindmaps'), fs)
   }
 
-  start(): void {
+  async start(): Promise<void> {
     const dataDir = join(this.rootPath, '.banjuan', 'data')
     const notesDir = join(this.rootPath, '.banjuan', 'notes')
 
-    const watchDir = (dir: string) => {
-      if (!existsSync(dir)) return
+    const watchDir = async (dir: string) => {
+      if (!(await this.fs.exists(dir))) return
       try {
         const watcher = watch(dir, { recursive: true }, (_event, filename) => {
           if (filename) this.handleChange(dir, filename)
@@ -35,8 +35,8 @@ export class FileWatcher {
       }
     }
 
-    watchDir(dataDir)
-    watchDir(notesDir)
+    await watchDir(dataDir)
+    await watchDir(notesDir)
   }
 
   stop(): void {
@@ -80,57 +80,65 @@ export class FileWatcher {
     }
   }
 
-  private reindexDocumentFile(fullPath: string): void {
-    if (!existsSync(fullPath)) return
+  private async reindexDocumentFile(fullPath: string): Promise<void> {
+    if (!(await this.fs.exists(fullPath))) return
     try {
-      const doc = JSON.parse(readFileSync(fullPath, 'utf-8')) as DocumentFileData
-      this.db.prepare(
+      const doc = JSON.parse(await this.fs.readTextFile(fullPath)) as DocumentFileData
+      this.db.run(
         `INSERT OR REPLACE INTO documents (id, title, authors, path, type, hash, metadata, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(doc.id, doc.title, JSON.stringify(doc.authors), doc.path, doc.type, doc.hash, JSON.stringify(doc.metadata), doc.createdAt, doc.updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [doc.id, doc.title, JSON.stringify(doc.authors), doc.path, doc.type, doc.hash, JSON.stringify(doc.metadata), doc.createdAt, doc.updatedAt],
+      )
     } catch { /* ignore malformed files */ }
   }
 
-  private reindexAnnotationFile(fullPath: string): void {
-    if (!existsSync(fullPath)) return
+  private async reindexAnnotationFile(fullPath: string): Promise<void> {
+    if (!(await this.fs.exists(fullPath))) return
     try {
-      const ann = JSON.parse(readFileSync(fullPath, 'utf-8')) as AnnotationFileData
-      this.db.prepare(
+      const ann = JSON.parse(await this.fs.readTextFile(fullPath)) as AnnotationFileData
+      this.db.run(
         `INSERT OR REPLACE INTO annotations (id, doc_id, type, page, position, content, selected_text, color, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(ann.id, ann.docId, ann.type, ann.page, JSON.stringify(ann.position), ann.content, ann.selectedText, ann.color, ann.createdAt, ann.updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [ann.id, ann.docId, ann.type, ann.page, JSON.stringify(ann.position), ann.content, ann.selectedText, ann.color, ann.createdAt, ann.updatedAt],
+      )
     } catch { /* ignore malformed files */ }
   }
 
-  private reindexMindmapFile(fullPath: string): void {
-    if (!existsSync(fullPath)) return
+  private async reindexMindmapFile(fullPath: string): Promise<void> {
+    if (!(await this.fs.exists(fullPath))) return
     try {
-      const mm = JSON.parse(readFileSync(fullPath, 'utf-8')) as MindmapFileData
-      this.db.prepare('INSERT OR REPLACE INTO mindmaps (id, title, doc_id, layout, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(mm.id, mm.title, mm.docId, mm.layout, mm.createdAt, mm.updatedAt)
+      const mm = JSON.parse(await this.fs.readTextFile(fullPath)) as MindmapFileData
+      this.db.run('INSERT OR REPLACE INTO mindmaps (id, title, doc_id, layout, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [mm.id, mm.title, mm.docId, mm.layout, mm.createdAt, mm.updatedAt])
 
-      this.db.prepare('DELETE FROM mindmap_edges WHERE mindmap_id = ?').run(mm.id)
-      this.db.prepare('DELETE FROM mindmap_nodes WHERE mindmap_id = ?').run(mm.id)
+      this.db.run('DELETE FROM mindmap_edges WHERE mindmap_id = ?', [mm.id])
+      this.db.run('DELETE FROM mindmap_nodes WHERE mindmap_id = ?', [mm.id])
       for (const node of mm.nodes) {
-        this.db.prepare(
-          `INSERT OR REPLACE INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ).run(node.id, mm.id, node.parentId, node.title, node.content, node.hyperlink, node.imageUrl, node.color, node.notes, node.shape, node.styleOverrides, node.positionX, node.positionY, node.sortOrder, node.collapsed ? 1 : 0, mm.createdAt)
+        this.db.run(
+          `INSERT OR REPLACE INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [node.id, mm.id, node.parentId, node.title, node.content, node.hyperlink, node.imageUrl, node.color, node.notes, node.shape, node.styleOverrides, node.positionX, node.positionY, node.sortOrder, node.collapsed ? 1 : 0, mm.createdAt],
+        )
       }
       for (const edge of mm.edges) {
-        this.db.prepare('INSERT OR REPLACE INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)').run(edge.id, mm.id, edge.sourceId, edge.targetId, edge.label, edge.style)
+        this.db.run(
+          'INSERT OR REPLACE INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)',
+          [edge.id, mm.id, edge.sourceId, edge.targetId, edge.label, edge.style],
+        )
       }
     } catch { /* ignore malformed files */ }
   }
 
-  private reindexNote(filename: string): void {
+  private async reindexNote(filename: string): Promise<void> {
     const filePath = join(this.rootPath, '.banjuan', 'notes', filename)
-    if (!existsSync(filePath)) return
+    if (!(await this.fs.exists(filePath))) return
     try {
-      const raw = readFileSync(filePath, 'utf-8')
+      const raw = await this.fs.readTextFile(filePath)
       const { data } = parseFrontmatter<NoteFileData>(raw)
       if (!data.id) return
-      this.db.prepare(
-        `INSERT OR REPLACE INTO notes (id, title, path, doc_id, folder_id, content_format, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(data.id, data.title ?? filename, filename, data.docId ?? null, data.folderId ?? null, data.contentFormat ?? 'json', data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString())
+      this.db.run(
+        `INSERT OR REPLACE INTO notes (id, title, path, doc_id, folder_id, content_format, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [data.id, data.title ?? filename, filename, data.docId ?? null, data.folderId ?? null, data.contentFormat ?? 'json', data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString()],
+      )
     } catch { /* ignore malformed files */ }
   }
 }

@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import type { PlatformFS } from '../platform/index.js'
+import { join, dirname } from '../platform/path.js'
 import type { EventBus } from '../events/bus.js'
 import type { Library } from '../library.js'
 import type { BanjuanEvent, BanjuanEventMap, PluginCommand, PluginViewInfo } from '../types.js'
@@ -22,12 +22,14 @@ export abstract class BanjuanPlugin {
   private views: PluginViewFactory[] = []
   private rpcHandlers = new Map<string, (...args: any[]) => Promise<any>>()
   private _webContentsSender: ((channel: string, data: any) => void) | null = null
+  protected fs: PlatformFS
 
-  constructor(id: string, library: Library, bus: EventBus, pluginPath: string) {
+  constructor(id: string, library: Library, bus: EventBus, pluginPath: string, fs: PlatformFS) {
     this.id = id
     this.library = library
     this.bus = bus
     this.pluginPath = pluginPath
+    this.fs = fs
   }
 
   abstract onload(): Promise<void>
@@ -96,9 +98,9 @@ export abstract class BanjuanPlugin {
   // === Config Persistence ===
   async loadData(): Promise<any> {
     const configPath = join(this.pluginPath, 'config.json')
-    if (!existsSync(configPath)) return {}
+    if (!(await this.fs.exists(configPath))) return {}
     try {
-      return JSON.parse(readFileSync(configPath, 'utf-8'))
+      return JSON.parse(await this.fs.readTextFile(configPath))
     } catch {
       return {}
     }
@@ -107,8 +109,8 @@ export abstract class BanjuanPlugin {
   async saveData(data: any): Promise<void> {
     const configPath = join(this.pluginPath, 'config.json')
     const dir = dirname(configPath)
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-    writeFileSync(configPath, JSON.stringify(data, null, 2))
+    if (!(await this.fs.exists(dir))) await this.fs.mkdir(dir, { recursive: true })
+    await this.fs.writeTextFile(configPath, JSON.stringify(data, null, 2))
   }
 
   // === Accessors ===

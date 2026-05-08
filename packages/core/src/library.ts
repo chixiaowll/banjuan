@@ -20,7 +20,7 @@ import { SyncService } from './sync/service.js'
 import { StubService } from './sync/stub-service.js'
 import { IndexService } from './indexing/service.js'
 import { TemplateService } from './notes/template-service.js'
-import { migrateNotesToJson } from './notes/migration.js'
+import { migrateNotesToJsonAsync } from './notes/migration.js'
 import { AttachmentService } from './notes/attachment-service.js'
 
 export class Library {
@@ -123,7 +123,7 @@ export class Library {
 
   static async migrateNotes(rootPath: string, fs: PlatformFS): Promise<{ migrated: number; errors: string[] }> {
     const notesDir = join(rootPath, '.banjuan', 'notes')
-    return migrateNotesToJson(notesDir)
+    return migrateNotesToJsonAsync(notesDir, fs)
   }
 
   async getConfig(): Promise<LibraryConfig> {
@@ -250,7 +250,7 @@ export class Library {
     const walkedFiles = await this.walkFiles()
     const diskFiles = new Set(walkedFiles.map(f => relative(this.rootPath, f)))
 
-    const removed = this.documents.purgeOrphanMetadata(diskFiles)
+    const removed = await this.documents.purgeOrphanMetadata(diskFiles)
 
     let imported = 0
     for (const relPath of diskFiles) {

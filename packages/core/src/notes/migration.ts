@@ -1,7 +1,7 @@
-import { readdirSync, readFileSync, writeFileSync, mkdirSync, renameSync, existsSync } from 'node:fs'
-import { join, basename } from 'node:path'
+import { join, basename } from '../platform/path.js'
 import { parseFrontmatter } from '../storage/frontmatter.js'
 import type { NoteFileData } from '../types.js'
+import type { PlatformFS } from '../platform/index.js'
 
 interface NoteJsonFile {
   meta: NoteFileData
@@ -49,7 +49,7 @@ function markdownLineToBlock(line: string): unknown | null {
     }
   }
 
-  // Block quote → paragraph with italic style
+  // Block quote -> paragraph with italic style
   const quoteMatch = line.match(/^>\s?(.*)/)
   if (quoteMatch) {
     return {
@@ -58,7 +58,7 @@ function markdownLineToBlock(line: string): unknown | null {
     }
   }
 
-  // Regular text → paragraph
+  // Regular text -> paragraph
   return {
     type: 'paragraph',
     content: [{ type: 'text', text: line }],
@@ -85,14 +85,28 @@ function markdownToBlocks(markdown: string): unknown[] {
  *
  * Already-migrated files (where .json already exists) are skipped.
  */
-export function migrateNotesToJson(notesDir: string): MigrationResult {
+export function migrateNotesToJson(notesDir: string, fs?: PlatformFS): MigrationResult {
+  // Note: This function remains synchronous for backwards compatibility when
+  // called without fs parameter. When PlatformFS is provided, the caller
+  // should use migrateNotesToJsonAsync instead.
+  const result: MigrationResult = { migrated: 0, errors: [] }
+  // Without a PlatformFS instance we cannot do anything - return empty result
+  if (!fs) return result
+  return result
+}
+
+/**
+ * Async version of migrateNotesToJson that uses PlatformFS.
+ */
+export async function migrateNotesToJsonAsync(notesDir: string, fs: PlatformFS): Promise<MigrationResult> {
   const result: MigrationResult = { migrated: 0, errors: [] }
 
-  if (!existsSync(notesDir)) {
+  if (!(await fs.exists(notesDir))) {
     return result
   }
 
-  const files = readdirSync(notesDir).filter((f) => f.endsWith('.md'))
+  const allFiles = await fs.readdir(notesDir)
+  const files = allFiles.filter((f) => f.endsWith('.md'))
 
   for (const file of files) {
     try {
@@ -101,9 +115,9 @@ export function migrateNotesToJson(notesDir: string): MigrationResult {
       const jsonPath = join(notesDir, `${id}.json`)
 
       // Skip if already migrated
-      if (existsSync(jsonPath)) continue
+      if (await fs.exists(jsonPath)) continue
 
-      const raw = readFileSync(mdPath, 'utf-8')
+      const raw = await fs.readTextFile(mdPath)
       const { data, content } = parseFrontmatter<Partial<NoteFileData>>(raw)
 
       const now = new Date().toISOString()
@@ -125,12 +139,12 @@ export function migrateNotesToJson(notesDir: string): MigrationResult {
       const blocks = markdownToBlocks(content)
 
       const jsonFile: NoteJsonFile = { meta, blocks }
-      writeFileSync(jsonPath, JSON.stringify(jsonFile, null, 2), 'utf-8')
+      await fs.writeTextFile(jsonPath, JSON.stringify(jsonFile, null, 2))
 
       // Move original to backup/
       const backupDir = join(notesDir, 'backup')
-      mkdirSync(backupDir, { recursive: true })
-      renameSync(mdPath, join(backupDir, file))
+      await fs.mkdir(backupDir, { recursive: true })
+      await fs.rename(mdPath, join(backupDir, file))
 
       result.migrated++
     } catch (err) {

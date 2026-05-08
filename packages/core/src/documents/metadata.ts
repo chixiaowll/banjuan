@@ -1,4 +1,4 @@
-import { basename, extname } from 'node:path'
+import { basename, extname } from '../platform/path.js'
 import type { DocumentType } from '../types.js'
 
 const EXT_TO_TYPE: Record<string, DocumentType> = {

@@ -1,6 +1,5 @@
-import type Database from 'better-sqlite3'
-import { join } from 'node:path'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import type { PlatformDatabase, PlatformFS } from '../platform/index.js'
+import { join } from '../platform/path.js'
 import { v4 as uuid } from 'uuid'
 import type {
   MindmapNode, MindmapNodeCreateInput,
@@ -63,7 +62,7 @@ export class MindmapService {
   private notesDir: string
   private linkService: NoteLinkService | null = null
 
-  constructor(private db: Database.Database, rootPath: string, private events: EventBus) {
+  constructor(private db: PlatformDatabase, rootPath: string, private events: EventBus, private fs: PlatformFS) {
     this.notesDir = join(rootPath, '.banjuan', 'notes')
   }
 
@@ -73,8 +72,8 @@ export class MindmapService {
 
   async syncLinks(mindmapNoteId: string): Promise<void> {
     if (!this.linkService) return
-    const nodes = this.db.prepare('SELECT content FROM mindmap_nodes WHERE mindmap_id = ?')
-      .all(mindmapNoteId) as Array<{ content: string | null }>
+    const nodes = this.db.query<{ content: string | null }>(
+      'SELECT content FROM mindmap_nodes WHERE mindmap_id = ?', [mindmapNoteId])
 
     const links: LinkSyncEntry[] = []
     const seen = new Set<string>()
@@ -97,18 +96,18 @@ export class MindmapService {
 
   // --- Filesystem operations ---
 
-  private readFileData(noteId: string): { meta: any; nodes: any[]; edges: any[]; boundaries?: any[]; summaries?: any[] } | null {
-    const row = this.db.prepare('SELECT path FROM notes WHERE id = ?').get(noteId) as { path: string } | undefined
+  private async readFileData(noteId: string): Promise<{ meta: any; nodes: any[]; edges: any[]; boundaries?: any[]; summaries?: any[] } | null> {
+    const row = this.db.queryOne<{ path: string }>('SELECT path FROM notes WHERE id = ?', [noteId])
     if (!row?.path) return null
     const fullPath = join(this.notesDir, row.path)
-    if (!existsSync(fullPath)) return null
-    try { return JSON.parse(readFileSync(fullPath, 'utf-8')) } catch { return null }
+    if (!(await this.fs.exists(fullPath))) return null
+    try { return JSON.parse(await this.fs.readTextFile(fullPath)) } catch { return null }
   }
 
-  private writeFileDataById(noteId: string, fileData: any): void {
-    const row = this.db.prepare('SELECT path FROM notes WHERE id = ?').get(noteId) as { path: string } | undefined
+  private async writeFileDataById(noteId: string, fileData: any): Promise<void> {
+    const row = this.db.queryOne<{ path: string }>('SELECT path FROM notes WHERE id = ?', [noteId])
     if (row?.path) {
-      writeFileSync(join(this.notesDir, row.path), JSON.stringify(fileData, null, 2))
+      await this.fs.writeTextFile(join(this.notesDir, row.path), JSON.stringify(fileData, null, 2))
     }
   }
 
@@ -119,9 +118,9 @@ export class MindmapService {
     const now = new Date().toISOString()
     const parentId = input.parentId ?? null
 
-    const maxRow = this.db
-      .prepare('SELECT COALESCE(MAX(sort_order), -1) as max_sort FROM mindmap_nodes WHERE mindmap_id = ? AND parent_id IS ?')
-      .get(noteId, parentId) as { max_sort: number }
+    const maxRow = this.db.queryOne<{ max_sort: number }>(
+      'SELECT COALESCE(MAX(sort_order), -1) as max_sort FROM mindmap_nodes WHERE mindmap_id = ? AND parent_id IS ?',
+      [noteId, parentId])!
     const sortOrder = maxRow.max_sort + 1
 
     const floating = input.floating ?? false
@@ -135,17 +134,18 @@ export class MindmapService {
       sortOrder, collapsed: false, floating,
     }
 
-    const fileData = this.readFileData(noteId)
+    const fileData = await this.readFileData(noteId)
     if (fileData) {
       fileData.nodes.push(nodeData)
       fileData.meta.updatedAt = now
-      this.writeFileDataById(noteId, fileData)
+      await this.writeFileDataById(noteId, fileData)
     }
 
-    this.db.prepare(
+    this.db.run(
       `INSERT INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, floating, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
-    ).run(id, noteId, parentId, input.title, nodeData.content, nodeData.hyperlink, nodeData.imageUrl, nodeData.color, nodeData.notes, nodeData.shape, nodeData.styleOverrides, nodeData.positionX, nodeData.positionY, sortOrder, floating ? 1 : 0, now)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      [id, noteId, parentId, input.title, nodeData.content, nodeData.hyperlink, nodeData.imageUrl, nodeData.color, nodeData.notes, nodeData.shape, nodeData.styleOverrides, nodeData.positionX, nodeData.positionY, sortOrder, floating ? 1 : 0, now],
+    )
 
     const node: MindmapNode = { ...nodeData, mindmapId: noteId, createdAt: now }
     this.events.emit('mindmap:node:added', { node })
@@ -156,25 +156,25 @@ export class MindmapService {
   }
 
   async getNodes(noteId: string): Promise<MindmapNode[]> {
-    return (this.db.prepare('SELECT * FROM mindmap_nodes WHERE mindmap_id = ? ORDER BY sort_order').all(noteId) as NodeRow[]).map(rowToNode)
+    return (this.db.query<NodeRow>('SELECT * FROM mindmap_nodes WHERE mindmap_id = ? ORDER BY sort_order', [noteId])).map(rowToNode)
   }
 
   async findNodesByNoteId(noteId: string): Promise<Array<MindmapNode & { mindmapTitle: string }>> {
     const contentPattern = `%"noteId":"${noteId}"%`
-    const rows = this.db.prepare(`
+    const rows = this.db.query<NodeRow & { mindmap_title: string }>(`
       SELECT n.*, m.title as mindmap_title
       FROM mindmap_nodes n
       JOIN notes m ON m.id = n.mindmap_id
       WHERE n.content LIKE ?
-    `).all(contentPattern) as (NodeRow & { mindmap_title: string })[]
+    `, [contentPattern])
     return rows.map(row => ({ ...rowToNode(row), mindmapTitle: row.mindmap_title }))
   }
 
   async updateNode(id: string, updates: Partial<Pick<MindmapNode, 'title' | 'content' | 'color' | 'notes' | 'shape' | 'styleOverrides' | 'hyperlink' | 'imageUrl' | 'parentId' | 'positionX' | 'positionY' | 'collapsed' | 'sortOrder'>>): Promise<MindmapNode> {
-    const nodeRow = this.db.prepare('SELECT mindmap_id FROM mindmap_nodes WHERE id = ?').get(id) as { mindmap_id: string } | undefined
+    const nodeRow = this.db.queryOne<{ mindmap_id: string }>('SELECT mindmap_id FROM mindmap_nodes WHERE id = ?', [id])
     if (!nodeRow) throw new Error(`Node not found: ${id}`)
 
-    const fileData = this.readFileData(nodeRow.mindmap_id)
+    const fileData = await this.readFileData(nodeRow.mindmap_id)
     if (fileData) {
       const nodeInFile = fileData.nodes.find((n: any) => n.id === id)
       if (nodeInFile) {
@@ -193,7 +193,7 @@ export class MindmapService {
         if (updates.sortOrder !== undefined) nodeInFile.sortOrder = updates.sortOrder
       }
       fileData.meta.updatedAt = new Date().toISOString()
-      this.writeFileDataById(nodeRow.mindmap_id, fileData)
+      await this.writeFileDataById(nodeRow.mindmap_id, fileData)
     }
 
     const fields: string[] = []
@@ -214,10 +214,10 @@ export class MindmapService {
 
     if (fields.length > 0) {
       values.push(id)
-      this.db.prepare(`UPDATE mindmap_nodes SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+      this.db.run(`UPDATE mindmap_nodes SET ${fields.join(', ')} WHERE id = ?`, values)
     }
 
-    const row = this.db.prepare('SELECT * FROM mindmap_nodes WHERE id = ?').get(id) as NodeRow
+    const row = this.db.queryOne<NodeRow>('SELECT * FROM mindmap_nodes WHERE id = ?', [id])!
     if (updates.content !== undefined) {
       this.syncLinks(nodeRow.mindmap_id).catch(() => {})
     }
@@ -225,10 +225,10 @@ export class MindmapService {
   }
 
   async removeNode(id: string): Promise<void> {
-    const nodeRow = this.db.prepare('SELECT mindmap_id FROM mindmap_nodes WHERE id = ?').get(id) as { mindmap_id: string } | undefined
+    const nodeRow = this.db.queryOne<{ mindmap_id: string }>('SELECT mindmap_id FROM mindmap_nodes WHERE id = ?', [id])
 
     if (nodeRow) {
-      const fileData = this.readFileData(nodeRow.mindmap_id)
+      const fileData = await this.readFileData(nodeRow.mindmap_id)
       if (fileData) {
         const childIds = this.collectChildIds(id, fileData.nodes)
         const removeIds = new Set([id, ...childIds])
@@ -241,24 +241,24 @@ export class MindmapService {
             .filter((s: any) => s.nodeIds.length > 0)
         }
         fileData.meta.updatedAt = new Date().toISOString()
-        this.writeFileDataById(nodeRow.mindmap_id, fileData)
+        await this.writeFileDataById(nodeRow.mindmap_id, fileData)
       }
 
       const allIds = this.collectDescendantIds(id)
       allIds.push(id)
       const placeholders = allIds.map(() => '?').join(', ')
-      this.db.prepare(`DELETE FROM mindmap_summaries WHERE summary_node_id IN (${placeholders})`).run(...allIds)
-      this.db.prepare(`DELETE FROM mindmap_edges WHERE source_id IN (${placeholders}) OR target_id IN (${placeholders})`).run(...allIds, ...allIds)
-      this.db.prepare(`DELETE FROM mindmap_nodes WHERE id IN (${placeholders})`).run(...allIds)
+      this.db.run(`DELETE FROM mindmap_summaries WHERE summary_node_id IN (${placeholders})`, allIds)
+      this.db.run(`DELETE FROM mindmap_edges WHERE source_id IN (${placeholders}) OR target_id IN (${placeholders})`, [...allIds, ...allIds])
+      this.db.run(`DELETE FROM mindmap_nodes WHERE id IN (${placeholders})`, allIds)
       this.syncLinks(nodeRow.mindmap_id).catch(() => {})
       this.events.emit('mindmap:node:removed', { id, mindmapId: nodeRow.mindmap_id })
     } else {
-      this.db.prepare('DELETE FROM mindmap_nodes WHERE id = ?').run(id)
+      this.db.run('DELETE FROM mindmap_nodes WHERE id = ?', [id])
     }
   }
 
   collectDescendantIds(parentId: string): string[] {
-    const children = this.db.prepare('SELECT id FROM mindmap_nodes WHERE parent_id = ?').all(parentId) as { id: string }[]
+    const children = this.db.query<{ id: string }>('SELECT id FROM mindmap_nodes WHERE parent_id = ?', [parentId])
     const result: string[] = []
     for (const child of children) {
       result.push(child.id)
@@ -287,14 +287,17 @@ export class MindmapService {
       label: input.label ?? null, style: null,
     }
 
-    const fileData = this.readFileData(noteId)
+    const fileData = await this.readFileData(noteId)
     if (fileData) {
       fileData.edges.push(edgeData)
       fileData.meta.updatedAt = new Date().toISOString()
-      this.writeFileDataById(noteId, fileData)
+      await this.writeFileDataById(noteId, fileData)
     }
 
-    this.db.prepare('INSERT INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)').run(id, noteId, input.sourceId, input.targetId, input.label ?? null, null)
+    this.db.run(
+      'INSERT INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, noteId, input.sourceId, input.targetId, input.label ?? null, null],
+    )
 
     const edge: MindmapEdge = { ...edgeData, mindmapId: noteId }
     this.events.emit('mindmap:edge:added', { edge })
@@ -302,14 +305,14 @@ export class MindmapService {
   }
 
   async getEdges(noteId: string): Promise<MindmapEdge[]> {
-    return (this.db.prepare('SELECT * FROM mindmap_edges WHERE mindmap_id = ?').all(noteId) as EdgeRow[]).map(rowToEdge)
+    return (this.db.query<EdgeRow>('SELECT * FROM mindmap_edges WHERE mindmap_id = ?', [noteId])).map(rowToEdge)
   }
 
   async updateEdge(id: string, updates: { label?: string; style?: string }): Promise<MindmapEdge> {
-    const edgeRow = this.db.prepare('SELECT * FROM mindmap_edges WHERE id = ?').get(id) as EdgeRow | undefined
+    const edgeRow = this.db.queryOne<EdgeRow>('SELECT * FROM mindmap_edges WHERE id = ?', [id])
     if (!edgeRow) throw new Error(`Edge not found: ${id}`)
 
-    const fileData = this.readFileData(edgeRow.mindmap_id)
+    const fileData = await this.readFileData(edgeRow.mindmap_id)
     if (fileData) {
       const edgeInFile = fileData.edges.find((e: any) => e.id === id)
       if (edgeInFile) {
@@ -317,7 +320,7 @@ export class MindmapService {
         if (updates.style !== undefined) edgeInFile.style = updates.style
       }
       fileData.meta.updatedAt = new Date().toISOString()
-      this.writeFileDataById(edgeRow.mindmap_id, fileData)
+      await this.writeFileDataById(edgeRow.mindmap_id, fileData)
     }
 
     const fields: string[] = []
@@ -326,26 +329,26 @@ export class MindmapService {
     if (updates.style !== undefined) { fields.push('style = ?'); values.push(updates.style) }
     if (fields.length > 0) {
       values.push(id)
-      this.db.prepare(`UPDATE mindmap_edges SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+      this.db.run(`UPDATE mindmap_edges SET ${fields.join(', ')} WHERE id = ?`, values)
     }
 
-    const row = this.db.prepare('SELECT * FROM mindmap_edges WHERE id = ?').get(id) as EdgeRow
+    const row = this.db.queryOne<EdgeRow>('SELECT * FROM mindmap_edges WHERE id = ?', [id])!
     return rowToEdge(row)
   }
 
   async removeEdge(id: string): Promise<void> {
-    const edgeRow = this.db.prepare('SELECT mindmap_id FROM mindmap_edges WHERE id = ?').get(id) as { mindmap_id: string } | undefined
+    const edgeRow = this.db.queryOne<{ mindmap_id: string }>('SELECT mindmap_id FROM mindmap_edges WHERE id = ?', [id])
 
     if (edgeRow) {
-      const fileData = this.readFileData(edgeRow.mindmap_id)
+      const fileData = await this.readFileData(edgeRow.mindmap_id)
       if (fileData) {
         fileData.edges = fileData.edges.filter((e: any) => e.id !== id)
         fileData.meta.updatedAt = new Date().toISOString()
-        this.writeFileDataById(edgeRow.mindmap_id, fileData)
+        await this.writeFileDataById(edgeRow.mindmap_id, fileData)
       }
     }
 
-    this.db.prepare('DELETE FROM mindmap_edges WHERE id = ?').run(id)
+    this.db.run('DELETE FROM mindmap_edges WHERE id = ?', [id])
   }
 
   // --- Boundaries ---
@@ -356,27 +359,30 @@ export class MindmapService {
     const label = input.label ?? ''
     const color = input.color ?? null
 
-    const fileData = this.readFileData(noteId)
+    const fileData = await this.readFileData(noteId)
     if (fileData) {
       if (!fileData.boundaries) fileData.boundaries = []
       fileData.boundaries.push({ id, nodeIds: input.nodeIds, label, color })
       fileData.meta.updatedAt = new Date().toISOString()
-      this.writeFileDataById(noteId, fileData)
+      await this.writeFileDataById(noteId, fileData)
     }
 
-    this.db.prepare('INSERT INTO mindmap_boundaries (id, mindmap_id, node_ids, label, color) VALUES (?, ?, ?, ?, ?)').run(id, noteId, nodeIdsJson, label, color)
+    this.db.run(
+      'INSERT INTO mindmap_boundaries (id, mindmap_id, node_ids, label, color) VALUES (?, ?, ?, ?, ?)',
+      [id, noteId, nodeIdsJson, label, color],
+    )
     return { id, mindmapId: noteId, nodeIds: input.nodeIds, label, color }
   }
 
   async getBoundaries(noteId: string): Promise<MindmapBoundary[]> {
-    return (this.db.prepare('SELECT * FROM mindmap_boundaries WHERE mindmap_id = ?').all(noteId) as BoundaryRow[]).map(rowToBoundary)
+    return (this.db.query<BoundaryRow>('SELECT * FROM mindmap_boundaries WHERE mindmap_id = ?', [noteId])).map(rowToBoundary)
   }
 
   async updateBoundary(id: string, updates: { label?: string; color?: string; nodeIds?: string[] }): Promise<MindmapBoundary> {
-    const row = this.db.prepare('SELECT mindmap_id FROM mindmap_boundaries WHERE id = ?').get(id) as { mindmap_id: string } | undefined
+    const row = this.db.queryOne<{ mindmap_id: string }>('SELECT mindmap_id FROM mindmap_boundaries WHERE id = ?', [id])
     if (!row) throw new Error(`Boundary not found: ${id}`)
 
-    const fileData = this.readFileData(row.mindmap_id)
+    const fileData = await this.readFileData(row.mindmap_id)
     if (fileData && fileData.boundaries) {
       const b = fileData.boundaries.find((b: any) => b.id === id)
       if (b) {
@@ -385,7 +391,7 @@ export class MindmapService {
         if (updates.nodeIds !== undefined) b.nodeIds = updates.nodeIds
       }
       fileData.meta.updatedAt = new Date().toISOString()
-      this.writeFileDataById(row.mindmap_id, fileData)
+      await this.writeFileDataById(row.mindmap_id, fileData)
     }
 
     const fields: string[] = []
@@ -395,24 +401,24 @@ export class MindmapService {
     if (updates.nodeIds !== undefined) { fields.push('node_ids = ?'); values.push(JSON.stringify(updates.nodeIds)) }
     if (fields.length > 0) {
       values.push(id)
-      this.db.prepare(`UPDATE mindmap_boundaries SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+      this.db.run(`UPDATE mindmap_boundaries SET ${fields.join(', ')} WHERE id = ?`, values)
     }
 
-    const updated = this.db.prepare('SELECT * FROM mindmap_boundaries WHERE id = ?').get(id) as BoundaryRow
+    const updated = this.db.queryOne<BoundaryRow>('SELECT * FROM mindmap_boundaries WHERE id = ?', [id])!
     return rowToBoundary(updated)
   }
 
   async removeBoundary(id: string): Promise<void> {
-    const row = this.db.prepare('SELECT mindmap_id FROM mindmap_boundaries WHERE id = ?').get(id) as { mindmap_id: string } | undefined
+    const row = this.db.queryOne<{ mindmap_id: string }>('SELECT mindmap_id FROM mindmap_boundaries WHERE id = ?', [id])
     if (row) {
-      const fileData = this.readFileData(row.mindmap_id)
+      const fileData = await this.readFileData(row.mindmap_id)
       if (fileData && fileData.boundaries) {
         fileData.boundaries = fileData.boundaries.filter((b: any) => b.id !== id)
         fileData.meta.updatedAt = new Date().toISOString()
-        this.writeFileDataById(row.mindmap_id, fileData)
+        await this.writeFileDataById(row.mindmap_id, fileData)
       }
     }
-    this.db.prepare('DELETE FROM mindmap_boundaries WHERE id = ?').run(id)
+    this.db.run('DELETE FROM mindmap_boundaries WHERE id = ?', [id])
   }
 
   // --- Summaries ---
@@ -422,15 +428,18 @@ export class MindmapService {
     const id = uuid()
     const nodeIdsJson = JSON.stringify(input.nodeIds)
 
-    const fileData = this.readFileData(noteId)
+    const fileData = await this.readFileData(noteId)
     if (fileData) {
       if (!fileData.summaries) fileData.summaries = []
       fileData.summaries.push({ id, nodeIds: input.nodeIds, summaryNodeId: summaryNode.id })
       fileData.meta.updatedAt = new Date().toISOString()
-      this.writeFileDataById(noteId, fileData)
+      await this.writeFileDataById(noteId, fileData)
     }
 
-    this.db.prepare('INSERT INTO mindmap_summaries (id, mindmap_id, node_ids, summary_node_id) VALUES (?, ?, ?, ?)').run(id, noteId, nodeIdsJson, summaryNode.id)
+    this.db.run(
+      'INSERT INTO mindmap_summaries (id, mindmap_id, node_ids, summary_node_id) VALUES (?, ?, ?, ?)',
+      [id, noteId, nodeIdsJson, summaryNode.id],
+    )
     return {
       summary: { id, mindmapId: noteId, nodeIds: input.nodeIds, summaryNodeId: summaryNode.id },
       summaryNode,
@@ -438,21 +447,21 @@ export class MindmapService {
   }
 
   async getSummaries(noteId: string): Promise<MindmapSummary[]> {
-    return (this.db.prepare('SELECT * FROM mindmap_summaries WHERE mindmap_id = ?').all(noteId) as SummaryRow[]).map(rowToSummary)
+    return (this.db.query<SummaryRow>('SELECT * FROM mindmap_summaries WHERE mindmap_id = ?', [noteId])).map(rowToSummary)
   }
 
   async removeSummary(id: string): Promise<void> {
-    const row = this.db.prepare('SELECT * FROM mindmap_summaries WHERE id = ?').get(id) as SummaryRow | undefined
+    const row = this.db.queryOne<SummaryRow>('SELECT * FROM mindmap_summaries WHERE id = ?', [id])
     if (!row) return
 
-    const fileData = this.readFileData(row.mindmap_id)
+    const fileData = await this.readFileData(row.mindmap_id)
     if (fileData && fileData.summaries) {
       fileData.summaries = fileData.summaries.filter((s: any) => s.id !== id)
       fileData.meta.updatedAt = new Date().toISOString()
-      this.writeFileDataById(row.mindmap_id, fileData)
+      await this.writeFileDataById(row.mindmap_id, fileData)
     }
 
-    this.db.prepare('DELETE FROM mindmap_summaries WHERE id = ?').run(id)
+    this.db.run('DELETE FROM mindmap_summaries WHERE id = ?', [id])
     // Also remove the summary node
     await this.removeNode(row.summary_node_id)
   }

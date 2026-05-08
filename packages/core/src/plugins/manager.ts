@@ -1,5 +1,5 @@
-import { existsSync, readdirSync, readFileSync, mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import type { PlatformFS } from '../platform/index.js'
+import { join } from '../platform/path.js'
 import type { EventBus } from '../events/bus.js'
 import type { Library } from '../library.js'
 import { BanjuanPlugin } from './base.js'
@@ -14,10 +14,14 @@ export class PluginManager {
     private library: Library,
     private bus: EventBus,
     rootPath: string,
+    private fs: PlatformFS,
   ) {
     this.pluginsDir = join(rootPath, '.banjuan', 'plugins')
-    if (!existsSync(this.pluginsDir)) {
-      mkdirSync(this.pluginsDir, { recursive: true })
+  }
+
+  async init(): Promise<void> {
+    if (!(await this.fs.exists(this.pluginsDir))) {
+      await this.fs.mkdir(this.pluginsDir, { recursive: true })
     }
   }
 
@@ -29,10 +33,10 @@ export class PluginManager {
   }
 
   async loadAll(): Promise<void> {
-    if (!existsSync(this.pluginsDir)) return
-    const entries = readdirSync(this.pluginsDir, { withFileTypes: true })
+    if (!(await this.fs.exists(this.pluginsDir))) return
+    const entries = await this.fs.readdirWithTypes(this.pluginsDir)
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue
+      if (!entry.isDirectory) continue
       try {
         await this.load(entry.name)
       } catch {
@@ -44,17 +48,17 @@ export class PluginManager {
   async load(pluginDirName: string): Promise<void> {
     const pluginPath = join(this.pluginsDir, pluginDirName)
     const manifestPath = join(pluginPath, 'manifest.json')
-    if (!existsSync(manifestPath)) {
+    if (!(await this.fs.exists(manifestPath))) {
       throw new Error(`No manifest.json in ${pluginPath}`)
     }
 
-    const manifest: PluginManifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+    const manifest: PluginManifest = JSON.parse(await this.fs.readTextFile(manifestPath))
     if (this.plugins.has(manifest.id)) {
       throw new Error(`Plugin ${manifest.id} is already loaded`)
     }
 
     const entryPath = join(pluginPath, 'index.js')
-    if (!existsSync(entryPath)) {
+    if (!(await this.fs.exists(entryPath))) {
       throw new Error(`No index.js in ${pluginPath}`)
     }
 
@@ -65,7 +69,7 @@ export class PluginManager {
       throw new Error(`Plugin ${manifest.id} does not export a class`)
     }
 
-    const plugin: BanjuanPlugin = new PluginClass(manifest.id, this.library, this.bus, pluginPath)
+    const plugin: BanjuanPlugin = new PluginClass(manifest.id, this.library, this.bus, pluginPath, this.fs)
     if (this.webContentsSender) {
       plugin._setWebContentsSender(this.webContentsSender)
     }
@@ -102,17 +106,17 @@ export class PluginManager {
     return result
   }
 
-  listAll(): PluginInfo[] {
-    if (!existsSync(this.pluginsDir)) return []
+  async listAll(): Promise<PluginInfo[]> {
+    if (!(await this.fs.exists(this.pluginsDir))) return []
     const result: PluginInfo[] = []
-    const entries = readdirSync(this.pluginsDir, { withFileTypes: true })
+    const entries = await this.fs.readdirWithTypes(this.pluginsDir)
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue
+      if (!entry.isDirectory) continue
       const pluginPath = join(this.pluginsDir, entry.name)
       const manifestPath = join(pluginPath, 'manifest.json')
-      if (!existsSync(manifestPath)) continue
+      if (!(await this.fs.exists(manifestPath))) continue
       try {
-        const manifest: PluginManifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+        const manifest: PluginManifest = JSON.parse(await this.fs.readTextFile(manifestPath))
         result.push({
           id: manifest.id,
           name: manifest.name,
@@ -128,15 +132,15 @@ export class PluginManager {
 
   async enable(pluginId: string): Promise<void> {
     if (this.plugins.has(pluginId)) return
-    if (!existsSync(this.pluginsDir)) throw new Error('Plugins directory not found')
-    const entries = readdirSync(this.pluginsDir, { withFileTypes: true })
+    if (!(await this.fs.exists(this.pluginsDir))) throw new Error('Plugins directory not found')
+    const entries = await this.fs.readdirWithTypes(this.pluginsDir)
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue
+      if (!entry.isDirectory) continue
       const manifestPath = join(this.pluginsDir, entry.name, 'manifest.json')
-      if (!existsSync(manifestPath)) continue
+      if (!(await this.fs.exists(manifestPath))) continue
       let manifest: PluginManifest
       try {
-        manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+        manifest = JSON.parse(await this.fs.readTextFile(manifestPath))
       } catch {
         continue
       }
@@ -188,19 +192,19 @@ export class PluginManager {
   }
 
   // === NEW: CSS Path ===
-  getPluginCssPath(pluginId: string): string | null {
+  async getPluginCssPath(pluginId: string): Promise<string | null> {
     const entry = this.plugins.get(pluginId)
     if (!entry) return null
     const cssPath = join(entry.path, 'styles.css')
-    return existsSync(cssPath) ? cssPath : null
+    return (await this.fs.exists(cssPath)) ? cssPath : null
   }
 
   // === NEW: Renderer script path ===
-  getPluginRendererPath(pluginId: string): string | null {
+  async getPluginRendererPath(pluginId: string): Promise<string | null> {
     const entry = this.plugins.get(pluginId)
     if (!entry) return null
     const rendererPath = join(entry.path, 'renderer.js')
-    return existsSync(rendererPath) ? rendererPath : null
+    return (await this.fs.exists(rendererPath)) ? rendererPath : null
   }
 
   // === NEW: Config ===

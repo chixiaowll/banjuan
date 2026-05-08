@@ -1,18 +1,19 @@
-import type Database from 'better-sqlite3'
+import type { PlatformDatabase } from '../platform/index.js'
 import type { SearchResult, SearchOptions } from '../types.js'
 
 export class SearchService {
-  constructor(private db: Database.Database) {}
+  constructor(private db: PlatformDatabase) {}
 
   index(entry: { id: string; title: string; content: string; type: string }): void {
-    this.db
-      .prepare(`INSERT INTO search_index (rowid, title, content, type)
-         VALUES ((SELECT COALESCE(MAX(rowid), 0) + 1 FROM search_index), ?, ?, ?)`)
-      .run(entry.title, entry.content, `${entry.type}:${entry.id}`)
+    this.db.run(
+      `INSERT INTO search_index (rowid, title, content, type)
+         VALUES ((SELECT COALESCE(MAX(rowid), 0) + 1 FROM search_index), ?, ?, ?)`,
+      [entry.title, entry.content, `${entry.type}:${entry.id}`],
+    )
   }
 
   removeById(id: string): void {
-    this.db.prepare("DELETE FROM search_index WHERE type LIKE '%:' || ?").run(id)
+    this.db.run("DELETE FROM search_index WHERE type LIKE '%:' || ?", [id])
   }
 
   async query(queryStr: string, options?: SearchOptions): Promise<SearchResult[]> {
@@ -29,9 +30,9 @@ export class SearchService {
     sql += ' ORDER BY rank LIMIT ?'
     params.push(options?.limit ?? 50)
 
-    const rows = this.db.prepare(sql).all(...params) as Array<{
+    const rows = this.db.query<{
       title: string; content: string; type: string; rank: number
-    }>
+    }>(sql, params)
 
     return rows.map((row) => {
       const [type, id] = row.type.split(':')
