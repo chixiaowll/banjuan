@@ -4,9 +4,16 @@ import { readFile } from 'node:fs/promises'
 import { join, basename, dirname } from 'node:path'
 import { execSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
-import { Library, type MindmapNodeCreateInput, type MindmapNode } from '@banjuan/core'
+import { Library, type MindmapNodeCreateInput, type MindmapNode, type PlatformDeps } from '@banjuan/core'
+import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
 import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
+
+const deps: PlatformDeps = {
+  fs: new NodeFS(),
+  dbFactory: new NodeDatabaseFactory(),
+  crypto: new NodeCrypto(),
+}
 
 function installBundledPlugins(libraryRoot: string): void {
   const bundledDir = app.isPackaged
@@ -42,12 +49,12 @@ export function getLibraryRootPath(): string | null {
 }
 
 export function registerIpcHandlers() {
-  ipcMain.handle('library:check', (_event, path: string) => {
-    return Library.isLibrary(path)
+  ipcMain.handle('library:check', async (_event, path: string) => {
+    return Library.isLibrary(path, deps)
   })
 
   ipcMain.handle('library:init', async (event, path: string, name?: string) => {
-    const lib = Library.init(path, name)
+    const lib = await Library.init(path, deps, name)
     libraries.set(event.sender.id, lib)
     const scanResult = await lib.scanAndImport()
     lib.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
@@ -55,13 +62,14 @@ export function registerIpcHandlers() {
     await lib.plugins.loadAll()
     const indexService = lib.createIndexService()
     await indexService.rebuildFull()
-    return { rootPath: lib.rootPath, name: lib.name, imported: scanResult.imported, skipped: scanResult.skipped }
+    const libName = await lib.getName()
+    return { rootPath: lib.rootPath, name: libName, imported: scanResult.imported, skipped: scanResult.skipped }
   })
 
   ipcMain.handle('library:open', async (event, path: string) => {
-    const lib = Library.open(path)
+    const lib = await Library.open(path, deps)
     libraries.set(event.sender.id, lib)
-    await Library.migrateNotes(path)
+    await Library.migrateNotes(path, deps.fs)
     const syncResult = await lib.syncWithDisk()
     try { await lib.notes.syncDisk() } catch { /* non-critical */ }
     lib.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
@@ -69,7 +77,8 @@ export function registerIpcHandlers() {
     await lib.plugins.loadAll()
     const indexService = lib.createIndexService()
     await indexService.rebuildFull()
-    return { rootPath: lib.rootPath, name: lib.name, imported: syncResult.imported, removed: syncResult.removed }
+    const libName = await lib.getName()
+    return { rootPath: lib.rootPath, name: libName, imported: syncResult.imported, removed: syncResult.removed }
   })
 
   ipcMain.handle('library:openNewWindow', () => {
@@ -456,16 +465,16 @@ export function registerIpcHandlers() {
   ipcMain.handle('sync:saveConfig', async (event, config: {
     type: 'webdav'; url: string; username: string; password: string; remotePath: string
   }) => {
-    getLib(event).saveSyncConfig(config)
+    await getLib(event).saveSyncConfig(config)
   })
 
   ipcMain.handle('sync:run', async (event) => {
     const library = getLib(event)
-    const config = library.getSyncConfig()
+    const config = await library.getSyncConfig()
     if (!config) throw new Error('No sync configuration found')
     const svc = library.createSyncService()
     const { WebDAVAdapter } = await import('@banjuan/core')
-    const adapter = new WebDAVAdapter()
+    const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect(config)
     try {
       const result = await svc.sync()
@@ -485,11 +494,11 @@ export function registerIpcHandlers() {
     const library = getLib(event)
     const doc = await library.documents.get(docId)
     if (!doc) throw new Error('Document not found')
-    const config = library.getSyncConfig()
+    const config = await library.getSyncConfig()
     if (!config) throw new Error('No sync configuration found')
     const svc = library.createStubService()
     const { WebDAVAdapter } = await import('@banjuan/core')
-    const adapter = new WebDAVAdapter()
+    const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect(config)
     try {
       const localPath = join(library.rootPath, doc.path)
@@ -503,11 +512,11 @@ export function registerIpcHandlers() {
     const library = getLib(event)
     const doc = await library.documents.get(docId)
     if (!doc) throw new Error('Document not found')
-    const config = library.getSyncConfig()
+    const config = await library.getSyncConfig()
     if (!config) throw new Error('No sync configuration found')
     const svc = library.createStubService()
     const { WebDAVAdapter } = await import('@banjuan/core')
-    const adapter = new WebDAVAdapter()
+    const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect(config)
     try {
       const localPath = join(library.rootPath, doc.path)
@@ -521,7 +530,7 @@ export function registerIpcHandlers() {
     const library = getLib(event)
     const doc = await library.documents.get(docId)
     if (!doc) return 'local'
-    const config = library.getSyncConfig()
+    const config = await library.getSyncConfig()
     if (!config) return 'local'
     const svc = library.createStubService()
     return svc.getStatus(docId, join(library.rootPath, doc.path))
