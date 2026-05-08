@@ -17,6 +17,9 @@ importers:
       '@banjuan/core':
         specifier: workspace:*
         version: link:../core
+      '@banjuan/platform-node':
+        specifier: workspace:*
+        version: link:../platform-node
       '@banjuan/zotero-pdfjs-dist':
         specifier: workspace:*
         version: link:../zotero-pdfjs-dist
