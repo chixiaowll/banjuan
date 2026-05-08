@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react'
+import { Plus, CopyPlus, LayoutTemplate, Trash2 } from 'lucide-react'
 import { useHandwritingStore } from './useHandwritingStore.js'
 import { useT } from '../../i18n/index.js'
 import type { HandwritingTemplate } from '@banjuan/core'
@@ -106,7 +107,7 @@ export default function PageListPanel() {
             fontSize: 12, color: 'var(--text-muted)',
           }}
         >
-          + {t('handwriting.newPage')}
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Plus size={14} />{t('handwriting.newPage')}</span>
         </button>
       </div>
 
@@ -119,27 +120,27 @@ export default function PageListPanel() {
             borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             padding: '4px 0', minWidth: 160,
           }}>
-            <button style={ctxItemStyle} onClick={() => { addPage(contextMenu.pageIndex); setContextMenu(null) }}
+            <button style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => { addPage(contextMenu.pageIndex); setContextMenu(null) }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-              {t('handwriting.insertAfter')}
+              <Plus size={14} />{t('handwriting.insertAfter')}
             </button>
-            <button style={ctxItemStyle} onClick={() => { duplicatePage(contextMenu.pageIndex); setContextMenu(null) }}
+            <button style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => { duplicatePage(contextMenu.pageIndex); setContextMenu(null) }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-              {t('handwriting.duplicatePage')}
+              <CopyPlus size={14} />{t('handwriting.duplicatePage')}
             </button>
-            <button style={ctxItemStyle} onClick={() => { setTemplatePicker(contextMenu.pageIndex); setContextMenu(null) }}
+            <button style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => { setTemplatePicker(contextMenu.pageIndex); setContextMenu(null) }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
               onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-              {t('handwriting.changeTemplate')}
+              <LayoutTemplate size={14} />{t('handwriting.changeTemplate')}
             </button>
             {pages.length > 1 && (
-              <button style={{ ...ctxItemStyle, color: '#e53e3e' }}
+              <button style={{ ...ctxItemStyle, color: '#e53e3e', display: 'flex', alignItems: 'center', gap: 6 }}
                 onClick={() => { deletePage(contextMenu.pageIndex); setContextMenu(null) }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                {t('handwriting.deletePage')}
+                <Trash2 size={14} />{t('handwriting.deletePage')}
               </button>
             )}
           </div>

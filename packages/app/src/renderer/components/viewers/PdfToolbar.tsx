@@ -1,16 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { PanelLeft, Minus, Plus, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Search, PanelRight, Highlighter, StickyNote, Square, Pen, Eraser, Clock } from 'lucide-react'
 import { usePdfViewer, ANNOTATION_COLORS, type AnnotationTool } from './PdfViewerContext.js'
+import { useReadingTimer } from './useReadingTimer.js'
+import { useT } from '../../i18n/index.js'
 
-const TOOLS: Array<{ id: AnnotationTool; label: string; icon: string }> = [
-  { id: 'highlight', label: '高亮', icon: '🖍' },
-  { id: 'text', label: '文本', icon: '📌' },
-  { id: 'area', label: '区域', icon: '⬜' },
-  { id: 'ink', label: '画笔', icon: '✏️' },
-  { id: 'eraser', label: '擦除', icon: '🧹' },
+const TOOL_IDS: Array<{ id: AnnotationTool; icon: React.ReactNode; key: string }> = [
+  { id: 'highlight', icon: <Highlighter size={16} />, key: 'tool.highlight' },
+  { id: 'text', icon: <StickyNote size={16} />, key: 'tool.text' },
+  { id: 'area', icon: <Square size={16} />, key: 'tool.area' },
+  { id: 'ink', icon: <Pen size={16} />, key: 'tool.ink' },
+  { id: 'eraser', icon: <Eraser size={16} />, key: 'tool.eraser' },
 ]
 
-export default function PdfToolbar() {
+interface Props {
+  docId: string
+  metadata: Record<string, unknown>
+}
+
+export default function PdfToolbar({ docId, metadata }: Props) {
+  const t = useT()
   const ctx = usePdfViewer()
+  const { formatted: readingTime } = useReadingTimer(docId, metadata)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [pageInput, setPageInput] = useState('')
   const colorRef = useRef<HTMLDivElement>(null)
@@ -76,28 +86,26 @@ export default function PdfToolbar() {
       gap: 2,
       fontSize: 13,
     }}>
-      {/* Left section: sidebar toggle + zoom */}
       <button style={btnStyle} onClick={() => ctx.setLeftSidebarOpen(!ctx.leftSidebarOpen)} title="Toggle left sidebar">
-        ☰
+        <PanelLeft size={16} />
       </button>
       <div style={sepStyle} />
       <button style={btnStyle} onClick={() => ctx.setZoom(z => Math.max(0.5, z - 0.25))} title="Zoom out">
-        −
+        <Minus size={16} />
       </button>
       <span style={{ fontSize: 11, minWidth: 36, textAlign: 'center', color: 'var(--text-muted)' }}>
         {Math.round(ctx.zoom * 100)}%
       </span>
       <button style={btnStyle} onClick={() => ctx.setZoom(z => Math.min(3, z + 0.25))} title="Zoom in">
-        +
+        <Plus size={16} />
       </button>
       <button style={btnStyle} onClick={ctx.resetZoom} title="Reset zoom">
-        ↺
+        <RotateCcw size={14} />
       </button>
 
-      {/* Center section: page nav + annotation tools */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
         <button style={btnStyle} onClick={() => ctx.scrollToPage(Math.max(1, ctx.currentPage - 1))} title="Previous page">
-          ◀
+          <ChevronLeft size={16} />
         </button>
         <input
           value={pageInput}
@@ -112,23 +120,22 @@ export default function PdfToolbar() {
         />
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ {ctx.numPages}</span>
         <button style={btnStyle} onClick={() => ctx.scrollToPage(Math.min(ctx.numPages, ctx.currentPage + 1))} title="Next page">
-          ▶
+          <ChevronRight size={16} />
         </button>
 
         <div style={sepStyle} />
 
-        {TOOLS.map(tool => (
+        {TOOL_IDS.map(tool => (
           <button
             key={tool.id}
             style={ctx.activeTool === tool.id ? activeBtnStyle : btnStyle}
             onClick={() => ctx.setActiveTool(ctx.activeTool === tool.id ? 'none' : tool.id)}
-            title={tool.label}
+            title={t(tool.key as any)}
           >
             {tool.icon}
           </button>
         ))}
 
-        {/* Color picker */}
         <div ref={colorRef} style={{ position: 'relative' }}>
           <button
             style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 3 }}
@@ -140,7 +147,7 @@ export default function PdfToolbar() {
               background: ctx.activeColor, border: '1px solid var(--border)',
               display: 'inline-block',
             }} />
-            <span style={{ fontSize: 10 }}>▾</span>
+            <ChevronDown size={14} />
           </button>
           {showColorPicker && (
             <div style={{
@@ -166,16 +173,19 @@ export default function PdfToolbar() {
         </div>
       </div>
 
-      {/* Right section: search + right sidebar toggle */}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }} title="Reading time">
+        <Clock size={12} />
+        {readingTime}
+      </span>
       <button
         style={ctx.searchOpen ? activeBtnStyle : btnStyle}
         onClick={() => ctx.setSearchOpen(!ctx.searchOpen)}
         title="Search (Cmd+F)"
       >
-        🔍
+        <Search size={16} />
       </button>
       <button style={btnStyle} onClick={() => ctx.setRightSidebarOpen(!ctx.rightSidebarOpen)} title="Toggle right sidebar">
-        ☰
+        <PanelRight size={16} />
       </button>
     </div>
   )

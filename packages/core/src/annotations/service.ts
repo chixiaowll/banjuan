@@ -56,13 +56,14 @@ export class AnnotationService {
     return row ? rowToAnnotation(row) : null
   }
 
-  async update(id: string, updates: { content?: string; color?: string }): Promise<Annotation> {
+  async update(id: string, updates: { content?: string; color?: string; position?: unknown }): Promise<Annotation> {
     const now = new Date().toISOString()
 
     const fileData = this.store.read(id)
     if (fileData) {
       if (updates.content !== undefined) fileData.content = updates.content
       if (updates.color !== undefined) fileData.color = updates.color
+      if (updates.position !== undefined) fileData.position = updates.position as any
       fileData.updatedAt = now
       this.store.write(fileData)
     }
@@ -71,6 +72,7 @@ export class AnnotationService {
     const params: unknown[] = [now]
     if (updates.content !== undefined) { sets.push('content = ?'); params.push(updates.content) }
     if (updates.color !== undefined) { sets.push('color = ?'); params.push(updates.color) }
+    if (updates.position !== undefined) { sets.push('position = ?'); params.push(JSON.stringify(updates.position)) }
     params.push(id)
     this.db.prepare(`UPDATE annotations SET ${sets.join(', ')} WHERE id = ?`).run(...params)
 

@@ -29,14 +29,30 @@ export default function DocumentViewer({ doc, onBack, onOpenNote }: Props) {
 
   useEffect(() => {
     window.electronAPI.documents.getFilePath(doc.path).then(setFilePath)
-    if (doc.type === 'pdf' || doc.type === 'epub') {
-      window.electronAPI.documents.readFileBuffer(doc.path).then((buf: ArrayBuffer) => {
-        setFileData(buf)
+    if (doc.type === 'epub') {
+      window.electronAPI.documents.readFileBuffer(doc.path).then((buf: ArrayBuffer | Uint8Array) => {
+        if (buf instanceof Uint8Array) {
+          setFileData(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer)
+        } else {
+          setFileData(buf as ArrayBuffer)
+        }
       }).catch((err: any) => console.error('[DocViewer] readFileBuffer error:', err))
     }
   }, [doc.path, doc.type])
 
-  const isLoading = !filePath || ((doc.type === 'pdf' || doc.type === 'epub') && !fileData)
+  // PDF renders its own shell immediately; other binary types wait for data
+  if (doc.type === 'pdf') {
+    return (
+      <PdfViewer
+        filePath={filePath || ''}
+        docPath={doc.path}
+        doc={doc}
+        onOpenNote={onOpenNote}
+      />
+    )
+  }
+
+  const isLoading = !filePath || (doc.type === 'epub' && !fileData)
   if (isLoading) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
       Loading...
@@ -44,17 +60,8 @@ export default function DocumentViewer({ doc, onBack, onOpenNote }: Props) {
   }
 
   switch (doc.type) {
-    case 'pdf':
-      return (
-        <PdfViewer
-          filePath={filePath!}
-          fileData={fileData!}
-          doc={doc}
-          onOpenNote={onOpenNote}
-        />
-      )
     case 'epub':
-      return <EpubViewer filePath={filePath} />
+      return <EpubViewer data={fileData!} doc={doc} onOpenNote={onOpenNote} />
     case 'txt':
     case 'html':
       return <TextViewer docPath={doc.path} />

@@ -91,6 +91,12 @@ const api = {
     sync: (noteId: string, links: Array<{ targetId: string; context: string }>) =>
       ipcRenderer.invoke('noteLinks:sync', noteId, links),
   },
+  docLinks: {
+    getBacklinks: (docId: string) => ipcRenderer.invoke('docLinks:getBacklinks', docId),
+    getForwardLinks: (noteId: string) => ipcRenderer.invoke('docLinks:getForwardLinks', noteId),
+    sync: (noteId: string, links: Array<{ targetId: string; context: string }>) =>
+      ipcRenderer.invoke('docLinks:sync', noteId, links),
+  },
   templates: {
     list: () => ipcRenderer.invoke('templates:list'),
     get: (id: string) => ipcRenderer.invoke('templates:get', id),
@@ -105,7 +111,8 @@ const api = {
       title: string; parentId?: string; content?: string;
       hyperlink?: string; imageUrl?: string;
       color?: string; notes?: string;
-      shape?: string; styleOverrides?: string; positionX?: number; positionY?: number
+      shape?: string; styleOverrides?: string; positionX?: number; positionY?: number;
+      floating?: boolean
     }) => ipcRenderer.invoke('mindmaps:addNode', noteId, input),
     getNodes: (noteId: string) => ipcRenderer.invoke('mindmaps:getNodes', noteId),
     findNodesByNoteId: (noteId: string) => ipcRenderer.invoke('mindmaps:findNodesByNoteId', noteId),
@@ -119,17 +126,42 @@ const api = {
     addEdge: (noteId: string, input: { sourceId: string; targetId: string; label?: string }) =>
       ipcRenderer.invoke('mindmaps:addEdge', noteId, input),
     getEdges: (noteId: string) => ipcRenderer.invoke('mindmaps:getEdges', noteId),
+    updateEdge: (id: string, updates: { label?: string }) => ipcRenderer.invoke('mindmaps:updateEdge', id, updates),
     removeEdge: (id: string) => ipcRenderer.invoke('mindmaps:removeEdge', id),
+    addBoundary: (mindmapId: string, input: { nodeIds: string[]; label?: string; color?: string }) =>
+      ipcRenderer.invoke('mindmaps:addBoundary', mindmapId, input),
+    getBoundaries: (mindmapId: string) => ipcRenderer.invoke('mindmaps:getBoundaries', mindmapId),
+    updateBoundary: (id: string, updates: { label?: string; color?: string; nodeIds?: string[] }) =>
+      ipcRenderer.invoke('mindmaps:updateBoundary', id, updates),
+    removeBoundary: (id: string) => ipcRenderer.invoke('mindmaps:removeBoundary', id),
+    addSummary: (mindmapId: string, input: { nodeIds: string[]; summaryTitle?: string }) =>
+      ipcRenderer.invoke('mindmaps:addSummary', mindmapId, input),
+    getSummaries: (mindmapId: string) => ipcRenderer.invoke('mindmaps:getSummaries', mindmapId),
+    removeSummary: (id: string) => ipcRenderer.invoke('mindmaps:removeSummary', id),
   },
   graph: {
     getData: () => ipcRenderer.invoke('graph:getData'),
   },
   plugins: {
     list: () => ipcRenderer.invoke('plugins:list'),
+    listAll: () => ipcRenderer.invoke('plugins:listAll'),
     loadAll: () => ipcRenderer.invoke('plugins:loadAll'),
     unload: (pluginId: string) => ipcRenderer.invoke('plugins:unload', pluginId),
+    enable: (pluginId: string) => ipcRenderer.invoke('plugins:enable', pluginId),
+    disable: (pluginId: string) => ipcRenderer.invoke('plugins:disable', pluginId),
     getCommands: () => ipcRenderer.invoke('plugins:getCommands'),
     runCommand: (commandId: string) => ipcRenderer.invoke('plugins:runCommand', commandId),
+    getViews: () => ipcRenderer.invoke('plugins:getViews'),
+    rpc: (pluginId: string, method: string, args: any[]) => ipcRenderer.invoke('plugins:rpc', pluginId, method, args),
+    getCssPath: (pluginId: string) => ipcRenderer.invoke('plugins:getCssPath', pluginId),
+    getRendererPath: (pluginId: string) => ipcRenderer.invoke('plugins:getRendererPath', pluginId),
+    getRendererSource: (pluginId: string) => ipcRenderer.invoke('plugins:getRendererSource', pluginId),
+    getCssSource: (pluginId: string) => ipcRenderer.invoke('plugins:getCssSource', pluginId),
+    onMessage: (channel: string, handler: (data: any) => void) => {
+      const listener = (_event: any, data: any) => handler(data)
+      ipcRenderer.on(channel, listener)
+      return () => ipcRenderer.removeListener(channel, listener)
+    },
   },
   sync: {
     getConfig: () => ipcRenderer.invoke('sync:getConfig'),
@@ -154,6 +186,16 @@ const api = {
   },
   index: {
     rebuild: () => ipcRenderer.invoke('index:rebuild'),
+  },
+  noteRender: {
+    onRequest: (handler: (noteId: string, requestId: string) => void) => {
+      const listener = (_event: any, data: { noteId: string; requestId: string }) => handler(data.noteId, data.requestId)
+      ipcRenderer.on('note-render-request', listener)
+      return () => ipcRenderer.removeListener('note-render-request', listener)
+    },
+    sendResult: (requestId: string, dataUrl: string | null) => {
+      ipcRenderer.send(`note-render-result:${requestId}`, dataUrl)
+    },
   },
 }
 

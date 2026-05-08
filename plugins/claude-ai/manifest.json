@@ -1,0 +1,7 @@
+{
+  "id": "claude-ai",
+  "name": "Claude AI Assistant",
+  "version": "1.0.0",
+  "description": "AI-powered document understanding — ask questions, summarize, generate notes",
+  "apiVersion": "1"
+}

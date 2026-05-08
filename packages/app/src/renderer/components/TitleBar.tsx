@@ -3,9 +3,17 @@ import { X } from 'lucide-react'
 
 export interface Tab {
   id: string
-  type: 'library' | 'document' | 'note' | 'tag-manager'
+  type: 'library' | 'document' | 'note' | 'tag-manager' | 'plugin'
   title: string
   closable: boolean
+}
+
+export interface PluginViewInfo {
+  viewType: string
+  pluginId: string
+  displayText: string
+  icon?: string
+  singleton?: boolean
 }
 
 interface Props {
@@ -14,9 +22,12 @@ interface Props {
   onSelectTab: (id: string) => void
   onCloseTab: (id: string) => void
   onReorderTabs?: (tabs: Tab[]) => void
+  pluginViews?: PluginViewInfo[]
+  activePanelPlugin?: string | null
+  onTogglePluginPanel?: (pluginId: string, viewType: string) => void
 }
 
-export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, onReorderTabs }: Props) {
+export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, onReorderTabs, pluginViews, activePanelPlugin, onTogglePluginPanel }: Props) {
   const tabsRef = useRef<HTMLDivElement>(null)
   const tabRects = useRef<Map<string, DOMRect>>(new Map())
   const [dragState, setDragState] = useState<{
@@ -157,7 +168,7 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
             }}
           >
             <span className="title-bar-tab-icon">
-              {tab.type === 'library' ? '📚' : tab.type === 'document' ? '📄' : tab.type === 'tag-manager' ? '🏷' : '📝'}
+              {tab.type === 'library' ? '📚' : tab.type === 'document' ? '📄' : tab.type === 'tag-manager' ? '🏷' : tab.type === 'plugin' ? '🧩' : '📝'}
             </span>
             <span className="title-bar-tab-title">{tab.title}</span>
             {tab.closable && (
@@ -172,6 +183,20 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
           </div>
         ))}
       </div>
+      {pluginViews && pluginViews.length > 0 && (
+        <div className="title-bar-plugins">
+          {pluginViews.map(pv => (
+            <button
+              key={pv.pluginId}
+              className={`title-bar-plugin-btn ${activePanelPlugin === pv.pluginId ? 'active' : ''}`}
+              title={pv.displayText}
+              onClick={() => onTogglePluginPanel?.(pv.pluginId, pv.viewType)}
+            >
+              <span>{pv.icon || '🧩'}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

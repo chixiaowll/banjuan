@@ -23,27 +23,38 @@ export default function HighlightLayer({ highlights, scale, onHighlightClick }: 
   return (
     <>
       {highlights.map((hl) =>
-        hl.rects.map((rect, i) => (
-          <div
-            key={`${hl.id}-${i}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              onHighlightClick?.(hl.id)
-            }}
-            style={{
-              position: 'absolute',
-              left: rect.x * scale,
-              top: rect.y * scale,
-              width: rect.w * scale,
-              height: rect.h * scale,
-              backgroundColor: hl.color,
-              opacity: 0.35,
-              mixBlendMode: 'multiply',
-              cursor: 'pointer',
-              pointerEvents: 'auto',
-            }}
-          />
-        )),
+        hl.rects.map((rect, i) => {
+          // Rects with all values in [0, 1] are page-fraction coords (new format).
+          // Render using percentages so they auto-scale with zoom changes.
+          const isFraction = rect.x <= 1 && rect.y <= 1 && rect.w <= 1 && rect.h <= 1
+          const style: React.CSSProperties = isFraction
+            ? {
+                position: 'absolute',
+                left: `${rect.x * 100}%`,
+                top: `${rect.y * 100}%`,
+                width: `${rect.w * 100}%`,
+                height: `${rect.h * 100}%`,
+              }
+            : {
+                position: 'absolute',
+                left: rect.x * scale,
+                top: rect.y * scale,
+                width: rect.w * scale,
+                height: rect.h * scale,
+              }
+          return (
+            <div
+              key={`${hl.id}-${i}`}
+              style={{
+                ...style,
+                backgroundColor: hl.color,
+                opacity: 0.35,
+                mixBlendMode: 'multiply',
+                pointerEvents: 'none',
+              }}
+            />
+          )
+        }),
       )}
     </>
   )

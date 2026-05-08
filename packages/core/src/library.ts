@@ -7,6 +7,7 @@ import { DocumentService } from './documents/service.js'
 import { AnnotationService } from './annotations/service.js'
 import { NoteService } from './notes/service.js'
 import { NoteLinkService } from './notes/link-service.js'
+import { DocLinkService } from './notes/doc-link-service.js'
 import { FolderService } from './notes/folder-service.js'
 import { TagService } from './tags/service.js'
 import { SearchService } from './search/service.js'
@@ -30,6 +31,7 @@ export class Library {
   readonly notes: NoteService
   readonly folders: FolderService
   readonly noteLinks: NoteLinkService
+  readonly docLinks: DocLinkService
   readonly tags: TagService
   readonly search: SearchService
   readonly mindmaps: MindmapService
@@ -50,6 +52,7 @@ export class Library {
     this.notes = new NoteService(db, rootPath, this.search, this.events)
     this.folders = new FolderService(db, this.events)
     this.noteLinks = new NoteLinkService(db)
+    this.docLinks = new DocLinkService(db)
     this.tags = new TagService(db, rootPath, this.events)
     this.mindmaps = new MindmapService(db, rootPath, this.events)
     this.graph = new GraphService(db)
@@ -59,6 +62,7 @@ export class Library {
 
     this.notes.setTemplateService(this.templates)
     this.notes.setLinkService(this.noteLinks)
+    this.mindmaps.setLinkService(this.noteLinks)
   }
 
   static isLibrary(rootPath: string): boolean {
@@ -248,18 +252,10 @@ export class Library {
 
   async syncWithDisk(): Promise<{ imported: number; removed: number }> {
     const diskFiles = new Set(this.walkFiles().map(f => relative(this.rootPath, f)))
-    const docs = await this.documents.list()
+
+    const removed = this.documents.purgeOrphanMetadata(diskFiles)
 
     let imported = 0
-    let removed = 0
-
-    for (const doc of docs) {
-      if (!diskFiles.has(doc.path)) {
-        await this.documents.delete(doc.id)
-        removed++
-      }
-    }
-
     for (const relPath of diskFiles) {
       try {
         await this.documents.import(relPath)

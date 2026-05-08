@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { usePdfViewer } from './PdfViewerContext.js'
+import { useT } from '../../i18n/index.js'
 
 interface OutlineItem {
   title: string
@@ -34,7 +36,7 @@ function TreeNode({ item, depth, onNavigate }: TreeNodeProps) {
             onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
             style={{ width: 12, flexShrink: 0, fontSize: 10, textAlign: 'center' }}
           >
-            {expanded ? '▼' : '▶'}
+            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           </span>
         ) : (
           <span style={{ width: 12, flexShrink: 0 }} />
@@ -51,6 +53,7 @@ function TreeNode({ item, depth, onNavigate }: TreeNodeProps) {
 }
 
 export default function OutlinePanel() {
+  const t = useT()
   const { pdfDoc, scrollToPage } = usePdfViewer()
   const [outline, setOutline] = useState<OutlineItem[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -80,8 +83,8 @@ export default function OutlinePanel() {
     }
   }, [pdfDoc, scrollToPage])
 
-  if (loading) return <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)' }}>Loading...</div>
-  if (!outline || outline.length === 0) return <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)' }}>此文档无目录</div>
+  if (loading) return <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)' }}>{t('common.loading')}</div>
+  if (!outline || outline.length === 0) return <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)' }}>{t('pdf.noOutline')}</div>
 
   return (
     <div style={{ padding: '4px 0' }}>

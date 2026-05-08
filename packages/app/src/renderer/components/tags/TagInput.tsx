@@ -64,6 +64,7 @@ export default function TagInput({ targetId, targetType, compact }: Props) {
     }
     await window.electronAPI.tags.assign(targetId, targetType, [trimmed])
     await loadTags()
+    document.dispatchEvent(new CustomEvent('tags-changed'))
     setQuery('')
     setInputOpen(false)
   }
@@ -71,6 +72,7 @@ export default function TagInput({ targetId, targetType, compact }: Props) {
   const handleRemove = async (tagName: string) => {
     await window.electronAPI.tags.unassign(targetId, targetType, tagName)
     await loadTags()
+    document.dispatchEvent(new CustomEvent('tags-changed'))
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

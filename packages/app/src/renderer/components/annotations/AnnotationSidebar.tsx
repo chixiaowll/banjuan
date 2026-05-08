@@ -1,4 +1,6 @@
 import React, { useState } from 'react'
+import { Pencil, Save, X, Trash2 } from 'lucide-react'
+import { useT } from '../../i18n/index.js'
 
 interface Annotation {
   id: string
@@ -18,6 +20,7 @@ interface Props {
 }
 
 export default function AnnotationSidebar({ annotations, onAnnotationClick, onAnnotationDelete, onAnnotationUpdate }: Props) {
+  const t = useT()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
 
@@ -55,7 +58,7 @@ export default function AnnotationSidebar({ annotations, onAnnotationClick, onAn
         fontWeight: 600,
         fontSize: 14,
       }}>
-        标注 ({annotations.length})
+        {t('annotation.title')} ({annotations.length})
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
         {sortedKeys.map((pageKey) => (
@@ -67,7 +70,7 @@ export default function AnnotationSidebar({ annotations, onAnnotationClick, onAn
                 color: 'var(--text-muted)',
                 fontWeight: 600,
               }}>
-                第 {pageKey} 页
+                {t('pdf.page', pageKey)}
               </div>
             )}
             {grouped.get(pageKey)!.map((ann) => (
@@ -86,7 +89,7 @@ export default function AnnotationSidebar({ annotations, onAnnotationClick, onAn
                     background: ann.color, flexShrink: 0,
                   }} />
                   <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {ann.type === 'highlight' ? '高亮' : ann.type === 'note' ? '批注' : ann.type}
+                    {ann.type === 'highlight' ? t('annotation.highlight') : ann.type === 'note' ? t('annotation.note') : ann.type}
                   </span>
                 </div>
                 {ann.selectedText && (
@@ -118,8 +121,8 @@ export default function AnnotationSidebar({ annotations, onAnnotationClick, onAn
                       }}
                     />
                     <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                      <button style={{ fontSize: 11 }} onClick={() => saveEdit(ann.id)}>保存</button>
-                      <button style={{ fontSize: 11 }} onClick={() => setEditingId(null)}>取消</button>
+                      <button style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => saveEdit(ann.id)}><Save size={12} />{t('common.save')}</button>
+                      <button style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => setEditingId(null)}><X size={12} />{t('common.cancel')}</button>
                     </div>
                   </div>
                 ) : ann.content ? (
@@ -130,15 +133,15 @@ export default function AnnotationSidebar({ annotations, onAnnotationClick, onAn
                 <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                   <button
                     onClick={(e) => { e.stopPropagation(); startEdit(ann) }}
-                    style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
-                    编辑
+                    <Pencil size={12} />{t('common.edit')}
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); onAnnotationDelete(ann.id) }}
-                    style={{ fontSize: 11, color: '#f38ba8', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    style={{ fontSize: 11, color: '#f38ba8', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
                   >
-                    删除
+                    <Trash2 size={12} />{t('common.delete')}
                   </button>
                 </div>
               </div>
@@ -147,7 +150,7 @@ export default function AnnotationSidebar({ annotations, onAnnotationClick, onAn
         ))}
         {annotations.length === 0 && (
           <div style={{ padding: 16, color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
-            选中文本后即可创建标注
+            {t('annotation.empty')}
           </div>
         )}
       </div>

@@ -1,0 +1,18 @@
+{
+  "name": "@banjuan/zotero-pdfjs-dist",
+  "version": "0.1.0",
+  "description": "Built output of Zotero's pdf.js fork (https://github.com/zotero/pdf.js). Apache-2.0.",
+  "type": "module",
+  "main": "./build/pdf.mjs",
+  "module": "./build/pdf.mjs",
+  "exports": {
+    ".": "./build/pdf.mjs",
+    "./build/pdf.worker.mjs": "./build/pdf.worker.mjs",
+    "./web/viewer.css": "./web/viewer.css"
+  },
+  "files": [
+    "build",
+    "web"
+  ],
+  "license": "Apache-2.0"
+}

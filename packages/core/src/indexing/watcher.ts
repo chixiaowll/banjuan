@@ -112,8 +112,8 @@ export class FileWatcher {
       this.db.prepare('DELETE FROM mindmap_nodes WHERE mindmap_id = ?').run(mm.id)
       for (const node of mm.nodes) {
         this.db.prepare(
-          `INSERT OR REPLACE INTO mindmap_nodes (id, mindmap_id, parent_id, annotation_id, title, content, color, position_x, position_y, sort_order, collapsed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ).run(node.id, mm.id, node.parentId, node.annotationId, node.title, node.content, node.color, node.positionX, node.positionY, node.sortOrder, node.collapsed ? 1 : 0, mm.createdAt)
+          `INSERT OR REPLACE INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).run(node.id, mm.id, node.parentId, node.title, node.content, node.hyperlink, node.imageUrl, node.color, node.notes, node.shape, node.styleOverrides, node.positionX, node.positionY, node.sortOrder, node.collapsed ? 1 : 0, mm.createdAt)
       }
       for (const edge of mm.edges) {
         this.db.prepare('INSERT OR REPLACE INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)').run(edge.id, mm.id, edge.sourceId, edge.targetId, edge.label, edge.style)

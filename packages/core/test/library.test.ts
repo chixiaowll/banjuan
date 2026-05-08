@@ -26,7 +26,7 @@ describe('Library', () => {
       expect(existsSync(join(libPath, '.banjuan', 'data', 'annotations'))).toBe(true)
       expect(existsSync(join(libPath, '.banjuan', 'data', 'mindmaps'))).toBe(true)
       expect(existsSync(join(libPath, '.banjuan', 'stubs'))).toBe(true)
-      expect(existsSync(join(libPath, 'notes'))).toBe(true)
+      expect(existsSync(join(libPath, '.banjuan', 'notes'))).toBe(true)
 
       lib.close()
     })
@@ -105,14 +105,11 @@ describe('Library', () => {
       await lib.close()
     })
 
-    it('skips .banjuan and notes directories', async () => {
+    it('skips .banjuan directory', async () => {
       const libPath = join(tempDir, 'lib2')
       const lib = Library.init(libPath)
 
-      // Create files in .banjuan and notes after init
       createTestFile(libPath, 'real.pdf', Buffer.from('pdf'))
-      // notes/ already exists from init
-      createTestFile(libPath, 'notes/mynote.md', '---\nid: x\n---\ncontent')
 
       const result = await lib.scanAndImport()
       expect(result.imported).toBe(1)
@@ -124,7 +121,7 @@ describe('Library', () => {
       await lib.close()
     })
 
-    it('skips duplicate files', async () => {
+    it('imports files with same content at different paths', async () => {
       const libPath = join(tempDir, 'lib3')
       createTestFile(libPath, 'a.pdf', Buffer.from('same content'))
       createTestFile(libPath, 'b.pdf', Buffer.from('same content'))
@@ -132,8 +129,8 @@ describe('Library', () => {
       const lib = Library.init(libPath)
       const result = await lib.scanAndImport()
 
-      expect(result.imported).toBe(1)
-      expect(result.skipped).toBe(1)
+      expect(result.imported).toBe(2)
+      expect(result.skipped).toBe(0)
 
       await lib.close()
     })

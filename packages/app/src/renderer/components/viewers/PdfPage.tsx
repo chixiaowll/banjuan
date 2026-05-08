@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import * as pdfjsLib from '@banjuan/zotero-pdfjs-dist'
 import HighlightLayer from '../annotations/HighlightLayer.js'
+import AreaSelectTool from './AreaSelectTool.js'
+import ResizableAreaOverlay from './ResizableAreaOverlay.js'
+import TextNoteTool from './TextNoteTool.js'
+import InkTool from './InkTool.js'
+import InkLassoTool from './InkLassoTool.js'
+import EraserTool from './EraserTool.js'
 
 export interface TextSelectInfo {
   page: number
@@ -24,17 +30,33 @@ export interface PageInfo {
   chars: PdfChar[]
 }
 
+interface AnnotationData {
+  id: string
+  page: number | null
+  position: any
+  color: string
+  type: string
+}
+
 interface PdfPageProps {
   pdfDoc: pdfjsLib.PDFDocumentProxy
   pageNum: number
   scale: number
   baseSize: { w: number; h: number }
   highlights: Array<{ id: string; color: string; rects: Array<{ x: number; y: number; w: number; h: number }> }>
-  scrollRoot: HTMLElement | null
+  scrollRoot?: HTMLElement | null
   onTextSelect?: (info: TextSelectInfo) => void
   onHighlightClick?: (id: string) => void
   searchHighlights?: Array<{ rects: Array<{ x: number; y: number; w: number; h: number }>; active: boolean }>
   onPageReady?: (pageNum: number, info: PageInfo) => void
+  activeTool?: string
+  activeColor?: string
+  inkWidth?: number
+  docId?: string
+  annotations?: AnnotationData[]
+  onAnnotationCreated?: () => void
+  onAnnotationDelete?: (id: string) => void
+  onAnnotationUpdate?: (id: string, updates: any) => void
 }
 
 export function findClosestCharIdx(chars: PdfChar[], px: number, py: number): number {
@@ -66,40 +88,28 @@ export default function PdfPage({
   onHighlightClick,
   searchHighlights,
   onPageReady,
+  activeTool = 'none',
+  activeColor = '#fde68a',
+  inkWidth = 2,
+  docId = '',
+  annotations = [],
+  onAnnotationCreated,
+  onAnnotationDelete,
+  onAnnotationUpdate,
 }: PdfPageProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const unmaskedCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const textLayerRef = useRef<HTMLDivElement>(null)
   const pageInfoRef = useRef<PageInfo | null>(null)
   const viewportRef = useRef<pdfjsLib.PageViewport | null>(null)
   const renderedScaleRef = useRef<number>(0)
 
-  const [shouldRender, setShouldRender] = useState(false)
   const [ready, setReady] = useState(false)
 
-  // Visibility-based lazy rendering: only render when within ~1 viewport above/below.
+  // Render canvas + text layer + extract chars[] when mounted or scale changes.
   useEffect(() => {
-    const el = containerRef.current
-    if (!el || !scrollRoot) return
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setShouldRender(true)
-            break
-          }
-        }
-      },
-      { root: scrollRoot, rootMargin: '800px 0px' },
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [scrollRoot])
-
-  // Render canvas + text layer + extract chars[] when shouldRender or scale changes.
-  useEffect(() => {
-    if (!shouldRender) return
-    if (renderedScaleRef.current === scale && ready) return // already rendered at this scale
+    if (renderedScaleRef.current === scale && ready) return
 
     let cancelled = false
     setReady(false)
@@ -165,6 +175,15 @@ export default function PdfPage({
       pageInfoRef.current = { width: vbW, height: vbH, chars }
       onPageReady?.(pageNum, pageInfoRef.current)
 
+      // Save unmasked canvas for area capture
+      if (canvas) {
+        const uc = document.createElement('canvas')
+        uc.width = canvas.width
+        uc.height = canvas.height
+        uc.getContext('2d')!.drawImage(canvas, 0, 0)
+        unmaskedCanvasRef.current = uc
+      }
+
       // Mask canvas text by line.
       if (ctx && chars.length > 0) {
         type Line = { x1: number; y1: number; x2: number; y2: number }
@@ -215,7 +234,15 @@ export default function PdfPage({
     init().catch((err) => console.error('[PdfPage] init error:', err))
 
     return () => { cancelled = true }
-  }, [pdfDoc, pageNum, scale, shouldRender])
+  }, [pdfDoc, pageNum, scale])
+
+  const handleAreaResized = useCallback(async (annId: string, newRect: { x: number; y: number; w: number; h: number }, imageData: string | undefined) => {
+    const ann = annotations.find(a => a.id === annId)
+    if (!ann) return
+    const newPosition = { ...ann.position, rect: newRect, imageData }
+    await window.electronAPI.annotations.update(annId, { position: newPosition })
+    onAnnotationCreated?.()
+  }, [annotations, onAnnotationCreated])
 
   const handleMouseUp = useCallback(() => {
     if (!onTextSelect) return
@@ -301,7 +328,7 @@ export default function PdfPage({
     }
 
     if (rects.length > 0) {
-      onTextSelect({ page: pageNum, rects, text: preciseText || text, clientRect })
+      onTextSelect({ page: pageNum, rects, text: text, clientRect })
     }
   }, [onTextSelect, pageNum])
 
@@ -314,12 +341,11 @@ export default function PdfPage({
         position: 'relative',
         width: baseSize.w,
         height: baseSize.h,
-        margin: '8px auto',
+        margin: '0 auto',
         background: '#fff',
       }}
     >
-      {shouldRender && (
-        <>
+      <>
           <canvas
             ref={canvasRef}
             style={{
@@ -335,14 +361,27 @@ export default function PdfPage({
             className="textLayer"
             style={{ visibility: ready ? 'visible' : 'hidden' }}
           />
-        </>
-      )}
+      </>
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 3 }}>
         <HighlightLayer
           highlights={highlights}
           scale={scale}
           onHighlightClick={onHighlightClick}
         />
+        {annotations.filter(a => a.page === pageNum && a.position?.type === 'area').map(a => {
+          const r = a.position.rect
+          if (!r) return null
+          return (
+            <ResizableAreaOverlay
+              key={a.id}
+              id={a.id}
+              rect={r}
+              color={a.color}
+              canvasRef={unmaskedCanvasRef}
+              onResized={handleAreaResized}
+            />
+          )
+        })}
       </div>
       {searchHighlights && searchHighlights.length > 0 && (
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 4 }}>
@@ -360,6 +399,55 @@ export default function PdfPage({
             ))
           )}
         </div>
+      )}
+      {docId && (
+        <>
+          <AreaSelectTool
+            active={activeTool === 'area'}
+            color={activeColor}
+            pageNum={pageNum}
+            docId={docId}
+            canvasRef={unmaskedCanvasRef}
+            onCreated={onAnnotationCreated || (() => {})}
+          />
+          <TextNoteTool
+            active={activeTool === 'text'}
+            color={activeColor}
+            pageNum={pageNum}
+            docId={docId}
+            pointAnnotations={annotations.filter(a => a.page === pageNum && a.position?.type === 'point').map(a => ({
+              id: a.id, page: pageNum, position: a.position, content: a.position?.content || null, color: a.color,
+            }))}
+            onCreated={onAnnotationCreated || (() => {})}
+            onUpdated={onAnnotationUpdate || (() => {})}
+          />
+          {activeTool !== 'lasso' && (
+            <InkTool
+              active={activeTool === 'ink'}
+              color={activeColor}
+              lineWidth={inkWidth}
+              pageNum={pageNum}
+              docId={docId}
+              existingAnnotationId={annotations.find(a => a.page === pageNum && a.position?.type === 'ink')?.id ?? null}
+              existingStrokes={annotations.filter(a => a.page === pageNum && a.position?.type === 'ink').flatMap(a => a.position?.strokes || [])}
+              onCreated={onAnnotationCreated || (() => {})}
+            />
+          )}
+          <InkLassoTool
+            active={activeTool === 'lasso'}
+            pageNum={pageNum}
+            docId={docId}
+            existingAnnotationId={annotations.find(a => a.page === pageNum && a.position?.type === 'ink')?.id ?? null}
+            existingStrokes={annotations.filter(a => a.page === pageNum && a.position?.type === 'ink').flatMap(a => a.position?.strokes || [])}
+            onUpdated={onAnnotationCreated || (() => {})}
+          />
+          <EraserTool
+            active={activeTool === 'eraser'}
+            annotations={annotations.filter(a => a.page === pageNum).map(a => ({ ...a, type: a.position?.type || a.type }))}
+            pageNum={pageNum}
+            onDelete={onAnnotationDelete || (() => {})}
+          />
+        </>
       )}
     </div>
   )

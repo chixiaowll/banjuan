@@ -9,21 +9,19 @@ export interface MindmapNodeData {
   id: string
   mindmapId: string
   parentId: string | null
-  nodeType: string
-  annotationId: string | null
-  noteId: string | null
-  docId: string | null
-  hyperlink: string | null
-  imageUrl: string | null
-  tagId: string | null
   title: string
   content: string | null
+  hyperlink: string | null
+  imageUrl: string | null
   color: string | null
   notes: string | null
   shape: string | null
   styleOverrides: string | null
+  positionX: number | null
+  positionY: number | null
   sortOrder: number
   collapsed: boolean
+  floating: boolean
   depth: number
 }
 
@@ -46,7 +44,15 @@ export interface MindmapState {
   history: HistoryEntry[]
   historyIndex: number
 
-  sidePanelType: 'none' | 'properties' | 'contentEditor' | 'noteEditor' | 'theme'
+  dropTarget: { nodeId: string; position: 'inside' | 'before' | 'after' } | null
+
+  connectMode: boolean
+  connectSourceId: string | null
+
+  boundaries: Array<{ id: string; nodeIds: string[]; label: string; color: string | null }>
+  summaries: Array<{ id: string; nodeIds: string[]; summaryNodeId: string }>
+
+  sidePanelType: 'none' | 'properties' | 'contentEditor' | 'theme'
   sidePanelNodeId: string | null
 
   init: (mindmapId: string) => Promise<void>
@@ -60,21 +66,34 @@ export interface MindmapState {
   toggleSelectNode: (id: string) => void
   setEditingNodeId: (id: string | null) => void
 
-  addNode: (parentId: string | null, nodeType?: string) => Promise<string | null>
+  addNode: (parentId: string | null) => Promise<string | null>
+  addFloatingNode: () => Promise<string | null>
   addSiblingNode: (siblingId: string) => Promise<string | null>
   removeNode: (id: string) => Promise<void>
   updateNodeData: (id: string, updates: Record<string, unknown>) => Promise<void>
   reparentNode: (nodeId: string, newParentId: string | null, insertIndex?: number) => Promise<void>
+  reorderSiblings: (nodeId: string, newIndex: number) => Promise<void>
+  setDropTarget: (target: { nodeId: string; position: 'inside' | 'before' | 'after' } | null) => void
   toggleCollapse: (id: string) => Promise<void>
 
   addRelationEdge: (sourceId: string, targetId: string, label?: string) => Promise<void>
+  updateRelationEdge: (edgeId: string, updates: { label?: string; style?: string }) => Promise<void>
   removeRelationEdge: (edgeId: string) => Promise<void>
+  setConnectMode: (on: boolean) => void
+  setConnectSourceId: (id: string | null) => void
+
+  addBoundary: (nodeIds: string[], label?: string) => Promise<void>
+  updateBoundary: (id: string, updates: { label?: string; color?: string }) => Promise<void>
+  removeBoundary: (id: string) => Promise<void>
+
+  addSummary: (nodeIds: string[]) => Promise<void>
+  removeSummary: (id: string) => Promise<void>
 
   undo: () => void
   redo: () => void
   pushHistory: () => void
 
-  openSidePanel: (type: 'properties' | 'contentEditor' | 'noteEditor' | 'theme', nodeId?: string) => void
+  openSidePanel: (type: 'properties' | 'contentEditor' | 'theme', nodeId?: string) => void
   closeSidePanel: () => void
 
   persist: () => Promise<void>
@@ -83,13 +102,10 @@ export interface MindmapState {
 function buildTreeDepths(nodes: Node<MindmapNodeData>[]): Map<string, number> {
   const depths = new Map<string, number>()
   const childrenMap = new Map<string, string[]>()
-  let rootId: string | null = null
 
   for (const n of nodes) {
     const parentId = n.data.parentId
-    if (!parentId) {
-      rootId = n.id
-    } else {
+    if (parentId) {
       const siblings = childrenMap.get(parentId) ?? []
       siblings.push(n.id)
       childrenMap.set(parentId, siblings)
@@ -102,18 +118,19 @@ function buildTreeDepths(nodes: Node<MindmapNodeData>[]): Map<string, number> {
       walk(childId, depth + 1)
     }
   }
-  if (rootId) walk(rootId, 0)
+
+  for (const n of nodes) {
+    if (!n.data.parentId) walk(n.id, 0)
+  }
   return depths
 }
 
 function apiNodesToRfNodes(apiNodes: any[], mindmapId: string): Node<MindmapNodeData>[] {
   const depths = new Map<string, number>()
   const childrenMap = new Map<string, string[]>()
-  let rootId: string | null = null
 
   for (const n of apiNodes) {
-    if (!n.parentId) rootId = n.id
-    else {
+    if (n.parentId) {
       const siblings = childrenMap.get(n.parentId) ?? []
       siblings.push(n.id)
       childrenMap.set(n.parentId, siblings)
@@ -124,31 +141,33 @@ function apiNodesToRfNodes(apiNodes: any[], mindmapId: string): Node<MindmapNode
     depths.set(id, d)
     for (const c of childrenMap.get(id) ?? []) walkDepth(c, d + 1)
   }
-  if (rootId) walkDepth(rootId, 0)
+
+  for (const n of apiNodes) {
+    if (!n.parentId) walkDepth(n.id, 0)
+  }
 
   return apiNodes.map(n => ({
     id: n.id,
-    type: n.nodeType ?? 'text',
+    type: 'default',
     position: { x: n.positionX ?? 0, y: n.positionY ?? 0 },
+    draggable: true,
     data: {
       id: n.id,
       mindmapId,
       parentId: n.parentId,
-      nodeType: n.nodeType ?? 'text',
-      annotationId: n.annotationId,
-      noteId: n.noteId,
-      docId: n.docId,
-      hyperlink: n.hyperlink,
-      imageUrl: n.imageUrl,
-      tagId: n.tagId,
       title: n.title,
       content: n.content,
+      hyperlink: n.hyperlink,
+      imageUrl: n.imageUrl,
       color: n.color,
       notes: n.notes,
       shape: n.shape,
       styleOverrides: n.styleOverrides,
+      positionX: n.positionX ?? null,
+      positionY: n.positionY ?? null,
       sortOrder: n.sortOrder,
       collapsed: n.collapsed ?? false,
+      floating: n.floating ?? false,
       depth: depths.get(n.id) ?? 0,
     },
   }))
@@ -163,6 +182,8 @@ function apiEdgesToRfEdges(treeNodes: Node<MindmapNodeData>[], apiEdges: any[]):
         source: n.data.parentId,
         target: n.id,
         type: 'treeEdge',
+        sourceHandle: 'source-right',
+        targetHandle: 'target-left',
       })
     }
   }
@@ -172,7 +193,7 @@ function apiEdgesToRfEdges(treeNodes: Node<MindmapNodeData>[], apiEdges: any[]):
     source: e.sourceId,
     target: e.targetId,
     type: 'relationEdge',
-    data: { label: e.label },
+    data: { label: e.label, style: e.style },
   }))
 
   return [...treeEdges, ...relationEdges]
@@ -199,25 +220,43 @@ export function createMindmapStore(): MindmapStoreApi {
     history: [],
     historyIndex: -1,
 
+    dropTarget: null,
+
+    connectMode: false,
+    connectSourceId: null,
+
+    boundaries: [],
+    summaries: [],
+
     sidePanelType: 'none',
     sidePanelNodeId: null,
 
     init: async (mindmapId: string) => {
-      useNodeSizeStore.getState().reset()
       const mm = await window.electronAPI.notes.get(mindmapId)
       if (!mm) return
-      const [apiNodes, apiEdges] = await Promise.all([
+      const [apiNodes, apiEdges, apiBoundaries, apiSummaries] = await Promise.all([
         window.electronAPI.mindmaps.getNodes(mindmapId),
         window.electronAPI.mindmaps.getEdges(mindmapId),
+        window.electronAPI.mindmaps.getBoundaries(mindmapId),
+        window.electronAPI.mindmaps.getSummaries(mindmapId),
       ])
       const rfNodes = apiNodesToRfNodes(apiNodes, mindmapId)
+      const summariesData = apiSummaries.map((s: any) => ({ id: s.id, nodeIds: s.nodeIds, summaryNodeId: s.summaryNodeId }))
+      const summaryNodeIds = new Set(summariesData.map(s => s.summaryNodeId))
+      for (const n of rfNodes) {
+        if (summaryNodeIds.has(n.id) && !n.data.floating) {
+          n.data = { ...n.data, floating: true }
+        }
+      }
       const rfEdges = apiEdgesToRfEdges(rfNodes, apiEdges)
       const mmLayout = mm.typeMeta?.layout ?? (mm as any).layout ?? 'mindmap'
       const mmTheme = mm.typeMeta?.theme ?? (mm as any).theme ?? 'classic'
       const layoutResult = layoutMindmap(rfNodes, rfEdges, {
         layout: mmLayout,
         nodeSizes: new Map(),
+        summaries: summariesData,
       })
+      useNodeSizeStore.getState().reset()
       set({
         mindmapId,
         mindmapTitle: mm.title,
@@ -229,6 +268,8 @@ export function createMindmapStore(): MindmapStoreApi {
         editingNodeId: null,
         history: [{ rfNodes: layoutResult.nodes, rfEdges: layoutResult.edges }],
         historyIndex: 0,
+        boundaries: apiBoundaries.map((b: any) => ({ id: b.id, nodeIds: b.nodeIds, label: b.label ?? '', color: b.color })),
+        summaries: apiSummaries.map((s: any) => ({ id: s.id, nodeIds: s.nodeIds, summaryNodeId: s.summaryNodeId })),
       })
     },
 
@@ -260,23 +301,15 @@ export function createMindmapStore(): MindmapStoreApi {
     },
     setEditingNodeId: (id) => set({ editingNodeId: id }),
 
-    addNode: async (parentId, nodeType = 'text') => {
+    addNode: async (parentId) => {
       const { mindmapId, rfNodes } = get()
       if (!mindmapId) return null
-      const effectiveParentId = parentId ?? rfNodes.find(n => !n.data.parentId)?.id ?? null
+      const effectiveParentId = parentId ?? rfNodes.find(n => !n.data.parentId && !n.data.floating)?.id ?? null
       const title = 'New Topic'
-
-      let noteId: string | null = null
-      if (nodeType === 'note') {
-        const note = await window.electronAPI.notes.create({ title })
-        noteId = note.id
-      }
 
       const node = await window.electronAPI.mindmaps.addNode(mindmapId, {
         title,
         parentId: effectiveParentId ?? undefined,
-        nodeType,
-        ...(noteId ? { noteId } : {}),
       })
       const depths = buildTreeDepths(rfNodes)
       const parentDepth = effectiveParentId ? (depths.get(effectiveParentId) ?? 0) : -1
@@ -286,16 +319,15 @@ export function createMindmapStore(): MindmapStoreApi {
         : { x: 0, y: 0 }
       const newRfNode: Node<MindmapNodeData> = {
         id: node.id,
-        type: nodeType,
+        type: 'default',
         position: initPos,
         data: {
           id: node.id, mindmapId, parentId: node.parentId,
-          nodeType: node.nodeType ?? nodeType,
-          annotationId: null, noteId: noteId ?? node.noteId ?? null, docId: null,
-          hyperlink: null, imageUrl: null, tagId: null,
-          title: node.title, content: null, color: null,
-          notes: null, shape: null, styleOverrides: null,
-          sortOrder: node.sortOrder, collapsed: false,
+          title: node.title, content: null,
+          hyperlink: null, imageUrl: null,
+          color: null, notes: null, shape: null, styleOverrides: null,
+          positionX: null, positionY: null,
+          sortOrder: node.sortOrder, collapsed: false, floating: false,
           depth: parentDepth + 1,
         },
       }
@@ -303,11 +335,40 @@ export function createMindmapStore(): MindmapStoreApi {
       const treeEdges: Edge[] = []
       for (const n of updatedNodes) {
         if (n.data.parentId) {
-          treeEdges.push({ id: `tree-${n.data.parentId}-${n.id}`, source: n.data.parentId, target: n.id, type: 'treeEdge' })
+          treeEdges.push({ id: `tree-${n.data.parentId}-${n.id}`, source: n.data.parentId, target: n.id, type: 'treeEdge', sourceHandle: 'source-right', targetHandle: 'target-left' })
         }
       }
       const relationEdges = get().rfEdges.filter(e => e.type === 'relationEdge')
       set({ rfNodes: updatedNodes, rfEdges: [...treeEdges, ...relationEdges], selectedNodeIds: [node.id] })
+      get().pushHistory()
+      return node.id
+    },
+
+    addFloatingNode: async () => {
+      const { mindmapId, rfNodes } = get()
+      if (!mindmapId) return null
+      const node = await window.electronAPI.mindmaps.addNode(mindmapId, {
+        title: 'Floating Topic',
+        floating: true,
+        positionX: 200,
+        positionY: -200,
+      })
+      const newRfNode: Node<MindmapNodeData> = {
+        id: node.id,
+        type: 'default',
+        position: { x: node.positionX ?? 200, y: node.positionY ?? -200 },
+        draggable: true,
+        data: {
+          id: node.id, mindmapId, parentId: null,
+          title: node.title, content: null,
+          hyperlink: null, imageUrl: null,
+          color: null, notes: null, shape: null, styleOverrides: null,
+          positionX: node.positionX ?? 200, positionY: node.positionY ?? -200,
+          sortOrder: node.sortOrder, collapsed: false, floating: true,
+          depth: 0,
+        },
+      }
+      set({ rfNodes: [...rfNodes, newRfNode], selectedNodeIds: [node.id] })
       get().pushHistory()
       return node.id
     },
@@ -319,7 +380,9 @@ export function createMindmapStore(): MindmapStoreApi {
     },
 
     removeNode: async (id) => {
-      const { rfNodes, rfEdges } = get()
+      const { rfNodes, summaries } = get()
+      const node = rfNodes.find(n => n.id === id)
+      if (node && !node.data.parentId && !node.data.floating) return
       const descendantIds = new Set<string>()
       function collectDescendants(parentId: string) {
         for (const n of rfNodes) {
@@ -331,23 +394,43 @@ export function createMindmapStore(): MindmapStoreApi {
       }
       descendantIds.add(id)
       collectDescendants(id)
-      await window.electronAPI.mindmaps.removeNode(id)
+
+      const affectedSummaries = summaries.filter(s =>
+        descendantIds.has(s.summaryNodeId) || s.nodeIds.some(nid => descendantIds.has(nid))
+      )
+      for (const s of affectedSummaries) {
+        if (descendantIds.has(s.summaryNodeId)) {
+          window.electronAPI.mindmaps.removeSummary(s.id).catch(() => {})
+        }
+      }
+
       set({
-        rfNodes: rfNodes.filter(n => !descendantIds.has(n.id)),
-        rfEdges: rfEdges.filter(e => !descendantIds.has(e.source) && !descendantIds.has(e.target)),
+        rfNodes: get().rfNodes.filter(n => !descendantIds.has(n.id)),
+        rfEdges: get().rfEdges.filter(e => !descendantIds.has(e.source) && !descendantIds.has(e.target)),
         selectedNodeIds: get().selectedNodeIds.filter(i => !descendantIds.has(i)),
+        summaries: get().summaries
+          .filter(s => !descendantIds.has(s.summaryNodeId))
+          .map(s => {
+            const filtered = s.nodeIds.filter(nid => !descendantIds.has(nid))
+            return filtered.length !== s.nodeIds.length ? { ...s, nodeIds: filtered } : s
+          })
+          .filter(s => s.nodeIds.length > 0),
+        sidePanelType: 'none' as const,
+        sidePanelNodeId: null,
       })
       get().pushHistory()
+      await window.electronAPI.mindmaps.removeNode(id)
     },
 
     updateNodeData: async (id, updates) => {
-      await window.electronAPI.mindmaps.updateNode(id, updates)
+      if (!get().rfNodes.find(n => n.id === id)) return
       set({
         rfNodes: get().rfNodes.map(n =>
           n.id === id ? { ...n, data: { ...n.data, ...updates } as MindmapNodeData } : n
         ),
       })
       get().pushHistory()
+      window.electronAPI.mindmaps.updateNode(id, updates).catch(() => {})
     },
 
     reparentNode: async (nodeId, newParentId, insertIndex) => {
@@ -381,13 +464,38 @@ export function createMindmapStore(): MindmapStoreApi {
       const treeEdges: Edge[] = []
       for (const n of withDepths) {
         if (n.data.parentId) {
-          treeEdges.push({ id: `tree-${n.data.parentId}-${n.id}`, source: n.data.parentId, target: n.id, type: 'treeEdge' })
+          treeEdges.push({ id: `tree-${n.data.parentId}-${n.id}`, source: n.data.parentId, target: n.id, type: 'treeEdge', sourceHandle: 'source-right', targetHandle: 'target-left' })
         }
       }
       const relationEdges = get().rfEdges.filter(e => e.type === 'relationEdge')
       set({ rfNodes: withDepths, rfEdges: [...treeEdges, ...relationEdges] })
       get().pushHistory()
     },
+
+    reorderSiblings: async (nodeId, newIndex) => {
+      const { rfNodes } = get()
+      const node = rfNodes.find(n => n.id === nodeId)
+      if (!node || !node.data.parentId) return
+      const siblings = rfNodes
+        .filter(n => n.data.parentId === node.data.parentId && n.id !== nodeId)
+        .sort((a, b) => a.data.sortOrder - b.data.sortOrder)
+      siblings.splice(newIndex, 0, node)
+      for (let i = 0; i < siblings.length; i++) {
+        if (siblings[i].data.sortOrder !== i) {
+          await window.electronAPI.mindmaps.updateNode(siblings[i].id, { sortOrder: i })
+        }
+      }
+      set({
+        rfNodes: get().rfNodes.map(n => {
+          const idx = siblings.findIndex(s => s.id === n.id)
+          if (idx >= 0) return { ...n, data: { ...n.data, sortOrder: idx } }
+          return n
+        }),
+      })
+      get().pushHistory()
+    },
+
+    setDropTarget: (target) => set({ dropTarget: target }),
 
     toggleCollapse: async (id) => {
       const node = get().rfNodes.find(n => n.id === id)
@@ -411,10 +519,82 @@ export function createMindmapStore(): MindmapStoreApi {
       get().pushHistory()
     },
 
+    updateRelationEdge: async (edgeId, updates) => {
+      await window.electronAPI.mindmaps.updateEdge(edgeId, updates)
+      set({
+        rfEdges: get().rfEdges.map(e =>
+          e.id === edgeId ? { ...e, data: { ...e.data, ...updates } } : e
+        ),
+      })
+      get().pushHistory()
+    },
+
     removeRelationEdge: async (edgeId) => {
       await window.electronAPI.mindmaps.removeEdge(edgeId)
       set({ rfEdges: get().rfEdges.filter(e => e.id !== edgeId) })
       get().pushHistory()
+    },
+
+    setConnectMode: (on) => set({ connectMode: on, connectSourceId: null }),
+    setConnectSourceId: (id) => set({ connectSourceId: id }),
+
+    addBoundary: async (nodeIds, label) => {
+      const { mindmapId } = get()
+      if (!mindmapId || nodeIds.length === 0) return
+      const b = await window.electronAPI.mindmaps.addBoundary(mindmapId, { nodeIds, label })
+      set({ boundaries: [...get().boundaries, { id: b.id, nodeIds: b.nodeIds, label: b.label ?? '', color: b.color }] })
+    },
+
+    updateBoundary: async (id, updates) => {
+      await window.electronAPI.mindmaps.updateBoundary(id, updates)
+      set({
+        boundaries: get().boundaries.map(b =>
+          b.id === id ? { ...b, ...updates } : b
+        ),
+      })
+    },
+
+    removeBoundary: async (id) => {
+      await window.electronAPI.mindmaps.removeBoundary(id)
+      set({ boundaries: get().boundaries.filter(b => b.id !== id) })
+    },
+
+    addSummary: async (nodeIds) => {
+      const { mindmapId } = get()
+      if (!mindmapId || nodeIds.length === 0) return
+      const result = await window.electronAPI.mindmaps.addSummary(mindmapId, { nodeIds })
+      const summaryNode = result.summaryNode
+      const depths = buildTreeDepths(get().rfNodes)
+      const maxDepth = Math.max(...nodeIds.map(id => depths.get(id) ?? 0))
+      const newRfNode: Node<MindmapNodeData> = {
+        id: summaryNode.id,
+        type: 'default',
+        position: { x: 0, y: 0 },
+        data: {
+          id: summaryNode.id, mindmapId, parentId: null,
+          title: summaryNode.title, content: null,
+          hyperlink: null, imageUrl: null,
+          color: null, notes: null, shape: null, styleOverrides: null,
+          positionX: null, positionY: null,
+          sortOrder: summaryNode.sortOrder ?? 0, collapsed: false, floating: true,
+          depth: maxDepth + 1,
+        },
+      }
+      set({
+        rfNodes: [...get().rfNodes, newRfNode],
+        summaries: [...get().summaries, { id: result.summary.id, nodeIds: result.summary.nodeIds, summaryNodeId: summaryNode.id }],
+      })
+    },
+
+    removeSummary: async (id) => {
+      const summary = get().summaries.find(s => s.id === id)
+      if (!summary) return
+      await window.electronAPI.mindmaps.removeSummary(id)
+      set({
+        summaries: get().summaries.filter(s => s.id !== id),
+        rfNodes: get().rfNodes.filter(n => n.id !== summary.summaryNodeId),
+        rfEdges: get().rfEdges.filter(e => e.source !== summary.summaryNodeId && e.target !== summary.summaryNodeId),
+      })
     },
 
     pushHistory: () => {

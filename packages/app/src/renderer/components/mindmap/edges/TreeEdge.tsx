@@ -1,7 +1,18 @@
 import React from 'react'
-import { BaseEdge, getBezierPath, getStraightPath, getSmoothStepPath, type EdgeProps } from '@xyflow/react'
+import { BaseEdge, getStraightPath, getSmoothStepPath, type EdgeProps } from '@xyflow/react'
 import { useMindmapStore } from '../useMindmapStore.js'
 import { getTheme, getEdgeStyleForLevel } from '../themes.js'
+
+function getMindmapBezierPath(
+  sourceX: number, sourceY: number,
+  targetX: number, targetY: number,
+): string {
+  const dx = targetX - sourceX
+  const cpOffset = Math.min(Math.abs(dx) * 0.4, 80)
+  const cp1x = sourceX + Math.sign(dx) * cpOffset
+  const cp2x = targetX - Math.sign(dx) * cpOffset
+  return `M ${sourceX},${sourceY} C ${cp1x},${sourceY} ${cp2x},${targetY} ${targetX},${targetY}`
+}
 
 export default function TreeEdge(props: EdgeProps) {
   const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, source } = props
@@ -25,8 +36,7 @@ export default function TreeEdge(props: EdgeProps) {
       break
     }
     default: {
-      const [p] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition })
-      path = p
+      path = getMindmapBezierPath(sourceX, sourceY, targetX, targetY)
     }
   }
 

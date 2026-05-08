@@ -1,12 +1,32 @@
-import { ipcMain, dialog, clipboard, shell, BrowserWindow } from 'electron'
-import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync } from 'node:fs'
+import { ipcMain, dialog, clipboard, shell, BrowserWindow, app } from 'electron'
+import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join, basename } from 'node:path'
+import { join, basename, dirname } from 'node:path'
 import { execSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { Library, type MindmapNodeCreateInput, type MindmapNode } from '@banjuan/core'
 import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
+
+function installBundledPlugins(libraryRoot: string): void {
+  const bundledDir = app.isPackaged
+    ? join(process.resourcesPath, 'plugins')
+    : join(dirname(dirname(dirname(dirname(__dirname)))), 'plugins')
+  if (!existsSync(bundledDir)) return
+  const targetDir = join(libraryRoot, '.banjuan', 'plugins')
+  if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true })
+
+  for (const entry of readdirSync(bundledDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const srcDir = join(bundledDir, entry.name)
+    const destDir = join(targetDir, entry.name)
+    if (!existsSync(destDir)) mkdirSync(destDir, { recursive: true })
+    for (const file of readdirSync(srcDir)) {
+      if (file === 'config.json') continue
+      copyFileSync(join(srcDir, file), join(destDir, file))
+    }
+  }
+}
 
 const libraries = new Map<number, Library>()
 
@@ -30,6 +50,8 @@ export function registerIpcHandlers() {
     const lib = Library.init(path, name)
     libraries.set(event.sender.id, lib)
     const scanResult = await lib.scanAndImport()
+    lib.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
+    installBundledPlugins(lib.rootPath)
     await lib.plugins.loadAll()
     const indexService = lib.createIndexService()
     await indexService.rebuildFull()
@@ -42,6 +64,8 @@ export function registerIpcHandlers() {
     await Library.migrateNotes(path)
     const syncResult = await lib.syncWithDisk()
     try { await lib.notes.syncDisk() } catch { /* non-critical */ }
+    lib.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
+    installBundledPlugins(lib.rootPath)
     await lib.plugins.loadAll()
     const indexService = lib.createIndexService()
     await indexService.rebuildFull()
@@ -247,6 +271,18 @@ export function registerIpcHandlers() {
     return getLib(event).noteLinks.sync(noteId, links)
   })
 
+  ipcMain.handle('docLinks:getBacklinks', async (event, docId: string) => {
+    return getLib(event).docLinks.getBacklinks(docId)
+  })
+
+  ipcMain.handle('docLinks:getForwardLinks', async (event, noteId: string) => {
+    return getLib(event).docLinks.getForwardLinks(noteId)
+  })
+
+  ipcMain.handle('docLinks:sync', async (event, noteId: string, links: Array<{ targetId: string; context: string }>) => {
+    return getLib(event).docLinks.sync(noteId, links)
+  })
+
   ipcMain.handle('attachments:save', async (event, noteId: string, fileName: string, data: ArrayBuffer) => {
     return getLib(event).attachments.save(noteId, fileName, Buffer.from(data))
   })
@@ -316,8 +352,37 @@ export function registerIpcHandlers() {
     return getLib(event).mindmaps.getEdges(mindmapId)
   })
 
+  ipcMain.handle('mindmaps:updateEdge', async (event, id: string, updates: { label?: string; style?: string }) => {
+    return getLib(event).mindmaps.updateEdge(id, updates)
+  })
+
   ipcMain.handle('mindmaps:removeEdge', async (event, id: string) => {
     return getLib(event).mindmaps.removeEdge(id)
+  })
+
+  // Boundaries
+  ipcMain.handle('mindmaps:addBoundary', async (event, mindmapId: string, input: { nodeIds: string[]; label?: string; color?: string }) => {
+    return getLib(event).mindmaps.addBoundary(mindmapId, input)
+  })
+  ipcMain.handle('mindmaps:getBoundaries', async (event, mindmapId: string) => {
+    return getLib(event).mindmaps.getBoundaries(mindmapId)
+  })
+  ipcMain.handle('mindmaps:updateBoundary', async (event, id: string, updates: { label?: string; color?: string; nodeIds?: string[] }) => {
+    return getLib(event).mindmaps.updateBoundary(id, updates)
+  })
+  ipcMain.handle('mindmaps:removeBoundary', async (event, id: string) => {
+    return getLib(event).mindmaps.removeBoundary(id)
+  })
+
+  // Summaries
+  ipcMain.handle('mindmaps:addSummary', async (event, mindmapId: string, input: { nodeIds: string[]; summaryTitle?: string }) => {
+    return getLib(event).mindmaps.addSummary(mindmapId, input)
+  })
+  ipcMain.handle('mindmaps:getSummaries', async (event, mindmapId: string) => {
+    return getLib(event).mindmaps.getSummaries(mindmapId)
+  })
+  ipcMain.handle('mindmaps:removeSummary', async (event, id: string) => {
+    return getLib(event).mindmaps.removeSummary(id)
   })
 
   ipcMain.handle('graph:getData', async (event) => {
@@ -328,6 +393,10 @@ export function registerIpcHandlers() {
     return getLib(event).plugins.list()
   })
 
+  ipcMain.handle('plugins:listAll', async (event) => {
+    return getLib(event).plugins.listAll()
+  })
+
   ipcMain.handle('plugins:loadAll', async (event) => {
     await getLib(event).plugins.loadAll()
   })
@@ -336,12 +405,48 @@ export function registerIpcHandlers() {
     await getLib(event).plugins.unload(pluginId)
   })
 
+  ipcMain.handle('plugins:enable', async (event, pluginId: string) => {
+    await getLib(event).plugins.enable(pluginId)
+  })
+
+  ipcMain.handle('plugins:disable', async (event, pluginId: string) => {
+    await getLib(event).plugins.disable(pluginId)
+  })
+
   ipcMain.handle('plugins:getCommands', async (event) => {
     return getLib(event).plugins.getCommands().map(c => ({ id: c.id, name: c.name, pluginId: c.pluginId }))
   })
 
   ipcMain.handle('plugins:runCommand', async (event, commandId: string) => {
     await getLib(event).plugins.runCommand(commandId)
+  })
+
+  ipcMain.handle('plugins:getViews', async (event) => {
+    return getLib(event).plugins.getViews()
+  })
+
+  ipcMain.handle('plugins:rpc', async (event, pluginId: string, method: string, args: any[]) => {
+    return getLib(event).plugins.handleRpc(pluginId, method, args)
+  })
+
+  ipcMain.handle('plugins:getCssPath', async (event, pluginId: string) => {
+    return getLib(event).plugins.getPluginCssPath(pluginId)
+  })
+
+  ipcMain.handle('plugins:getRendererPath', async (event, pluginId: string) => {
+    return getLib(event).plugins.getPluginRendererPath(pluginId)
+  })
+
+  ipcMain.handle('plugins:getRendererSource', async (event, pluginId: string) => {
+    const p = getLib(event).plugins.getPluginRendererPath(pluginId)
+    if (!p) return null
+    return readFileSync(p, 'utf-8')
+  })
+
+  ipcMain.handle('plugins:getCssSource', async (event, pluginId: string) => {
+    const p = getLib(event).plugins.getPluginCssPath(pluginId)
+    if (!p) return null
+    return readFileSync(p, 'utf-8')
   })
 
   ipcMain.handle('sync:getConfig', async (event) => {

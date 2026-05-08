@@ -1,76 +1,212 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import * as pdfjsLib from '@banjuan/zotero-pdfjs-dist'
 import PdfPage, { type TextSelectInfo, type PageInfo } from './PdfPage.js'
 import { usePdfViewer } from './PdfViewerContext.js'
+import { useT } from '../../i18n/index.js'
+
+const PAGE_GAP = 16
+const OVERSCAN = 3
 
 interface AnnotationData {
   id: string
   page: number | null
   position: any
   color: string
+  type: string
 }
+
+const SCROLLBAR_WIDTH = 17
+const CONTENT_PADDING = 24
 
 interface Props {
   annotations: AnnotationData[]
+  docId: string
   onTextSelect: (info: TextSelectInfo) => void
   onHighlightClick: (id: string) => void
+  onAnnotationCreated: () => void
+  onAnnotationDelete: (id: string) => void
+  onAnnotationUpdate: (id: string, updates: any) => void
+  onPageSizesComputed?: (sizes: Array<{ w: number; h: number }>) => void
 }
 
-export default function PdfContentArea({ annotations, onTextSelect, onHighlightClick }: Props) {
+function computePageOffsets(pageSizes: Array<{ w: number; h: number }>): number[] {
+  const offsets: number[] = []
+  let y = 0
+  for (const sz of pageSizes) {
+    offsets.push(y)
+    y += sz.h + PAGE_GAP
+  }
+  return offsets
+}
+
+function getVisibleRange(
+  offsets: number[],
+  pageSizes: Array<{ w: number; h: number }>,
+  scrollTop: number,
+  viewportHeight: number,
+): [number, number] {
+  if (offsets.length === 0) return [0, 0]
+  let first = 0
+  let last = offsets.length - 1
+
+  // Binary search for first visible page
+  let lo = 0, hi = offsets.length - 1
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1
+    const bottom = offsets[mid] + pageSizes[mid].h + PAGE_GAP
+    if (bottom < scrollTop) lo = mid + 1
+    else hi = mid - 1
+  }
+  first = Math.max(0, lo - OVERSCAN)
+
+  // Binary search for last visible page
+  const viewBottom = scrollTop + viewportHeight
+  lo = first
+  hi = offsets.length - 1
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1
+    if (offsets[mid] > viewBottom) hi = mid - 1
+    else lo = mid + 1
+  }
+  last = Math.min(offsets.length - 1, hi + OVERSCAN)
+
+  return [first, last]
+}
+
+export default function PdfContentArea({ annotations, docId, onTextSelect, onHighlightClick, onAnnotationCreated, onAnnotationDelete, onAnnotationUpdate, onPageSizesComputed }: Props) {
+  const t = useT()
   const ctx = usePdfViewer()
-  const { pdfDoc, pageSizes, zoom, scrollRef, setCurrentPage, setPageSizes,
-          searchMatches, currentMatchIndex, pageInfoMap } = ctx
+  const { pdfDoc, rawPageSize, pageSizes, zoom, scrollRef, setCurrentPage, setPageSizes,
+          numPages, searchMatches, currentMatchIndex, pageInfoMap,
+          activeTool, activeColor } = ctx
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null)
 
-  const pdfScale = zoom * pdfjsLib.PixelsPerInch.PDF_TO_CSS_UNITS
+  const [visibleRange, setVisibleRange] = useState<[number, number]>([0, 5])
+  const [containerWidth, setContainerWidth] = useState(0)
 
   useEffect(() => {
     setScrollEl(scrollRef.current as HTMLElement | null)
   }, [scrollRef])
 
-  // Recompute page sizes when zoom changes
+  // Track container width via ResizeObserver
   useEffect(() => {
-    if (!pdfDoc) return
-    let cancelled = false
-    const recalc = async () => {
-      const sizes: Array<{ w: number; h: number }> = []
-      for (let i = 1; i <= pdfDoc.numPages; i++) {
-        const page = await pdfDoc.getPage(i)
-        if (cancelled) return
-        const vp = page.getViewport({ scale: pdfScale })
-        sizes.push({ w: vp.width, h: vp.height })
-      }
-      if (!cancelled) setPageSizes(sizes)
-    }
-    recalc()
-    return () => { cancelled = true }
-  }, [pdfDoc, pdfScale, setPageSizes])
+    const el = scrollRef.current
+    if (!el) return
+    const obs = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0
+      setContainerWidth(w)
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [scrollRef])
 
-  // Track current page by scroll position
+  // Compute page sizes from container width + raw page size + zoom,
+  // and preserve scroll position across size changes.
+  const prevSizesRef = useRef(pageSizes)
+  useEffect(() => {
+    if (!rawPageSize || containerWidth <= 0 || numPages <= 0) return
+    const availableWidth = containerWidth - SCROLLBAR_WIDTH - CONTENT_PADDING
+    const baseScale = availableWidth / rawPageSize.w
+    const scale = baseScale * zoom
+    const w = rawPageSize.w * scale
+    const h = rawPageSize.h * scale
+    const newSizes = Array.from({ length: numPages }, () => ({ w, h }))
+
+    // Capture current position before sizes change
+    const el = scrollRef.current
+    const oldSizes = prevSizesRef.current
+    let savedPage = 0
+    let savedFraction = 0
+    if (el && oldSizes.length > 0 && el.scrollTop > 0) {
+      let cumTop = 0
+      for (let i = 0; i < oldSizes.length; i++) {
+        const pageBottom = cumTop + oldSizes[i].h + PAGE_GAP
+        if (pageBottom > el.scrollTop || i === oldSizes.length - 1) {
+          savedPage = i
+          savedFraction = oldSizes[i].h > 0 ? (el.scrollTop - cumTop) / oldSizes[i].h : 0
+          break
+        }
+        cumTop = pageBottom
+      }
+    }
+
+    prevSizesRef.current = newSizes
+    setPageSizes(newSizes)
+    onPageSizesComputed?.(newSizes)
+
+    // Restore position after sizes change
+    if (el && savedPage > 0 || savedFraction > 0) {
+      requestAnimationFrame(() => {
+        let newTop = 0
+        for (let i = 0; i < savedPage && i < newSizes.length; i++) {
+          newTop += newSizes[i].h + PAGE_GAP
+        }
+        newTop += savedFraction * (newSizes[savedPage]?.h ?? 0)
+        el!.scrollTo({ top: newTop, behavior: 'instant' as ScrollBehavior })
+      })
+    }
+  }, [rawPageSize, containerWidth, zoom, numPages, scrollRef, setPageSizes, onPageSizesComputed])
+
+  const pdfScale = useMemo(() => {
+    if (!rawPageSize || containerWidth <= 0) return zoom * pdfjsLib.PixelsPerInch.PDF_TO_CSS_UNITS
+    const availableWidth = containerWidth - SCROLLBAR_WIDTH - CONTENT_PADDING
+    return (availableWidth / rawPageSize.w) * zoom
+  }, [rawPageSize, containerWidth, zoom])
+
+  const pageOffsets = useMemo(() => computePageOffsets(pageSizes), [pageSizes])
+  const totalHeight = useMemo(() => {
+    if (pageSizes.length === 0) return 0
+    const last = pageSizes.length - 1
+    return pageOffsets[last] + pageSizes[last].h + PAGE_GAP
+  }, [pageOffsets, pageSizes])
+
+  // Track current page + visible range by scroll position
   useEffect(() => {
     const el = scrollRef.current
     if (!el || pageSizes.length === 0) return
     let ticking = false
+
+    const update = () => {
+      const scrollTop = el.scrollTop
+      const viewH = el.clientHeight
+      const viewMid = scrollTop + viewH / 2
+
+      let cumHeight = 0
+      for (let i = 0; i < pageSizes.length; i++) {
+        cumHeight += pageSizes[i].h + PAGE_GAP
+        if (cumHeight > viewMid) {
+          setCurrentPage(i + 1)
+          break
+        }
+      }
+
+      const range = getVisibleRange(pageOffsets, pageSizes, scrollTop, viewH)
+      setVisibleRange(range)
+    }
+
+    // Initial computation
+    update()
+
     const onScroll = () => {
       if (ticking) return
       ticking = true
       requestAnimationFrame(() => {
-        const scrollTop = el.scrollTop
-        const viewMid = scrollTop + el.clientHeight / 2
-        let cumHeight = 0
-        for (let i = 0; i < pageSizes.length; i++) {
-          cumHeight += pageSizes[i].h + 16
-          if (cumHeight > viewMid) {
-            setCurrentPage(i + 1)
-            break
-          }
-        }
+        update()
         ticking = false
       })
     }
     el.addEventListener('scroll', onScroll, { passive: true })
-    return () => el.removeEventListener('scroll', onScroll)
-  }, [scrollRef, pageSizes, setCurrentPage])
+
+    const resizeObs = new ResizeObserver(() => {
+      requestAnimationFrame(update)
+    })
+    resizeObs.observe(el)
+
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      resizeObs.disconnect()
+    }
+  }, [scrollRef, pageSizes, pageOffsets, setCurrentPage])
 
   const highlightsByPage = useMemo(() => {
     const map = new Map<number, Array<{ id: string; color: string; rects: Array<{ x: number; y: number; w: number; h: number }> }>>()
@@ -97,29 +233,57 @@ export default function PdfContentArea({ annotations, onTextSelect, onHighlightC
     pageInfoMap.set(pageNum, info)
   }, [pageInfoMap])
 
+  const [firstVisible, lastVisible] = visibleRange
+
   return (
     <div
       ref={scrollRef as React.RefObject<HTMLDivElement>}
       style={{ flex: 1, overflow: 'auto', background: '#525659' }}
     >
-      {pdfDoc && pageSizes.map((sz, idx) => {
-        const pageNum = idx + 1
-        return (
-          <PdfPage
-            key={pageNum}
-            pdfDoc={pdfDoc}
-            pageNum={pageNum}
-            scale={pdfScale}
-            baseSize={sz}
-            scrollRoot={scrollEl}
-            highlights={highlightsByPage.get(pageNum) || []}
-            searchHighlights={searchHighlightsByPage.get(pageNum)}
-            onTextSelect={onTextSelect}
-            onHighlightClick={onHighlightClick}
-            onPageReady={handlePageReady}
-          />
-        )
-      })}
+      {!pdfDoc || pageSizes.length === 0 ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#aaa' }}>
+          {t('pdf.loadingPdf')}
+        </div>
+      ) : (
+        <div style={{ position: 'relative', height: totalHeight }}>
+          {pageSizes.map((sz, idx) => {
+            if (idx < firstVisible || idx > lastVisible) return null
+            const pageNum = idx + 1
+            return (
+              <div
+                key={pageNum}
+                style={{
+                  position: 'absolute',
+                  top: pageOffsets[idx],
+                  left: 0,
+                  right: 0,
+                }}
+              >
+                <PdfPage
+                  pdfDoc={pdfDoc}
+                  pageNum={pageNum}
+                  scale={pdfScale}
+                  baseSize={sz}
+                  scrollRoot={scrollEl}
+                  highlights={highlightsByPage.get(pageNum) || []}
+                  searchHighlights={searchHighlightsByPage.get(pageNum)}
+                  onTextSelect={onTextSelect}
+                  onHighlightClick={onHighlightClick}
+                  onPageReady={handlePageReady}
+                  activeTool={activeTool}
+                  activeColor={activeColor}
+                  inkWidth={ctx.inkWidth}
+                  docId={docId}
+                  annotations={annotations}
+                  onAnnotationCreated={onAnnotationCreated}
+                  onAnnotationDelete={onAnnotationDelete}
+                  onAnnotationUpdate={onAnnotationUpdate}
+                />
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

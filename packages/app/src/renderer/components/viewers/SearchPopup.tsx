@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useCallback } from 'react'
+import { ChevronUp, ChevronDown, X } from 'lucide-react'
 import { usePdfViewer, type SearchMatch } from './PdfViewerContext.js'
+import { useT } from '../../i18n/index.js'
 
 export default function SearchPopup() {
+  const t = useT()
   const ctx = usePdfViewer()
   const inputRef = useRef<HTMLInputElement>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -133,30 +136,30 @@ export default function SearchPopup() {
           value={ctx.searchQuery}
           onChange={(e) => handleQueryChange(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') e.shiftKey ? handlePrev() : handleNext() }}
-          placeholder="搜索..."
+          placeholder={t('search.placeholder')}
           style={{
             flex: 1, padding: '4px 8px', fontSize: 12,
             border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)',
           }}
         />
-        <button onClick={handlePrev} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px' }}>▲</button>
-        <button onClick={handleNext} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px' }}>▼</button>
+        <button onClick={handlePrev} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', display: 'flex', alignItems: 'center' }}><ChevronUp size={14} /></button>
+        <button onClick={handleNext} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', display: 'flex', alignItems: 'center' }}><ChevronDown size={14} /></button>
       </div>
       <div style={{ display: 'flex', gap: 12, marginTop: 6, alignItems: 'center' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
           <input type="checkbox" checked={ctx.searchOptions.caseSensitive}
             onChange={(e) => { ctx.setSearchOptions({ caseSensitive: e.target.checked }); performSearch(ctx.searchQuery) }} />
-          大小写
+          {t('search.caseSensitive')}
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
           <input type="checkbox" checked={ctx.searchOptions.wholeWord}
             onChange={(e) => { ctx.setSearchOptions({ wholeWord: e.target.checked }); performSearch(ctx.searchQuery) }} />
-          全词
+          {t('search.wholeWord')}
         </label>
         <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
           {ctx.searchMatches.length > 0 ? `${ctx.currentMatchIndex + 1}/${ctx.searchMatches.length}` : ctx.searchQuery ? '0/0' : ''}
         </span>
-        <button onClick={handleClose} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, padding: '0 2px', color: 'var(--text-muted)' }}>×</button>
+        <button onClick={handleClose} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, padding: '0 2px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}><X size={14} /></button>
       </div>
     </div>
   )

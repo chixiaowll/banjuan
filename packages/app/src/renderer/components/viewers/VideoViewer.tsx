@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react'
+import { Play, Pause } from 'lucide-react'
 
 interface Props {
   filePath: string
@@ -53,7 +54,7 @@ export default function VideoViewer({ filePath }: Props) {
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <video
           ref={videoRef}
-          src={`file://${filePath}`}
+          src={`local-file://${encodeURIComponent(filePath)}`}
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onEnded={() => setPlaying(false)}
@@ -70,7 +71,7 @@ export default function VideoViewer({ filePath }: Props) {
         flexShrink: 0,
       }}>
         <button onClick={togglePlay} style={{ minWidth: 40 }}>
-          {playing ? '⏸' : '▶'}
+          {playing ? <Pause size={16} /> : <Play size={16} />}
         </button>
         <span style={{ fontSize: 12, minWidth: 45 }}>{formatTime(currentTime)}</span>
         <input

@@ -25,6 +25,8 @@ const zh = {
   'common.search': '搜索...',
   'common.import': '导入',
   'common.unload': '卸载',
+  'common.enable': '启用',
+  'common.disable': '停用',
   'common.new': '新建',
 
   // Library sidebar
@@ -56,6 +58,17 @@ const zh = {
   'library.emptyMindmaps': '还没有脑图',
   'library.newHandwriting': '新建手写',
   'library.untitledHandwriting': '未命名手写',
+
+  // Template picker
+  'template.noteType': '笔记类型',
+  'template.typeMarkdown': '文本笔记',
+  'template.typeMindmap': '脑图笔记',
+  'template.typeHandwriting': '手写笔记',
+  'template.selectTemplate': '选择模板',
+  'template.blank': '空白笔记',
+  'template.blankDesc': '从空白开始',
+  'template.titlePlaceholder': '笔记标题',
+  'template.builtin': '内置',
 
   // Handwriting
   'handwriting.pages': '页面',
@@ -117,6 +130,8 @@ const zh = {
   'pdf.noNotes': '暂无笔记',
   'pdf.noOutline': '此文档无目录',
   'pdf.newNote': '+ 新建笔记',
+  'pdf.references': '引用',
+  'pdf.noReferences': '暂无引用',
   'pdf.loadingPdf': 'Loading PDF...',
   'pdf.areaScreenshot': '区域截图',
   'pdf.areaSelect': '区域选取',
@@ -131,6 +146,7 @@ const zh = {
   'tool.noteInput': '输入笔记...',
 
   // Note view
+  'note.duplicateTitle': '同目录下已存在同名笔记，请修改标题',
   'note.saving': '保存中...',
   'note.saved': '已保存',
   'note.export': '导出',
@@ -154,6 +170,7 @@ const zh = {
   'mindmap.label': '脑图',
   'mindmap.addRoot': '+ 根节点',
   'mindmap.addChild': '+ 子节点',
+  'mindmap.addFloating': '浮动主题',
   'mindmap.delete': '删除',
   'mindmap.undo': '撤销',
   'mindmap.redo': '重做',
@@ -162,6 +179,10 @@ const zh = {
   'mindmap.properties': '属性',
   'mindmap.themes': '主题',
   'mindmap.selectNodeHint': '选择一个节点以查看属性',
+  'mindmap.dockTop': '停靠顶部',
+  'mindmap.dockLeft': '停靠左侧',
+  'mindmap.dockRight': '停靠右侧',
+  'mindmap.dockPosition': '停靠位置',
 
   // Sync
   'sync.title': 'WebDAV 同步配置',
@@ -226,6 +247,7 @@ const zh = {
   'backlinks.mindmapRefs': '脑图引用 ({0})',
   'backlinks.mindmapNode': '节点: {0}',
   'backlinks.linkedDoc': '关联文档',
+  'backlinks.docRefs': '文档引用 ({0})',
   'backlinks.linkedAnnotations': '关联标注 ({0})',
 
   // Mindmap file tree
@@ -256,6 +278,9 @@ const zh = {
   'tags.noTags': '还没有标签',
   'tags.sortByName': '按名称排序',
   'tags.sortByCount': '按关联数排序',
+
+  // Plugins
+  'plugin.openPanel': '打开',
 } as const
 
 export default zh

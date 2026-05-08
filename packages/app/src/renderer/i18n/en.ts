@@ -25,6 +25,8 @@ const en = {
   'common.search': 'Search...',
   'common.import': 'Import',
   'common.unload': 'Unload',
+  'common.enable': 'Enable',
+  'common.disable': 'Disable',
   'common.new': 'New',
 
   // Library sidebar
@@ -56,6 +58,17 @@ const en = {
   'library.emptyMindmaps': 'No mindmaps yet',
   'library.newHandwriting': 'New Handwriting',
   'library.untitledHandwriting': 'Untitled Handwriting',
+
+  // Template picker
+  'template.noteType': 'Note Type',
+  'template.typeMarkdown': 'Text Note',
+  'template.typeMindmap': 'Mindmap',
+  'template.typeHandwriting': 'Handwriting',
+  'template.selectTemplate': 'Select Template',
+  'template.blank': 'Blank Note',
+  'template.blankDesc': 'Start from scratch',
+  'template.titlePlaceholder': 'Note title',
+  'template.builtin': 'Built-in',
 
   // Handwriting
   'handwriting.pages': 'Pages',
@@ -117,6 +130,8 @@ const en = {
   'pdf.noNotes': 'No notes',
   'pdf.noOutline': 'No outline available',
   'pdf.newNote': '+ New Note',
+  'pdf.references': 'References',
+  'pdf.noReferences': 'No references',
   'pdf.loadingPdf': 'Loading PDF...',
   'pdf.areaScreenshot': 'Area screenshot',
   'pdf.areaSelect': 'Area selection',
@@ -131,6 +146,7 @@ const en = {
   'tool.noteInput': 'Enter note...',
 
   // Note view
+  'note.duplicateTitle': 'A note with the same name already exists in this folder. Please choose a different title.',
   'note.saving': 'Saving...',
   'note.saved': 'Saved',
   'note.export': 'Export',
@@ -154,6 +170,7 @@ const en = {
   'mindmap.label': 'Mindmap',
   'mindmap.addRoot': '+ Root',
   'mindmap.addChild': '+ Child',
+  'mindmap.addFloating': 'Floating Topic',
   'mindmap.delete': 'Delete',
   'mindmap.undo': 'Undo',
   'mindmap.redo': 'Redo',
@@ -162,6 +179,10 @@ const en = {
   'mindmap.properties': 'Properties',
   'mindmap.themes': 'Themes',
   'mindmap.selectNodeHint': 'Select a node to view properties',
+  'mindmap.dockTop': 'Dock Top',
+  'mindmap.dockLeft': 'Dock Left',
+  'mindmap.dockRight': 'Dock Right',
+  'mindmap.dockPosition': 'Dock Position',
 
   // Sync
   'sync.title': 'WebDAV Sync Config',
@@ -226,6 +247,7 @@ const en = {
   'backlinks.mindmapRefs': 'Mindmap Refs ({0})',
   'backlinks.mindmapNode': 'Node: {0}',
   'backlinks.linkedDoc': 'Linked Document',
+  'backlinks.docRefs': 'Document References ({0})',
   'backlinks.linkedAnnotations': 'Linked Annotations ({0})',
 
   // Mindmap file tree
@@ -256,6 +278,9 @@ const en = {
   'tags.noTags': 'No tags yet',
   'tags.sortByName': 'Sort by name',
   'tags.sortByCount': 'Sort by count',
+
+  // Plugins
+  'plugin.openPanel': 'Open',
 } as const
 
 export default en

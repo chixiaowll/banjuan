@@ -271,6 +271,7 @@ export interface MindmapNode {
   positionY: number | null
   sortOrder: number
   collapsed: boolean
+  floating: boolean
   createdAt: string
 }
 
@@ -286,6 +287,7 @@ export interface MindmapNodeCreateInput {
   styleOverrides?: string
   positionX?: number
   positionY?: number
+  floating?: boolean
 }
 
 export interface MindmapEdge {
@@ -301,6 +303,21 @@ export interface MindmapEdgeCreateInput {
   sourceId: string
   targetId: string
   label?: string
+}
+
+export interface MindmapBoundary {
+  id: string
+  mindmapId: string
+  nodeIds: string[]
+  label: string
+  color: string | null
+}
+
+export interface MindmapSummary {
+  id: string
+  mindmapId: string
+  nodeIds: string[]
+  summaryNodeId: string
 }
 
 export interface GraphNode {
@@ -345,6 +362,20 @@ export interface PluginCommand {
   name: string
   pluginId: string
   callback: () => Promise<void>
+}
+
+export interface PluginViewInfo {
+  viewType: string
+  pluginId: string
+  displayText: string
+  icon?: string
+  singleton?: boolean
+}
+
+export interface PluginRpcHandler {
+  method: string
+  pluginId: string
+  handler: (...args: any[]) => Promise<any>
 }
 
 // --- File data interfaces (source-of-truth file formats) ---
@@ -512,6 +543,7 @@ export type BanjuanEventMap = {
   'sync:error': { error: string }
   'sync:file:uploaded': { path: string }
   'sync:file:downloaded': { path: string }
+  'ui:selection:text': { text: string; docId?: string; noteId?: string }
 }
 
 export type BanjuanEvent = keyof BanjuanEventMap

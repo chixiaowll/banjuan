@@ -41,7 +41,7 @@ export function useAnnotations(docId: string) {
     return ann
   }, [docId, reload])
 
-  const update = useCallback(async (id: string, updates: { content?: string; color?: string }) => {
+  const update = useCallback(async (id: string, updates: { content?: string; color?: string; position?: unknown }) => {
     const ann = await window.electronAPI.annotations.update(id, updates)
     await reload()
     return ann

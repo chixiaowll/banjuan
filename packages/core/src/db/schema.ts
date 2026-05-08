@@ -59,6 +59,15 @@ CREATE TABLE IF NOT EXISTS note_links (
     FOREIGN KEY (target_id) REFERENCES notes(id)
 );
 
+CREATE TABLE IF NOT EXISTS doc_links (
+    source_id TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    context TEXT,
+    PRIMARY KEY (source_id, target_id),
+    FOREIGN KEY (source_id) REFERENCES notes(id),
+    FOREIGN KEY (target_id) REFERENCES documents(id)
+);
+
 CREATE TABLE IF NOT EXISTS note_templates (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -134,6 +143,24 @@ CREATE TABLE IF NOT EXISTS mindmap_edges (
     style TEXT,
     FOREIGN KEY (mindmap_id) REFERENCES notes(id)
 );
+
+CREATE TABLE IF NOT EXISTS mindmap_boundaries (
+    id TEXT PRIMARY KEY,
+    mindmap_id TEXT NOT NULL,
+    node_ids TEXT NOT NULL DEFAULT '[]',
+    label TEXT DEFAULT '',
+    color TEXT,
+    FOREIGN KEY (mindmap_id) REFERENCES notes(id)
+);
+
+CREATE TABLE IF NOT EXISTS mindmap_summaries (
+    id TEXT PRIMARY KEY,
+    mindmap_id TEXT NOT NULL,
+    node_ids TEXT NOT NULL DEFAULT '[]',
+    summary_node_id TEXT NOT NULL,
+    FOREIGN KEY (mindmap_id) REFERENCES notes(id),
+    FOREIGN KEY (summary_node_id) REFERENCES mindmap_nodes(id)
+);
 `
 
 export function initSchema(db: Database.Database): void {
@@ -148,6 +175,7 @@ export function initSchema(db: Database.Database): void {
     ['notes', 'TEXT'],
     ['shape', 'TEXT'],
     ['style_overrides', 'TEXT'],
+    ['floating', 'INTEGER DEFAULT 0'],
   ]
   for (const [name, type] of newNodeCols) {
     if (!nodeColNames.has(name)) {

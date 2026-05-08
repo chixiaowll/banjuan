@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { Plus, Trash2, FileText, Brain, PenTool } from 'lucide-react'
 import { useI18n } from '../../i18n/index.js'
 import TemplatePicker from './TemplatePicker.js'
 
 interface Note {
   id: string
   title: string
+  type: 'markdown' | 'mindmap' | 'handwriting'
   docId: string | null
   folderId: string | null
   createdAt: string
@@ -27,16 +29,30 @@ export default function NoteList({ onOpenNote }: Props) {
 
   useEffect(() => { loadNotes() }, [loadNotes])
 
-  const handleCreate = async (templateId: string | null) => {
-    setShowPicker(false)
-    const title = prompt(t('prompt.noteTitle'))
-    if (!title) return
-    const note = await window.electronAPI.notes.create({
-      title,
-      templateId: templateId ?? undefined,
-    })
-    await loadNotes()
-    onOpenNote(note)
+  useEffect(() => {
+    document.addEventListener('notes-changed', loadNotes)
+    return () => document.removeEventListener('notes-changed', loadNotes)
+  }, [loadNotes])
+
+  const [pickerError, setPickerError] = useState<string | null>(null)
+
+  const handleCreate = async (templateId: string | null, title: string) => {
+    try {
+      const note = await window.electronAPI.notes.create({
+        title,
+        templateId: templateId ?? undefined,
+      })
+      setPickerError(null)
+      setShowPicker(false)
+      await loadNotes()
+      onOpenNote(note)
+    } catch (err: any) {
+      if (err?.message?.includes('DUPLICATE_TITLE')) {
+        setPickerError(t('note.duplicateTitle' as any))
+      } else {
+        throw err
+      }
+    }
   }
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
@@ -54,7 +70,7 @@ export default function NoteList({ onOpenNote }: Props) {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
       }}>
         <h3 style={{ fontSize: 14, margin: 0 }}>{t('library.notes')}</h3>
-        <button onClick={() => setShowPicker(true)} style={{ fontSize: 12 }}>{t('common.new')}</button>
+        <button onClick={() => setShowPicker(true)} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}><Plus size={14} />{t('common.new')}</button>
       </div>
       {notes.length === 0 ? (
         <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('library.emptyNotes')}</p>
@@ -70,24 +86,29 @@ export default function NoteList({ onOpenNote }: Props) {
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}
             >
-              <div>
-                <div style={{ fontWeight: 500 }}>{note.title}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                  {formatDate(note.updatedAt || note.createdAt)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <span style={{ color: 'var(--text-muted)', flexShrink: 0, display: 'inline-flex' }}>
+                  {note.type === 'mindmap' ? <Brain size={16} /> : note.type === 'handwriting' ? <PenTool size={16} /> : <FileText size={16} />}
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{note.title}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                    {formatDate(note.updatedAt || note.createdAt)}
+                  </div>
                 </div>
               </div>
               <button
                 onClick={(e) => handleDelete(e, note.id)}
-                style={{ fontSize: 11, color: '#f38ba8', borderColor: '#f38ba8' }}
+                style={{ fontSize: 11, color: '#f38ba8', borderColor: '#f38ba8', display: 'flex', alignItems: 'center', gap: 4 }}
               >
-                {t('common.delete')}
+                <Trash2 size={14} />{t('common.delete')}
               </button>
             </div>
           ))}
         </div>
       )}
       {showPicker && (
-        <TemplatePicker onSelect={handleCreate} onClose={() => setShowPicker(false)} />
+        <TemplatePicker onSelect={handleCreate} onClose={() => { setShowPicker(false); setPickerError(null) }} error={pickerError} />
       )}
     </div>
   )

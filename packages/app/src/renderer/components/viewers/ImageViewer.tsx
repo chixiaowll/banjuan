@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Minus, Plus, RotateCw } from 'lucide-react'
 
 interface Props {
   filePath: string
@@ -18,11 +19,11 @@ export default function ImageViewer({ filePath }: Props) {
         alignItems: 'center',
         flexShrink: 0,
       }}>
-        <button onClick={() => setScale(s => Math.max(0.1, s - 0.25))}>−</button>
+        <button onClick={() => setScale(s => Math.max(0.1, s - 0.25))}><Minus size={16} /></button>
         <span style={{ fontSize: 12, minWidth: 40, textAlign: 'center' }}>{Math.round(scale * 100)}%</span>
-        <button onClick={() => setScale(s => Math.min(5, s + 0.25))}>+</button>
+        <button onClick={() => setScale(s => Math.min(5, s + 0.25))}><Plus size={16} /></button>
         <button onClick={() => setScale(1)}>Fit</button>
-        <button onClick={() => setRotation(r => (r + 90) % 360)}>↻ Rotate</button>
+        <button onClick={() => setRotation(r => (r + 90) % 360)}><RotateCw size={16} /></button>
       </div>
       <div style={{
         flex: 1, overflow: 'auto', display: 'flex',
@@ -30,7 +31,7 @@ export default function ImageViewer({ filePath }: Props) {
         background: '#2a2a3a',
       }}>
         <img
-          src={`file://${filePath}`}
+          src={`local-file://${encodeURIComponent(filePath)}`}
           style={{
             transform: `scale(${scale}) rotate(${rotation}deg)`,
             transformOrigin: 'center center',
