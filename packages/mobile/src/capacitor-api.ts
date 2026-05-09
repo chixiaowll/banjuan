@@ -26,16 +26,16 @@ export function createCapacitorAPI(): BanjuanAPI {
         const deps = createDeps(path)
         const exists = await Library.isLibrary(path, deps)
         if (!exists) return null
-        const lib = await Library.open(path, deps)
-        const config = await lib.getConfig()
-        await lib.close()
-        return config
+        const config = await deps.fs.readTextFile(`${path}/.banjuan/config.json`)
+        return JSON.parse(config)
       },
       async init(path, name) {
         library = await Library.init(path, createDeps(path), name)
       },
       async open(path) {
         library = await Library.open(path, createDeps(path))
+        const indexSvc = library.createIndexService()
+        await indexSvc.rebuildFull()
       },
       async openNewWindow() {
         // Not supported on mobile
@@ -305,11 +305,12 @@ export function createCapacitorAPI(): BanjuanAPI {
       async saveConfig(config) {
         return getLib().saveSyncConfig(config)
       },
-      async run() {
-        const svc = getLib().createSyncService()
+      async run(onProgress) {
         const config = await getLib().getSyncConfig()
         if (!config) throw new Error('No sync config')
-        await svc.sync()
+        const svc = await getLib().createSyncServiceConnected(config)
+        await svc.sync(onProgress)
+        onProgress?.({ phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
         const indexSvc = getLib().createIndexService()
         await indexSvc.rebuildFull()
       },

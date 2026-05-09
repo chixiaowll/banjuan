@@ -12,8 +12,15 @@ export class IndexService {
   private tagsPath: string
   private notesDir: string
   private mindmapsDir: string
+  private ftsAvailable: boolean
 
   constructor(private db: PlatformDatabase, private rootPath: string, private fs: PlatformFS) {
+    try {
+      db.query('SELECT 1 FROM search_index LIMIT 0')
+      this.ftsAvailable = true
+    } catch {
+      this.ftsAvailable = false
+    }
     const banjuanDir = join(rootPath, '.banjuan')
     this.docStore = new JsonStore(join(banjuanDir, 'data', 'documents'), fs)
     this.annStore = new JsonStore(join(banjuanDir, 'data', 'annotations'), fs)
@@ -67,7 +74,7 @@ export class IndexService {
       [doc.id, doc.title, JSON.stringify(doc.authors), doc.path, doc.type, doc.hash, JSON.stringify(doc.metadata), doc.createdAt, doc.updatedAt],
     )
 
-    this.db.run(
+    if (this.ftsAvailable) this.db.run(
       `INSERT INTO search_index (rowid, title, content, type)
        VALUES ((SELECT COALESCE(MAX(rowid), 0) + 1 FROM search_index), ?, ?, ?)`,
       [doc.title, doc.title, `document:${doc.id}`],
@@ -133,7 +140,7 @@ export class IndexService {
     )
 
     const textContent = this.blocksToText(raw.blocks ?? [])
-    this.db.run(
+    if (this.ftsAvailable) this.db.run(
       `INSERT INTO search_index (rowid, title, content, type)
        VALUES ((SELECT COALESCE(MAX(rowid), 0) + 1 FROM search_index), ?, ?, ?)`,
       [data.title ?? relPath, textContent, `note:${data.id}`],
@@ -175,7 +182,7 @@ export class IndexService {
       [data.id, data.title ?? relPath, 'markdown', relPath, data.docId ?? null, null, data.contentFormat ?? 'markdown', null, data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString()],
     )
 
-    this.db.run(
+    if (this.ftsAvailable) this.db.run(
       `INSERT INTO search_index (rowid, title, content, type)
        VALUES ((SELECT COALESCE(MAX(rowid), 0) + 1 FROM search_index), ?, ?, ?)`,
       [data.title ?? relPath, content, `note:${data.id}`],

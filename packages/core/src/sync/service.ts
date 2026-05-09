@@ -12,6 +12,13 @@ export interface SyncResult {
   errors: string[]
 }
 
+export interface SyncProgress {
+  phase: 'scanning' | 'syncing' | 'finalizing'
+  current: number
+  total: number
+  currentFile: string
+}
+
 export class SyncService {
   private snapshotPath: string
   private banjuanDir: string
@@ -21,9 +28,11 @@ export class SyncService {
     this.snapshotPath = join(this.banjuanDir, 'sync-snapshot.json')
   }
 
-  async sync(): Promise<SyncResult> {
+  async sync(onProgress?: (progress: SyncProgress) => void): Promise<SyncResult> {
     this.events?.emit('sync:started', { timestamp: Date.now() })
     const result: SyncResult = { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0, errors: [] }
+
+    onProgress?.({ phase: 'scanning', current: 0, total: 0, currentFile: '' })
 
     const localFiles = await this.collectLocalFiles()
     const remoteFiles = await this.collectRemoteFiles()
@@ -34,8 +43,13 @@ export class SyncService {
     const snapshotSet = snapshot ? new Set(snapshot.files) : null
 
     const allPaths = new Set([...localMap.keys(), ...remoteMap.keys()])
+    const total = allPaths.size
+    let current = 0
 
     for (const path of allPaths) {
+      current++
+      onProgress?.({ phase: 'syncing', current, total, currentFile: path })
+
       const local = localMap.get(path)
       const remote = remoteMap.get(path)
 
@@ -78,6 +92,8 @@ export class SyncService {
         this.events?.emit('sync:error', { error: (err as Error).message })
       }
     }
+
+    onProgress?.({ phase: 'finalizing', current: total, total, currentFile: '' })
 
     // Build final file list (excluding deleted files)
     const finalLocalFiles = await this.collectLocalFiles()
