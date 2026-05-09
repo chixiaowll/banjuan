@@ -43,10 +43,11 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
   }, [])
 
   const refreshPluginViews = useCallback(() => {
-    api.plugins!.getViews().then(views => setPluginViews(views))
+    api.plugins?.getViews().then(views => setPluginViews(views))
   }, [])
 
   useEffect(() => {
+    if (!api.plugins) return
     refreshPluginViews()
     document.addEventListener('plugins-changed', refreshPluginViews)
     return () => document.removeEventListener('plugins-changed', refreshPluginViews)
@@ -102,7 +103,7 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail
       if (!detail?.viewType) return
-      api.plugins!.getViews().then(views => {
+      api.plugins?.getViews().then(views => {
         const view = views.find(v => v.viewType === detail.viewType)
         if (view) {
           setSidePanel({ pluginId: view.pluginId, viewType: view.viewType })
