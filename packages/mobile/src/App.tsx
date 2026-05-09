@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { MantineProvider } from '@mantine/core'
-import { BanjuanAPIProvider } from '@banjuan/shared-ui'
+import { BanjuanAPIProvider, I18nProvider, TabManager } from '@banjuan/shared-ui'
 import { createCapacitorAPI } from './capacitor-api.js'
 import { WelcomeView } from './WelcomeView.js'
 
@@ -9,16 +9,18 @@ import '@mantine/core/styles.css'
 const api = createCapacitorAPI()
 
 export function App() {
-  const [libraryOpen, setLibraryOpen] = useState(false)
+  const [library, setLibrary] = useState<{ path: string; name: string } | null>(null)
 
   return (
     <MantineProvider>
-      <BanjuanAPIProvider value={api}>
-        {libraryOpen
-          ? <div>Library Open (TabManager will be imported from shared-ui)</div>
-          : <WelcomeView onOpen={() => setLibraryOpen(true)} />
-        }
-      </BanjuanAPIProvider>
+      <I18nProvider>
+        <BanjuanAPIProvider value={api}>
+          {library
+            ? <TabManager libraryPath={library.path} libraryName={library.name} />
+            : <WelcomeView onOpen={(path, name) => setLibrary({ path, name })} />
+          }
+        </BanjuanAPIProvider>
+      </I18nProvider>
     </MantineProvider>
   )
 }

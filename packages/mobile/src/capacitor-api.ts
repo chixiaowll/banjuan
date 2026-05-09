@@ -6,9 +6,10 @@ import type { BanjuanAPI } from '@banjuan/shared-ui'
 let library: Library | null = null
 
 function createDeps(baseDir: string): PlatformDeps {
+  const fs = new CapacitorFS(baseDir)
   return {
-    fs: new CapacitorFS(baseDir),
-    dbFactory: new CapacitorDatabaseFactory(),
+    fs,
+    dbFactory: new CapacitorDatabaseFactory(fs),
     crypto: new WebCrypto(),
   }
 }

@@ -109,11 +109,6 @@ CREATE TABLE IF NOT EXISTS mindmap_tags (
     PRIMARY KEY (mindmap_id, tag_id)
 );
 
-CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
-    title, content, type,
-    tokenize='unicode61'
-);
-
 CREATE TABLE IF NOT EXISTS mindmap_nodes (
     id TEXT PRIMARY KEY,
     mindmap_id TEXT NOT NULL,
@@ -165,6 +160,12 @@ CREATE TABLE IF NOT EXISTS mindmap_summaries (
 
 export function initSchema(db: PlatformDatabase): void {
   db.execute(SCHEMA_SQL)
+
+  try {
+    db.execute(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(title, content, type, tokenize='unicode61')`)
+  } catch {
+    // FTS5 not available (e.g. sql.js on mobile)
+  }
 
   // Migrate mindmap_nodes: add new columns if missing
   const nodeColumns = db.pragma('table_info(mindmap_nodes)') as Array<{ name: string }>
