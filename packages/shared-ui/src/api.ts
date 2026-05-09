@@ -172,7 +172,7 @@ export interface BanjuanAPI {
   sync: {
     getConfig(): Promise<SyncConfig | null>
     saveConfig(config: SyncConfig): Promise<void>
-    run(): Promise<void>
+    run(onProgress?: (progress: { phase: string; current: number; total: number; currentFile: string }) => void): Promise<void>
     stubList(): Promise<StubData[]>
     stubDownload(docId: string): Promise<void>
     stubUpload(docId: string): Promise<void>

@@ -2,9 +2,19 @@ import type { PlatformDatabase } from '../platform/index.js'
 import type { SearchResult, SearchOptions } from '../types.js'
 
 export class SearchService {
-  constructor(private db: PlatformDatabase) {}
+  private ftsAvailable: boolean
+
+  constructor(private db: PlatformDatabase) {
+    try {
+      db.query('SELECT 1 FROM search_index LIMIT 0')
+      this.ftsAvailable = true
+    } catch {
+      this.ftsAvailable = false
+    }
+  }
 
   index(entry: { id: string; title: string; content: string; type: string }): void {
+    if (!this.ftsAvailable) return
     this.db.run(
       `INSERT INTO search_index (rowid, title, content, type)
          VALUES ((SELECT COALESCE(MAX(rowid), 0) + 1 FROM search_index), ?, ?, ?)`,
@@ -13,11 +23,12 @@ export class SearchService {
   }
 
   removeById(id: string): void {
+    if (!this.ftsAvailable) return
     this.db.run("DELETE FROM search_index WHERE type LIKE '%:' || ?", [id])
   }
 
   async query(queryStr: string, options?: SearchOptions): Promise<SearchResult[]> {
-    // Wrap in double quotes to treat as a phrase, escaping any existing double quotes
+    if (!this.ftsAvailable) return []
     const safeQuery = `"${queryStr.replace(/"/g, '""')}"`
     let sql = `SELECT title, content, type, rank FROM search_index WHERE search_index MATCH ?`
     const params: unknown[] = [safeQuery]
