@@ -7,6 +7,7 @@ export function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
+    icon: join(__dirname, '../../resources/icon.png'),
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 12, y: 10 },
     webPreferences: {

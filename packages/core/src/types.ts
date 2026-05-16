@@ -442,6 +442,7 @@ export interface MindmapFileData {
     positionY: number | null
     sortOrder: number
     collapsed: boolean
+    floating?: boolean
   }>
   edges: Array<{
     id: string

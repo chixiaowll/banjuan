@@ -31,7 +31,7 @@ export class IndexService {
   }
 
   async rebuildFull(): Promise<void> {
-    this.db.pragma('foreign_keys', 'OFF')
+    this.db.pragma('foreign_keys = OFF')
     try {
     await this.indexTags()
 
@@ -55,7 +55,7 @@ export class IndexService {
 
     await this.writeMetaTimestamp()
     } finally {
-      this.db.pragma('foreign_keys', 'ON')
+      this.db.pragma('foreign_keys = ON')
     }
   }
 
@@ -99,8 +99,13 @@ export class IndexService {
   private async indexAllNotes(): Promise<{ noteLinks: Array<{ sourceId: string; targetId: string; context: string }>; docLinks: Array<{ sourceId: string; targetId: string; context: string }> }> {
     const noteLinks: Array<{ sourceId: string; targetId: string; context: string }> = []
     const docLinks: Array<{ sourceId: string; targetId: string; context: string }> = []
-    if (!(await this.fs.exists(this.notesDir))) return { noteLinks, docLinks }
+    if (!(await this.fs.exists(this.notesDir))) {
+      console.log('[index] notesDir does not exist:', this.notesDir)
+      return { noteLinks, docLinks }
+    }
+    console.log('[index] scanning notesDir:', this.notesDir)
     await this.scanNotesDir(this.notesDir, '', noteLinks, docLinks)
+    console.log('[index] notes scan complete, noteLinks:', noteLinks.length, 'docLinks:', docLinks.length)
     return { noteLinks, docLinks }
   }
 
@@ -122,24 +127,34 @@ export class IndexService {
 
   private async indexNoteJsonFile(relPath: string, pendingLinks: Array<{ sourceId: string; targetId: string; context: string }>, pendingDocLinks: Array<{ sourceId: string; targetId: string; context: string }>): Promise<void> {
     const filePath = join(this.notesDir, relPath)
-    let raw: { meta: NoteFileData; blocks: unknown[] }
+    let raw: { meta: NoteFileData; blocks?: unknown[]; nodes?: any[]; edges?: any[]; boundaries?: any[]; summaries?: any[] }
     try {
       raw = JSON.parse(await this.fs.readTextFile(filePath))
-    } catch {
+    } catch (e) {
+      console.error(`[index] failed to read/parse note ${relPath}:`, (e as Error)?.message)
       return
     }
     const data = raw.meta
 
-    if (!data.id) return
+    if (!data.id) {
+      console.warn(`[index] note ${relPath} has no id, skipping`)
+      return
+    }
 
     const noteType = data.type ?? 'markdown'
     const typeMeta = data.typeMeta ? JSON.stringify(data.typeMeta) : null
-    this.db.run(
-      `INSERT OR REPLACE INTO notes (id, title, type, path, doc_id, folder_id, content_format, type_meta, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [data.id, data.title ?? relPath, noteType, relPath, data.docId ?? null, null, 'json', typeMeta, data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString()],
-    )
+    try {
+      this.db.run(
+        `INSERT OR REPLACE INTO notes (id, title, type, path, doc_id, folder_id, content_format, type_meta, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [data.id, data.title ?? relPath, noteType, relPath, data.docId ?? null, null, 'json', typeMeta, data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString()],
+      )
+      console.log(`[index] indexed note: ${data.title ?? relPath} (${data.id})`)
+    } catch (e) {
+      console.error(`[index] DB insert failed for note ${relPath}:`, (e as Error)?.message)
+      return
+    }
 
-    const textContent = this.blocksToText(raw.blocks ?? [])
+    const textContent = this.blocksToText(Array.isArray(raw.blocks) ? raw.blocks : [])
     if (this.ftsAvailable) this.db.run(
       `INSERT INTO search_index (rowid, title, content, type)
        VALUES ((SELECT COALESCE(MAX(rowid), 0) + 1 FROM search_index), ?, ?, ?)`,
@@ -159,14 +174,42 @@ export class IndexService {
       }
     }
 
-    const noteLinks = extractNoteLinks(raw.blocks ?? [])
+    const noteLinks = extractNoteLinks(Array.isArray(raw.blocks) ? raw.blocks : [])
     for (const link of noteLinks) {
       pendingLinks.push({ sourceId: data.id, targetId: link.targetId, context: link.context })
     }
 
-    const docLinksFound = extractDocumentLinks(raw.blocks ?? [])
+    const docLinksFound = extractDocumentLinks(Array.isArray(raw.blocks) ? raw.blocks : [])
     for (const link of docLinksFound) {
       pendingDocLinks.push({ sourceId: data.id, targetId: link.targetId, context: link.context })
+    }
+
+    if (noteType === 'mindmap' && raw.nodes) {
+      for (const node of raw.nodes) {
+        this.db.run(
+          `INSERT OR REPLACE INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, floating, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [node.id, data.id, node.parentId ?? null, node.title ?? '', node.content ?? null, node.hyperlink ?? null, node.imageUrl ?? null, node.color ?? null, node.notes ?? null, node.shape ?? null, node.styleOverrides ?? null, node.positionX ?? null, node.positionY ?? null, node.sortOrder ?? 0, node.collapsed ? 1 : 0, node.floating ? 1 : 0, data.createdAt ?? new Date().toISOString()],
+        )
+      }
+      for (const edge of raw.edges ?? []) {
+        this.db.run(
+          `INSERT OR REPLACE INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)`,
+          [edge.id, data.id, edge.sourceId, edge.targetId, edge.label ?? null, edge.style ?? null],
+        )
+      }
+      for (const b of raw.boundaries ?? []) {
+        this.db.run(
+          `INSERT OR REPLACE INTO mindmap_boundaries (id, mindmap_id, node_ids, label, color) VALUES (?, ?, ?, ?, ?)`,
+          [b.id, data.id, JSON.stringify(b.nodeIds ?? []), b.label ?? '', b.color ?? null],
+        )
+      }
+      for (const s of raw.summaries ?? []) {
+        this.db.run(
+          `INSERT OR REPLACE INTO mindmap_summaries (id, mindmap_id, node_ids, summary_node_id) VALUES (?, ?, ?, ?)`,
+          [s.id, data.id, JSON.stringify(s.nodeIds ?? []), s.summaryNodeId],
+        )
+      }
     }
   }
 
@@ -245,9 +288,9 @@ export class IndexService {
 
     for (const node of mm.nodes ?? []) {
       this.db.run(
-        `INSERT OR REPLACE INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [node.id, mm.id, node.parentId, node.title, node.content, node.hyperlink, node.imageUrl, node.color, node.notes, node.shape, node.styleOverrides, node.positionX, node.positionY, node.sortOrder, node.collapsed ? 1 : 0, mm.createdAt],
+        `INSERT OR REPLACE INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, floating, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [node.id, mm.id, node.parentId, node.title, node.content, node.hyperlink, node.imageUrl, node.color, node.notes, node.shape, node.styleOverrides, node.positionX, node.positionY, node.sortOrder, node.collapsed ? 1 : 0, node.floating ? 1 : 0, mm.createdAt],
       )
     }
 

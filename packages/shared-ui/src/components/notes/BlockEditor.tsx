@@ -1,7 +1,7 @@
 import React, { useMemo, useCallback, useEffect, useState, useRef, useImperativeHandle, forwardRef } from 'react'
 import { BlockNoteView } from '@blocknote/mantine'
 import { SuggestionMenuController, useCreateBlockNote, getDefaultReactSlashMenuItems } from '@blocknote/react'
-import { BlockNoteSchema, defaultBlockSpecs, defaultInlineContentSpecs, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from '@blocknote/core'
+import { BlockNoteSchema, defaultBlockSpecs, defaultInlineContentSpecs, filterSuggestionItems, insertOrUpdateBlockForSlashMenu, createCodeBlockSpec } from '@blocknote/core'
 import type { HeadingItem } from './NoteOutlinePanel.js'
 import { AnnotationEmbed } from './blocks/AnnotationEmbed.js'
 import { DocumentEmbed } from './blocks/DocumentEmbed.js'
@@ -36,9 +36,48 @@ function extractAttachmentPaths(blocks: any[]): Set<string> {
   return paths
 }
 
+const supportedLanguages = {
+  text: { name: 'Plain Text', aliases: ['plaintext', 'txt'] },
+  javascript: { name: 'JavaScript', aliases: ['js'] },
+  typescript: { name: 'TypeScript', aliases: ['ts'] },
+  python: { name: 'Python', aliases: ['py'] },
+  java: { name: 'Java', aliases: [] },
+  c: { name: 'C', aliases: [] },
+  cpp: { name: 'C++', aliases: ['c++'] },
+  csharp: { name: 'C#', aliases: ['c#', 'cs'] },
+  go: { name: 'Go', aliases: ['golang'] },
+  rust: { name: 'Rust', aliases: ['rs'] },
+  swift: { name: 'Swift', aliases: [] },
+  kotlin: { name: 'Kotlin', aliases: ['kt'] },
+  ruby: { name: 'Ruby', aliases: ['rb'] },
+  php: { name: 'PHP', aliases: [] },
+  html: { name: 'HTML', aliases: [] },
+  css: { name: 'CSS', aliases: [] },
+  json: { name: 'JSON', aliases: [] },
+  yaml: { name: 'YAML', aliases: ['yml'] },
+  xml: { name: 'XML', aliases: [] },
+  sql: { name: 'SQL', aliases: [] },
+  bash: { name: 'Bash', aliases: ['sh', 'shell', 'zsh'] },
+  markdown: { name: 'Markdown', aliases: ['md'] },
+  latex: { name: 'LaTeX', aliases: ['tex'] },
+  r: { name: 'R', aliases: [] },
+  matlab: { name: 'MATLAB', aliases: [] },
+  lua: { name: 'Lua', aliases: [] },
+  dart: { name: 'Dart', aliases: [] },
+  scala: { name: 'Scala', aliases: [] },
+  jsx: { name: 'JSX', aliases: [] },
+  tsx: { name: 'TSX', aliases: [] },
+}
+
+const codeBlock = createCodeBlockSpec({
+  supportedLanguages,
+  createHighlighter: () => import('shiki').then(m => m.createHighlighter({ themes: ['github-light', 'github-dark'], langs: Object.keys(supportedLanguages) })),
+})
+
 const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
+    codeBlock,
     annotationEmbed: AnnotationEmbed,
     documentEmbed: DocumentEmbed,
     noteEmbed: NoteEmbed,

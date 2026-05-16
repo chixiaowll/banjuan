@@ -147,14 +147,14 @@ export class Library {
     await this.fs.writeTextFile(syncPath, JSON.stringify(config, null, 2))
   }
 
-  createSyncService(): SyncService {
-    return new SyncService(this.rootPath, new WebDAVAdapter(this.fs), this.events, this.fs)
+  createSyncService(remotePath?: string): SyncService {
+    return new SyncService(this.rootPath, new WebDAVAdapter(this.fs), this.events, this.fs, remotePath)
   }
 
   async createSyncServiceConnected(config: SyncConfig): Promise<SyncService> {
     const adapter = new WebDAVAdapter(this.fs)
     await adapter.connect(config)
-    return new SyncService(this.rootPath, adapter, this.events, this.fs)
+    return new SyncService(this.rootPath, adapter, this.events, this.fs, config.remotePath)
   }
 
   createIndexService(): IndexService {

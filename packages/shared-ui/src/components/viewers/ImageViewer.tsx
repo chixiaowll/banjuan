@@ -1,43 +1,106 @@
-import React, { useState } from 'react'
-import { Minus, Plus, RotateCw } from 'lucide-react'
+import React, { useState, useRef, useCallback } from 'react'
+import { Minus, Plus, RotateCw, Maximize } from 'lucide-react'
 
 interface Props {
   filePath: string
 }
 
+const btnStyle: React.CSSProperties = {
+  background: 'none',
+  border: '1px solid var(--border, #ddd)',
+  borderRadius: 4,
+  cursor: 'pointer',
+  padding: '4px 8px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  color: 'var(--text-primary, #333)',
+}
+
 export default function ImageViewer({ filePath }: Props) {
   const [scale, setScale] = useState(1)
   const [rotation, setRotation] = useState(0)
+  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const handleLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget
+    setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight })
+  }, [])
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault()
+      setScale(s => {
+        const delta = e.deltaY > 0 ? -0.1 : 0.1
+        return Math.min(5, Math.max(0.1, s + delta))
+      })
+    }
+  }, [])
+
+  const fitScale = 1
+  const isSwapped = rotation % 180 !== 0
+
+  const imgW = naturalSize ? naturalSize.w * scale : undefined
+  const imgH = naturalSize ? naturalSize.h * scale : undefined
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{
-        padding: '8px 16px',
+        padding: '6px 16px',
         borderBottom: '1px solid var(--border)',
         display: 'flex',
-        gap: '8px',
+        gap: 6,
         alignItems: 'center',
         flexShrink: 0,
+        background: 'var(--surface, #fafbfc)',
       }}>
-        <button onClick={() => setScale(s => Math.max(0.1, s - 0.25))}><Minus size={16} /></button>
-        <span style={{ fontSize: 12, minWidth: 40, textAlign: 'center' }}>{Math.round(scale * 100)}%</span>
-        <button onClick={() => setScale(s => Math.min(5, s + 0.25))}><Plus size={16} /></button>
-        <button onClick={() => setScale(1)}>Fit</button>
-        <button onClick={() => setRotation(r => (r + 90) % 360)}><RotateCw size={16} /></button>
+        <button style={btnStyle} onClick={() => setScale(s => Math.max(0.1, +(s - 0.25).toFixed(2)))}>
+          <Minus size={14} />
+        </button>
+        <span style={{ fontSize: 12, minWidth: 44, textAlign: 'center', color: 'var(--text-muted)' }}>
+          {Math.round(scale * 100)}%
+        </span>
+        <button style={btnStyle} onClick={() => setScale(s => Math.min(5, +(s + 0.25).toFixed(2)))}>
+          <Plus size={14} />
+        </button>
+        <button style={btnStyle} onClick={() => setScale(fitScale)}>
+          <Maximize size={14} />
+        </button>
+        <button style={btnStyle} onClick={() => setRotation(r => (r + 90) % 360)}>
+          <RotateCw size={14} />
+        </button>
+        {naturalSize && (
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>
+            {naturalSize.w} × {naturalSize.h}
+          </span>
+        )}
       </div>
-      <div style={{
-        flex: 1, overflow: 'auto', display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        background: '#2a2a3a',
-      }}>
+      <div
+        ref={containerRef}
+        onWheel={handleWheel}
+        style={{
+          flex: 1,
+          overflow: 'auto',
+          display: 'flex',
+          alignItems: scale <= 1 ? 'center' : 'flex-start',
+          justifyContent: scale <= 1 ? 'center' : 'flex-start',
+          background: '#2a2a3a',
+          padding: scale > 1 ? 16 : 0,
+        }}
+      >
         <img
           src={`local-file://${encodeURIComponent(filePath)}`}
+          onLoad={handleLoad}
           style={{
-            transform: `scale(${scale}) rotate(${rotation}deg)`,
+            width: imgW,
+            height: imgH,
+            maxWidth: scale <= 1 ? '100%' : 'none',
+            maxHeight: scale <= 1 ? '100%' : 'none',
+            objectFit: 'contain',
+            transform: rotation ? `rotate(${rotation}deg)` : undefined,
             transformOrigin: 'center center',
-            maxWidth: scale === 1 ? '100%' : 'none',
-            maxHeight: scale === 1 ? '100%' : 'none',
-            transition: 'transform 0.2s ease',
+            display: 'block',
+            margin: scale <= 1 ? 'auto' : undefined,
           }}
           draggable={false}
         />

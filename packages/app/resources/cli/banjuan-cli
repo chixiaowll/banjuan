@@ -1,0 +1,10 @@
+#!/bin/bash
+# Banjuan CLI launcher - installed inside the .app bundle
+# Resolves to the actual CLI script regardless of symlink location
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$0")")" && pwd)"
+# Rename vendor to node_modules on first run (electron-builder filters node_modules from extraResources)
+if [ ! -d "$SCRIPT_DIR/node_modules" ] && [ -d "$SCRIPT_DIR/vendor" ]; then
+  mv "$SCRIPT_DIR/vendor" "$SCRIPT_DIR/node_modules" 2>/dev/null || true
+fi
+exec node "$SCRIPT_DIR/dist/index.js" "$@"

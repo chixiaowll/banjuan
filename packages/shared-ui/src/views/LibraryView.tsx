@@ -179,8 +179,11 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [selectedItemDetail, setSelectedItemDetail] = useState<any>(null)
   const [selectedItemTags, setSelectedItemTags] = useState<Tag[]>([])
   const [docStatuses, setDocStatuses] = useState<Record<string, string>>({})
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, { loaded: number; total: number } | null>>({})
   const [showSync, setShowSync] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [sortKey, setSortKey] = useState<'type' | 'title' | 'createdAt' | null>(null)
+  const [sortAsc, setSortAsc] = useState(true)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [showNotePicker, setShowNotePicker] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: string; dirPath?: string; noteId?: string; noteTitle?: string } | null>(null)
@@ -420,8 +423,17 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   }
 
   const handleDownload = async (docId: string) => {
-    try { await api.sync.stubDownload(docId); await loadDocuments() }
-    catch (err: any) { alert(`${t('detail.downloadFailed')}: ${err.message}`) }
+    setDownloadProgress(prev => ({ ...prev, [docId]: { loaded: 0, total: 0 } }))
+    try {
+      await api.sync.stubDownload(docId, (p) => {
+        setDownloadProgress(prev => ({ ...prev, [docId]: p }))
+      })
+      await loadDocuments()
+    } catch (err: any) {
+      alert(`${t('detail.downloadFailed')}: ${err.message}`)
+    } finally {
+      setDownloadProgress(prev => ({ ...prev, [docId]: null }))
+    }
   }
 
   const handleUpload = async (docId: string) => {
@@ -482,6 +494,25 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
       const q = searchQuery.toLowerCase()
       items = items.filter((item: any) => (item.title || item.name || '').toLowerCase().includes(q))
     }
+
+    if (sortKey) {
+      items = [...items].sort((a: any, b: any) => {
+        let va: string, vb: string
+        if (sortKey === 'type') {
+          va = a.type || ''
+          vb = b.type || ''
+        } else if (sortKey === 'title') {
+          va = (a.title || a.name || '').toLowerCase()
+          vb = (b.title || b.name || '').toLowerCase()
+        } else {
+          va = a.createdAt || ''
+          vb = b.createdAt || ''
+        }
+        const cmp = va.localeCompare(vb, 'zh-CN')
+        return sortAsc ? cmp : -cmp
+      })
+    }
+
     return items
   }
 
@@ -844,13 +875,30 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               display: 'flex', padding: '0 12px', borderBottom: '1px solid var(--border)',
               fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: 0.5, flexShrink: 0,
             }}>
-              {(selectedSection === 'documents' || selectedSection === 'notes') && <div style={{ width: 80, padding: '6px 4px' }}>{t('library.colType')}</div>}
-              <div style={{ flex: 1, padding: '6px 4px' }}>{t('library.colTitle')}</div>
-              <div style={{ width: 100, padding: '6px 4px', textAlign: 'right' }}>{t('library.colCreatedAt')}</div>
+              {(selectedSection === 'documents' || selectedSection === 'notes') && (
+                <div
+                  style={{ width: 80, padding: '6px 4px', cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => { if (sortKey === 'type') setSortAsc(a => !a); else { setSortKey('type'); setSortAsc(true) } }}
+                >
+                  {t('library.colType')}{sortKey === 'type' ? (sortAsc ? ' ▲' : ' ▼') : ''}
+                </div>
+              )}
+              <div
+                style={{ flex: 1, padding: '6px 4px', cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => { if (sortKey === 'title') setSortAsc(a => !a); else { setSortKey('title'); setSortAsc(true) } }}
+              >
+                {t('library.colTitle')}{sortKey === 'title' ? (sortAsc ? ' ▲' : ' ▼') : ''}
+              </div>
+              <div
+                style={{ width: 100, padding: '6px 4px', textAlign: 'right', cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => { if (sortKey === 'createdAt') setSortAsc(a => !a); else { setSortKey('createdAt'); setSortAsc(true) } }}
+              >
+                {t('library.colCreatedAt')}{sortKey === 'createdAt' ? (sortAsc ? ' ▲' : ' ▼') : ''}
+              </div>
             </div>
 
             {/* Table rows */}
-            <div style={{ flex: 1, overflow: 'auto' }}>
+            <div style={{ flex: 1, overflow: 'auto', minHeight: 0, paddingBottom: 80 }}>
               {displayItems.length === 0 && (
                 <div style={{ padding: '24px 16px', color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
                   {selectedSection === 'documents' && (selectedDir ? t('library.emptyDir') : t('library.emptyDocuments'))}
@@ -885,22 +933,24 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   >
                     {(selectedSection === 'documents' || selectedSection === 'notes') && (
                       <div style={{ width: 80, padding: '0 4px' }}>
-                        {TYPE_PILLS[item.type] ? (
-                          <span style={{
-                            fontSize: 10, fontWeight: 600, letterSpacing: 0.3,
-                            display: 'inline-block',
-                            ...(selectedSection === 'notes' ? { width: 48, textAlign: 'center' as const, padding: '2px 0' } : { padding: '2px 8px' }),
-                            borderRadius: 9999,
-                            background: TYPE_PILLS[item.type].bg,
-                            color: TYPE_PILLS[item.type].color,
-                          }}>
-                            {TYPE_PILLS[item.type].label}
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase' as const, color: 'var(--text-muted)', letterSpacing: 0.5 }}>
-                            {item.type}
-                          </span>
-                        )}
+                        {(() => {
+                          const pill = TYPE_PILLS[item.type]
+                          const label = item.type === 'other'
+                            ? (item.path?.split('.').pop()?.toUpperCase() || 'Other')
+                            : pill?.label ?? item.type
+                          const bg = pill?.bg ?? '#edeef0'
+                          const color = pill?.color ?? '#737a84'
+                          return (
+                            <span style={{
+                              fontSize: 10, fontWeight: 600, letterSpacing: 0.3,
+                              display: 'inline-block',
+                              ...(selectedSection === 'notes' ? { width: 48, textAlign: 'center' as const, padding: '2px 0' } : { padding: '2px 8px' }),
+                              borderRadius: 9999, background: bg, color,
+                            }}>
+                              {label}
+                            </span>
+                          )
+                        })()}
                       </div>
                     )}
                     <div style={{ flex: 1, overflow: 'hidden', padding: '0 4px', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
@@ -927,11 +977,13 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         <div style={detailPanelStyle}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>{t('detail.title')}</div>
           <DetailField label={t('detail.docTitle')} value={selectedItemDetail.title} />
-          <DetailField label={t('detail.type')} value={
-            TYPE_PILLS[selectedItemDetail.type]
-              ? <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.3, padding: '2px 8px', borderRadius: 9999, background: TYPE_PILLS[selectedItemDetail.type].bg, color: TYPE_PILLS[selectedItemDetail.type].color }}>{TYPE_PILLS[selectedItemDetail.type].label}</span>
-              : <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{selectedItemDetail.type}</span>
-          } />
+          <DetailField label={t('detail.type')} value={(() => {
+            const pill = TYPE_PILLS[selectedItemDetail.type]
+            const label = selectedItemDetail.type === 'other'
+              ? (selectedItemDetail.path?.split('.').pop()?.toUpperCase() || 'Other')
+              : pill?.label ?? selectedItemDetail.type
+            return <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.3, padding: '2px 8px', borderRadius: 9999, background: pill?.bg ?? '#edeef0', color: pill?.color ?? '#737a84' }}>{label}</span>
+          })()} />
           <DetailField label={t('detail.path')} value={<span style={{ fontSize: 11, wordBreak: 'break-all' }}>{selectedItemDetail.path}</span>} />
           {selectedItemDetail.hash && (
             <DetailField label={t('detail.hash')} value={<span style={{ fontSize: 11, fontFamily: 'monospace' }}>{selectedItemDetail.hash.substring(0, 16)}...</span>} />
@@ -951,9 +1003,25 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             <TagInput targetId={selectedItemId!} targetType={selectedSection === 'documents' ? 'document' : 'note'} />
           </div>
           <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {docStatuses[selectedItemId] === 'cloud' && (
-              <button onClick={() => handleDownload(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Download size={14} />{t('detail.download')}</button>
-            )}
+            {docStatuses[selectedItemId] === 'cloud' && (() => {
+              const prog = downloadProgress[selectedItemId]
+              const downloading = !!prog
+              const pct = prog && prog.total > 0 ? Math.round((prog.loaded / prog.total) * 100) : 0
+              const sizeStr = prog && prog.total > 0 ? `${(prog.loaded / 1024 / 1024).toFixed(1)}/${(prog.total / 1024 / 1024).toFixed(1)} MB` : ''
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <button onClick={() => handleDownload(selectedItemId)} disabled={downloading}
+                    style={{ fontSize: 12, padding: '4px 10px', width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, opacity: downloading ? 0.6 : 1 }}>
+                    <Download size={14} />{downloading ? `${pct}% ${sizeStr}` : t('detail.download')}
+                  </button>
+                  {downloading && (
+                    <div style={{ height: 4, borderRadius: 2, background: 'var(--border, #e0e0e0)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', borderRadius: 2, background: '#228be6', width: `${pct}%`, transition: 'width 0.2s ease' }} />
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
             {docStatuses[selectedItemId] === 'local' && (
               <button onClick={() => handleUpload(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Upload size={14} />{t('detail.upload')}</button>
             )}

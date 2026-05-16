@@ -9,6 +9,7 @@ export interface SyncResult {
   downloaded: number
   deletedLocal: number
   deletedRemote: number
+  stubbed: number
   errors: string[]
 }
 
@@ -19,28 +20,63 @@ export interface SyncProgress {
   currentFile: string
 }
 
+export interface SyncOptions {
+  stubThreshold?: number
+  onStub?: (remotePath: string, size: number) => Promise<void>
+}
+
+const EXCLUDED_NAMES = new Set([
+  'db.sqlite', 'db.sqlite-wal', 'db.sqlite-shm',
+  'library.db', 'db.meta.json',
+  'sync-snapshot.json', '.DS_Store',
+])
+
+const PROTECTED_FILES = new Set([
+  '.banjuan/config.json',
+  '.banjuan/tags.json',
+  '.banjuan/sync.json',
+])
+
+const EXCLUDED_DIRS = new Set([
+  'plugins',
+])
+
 export class SyncService {
   private snapshotPath: string
-  private banjuanDir: string
+  private remotePath: string
+  private createdDirs = new Set<string>()
 
-  constructor(private rootPath: string, private adapter: SyncAdapter, private events: EventBus | undefined, private fs: PlatformFS) {
-    this.banjuanDir = join(rootPath, '.banjuan')
-    this.snapshotPath = join(this.banjuanDir, 'sync-snapshot.json')
+  constructor(private rootPath: string, private adapter: SyncAdapter, private events: EventBus | undefined, private fs: PlatformFS, remotePath?: string) {
+    this.snapshotPath = join(rootPath, '.banjuan', 'sync-snapshot.json')
+    const rp = remotePath || '/'
+    this.remotePath = rp.endsWith('/') ? rp : rp + '/'
   }
 
-  async sync(onProgress?: (progress: SyncProgress) => void): Promise<SyncResult> {
+  async sync(onProgress?: (progress: SyncProgress) => void, options?: SyncOptions): Promise<SyncResult> {
     this.events?.emit('sync:started', { timestamp: Date.now() })
-    const result: SyncResult = { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0, errors: [] }
+    const result: SyncResult = { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0, stubbed: 0, errors: [] }
 
     onProgress?.({ phase: 'scanning', current: 0, total: 0, currentFile: '' })
 
     const localFiles = await this.collectLocalFiles()
+    console.log(`[sync] local files: ${localFiles.length}`, localFiles.map(f => f.relativePath))
     const remoteFiles = await this.collectRemoteFiles()
+    console.log(`[sync] remote files: ${remoteFiles.length}`, remoteFiles.map(f => f.relativePath))
     const snapshot = await this.readSnapshot()
+    console.log(`[sync] snapshot:`, snapshot?.files)
 
     const localMap = new Map(localFiles.map(f => [f.relativePath, f]))
     const remoteMap = new Map(remoteFiles.map(f => [f.relativePath, f]))
-    const snapshotSet = snapshot ? new Set(snapshot.files) : null
+
+    let snapshotSet: Set<string> | null = null
+    if (snapshot) {
+      const snapshotCount = snapshot.files.length
+      if (remoteFiles.length === 0 && snapshotCount > 0) {
+        snapshotSet = null
+      } else {
+        snapshotSet = new Set(snapshot.files)
+      }
+    }
 
     const allPaths = new Set([...localMap.keys(), ...remoteMap.keys()])
     const total = allPaths.size
@@ -66,7 +102,7 @@ export class SyncService {
             this.events?.emit('sync:file:uploaded', { path })
           }
         } else if (local && !remote) {
-          if (snapshotSet && snapshotSet.has(path)) {
+          if (snapshotSet && snapshotSet.has(path) && !PROTECTED_FILES.has(path)) {
             await this.fs.remove(local.absolutePath)
             result.deletedLocal++
           } else {
@@ -79,8 +115,11 @@ export class SyncService {
           if (snapshotSet && snapshotSet.has(path)) {
             await this.adapter.delete(this.toRemotePath(path))
             result.deletedRemote++
+          } else if (options?.stubThreshold && remote.size > options.stubThreshold && options.onStub) {
+            await options.onStub(path, remote.size)
+            result.stubbed++
           } else {
-            const localPath = this.toLocalPath(path)
+            const localPath = join(this.rootPath, path)
             await this.fs.mkdir(dirname(localPath), { recursive: true })
             await this.adapter.download(this.toRemotePath(path), localPath)
             result.downloaded++
@@ -88,20 +127,22 @@ export class SyncService {
           }
         }
       } catch (err) {
+        console.log(`[sync] ERROR ${path}:`, (err as Error).message)
         result.errors.push(`${path}: ${(err as Error).message}`)
         this.events?.emit('sync:error', { error: (err as Error).message })
       }
     }
+    console.log(`[sync] result:`, JSON.stringify(result))
 
     onProgress?.({ phase: 'finalizing', current: total, total, currentFile: '' })
 
-    // Build final file list (excluding deleted files)
-    const finalLocalFiles = await this.collectLocalFiles()
-    const finalRemoteFiles = await this.collectRemoteFiles()
-    const finalFiles = [...new Set([
-      ...finalLocalFiles.map(f => f.relativePath),
-      ...finalRemoteFiles.map(f => f.relativePath),
-    ])]
+    const finalFiles = [...allPaths].filter(path => {
+      const local = localMap.get(path)
+      const remote = remoteMap.get(path)
+      if (local && !remote && snapshotSet?.has(path) && !PROTECTED_FILES.has(path)) return false
+      if (!local && remote && snapshotSet?.has(path)) return false
+      return true
+    })
     await this.writeSnapshot({ timestamp: Date.now(), files: finalFiles })
 
     this.events?.emit('sync:completed', { result })
@@ -110,56 +151,31 @@ export class SyncService {
 
   private async collectLocalFiles(): Promise<Array<{ relativePath: string; absolutePath: string; mtime: number }>> {
     const results: Array<{ relativePath: string; absolutePath: string; mtime: number }> = []
-
-    const dataDir = join(this.banjuanDir, 'data')
-    if (await this.fs.exists(dataDir)) {
-      await this.walkDir(dataDir, async (absPath) => {
-        if (!absPath.endsWith('.json')) return
-        const rel = relative(this.banjuanDir, absPath)
+    await this.walkDir(this.rootPath, async (absPath) => {
+      try {
+        const rel = relative(this.rootPath, absPath)
         const stat = await this.fs.stat(absPath)
         results.push({ relativePath: rel, absolutePath: absPath, mtime: stat.mtime })
-      })
-    }
-
-    for (const name of ['tags.json', 'config.json', 'sync.json']) {
-      const p = join(this.banjuanDir, name)
-      if (await this.fs.exists(p)) {
-        const stat = await this.fs.stat(p)
-        results.push({ relativePath: name, absolutePath: p, mtime: stat.mtime })
+      } catch {
+        // skip files that can't be stat'd
       }
-    }
-
-    const stubsDir = join(this.banjuanDir, 'stubs')
-    if (await this.fs.exists(stubsDir)) {
-      await this.walkDir(stubsDir, async (absPath) => {
-        if (!absPath.endsWith('.json')) return
-        const rel = relative(this.banjuanDir, absPath)
-        const stat = await this.fs.stat(absPath)
-        results.push({ relativePath: rel, absolutePath: absPath, mtime: stat.mtime })
-      })
-    }
-
-    const notesDir = join(this.rootPath, '.banjuan', 'notes')
-    if (await this.fs.exists(notesDir)) {
-      await this.walkDir(notesDir, async (absPath) => {
-        if (!absPath.endsWith('.md')) return
-        const rel = 'notes/' + relative(notesDir, absPath)
-        const stat = await this.fs.stat(absPath)
-        results.push({ relativePath: rel, absolutePath: absPath, mtime: stat.mtime })
-      })
-    }
-
+    })
     return results
   }
 
-  private async collectRemoteFiles(): Promise<Array<{ relativePath: string; mtime: number }>> {
-    const results: Array<{ relativePath: string; mtime: number }> = []
+  private async collectRemoteFiles(): Promise<Array<{ relativePath: string; mtime: number; size: number }>> {
+    const results: Array<{ relativePath: string; mtime: number; size: number }> = []
     try {
-      const items = await this.adapter.list('/')
+      const items = await this.adapter.list(this.remotePath)
       for (const item of items) {
         if (item.isDirectory) continue
-        const rel = item.path.startsWith('/') ? item.path.slice(1) : item.path
-        results.push({ relativePath: rel, mtime: item.mtime })
+        let rel = item.path
+        if (rel.startsWith(this.remotePath)) {
+          rel = rel.slice(this.remotePath.length)
+        } else if (rel.startsWith('/')) {
+          rel = rel.slice(1)
+        }
+        if (rel) results.push({ relativePath: rel, mtime: item.mtime, size: item.size })
       }
     } catch {
       // Remote might be empty on first sync
@@ -167,9 +183,21 @@ export class SyncService {
     return results
   }
 
+  private shouldExclude(name: string, isDirectory: boolean): boolean {
+    if (EXCLUDED_NAMES.has(name)) return true
+    if (isDirectory && EXCLUDED_DIRS.has(name)) return true
+    return false
+  }
+
   private async walkDir(dir: string, callback: (absPath: string) => Promise<void>): Promise<void> {
-    const entries = await this.fs.readdirWithTypes(dir)
+    let entries: Array<{ name: string; isDirectory: boolean }>
+    try {
+      entries = await this.fs.readdirWithTypes(dir)
+    } catch {
+      return
+    }
     for (const entry of entries) {
+      if (this.shouldExclude(entry.name, entry.isDirectory)) continue
       const fullPath = join(dir, entry.name)
       if (entry.isDirectory) {
         await this.walkDir(fullPath, callback)
@@ -180,20 +208,15 @@ export class SyncService {
   }
 
   private toRemotePath(relativePath: string): string {
-    return '/' + relativePath
-  }
-
-  private toLocalPath(relativePath: string): string {
-    if (relativePath.startsWith('notes/')) {
-      return join(this.rootPath, '.banjuan', relativePath)
-    }
-    return join(this.banjuanDir, relativePath)
+    return this.remotePath + relativePath
   }
 
   private async ensureRemoteDir(relativePath: string): Promise<void> {
-    const dir = dirname('/' + relativePath)
-    if (dir !== '/') {
+    const fullRemote = this.toRemotePath(relativePath)
+    const dir = dirname(fullRemote)
+    if (dir !== '/' && dir !== this.remotePath.replace(/\/$/, '') && !this.createdDirs.has(dir)) {
       try { await this.adapter.mkdir(dir) } catch { /* may already exist */ }
+      this.createdDirs.add(dir)
     }
   }
 

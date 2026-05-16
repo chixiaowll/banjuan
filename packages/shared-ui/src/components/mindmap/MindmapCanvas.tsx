@@ -15,7 +15,7 @@ import BoundaryOverlay from './overlays/BoundaryOverlay.js'
 import SummaryOverlay from './overlays/SummaryOverlay.js'
 import './MindmapCanvas.css'
 
-export default function MindmapCanvas({ readonly = false }: { readonly?: boolean } = {}) {
+export default function MindmapCanvas({ readonly = false, hideMiniMap = false }: { readonly?: boolean; hideMiniMap?: boolean } = {}) {
   const {
     rfNodes, rfEdges, layout, theme: themeName,
     setRfNodes, setRfEdges, selectNode, toggleSelectNode,
@@ -32,7 +32,7 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
   const dragStartRef = useRef<{ nodeId: string; positions: Map<string, { x: number; y: number }> } | null>(null)
 
   const structuralFingerprint = useMemo(
-    () => rfNodes.map(n => `${n.id}-${n.data.collapsed}-${n.data.parentId}-${n.data.sortOrder}-${n.data.content ? 1 : 0}-${n.data.floating ? 'f' : ''}`).join(','),
+    () => rfNodes.map(n => `${n.id}-${n.data.collapsed}-${n.data.parentId}-${n.data.sortOrder}-${n.data.content ? n.data.content.length : 0}-${n.data.floating ? 'f' : ''}`).join(','),
     [rfNodes],
   )
 
@@ -307,10 +307,12 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
       >
         {!readonly && (
           <>
-            <MiniMap
-              style={{ background: theme.canvas.background }}
-              maskColor="rgba(0,0,0,0.1)"
-            />
+            {!hideMiniMap && (
+              <MiniMap
+                style={{ background: theme.canvas.background }}
+                maskColor="rgba(0,0,0,0.1)"
+              />
+            )}
             <Controls />
           </>
         )}

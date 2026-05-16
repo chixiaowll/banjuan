@@ -1,6 +1,7 @@
 import { app, protocol, net, Menu } from 'electron'
 import { registerIpcHandlers, getLibraryRootPath } from './ipc.js'
 import { startApiServer, stopApiServer } from './api-server.js'
+import { installCli } from './install-cli.js'
 import { createWindow, getWindowCount } from './windows.js'
 import { join } from 'node:path'
 
@@ -23,6 +24,7 @@ app.whenReady().then(() => {
   })
   registerIpcHandlers()
   startApiServer().catch(console.error)
+  installCli().catch(console.error)
 
   const isMac = process.platform === 'darwin'
   const template: Electron.MenuItemConstructorOptions[] = [

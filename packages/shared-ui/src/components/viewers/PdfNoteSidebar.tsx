@@ -25,18 +25,121 @@ interface Props {
   width?: number
 }
 
+function SidebarMindmapNodeEditor({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) {
+  const { sidePanelNodeId, rfNodes, updateNodeData, closeSidePanel, mindmapId } = useMindmapStore()
+  const node = rfNodes.find(n => n.id === sidePanelNodeId)
+  const [title, setTitle] = useState(node?.data.title ?? '')
+  const [height, setHeight] = useState(200)
+  const dragging = useRef(false)
+  const startY = useRef(0)
+  const startH = useRef(0)
+
+  useEffect(() => {
+    setTitle(node?.data.title ?? '')
+  }, [sidePanelNodeId, node?.data.title])
+
+  const handleTitleChange = useCallback((val: string) => {
+    setTitle(val)
+    if (sidePanelNodeId) updateNodeData(sidePanelNodeId, { title: val })
+  }, [sidePanelNodeId, updateNodeData])
+
+  const handleContentChange = useCallback((json: string) => {
+    if (sidePanelNodeId) updateNodeData(sidePanelNodeId, { content: json })
+  }, [sidePanelNodeId, updateNodeData])
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    dragging.current = true
+    startY.current = e.clientY
+    startH.current = height
+    document.body.style.cursor = 'row-resize'
+    document.body.style.userSelect = 'none'
+
+    const onMove = (ev: PointerEvent) => {
+      if (!dragging.current) return
+      const containerH = containerRef.current?.clientHeight ?? 600
+      const maxH = containerH - 80
+      const newH = Math.max(100, Math.min(maxH, startH.current + (startY.current - ev.clientY)))
+      setHeight(newH)
+    }
+    const onUp = () => {
+      dragging.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+    }
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+  }, [height, containerRef])
+
+  if (!sidePanelNodeId || !node) return null
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      height, flexShrink: 0,
+    }}>
+      <div
+        onPointerDown={onPointerDown}
+        style={{
+          height: 6, flexShrink: 0, cursor: 'row-resize',
+          background: 'var(--border, #e0e0e0)',
+          position: 'relative',
+        }}
+      >
+        <div style={{
+          position: 'absolute', left: '50%', top: 1, transform: 'translateX(-50%)',
+          width: 32, height: 4, borderRadius: 2,
+          background: 'var(--text-muted, #999)', opacity: 0.4,
+        }} />
+      </div>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        padding: '4px 8px', borderBottom: '1px solid var(--border, #e0e0e0)', flexShrink: 0,
+      }}>
+        <input
+          value={title}
+          onChange={e => handleTitleChange(e.target.value)}
+          style={{
+            flex: 1, border: 'none', outline: 'none', background: 'transparent',
+            fontSize: 13, fontWeight: 600, color: 'var(--text, #333)',
+            fontFamily: 'inherit', padding: '2px 4px',
+          }}
+        />
+        <button
+          onClick={closeSidePanel}
+          style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-muted, #999)', padding: '0 4px', lineHeight: 1 }}
+        >×</button>
+      </div>
+      <div className="node-content-editor-body" style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
+        <BlockEditor
+          key={sidePanelNodeId}
+          noteId={mindmapId ?? undefined}
+          initialContent={(node.data.content as string) ?? ''}
+          onChange={handleContentChange}
+          skipLinkSync
+          autoParseMarkdown
+        />
+      </div>
+    </div>
+  )
+}
+
 function SidebarMindmap({ noteId }: { noteId: string }) {
   const { init } = useMindmapStore()
+  const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => { init(noteId) }, [noteId, init])
   useKeyboardShortcuts()
   return (
-    <>
+    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <MindmapTitleBar />
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-        <MindmapCanvas />
+        <MindmapCanvas hideMiniMap />
         <MindmapFloatingToolbar />
       </div>
-    </>
+      <SidebarMindmapNodeEditor containerRef={containerRef} />
+    </div>
   )
 }
 

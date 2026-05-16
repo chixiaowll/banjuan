@@ -13,63 +13,139 @@ interface MigrationResult {
   errors: string[]
 }
 
-/**
- * Convert a markdown line into a BlockNote-style block.
- */
-function markdownLineToBlock(line: string): unknown | null {
-  // Skip blank lines and horizontal rules
-  if (line.trim() === '' || line.trim() === '---') return null
-
-  // Headings
-  const headingMatch = line.match(/^(#{1,3})\s+(.*)/)
-  if (headingMatch) {
-    const level = headingMatch[1].length as 1 | 2 | 3
-    return {
-      type: 'heading',
-      props: { level },
-      content: [{ type: 'text', text: headingMatch[2] }],
+function parseInline(text: string): unknown[] {
+  const result: unknown[] = []
+  const re = /(\*\*(.+?)\*\*|__(.+?)__|`(.+?)`|\*(.+?)\*|_(.+?)_|~~(.+?)~~|\[([^\]]+)\]\(([^)]+)\)|\[\[([^\]]+)\]\])/g
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) result.push({ type: 'text', text: text.slice(last, m.index), styles: {} })
+    if (m[2] || m[3]) {
+      result.push({ type: 'text', text: m[2] || m[3], styles: { bold: true } })
+    } else if (m[4]) {
+      result.push({ type: 'text', text: m[4], styles: { code: true } })
+    } else if (m[5] || m[6]) {
+      result.push({ type: 'text', text: m[5] || m[6], styles: { italic: true } })
+    } else if (m[7]) {
+      result.push({ type: 'text', text: m[7], styles: { strikethrough: true } })
+    } else if (m[8] && m[9]) {
+      result.push({ type: 'link', href: m[9], content: [{ type: 'text', text: m[8], styles: {} }] })
+    } else if (m[10]) {
+      result.push({ type: 'noteLink', content: [{ type: 'text', text: m[10], styles: {} }] })
     }
+    last = m.index + m[0].length
   }
+  if (last < text.length) result.push({ type: 'text', text: text.slice(last), styles: {} })
+  if (result.length === 0) result.push({ type: 'text', text, styles: {} })
+  return result
+}
 
-  // Bullet list
-  const bulletMatch = line.match(/^[-*]\s+(.*)/)
-  if (bulletMatch) {
-    return {
-      type: 'bulletListItem',
-      content: [{ type: 'text', text: bulletMatch[1] }],
-    }
-  }
-
-  // Numbered list
-  const numberedMatch = line.match(/^\d+\.\s+(.*)/)
-  if (numberedMatch) {
-    return {
-      type: 'numberedListItem',
-      content: [{ type: 'text', text: numberedMatch[1] }],
-    }
-  }
-
-  // Block quote -> paragraph with italic style
-  const quoteMatch = line.match(/^>\s?(.*)/)
-  if (quoteMatch) {
-    return {
-      type: 'paragraph',
-      content: [{ type: 'text', text: quoteMatch[1], styles: { italic: true } }],
-    }
-  }
-
-  // Regular text -> paragraph
+function parseTableLines(lines: string[]): unknown {
+  const rows = lines
+    .filter(l => !l.match(/^\|[\s-:|]+\|$/))
+    .map(l => l.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim()))
+  const colCount = rows.length > 0 ? rows[0].length : 0
   return {
-    type: 'paragraph',
-    content: [{ type: 'text', text: line }],
+    type: 'table',
+    props: { textColor: 'default' },
+    content: {
+      type: 'tableContent',
+      columnWidths: Array(colCount).fill(null),
+      headerRows: 1,
+      rows: rows.map(r => ({
+        cells: r.map(c => ({ type: 'tableCell', content: parseInline(c) })),
+      })),
+    },
+    children: [],
   }
 }
 
-function markdownToBlocks(markdown: string): unknown[] {
+function markdownLineToBlock(line: string): unknown | null {
+  if (line.trim() === '' || line.trim() === '---') return null
+
+  const headingMatch = line.match(/^(#{1,6})\s+(.*)/)
+  if (headingMatch) {
+    const level = Math.min(headingMatch[1].length, 3) as 1 | 2 | 3
+    return { type: 'heading', props: { level }, content: parseInline(headingMatch[2]), children: [] }
+  }
+
+  const checkMatch = line.match(/^[-*]\s+\[([ xX])\]\s+(.*)/)
+  if (checkMatch) {
+    return { type: 'checkListItem', props: { checked: checkMatch[1] !== ' ' }, content: parseInline(checkMatch[2]), children: [] }
+  }
+
+  const bulletMatch = line.match(/^[-*]\s+(.*)/)
+  if (bulletMatch) {
+    return { type: 'bulletListItem', content: parseInline(bulletMatch[1]), children: [] }
+  }
+
+  const numberedMatch = line.match(/^\d+[.)]\s+(.*)/)
+  if (numberedMatch) {
+    return { type: 'numberedListItem', content: parseInline(numberedMatch[1]), children: [] }
+  }
+
+  // ![[noteTitle]] — note embed
+  const noteEmbedMatch = line.match(/^!\[\[([^\]]+)\]\]$/)
+  if (noteEmbedMatch) {
+    return { type: 'noteEmbed', props: { noteTitle: noteEmbedMatch[1] }, content: undefined, children: [] }
+  }
+
+  // ![alt](url) — image (standalone line)
+  const imageMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/)
+  if (imageMatch) {
+    return { type: 'image', props: { url: imageMatch[2], caption: imageMatch[1] || '' }, children: [] }
+  }
+
+  const quoteMatch = line.match(/^>\s?(.*)/)
+  if (quoteMatch) {
+    return { type: 'paragraph', content: [{ type: 'text', text: quoteMatch[1], styles: { italic: true } }], children: [] }
+  }
+
+  return { type: 'paragraph', content: parseInline(line), children: [] }
+}
+
+export function markdownToBlocks(markdown: string): unknown[] {
+  const lines = markdown.split('\n')
   const blocks: unknown[] = []
-  for (const line of markdown.split('\n')) {
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+
+    // Code block
+    const codeMatch = line.match(/^```(.*)/)
+    if (codeMatch) {
+      const lang = codeMatch[1].trim()
+      const codeLines: string[] = []
+      i++
+      while (i < lines.length && !lines[i].startsWith('```')) {
+        codeLines.push(lines[i])
+        i++
+      }
+      i++ // skip closing ```
+      blocks.push({
+        type: 'codeBlock',
+        props: { language: lang || undefined },
+        content: [{ type: 'text', text: codeLines.join('\n'), styles: {} }],
+        children: [],
+      })
+      continue
+    }
+
+    // Table (starts with |)
+    if (line.trimStart().startsWith('|')) {
+      const tableLines: string[] = [line]
+      i++
+      while (i < lines.length && lines[i].trimStart().startsWith('|')) {
+        tableLines.push(lines[i])
+        i++
+      }
+      blocks.push(parseTableLines(tableLines))
+      continue
+    }
+
     const block = markdownLineToBlock(line)
     if (block) blocks.push(block)
+    i++
   }
   return blocks
 }

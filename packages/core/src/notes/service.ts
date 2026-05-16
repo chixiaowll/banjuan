@@ -6,6 +6,7 @@ import type { SearchService } from '../search/service.js'
 import type { EventBus } from '../events/bus.js'
 import type { TemplateService } from './template-service.js'
 import type { NoteLinkService } from './link-service.js'
+import { markdownToBlocks } from './migration.js'
 
 interface NoteJsonFile {
   meta: NoteFileData
@@ -166,7 +167,7 @@ export class NoteService {
 
     const meta: NoteFileData = {
       id, title: input.title, type: noteType, docId: input.docId ?? null,
-      folderId: null, annotationIds: input.annotationIds ?? [],
+      folderId: input.folderId ?? null, annotationIds: input.annotationIds ?? [],
       tags: [], contentFormat: 'json', typeMeta, createdAt: now, updatedAt: now,
     }
 
@@ -207,7 +208,7 @@ export class NoteService {
 
     this.db.run(
       'INSERT INTO notes (id, title, type, path, doc_id, folder_id, content_format, type_meta, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, input.title, noteType, relPath, input.docId ?? null, null, 'json', typeMeta ? JSON.stringify(typeMeta) : null, now, now],
+      [id, input.title, noteType, relPath, input.docId ?? null, input.folderId ?? null, 'json', typeMeta ? JSON.stringify(typeMeta) : null, now, now],
     )
 
     if (pendingRootNode) {
@@ -226,7 +227,7 @@ export class NoteService {
 
     const note: Note = {
       id, title: input.title, type: noteType, path: relPath, docId: input.docId ?? null,
-      folderId: null, content: contentStr,
+      folderId: input.folderId ?? null, content: contentStr,
       contentFormat: 'json', typeMeta, createdAt: now, updatedAt: now,
     }
     this.events.emit('note:created', { note })
@@ -251,7 +252,15 @@ export class NoteService {
     return (this.db.query<Record<string, unknown>>(sql, params)).map(r => this.rowToNote(r))
   }
 
+  resolveId(id: string): string {
+    const row = this.db.queryOne<{ id: string }>('SELECT id FROM notes WHERE id = ?', [id])
+    if (row) return row.id
+    const prefix = this.db.queryOne<{ id: string }>('SELECT id FROM notes WHERE id LIKE ?', [id + '%'])
+    return prefix?.id ?? id
+  }
+
   async get(id: string): Promise<Note | null> {
+    id = this.resolveId(id)
     const row = this.db.queryOne<Record<string, unknown>>('SELECT * FROM notes WHERE id = ?', [id])
     if (!row) return null
     const note = this.rowToNote(row)
@@ -277,6 +286,7 @@ export class NoteService {
   }
 
   async update(id: string, updates: { title?: string; content?: string; typeMeta?: Record<string, unknown> }): Promise<Note> {
+    id = this.resolveId(id)
     const now = new Date().toISOString()
     const sets: string[] = ['updated_at = ?']
     const params: unknown[] = [now]
@@ -313,7 +323,12 @@ export class NoteService {
         if (updates.title !== undefined) raw.meta.title = updates.title
         raw.meta.updatedAt = now
         if (updates.content !== undefined) {
-          try { raw.blocks = JSON.parse(updates.content) } catch { raw.blocks = [] }
+          try {
+            const parsed = JSON.parse(updates.content)
+            raw.blocks = Array.isArray(parsed) ? parsed : markdownToBlocks(updates.content)
+          } catch {
+            raw.blocks = markdownToBlocks(updates.content)
+          }
         }
         await this.fs.writeTextFile(filePath, JSON.stringify(raw, null, 2))
       }
@@ -363,6 +378,7 @@ export class NoteService {
   }
 
   async delete(id: string): Promise<void> {
+    id = this.resolveId(id)
     const row = this.db.queryOne<{ path: string; type: string }>('SELECT path, type FROM notes WHERE id = ?', [id])
     if (!row) return
     const filePath = join(this.notesDir, row.path)

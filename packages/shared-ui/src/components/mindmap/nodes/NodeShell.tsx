@@ -203,7 +203,7 @@ export default function NodeShell({ id, data, selected, icon, accentColor, child
             pointerEvents: 'all',
           }}
         >
-            <BlockPreview content={data.content!} compact />
+            <BlockPreview key={data.content!.length} content={data.content!} compact />
         </div>
       )}
 

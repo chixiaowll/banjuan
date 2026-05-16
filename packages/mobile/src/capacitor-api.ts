@@ -1,9 +1,46 @@
 import { Library } from '@banjuan/core'
 import type { PlatformDeps } from '@banjuan/core'
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { CapacitorFS, CapacitorDatabaseFactory, WebCrypto } from '@banjuan/platform-capacitor'
 import type { BanjuanAPI } from '@banjuan/shared-ui'
 
 let library: Library | null = null
+
+export interface LibraryEntry {
+  path: string
+  name: string
+}
+
+const LIBRARIES_ROOT = 'BanJuanLibrary'
+
+export async function listLibraries(): Promise<LibraryEntry[]> {
+  const entries: LibraryEntry[] = []
+  try {
+    await Filesystem.mkdir({ path: LIBRARIES_ROOT, directory: Directory.Documents, recursive: true }).catch(() => {})
+    const result = await Filesystem.readdir({ path: LIBRARIES_ROOT, directory: Directory.Documents })
+    for (const item of result.files) {
+      if (item.type !== 'directory') continue
+      try {
+        const configResult = await Filesystem.readFile({
+          path: `${LIBRARIES_ROOT}/${item.name}/.banjuan/config.json`,
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8,
+        })
+        const config = JSON.parse(configResult.data as string)
+        entries.push({ path: `${LIBRARIES_ROOT}/${item.name}`, name: config.name || item.name })
+      } catch {
+        // not a library
+      }
+    }
+  } catch {
+    // root dir might not exist yet
+  }
+  return entries
+}
+
+export function getLibrariesRoot(): string {
+  return LIBRARIES_ROOT
+}
 
 function createDeps(baseDir: string): PlatformDeps {
   const fs = new CapacitorFS(baseDir)
@@ -80,6 +117,9 @@ export function createCapacitorAPI(): BanjuanAPI {
         const deps = createDeps(getLib().rootPath)
         const data = await deps.fs.readFile(`${getLib().rootPath}/${relativePath}`)
         return data.buffer as ArrayBuffer
+      },
+      async openInSystem(_relativePath) {
+        return ''
       },
     },
 
@@ -305,39 +345,61 @@ export function createCapacitorAPI(): BanjuanAPI {
       async saveConfig(config) {
         return getLib().saveSyncConfig(config)
       },
+      async testConnection(config) {
+        try {
+          const { CapacitorWebDAVAdapter } = await import('./capacitor-webdav-adapter')
+          const adapter = new CapacitorWebDAVAdapter(createDeps(getLib().rootPath).fs)
+          await adapter.connect(config)
+          const files = await adapter.list(config.remotePath || '/')
+          await adapter.disconnect()
+          return { ok: true, message: `Connected. Found ${files.length} items on server.` }
+        } catch (err: any) {
+          return { ok: false, message: err?.message ?? String(err) }
+        }
+      },
       async run(onProgress) {
         const config = await getLib().getSyncConfig()
         if (!config) throw new Error('No sync config')
-        const svc = await getLib().createSyncServiceConnected(config)
-        await svc.sync(onProgress)
+        const { SyncService } = await import('@banjuan/core')
+        const { CapacitorWebDAVAdapter } = await import('./capacitor-webdav-adapter')
+        const adapter = new CapacitorWebDAVAdapter(createDeps(getLib().rootPath).fs)
+        await adapter.connect(config)
+        const svc = new SyncService(getLib().rootPath, adapter, getLib().events, createDeps(getLib().rootPath).fs, config.remotePath)
+        const result = await svc.sync(onProgress)
         onProgress?.({ phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
-        const indexSvc = getLib().createIndexService()
-        await indexSvc.rebuildFull()
+        try {
+          const deps = createDeps(getLib().rootPath)
+          const notesDir = `${getLib().rootPath}/.banjuan/notes`
+          const notesExist = await deps.fs.exists(notesDir)
+          console.log('[sync] notesDir:', notesDir, 'exists:', notesExist)
+          if (notesExist) {
+            const noteFiles = await deps.fs.readdirWithTypes(notesDir)
+            console.log('[sync] note files:', noteFiles.map(f => f.name))
+          }
+          const indexSvc = getLib().createIndexService()
+          await indexSvc.rebuildFull()
+          const noteCount = await getLib().notes.list({})
+          console.log('[sync] rebuild done, notes in db:', noteCount.length)
+          const docCount = await getLib().documents.list({})
+          console.log('[sync] docs in db:', docCount.length)
+        } catch (e: any) {
+          console.error('[sync] rebuild error:', e?.message, e?.stack)
+        }
+        return result
       },
       async stubList() {
-        const stubSvc = getLib().createStubService()
-        return stubSvc.listStubs()
+        return []
       },
-      async stubDownload(docId) {
-        const stubSvc = getLib().createStubService()
-        const stub = await stubSvc.getStub(docId)
-        if (!stub) throw new Error(`No stub for document: ${docId}`)
-        const localPath = `${getLib().rootPath}/${stub.relativePath}`
-        await stubSvc.downloadFile(docId, localPath)
+      async stubDownload() {},
+      async stubUpload() {},
+      async getDocStatus() {
+        return 'local'
       },
-      async stubUpload(docId) {
-        const doc = await getLib().documents.get(docId)
-        if (!doc) throw new Error(`Document not found: ${docId}`)
-        const stubSvc = getLib().createStubService()
-        const localPath = `${getLib().rootPath}/${doc.relativePath}`
-        await stubSvc.uploadFile(localPath, doc.relativePath)
-      },
-      async getDocStatus(docId) {
-        const doc = await getLib().documents.get(docId)
-        if (!doc) return 'local'
-        const stubSvc = getLib().createStubService()
-        const localPath = `${getLib().rootPath}/${doc.relativePath}`
-        return stubSvc.getStatus(docId, localPath)
+    },
+
+    search: {
+      async query(query: string, options?: { type?: string; limit?: number }) {
+        return getLib().search.query(query, options)
       },
     },
 

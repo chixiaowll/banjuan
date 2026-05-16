@@ -12,6 +12,7 @@ const en = {
   'welcome.cancel': 'Cancel',
   'welcome.creating': 'Creating...',
   'welcome.create': 'Create',
+  'welcome.recentLibraries': 'Recent Libraries',
 
   // Common
   'common.save': 'Save',
@@ -199,6 +200,8 @@ const en = {
   'sync.syncSuccess': 'Sync complete — uploaded {0}, downloaded {1}, deleted local {2}, deleted remote {3}',
   'sync.syncWithErrors': 'Sync completed with errors: {0}',
   'sync.syncFailed': 'Sync failed: {0}',
+  'sync.testConnection': 'Test Connection',
+  'sync.testing': 'Testing…',
 
   // Annotation sidebar
   'annotation.title': 'Annotations',
@@ -235,6 +238,12 @@ const en = {
   'epub.noOutline': 'No outline available',
   'epub.newNote': '+ New Note',
   'epub.chapter': 'Chapter',
+
+  // Markdown viewer
+  'md.thumbnails': 'Sections',
+  'md.outline': 'Outline',
+  'md.annotations': 'Annotations',
+  'md.notes': 'Notes',
 
   // Note creation from PDF
   'note.defaultTitle': '{0} — Notes',

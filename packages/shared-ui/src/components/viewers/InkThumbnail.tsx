@@ -26,12 +26,34 @@ export default function InkThumbnail({ strokes, bounds, maxWidth = 200, maxHeigh
 
     const bw = bounds.w || 1
     const bh = bounds.h || 1
-    const aspect = bw / bh
-    let w = maxWidth
-    let h = w / aspect
-    if (h > maxHeight) { h = maxHeight; w = h * aspect }
-    w = Math.max(w, 20)
-    h = Math.max(h, 20)
+    const pad = 4
+    const innerW = maxWidth - pad * 2
+    const innerH = maxHeight - pad * 2
+
+    const mixedCoords = bh > 2
+    let sX: number, sY: number, w: number, h: number
+
+    if (mixedCoords) {
+      sX = innerW / bw
+      sY = innerH / bh
+      w = maxWidth
+      h = maxHeight
+    } else {
+      const aspect = bw / bh
+      w = maxWidth
+      h = w / aspect
+      if (h > maxHeight) { h = maxHeight; w = h * aspect }
+      w = Math.max(w, 20)
+      h = Math.max(h, 20)
+      const scale = Math.min((w - pad * 2) / bw, (h - pad * 2) / bh)
+      sX = scale
+      sY = scale
+    }
+
+    const drawW = bw * sX
+    const drawH = bh * sY
+    const offsetX = pad + ((w - pad * 2) - drawW) / 2
+    const offsetY = pad + ((h - pad * 2) - drawH) / 2
 
     const dpr = window.devicePixelRatio || 1
     canvas.width = w * dpr
@@ -42,16 +64,11 @@ export default function InkThumbnail({ strokes, bounds, maxWidth = 200, maxHeigh
     const ctx = canvas.getContext('2d')!
     ctx.scale(dpr, dpr)
 
-    const pad = 4
-    const scaleX = (w - pad * 2) / bw
-    const scaleY = (h - pad * 2) / bh
-    const scale = Math.min(scaleX, scaleY)
-
     const absStrokes: Stroke[] = strokes.map(s => ({
       id: `thumb-${++thumbIdCounter}`,
       points: s.points.map(p => ({
-        x: (p.x - bounds.x) * scale + pad,
-        y: (p.y - bounds.y) * scale + pad,
+        x: (p.x - bounds.x) * sX + offsetX,
+        y: (p.y - bounds.y) * sY + offsetY,
       })),
       color: s.color,
       width: Math.max(1, Math.min(s.width, 4)),

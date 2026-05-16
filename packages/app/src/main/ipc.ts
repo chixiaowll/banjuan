@@ -3,7 +3,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlin
 import { readFile } from 'node:fs/promises'
 import { join, basename, dirname } from 'node:path'
 import { execSync } from 'node:child_process'
-import { tmpdir } from 'node:os'
+import { tmpdir, homedir } from 'node:os'
 import { Library, type MindmapNodeCreateInput, type MindmapNode, type PlatformDeps } from '@banjuan/core'
 import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
 import { setLibraryGetter } from './api-server.js'
@@ -35,7 +35,42 @@ function installBundledPlugins(libraryRoot: string): void {
   }
 }
 
-const libraries = new Map<number, Library>()
+const HISTORY_FILE = join(homedir(), '.banjuan', 'library-history.json')
+
+interface LibraryHistoryEntry {
+  path: string
+  name: string
+  lastOpened: string
+}
+
+function readHistory(): LibraryHistoryEntry[] {
+  try {
+    return JSON.parse(readFileSync(HISTORY_FILE, 'utf-8'))
+  } catch {
+    return []
+  }
+}
+
+function recordLibraryOpen(path: string, name: string): void {
+  const history = readHistory()
+  const idx = history.findIndex(h => h.path === path)
+  const entry: LibraryHistoryEntry = { path, name, lastOpened: new Date().toISOString() }
+  if (idx >= 0) {
+    history[idx] = entry
+  } else {
+    history.push(entry)
+  }
+  const dir = join(homedir(), '.banjuan')
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf-8')
+}
+
+export function getLibraryHistory(): LibraryHistoryEntry[] {
+  return readHistory()
+}
+
+export const libraries = new Map<number, Library>()
+let nextApiKey = -1
 
 function getLib(event: Electron.IpcMainInvokeEvent): Library {
   const lib = libraries.get(event.sender.id)
@@ -46,6 +81,45 @@ function getLib(event: Electron.IpcMainInvokeEvent): Library {
 export function getLibraryRootPath(): string | null {
   const first = libraries.values().next()
   return first.done ? null : first.value.rootPath
+}
+
+export async function initLibraryForApi(path: string, name?: string): Promise<Library> {
+  const existing = [...libraries.values()].find(l => l.rootPath === path)
+  if (existing) return existing
+  const isExisting = await Library.isLibrary(path, deps)
+  const lib = isExisting ? await Library.open(path, deps) : await Library.init(path, deps, name)
+  if (isExisting) {
+    await Library.migrateNotes(path, deps.fs)
+    await lib.syncWithDisk()
+    try { await lib.notes.syncDisk() } catch {}
+  } else {
+    await lib.scanAndImport()
+  }
+  installBundledPlugins(lib.rootPath)
+  await lib.plugins.loadAll()
+  const indexService = lib.createIndexService()
+  await indexService.rebuildFull()
+  libraries.set(nextApiKey--, lib)
+  const libName = await lib.getName()
+  recordLibraryOpen(lib.rootPath, libName)
+  return lib
+}
+
+export async function openLibraryForApi(path: string): Promise<Library> {
+  const existing = [...libraries.values()].find(l => l.rootPath === path)
+  if (existing) return existing
+  const lib = await Library.open(path, deps)
+  await Library.migrateNotes(path, deps.fs)
+  await lib.syncWithDisk()
+  try { await lib.notes.syncDisk() } catch {}
+  installBundledPlugins(lib.rootPath)
+  await lib.plugins.loadAll()
+  const indexService = lib.createIndexService()
+  await indexService.rebuildFull()
+  libraries.set(nextApiKey--, lib)
+  const libName = await lib.getName()
+  recordLibraryOpen(lib.rootPath, libName)
+  return lib
 }
 
 export function registerIpcHandlers() {
@@ -63,6 +137,7 @@ export function registerIpcHandlers() {
     const indexService = lib.createIndexService()
     await indexService.rebuildFull()
     const libName = await lib.getName()
+    recordLibraryOpen(lib.rootPath, libName)
     return { rootPath: lib.rootPath, name: libName, imported: scanResult.imported, skipped: scanResult.skipped }
   })
 
@@ -78,6 +153,7 @@ export function registerIpcHandlers() {
     const indexService = lib.createIndexService()
     await indexService.rebuildFull()
     const libName = await lib.getName()
+    recordLibraryOpen(lib.rootPath, libName)
     return { rootPath: lib.rootPath, name: libName, imported: syncResult.imported, removed: syncResult.removed }
   })
 
@@ -86,6 +162,15 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('library:isOpen', (event) => libraries.has(event.sender.id))
+
+  ipcMain.handle('library:getHistory', () => readHistory())
+
+  ipcMain.handle('library:removeHistory', (_event, path: string) => {
+    const history = readHistory().filter(h => h.path !== path)
+    const dir = join(homedir(), '.banjuan')
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf-8')
+  })
 
   ipcMain.handle('dialog:openDirectory', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
@@ -135,6 +220,11 @@ export function registerIpcHandlers() {
   ipcMain.handle('documents:readFileBuffer', async (event, relativePath: string) => {
     const fullPath = join(getLib(event).rootPath, relativePath)
     return readFile(fullPath)
+  })
+
+  ipcMain.handle('documents:openInSystem', async (event, relativePath: string) => {
+    const fullPath = join(getLib(event).rootPath, relativePath)
+    return shell.openPath(fullPath)
   })
 
   ipcMain.handle('tags:list', async (event) => {
@@ -468,16 +558,32 @@ export function registerIpcHandlers() {
     await getLib(event).saveSyncConfig(config)
   })
 
+  ipcMain.handle('sync:testConnection', async (_event, config: { url: string; username: string; password: string; remotePath: string }) => {
+    try {
+      const { WebDAVAdapter } = await import('@banjuan/core')
+      const adapter = new WebDAVAdapter(deps.fs)
+      await adapter.connect(config as any)
+      const files = await adapter.list(config.remotePath || '/')
+      await adapter.disconnect()
+      return { ok: true, message: `Connected. Found ${files.length} items on server.` }
+    } catch (err: any) {
+      return { ok: false, message: err?.message ?? String(err) }
+    }
+  })
+
   ipcMain.handle('sync:run', async (event) => {
     const library = getLib(event)
     const config = await library.getSyncConfig()
     if (!config) throw new Error('No sync configuration found')
-    const svc = library.createSyncService()
-    const { WebDAVAdapter } = await import('@banjuan/core')
+    const { SyncService, WebDAVAdapter } = await import('@banjuan/core')
     const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect(config)
+    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, config.remotePath)
     try {
-      const result = await svc.sync()
+      const result = await svc.sync((p) => {
+        event.sender.send('sync:progress', p)
+      })
+      event.sender.send('sync:progress', { phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
       const indexService = library.createIndexService()
       await indexService.rebuildFull()
       return result
@@ -502,7 +608,9 @@ export function registerIpcHandlers() {
     await adapter.connect(config)
     try {
       const localPath = join(library.rootPath, doc.path)
-      await svc.downloadFile(docId, localPath)
+      await svc.downloadFile(docId, localPath, (p) => {
+        event.sender.send('sync:downloadProgress', p)
+      })
     } finally {
       await adapter.disconnect()
     }
@@ -675,6 +783,10 @@ ${contentHtml}
       hiddenWin.close()
       try { if (existsSync(tmpHtmlPath)) unlinkSync(tmpHtmlPath) } catch { /* ignore */ }
     }
+  })
+
+  ipcMain.handle('search:query', async (event, query: string, options?: { type?: string; limit?: number }) => {
+    return getLib(event).search.query(query, options)
   })
 
   ipcMain.handle('index:rebuild', async (event) => {

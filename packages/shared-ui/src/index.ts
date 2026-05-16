@@ -18,6 +18,7 @@ export { default as TabManager } from './components/TabManager.js'
 export { default as NoteRenderService } from './components/NoteRenderService.js'
 export { default as TitleBar } from './components/TitleBar.js'
 export { ResizeHandle, useResizable } from './components/ResizeHandle.js'
+export { PoetryCard } from './components/PoetryCard.js'
 
 // Hooks
 export { useAnnotations } from './hooks/useAnnotations.js'

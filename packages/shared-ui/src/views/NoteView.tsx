@@ -17,7 +17,7 @@ import { useKeyboardShortcuts } from '../components/mindmap/useKeyboardShortcuts
 import HandwritingCenterContent from '../components/handwriting/HandwritingCenterContent.js'
 import PageListPanel from '../components/handwriting/PageListPanel.js'
 import { createHandwritingStore, HandwritingStoreContext } from '../components/handwriting/useHandwritingStore.js'
-import { FileDown, FileText, FileImage, Eye, Pencil, PanelLeft, PanelRight } from 'lucide-react'
+import { FileDown, FileText, FileImage, Eye, Pencil, PanelLeft, PanelRight, Minus, Plus } from 'lucide-react'
 import TagInput from '../components/tags/TagInput.js'
 import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
 import { useT } from '../i18n/index.js'
@@ -101,7 +101,7 @@ function MindmapCenterContent({ noteId, onToggleLeftSidebar, onToggleRightSideba
 
 function MindmapPanels() {
   const t = useT()
-  const { sidePanelNodeId, closeSidePanel } = useMindmapStore()
+  const { sidePanelType, sidePanelNodeId, closeSidePanel } = useMindmapStore()
 
   if (!sidePanelNodeId) {
     return (
@@ -111,7 +111,23 @@ function MindmapPanels() {
     )
   }
 
+  if (sidePanelType === 'properties') {
+    return <NodePropertyPanel key={sidePanelNodeId} nodeId={sidePanelNodeId} onClose={closeSidePanel} />
+  }
+
+  if (sidePanelType === 'theme') {
+    return <ThemePanel onClose={closeSidePanel} />
+  }
+
   return <NodeContentEditor key={sidePanelNodeId} nodeId={sidePanelNodeId} onClose={closeSidePanel} />
+}
+
+function MindmapSidePanelAutoOpen({ setRightSidebarOpen }: { setRightSidebarOpen: (v: boolean) => void }) {
+  const sidePanelNodeId = useMindmapStore(s => s.sidePanelNodeId)
+  useEffect(() => {
+    if (sidePanelNodeId) setRightSidebarOpen(true)
+  }, [sidePanelNodeId, setRightSidebarOpen])
+  return null
 }
 
 function MindmapRightSidebar({ noteId, onOpenNote, rightPanel }: {
@@ -178,6 +194,10 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
   const [docId, setDocId] = useState<string | null>(note.docId ?? null)
   const [saving, setSaving] = useState(false)
   const [readingMode, setReadingMode] = useState(false)
+  const [noteFontSize, setNoteFontSize] = useState(() => {
+    const saved = localStorage.getItem('banjuan-note-font-size')
+    return saved ? Number(saved) : 100
+  })
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true)
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true)
   const noteFolder = note.path?.includes('/') ? note.path.substring(0, note.path.lastIndexOf('/')) : null
@@ -290,6 +310,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
 
   return (
     <div style={{ display: 'flex', height: '100vh' }}>
+      {isMindmap && <MindmapSidePanelAutoOpen setRightSidebarOpen={setRightSidebarOpen} />}
       {/* Left Sidebar */}
       {leftSidebarOpen && (
         <>
@@ -368,6 +389,19 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
             <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
               {saving ? t('note.saving') : t('note.saved')}
             </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <button onClick={() => setNoteFontSize(s => { const v = Math.max(50, s - 10); localStorage.setItem('banjuan-note-font-size', String(v)); return v })}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'inline-flex', alignItems: 'center' }}>
+                <Minus size={14} />
+              </button>
+              <span style={{ fontSize: 11, minWidth: 36, textAlign: 'center', color: 'var(--text-muted)' }}>
+                {noteFontSize}%
+              </span>
+              <button onClick={() => setNoteFontSize(s => { const v = Math.min(200, s + 10); localStorage.setItem('banjuan-note-font-size', String(v)); return v })}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'inline-flex', alignItems: 'center' }}>
+                <Plus size={14} />
+              </button>
+            </div>
             <button onClick={() => setReadingMode(r => !r)}
               title={readingMode ? t('note.editMode') : t('note.readMode')}
               style={{
@@ -457,7 +491,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
           </div>
 
           {/* Editor */}
-          <div style={{ flex: 1, overflow: 'auto' }}>
+          <div style={{ flex: 1, overflow: 'auto', ['--note-font-scale' as any]: noteFontSize / 100 }}>
             <BlockEditor
               ref={editorRef}
               key={note.id}

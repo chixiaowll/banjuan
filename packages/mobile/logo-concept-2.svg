@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f4c75"/>
+      <stop offset="100%" style="stop-color:#1b262c"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#faf3e0"/>
+      <stop offset="100%" style="stop-color:#eadbc8"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg2)"/>
+
+  <!-- Minimalist scroll - open half -->
+  <path d="M 120 130 C 120 130, 120 130, 290 130 L 290 382 L 120 382 Z"
+        fill="url(#paper)" opacity="0.92" rx="4"/>
+
+  <!-- Curl/roll on the right side -->
+  <path d="M 290 130 C 330 130, 360 160, 360 256 C 360 352, 330 382, 290 382"
+        fill="#eadbc8" stroke="#d4a853" stroke-width="2"/>
+
+  <!-- Inner curl shadow -->
+  <path d="M 290 130 C 310 135, 325 170, 325 256 C 325 342, 310 377, 290 382"
+        fill="#d6c4a8" opacity="0.6"/>
+
+  <!-- Elegant bookmark ribbon -->
+  <path d="M 230 130 L 230 200 L 245 185 L 260 200 L 260 130" fill="#c44040" opacity="0.85"/>
+
+  <!-- Subtle text lines -->
+  <g stroke="#8b7355" stroke-width="1.5" opacity="0.25">
+    <line x1="148" y1="230" x2="265" y2="230"/>
+    <line x1="148" y1="255" x2="250" y2="255"/>
+    <line x1="148" y1="280" x2="260" y2="280"/>
+    <line x1="148" y1="305" x2="240" y2="305"/>
+    <line x1="148" y1="330" x2="255" y2="330"/>
+    <line x1="148" y1="355" x2="235" y2="355"/>
+  </g>
+
+  <!-- Small golden dots at scroll ends -->
+  <circle cx="360" cy="140" r="6" fill="#d4a853" opacity="0.7"/>
+  <circle cx="360" cy="372" r="6" fill="#d4a853" opacity="0.7"/>
+</svg>

@@ -4,15 +4,27 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { BrowserWindow, ipcMain } from 'electron'
 import { randomUUID } from 'node:crypto'
+import { app } from 'electron'
 import type { Library } from '@banjuan/core'
+import { blocksToMarkdown, markdownToBlocks } from '@banjuan/core'
 import { saveClip } from './clip-service.js'
+import { openLibraryForApi, initLibraryForApi, libraries, getLibraryHistory } from './ipc.js'
 
 let server: ReturnType<typeof createServer> | null = null
 let portFilePath = ''
 let libraryGetter: () => Library | null = () => null
+let activeLibraryPath: string | null = null
 
 export function setLibraryGetter(getter: () => Library | null): void {
   libraryGetter = getter
+}
+
+export function setActiveLibrary(path: string | null): void {
+  activeLibraryPath = path
+}
+
+export function getActiveLibrary(): string | null {
+  return activeLibraryPath
 }
 
 function requestRendererScreenshot(noteId: string): Promise<string | null> {
@@ -46,7 +58,7 @@ function json(res: ServerResponse, status: number, data: unknown): void {
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   })
   res.end(JSON.stringify(data))
@@ -64,7 +76,14 @@ function parseUrl(raw: string): { path: string; query: Record<string, string> } 
   return { path, query }
 }
 
-function requireLib(res: ServerResponse): ReturnType<typeof libraryGetter> {
+function requireLib(res: ServerResponse, query: Record<string, string>): Library | null {
+  const targetPath = query.library || activeLibraryPath
+  if (targetPath) {
+    const found = [...libraries.values()].find(l => l.rootPath === targetPath)
+    if (found) return found
+    json(res, 404, { error: `Library not found: ${targetPath}` })
+    return null
+  }
   const lib = libraryGetter()
   if (!lib) { json(res, 503, { error: 'Library not open' }); return null }
   return lib
@@ -80,16 +99,106 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   if (path === '/api/status' && req.method === 'GET') {
     const lib = libraryGetter()
+    const openLibraries = [...libraries.values()].map(l => l.rootPath)
     json(res, 200, {
       status: 'ok',
       libraryOpen: lib !== null,
       libraryPath: lib?.rootPath ?? null,
+      libraries: openLibraries,
+      activeLibrary: activeLibraryPath,
     })
     return
   }
 
+  if (path === '/api/library/init' && req.method === 'POST') {
+    try {
+      const body = JSON.parse(await readBody(req))
+      if (!body.path) { json(res, 400, { error: 'path required' }); return }
+      const lib = await initLibraryForApi(body.path, body.name)
+      if (!activeLibraryPath) activeLibraryPath = lib.rootPath
+      const name = await lib.getName()
+      json(res, 200, { status: 'ok', path: lib.rootPath, name })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  if (path === '/api/library/open' && req.method === 'POST') {
+    try {
+      const body = JSON.parse(await readBody(req))
+      if (!body.path) { json(res, 400, { error: 'path required' }); return }
+      const lib = await openLibraryForApi(body.path)
+      if (!activeLibraryPath) activeLibraryPath = lib.rootPath
+      const name = await lib.getName()
+      json(res, 200, { status: 'ok', path: lib.rootPath, name })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  if (path === '/api/library/list' && req.method === 'GET') {
+    const list: Array<{ path: string; name: string }> = []
+    for (const lib of libraries.values()) {
+      list.push({ path: lib.rootPath, name: (lib as any).name ?? lib.rootPath })
+    }
+    json(res, 200, list)
+    return
+  }
+
+  if (path === '/api/library/history' && req.method === 'GET') {
+    json(res, 200, getLibraryHistory())
+    return
+  }
+
+  if (path === '/api/library/active' && req.method === 'GET') {
+    json(res, 200, { path: activeLibraryPath })
+    return
+  }
+
+  if (path === '/api/library/active' && req.method === 'POST') {
+    try {
+      const body = JSON.parse(await readBody(req))
+      if (!body.path) { json(res, 400, { error: 'path required' }); return }
+      const found = [...libraries.values()].find(l => l.rootPath === body.path)
+      if (!found) { json(res, 404, { error: `Library not open: ${body.path}` }); return }
+      activeLibraryPath = body.path
+      json(res, 200, { status: 'ok', path: activeLibraryPath })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  if (path === '/api/library/close' && req.method === 'POST') {
+    try {
+      const body = JSON.parse(await readBody(req))
+      const targetPath = body.path
+      let found = false
+      for (const [key, lib] of libraries.entries()) {
+        if (!targetPath || lib.rootPath === targetPath) {
+          await lib.close()
+          libraries.delete(key)
+          found = true
+          if (targetPath) break
+        }
+      }
+      json(res, 200, { status: found ? 'ok' : 'not_found' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  if (path === '/api/app/quit' && req.method === 'POST') {
+    json(res, 200, { status: 'ok' })
+    setTimeout(() => app.quit(), 100)
+    return
+  }
+
   if (path === '/api/clip' && req.method === 'POST') {
-    const lib = requireLib(res)
+    const lib = requireLib(res, query)
     if (!lib) return
     try {
       const body = JSON.parse(await readBody(req))
@@ -103,7 +212,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   // --- Notes ---
   if (path === '/api/notes' && req.method === 'GET') {
-    const lib = requireLib(res)
+    const lib = requireLib(res, query)
     if (!lib) return
     const opts: Record<string, unknown> = {}
     if (query.type) opts.type = query.type
@@ -117,16 +226,22 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   const noteMatch = path.match(/^\/api\/notes\/([^/]+)$/)
   if (noteMatch && req.method === 'GET') {
-    const lib = requireLib(res)
+    const lib = requireLib(res, query)
     if (!lib) return
     const note = await lib.notes.get(noteMatch[1])
     if (!note) { json(res, 404, { error: 'Note not found' }); return }
+    if (query.format === 'markdown' && note.content) {
+      try {
+        const blocks = JSON.parse(note.content)
+        if (Array.isArray(blocks)) note.content = blocksToMarkdown(blocks)
+      } catch { /* keep original */ }
+    }
     json(res, 200, note)
     return
   }
 
   if (path === '/api/notes' && req.method === 'POST') {
-    const lib = requireLib(res)
+    const lib = requireLib(res, query)
     if (!lib) return
     try {
       const body = JSON.parse(await readBody(req))
@@ -140,7 +255,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   const noteRenderMatch = path.match(/^\/api\/notes\/([^/]+)\/render$/)
   if (noteRenderMatch && req.method === 'GET') {
-    const lib = requireLib(res)
+    const lib = requireLib(res, query)
     if (!lib) return
     const note = await lib.notes.get(noteRenderMatch[1])
     if (!note) { json(res, 404, { error: 'Note not found' }); return }
@@ -155,10 +270,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (noteMatch && req.method === 'PUT') {
-    const lib = requireLib(res)
+    const lib = requireLib(res, query)
     if (!lib) return
     try {
       const body = JSON.parse(await readBody(req))
+      if (body.content && typeof body.content === 'string') {
+        body.content = JSON.stringify(markdownToBlocks(body.content))
+      }
       const note = await lib.notes.update(noteMatch[1], body)
       json(res, 200, note)
     } catch (e: any) {
@@ -167,9 +285,21 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return
   }
 
+  if (noteMatch && req.method === 'DELETE') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      await lib.notes.delete(noteMatch[1])
+      json(res, 200, { status: 'deleted' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
   // --- Documents ---
   if (path === '/api/documents' && req.method === 'GET') {
-    const lib = requireLib(res)
+    const lib = requireLib(res, query)
     if (!lib) return
     const opts: Record<string, unknown> = {}
     if (query.type) opts.type = query.type
@@ -181,7 +311,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   const docMatch = path.match(/^\/api\/documents\/([^/]+)$/)
   if (docMatch && req.method === 'GET') {
-    const lib = requireLib(res)
+    const lib = requireLib(res, query)
     if (!lib) return
     const doc = await lib.documents.get(docMatch[1])
     if (!doc) { json(res, 404, { error: 'Document not found' }); return }
@@ -189,9 +319,257 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return
   }
 
+  if (docMatch && req.method === 'DELETE') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      await lib.documents.delete(docMatch[1])
+      json(res, 200, { status: 'ok' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  // --- Folders ---
+  if (path === '/api/folders' && req.method === 'GET') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    const tree = await lib.folders.getTree()
+    json(res, 200, tree)
+    return
+  }
+
+  if (path === '/api/folders' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      const folder = await lib.folders.create(body)
+      json(res, 200, folder)
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  const folderMatch = path.match(/^\/api\/folders\/([^/]+)$/)
+  if (folderMatch && req.method === 'PUT') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      const folder = await lib.folders.update(folderMatch[1], body)
+      json(res, 200, folder)
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  if (folderMatch && req.method === 'DELETE') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      await lib.folders.delete(folderMatch[1])
+      json(res, 200, { status: 'ok' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  // --- Mindmaps (notes with type=mindmap) ---
+  if (path === '/api/mindmaps' && req.method === 'GET') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    const opts: Record<string, unknown> = { type: 'mindmap' }
+    if (query.docId) opts.docId = query.docId
+    const maps = await lib.notes.list(opts)
+    json(res, 200, maps)
+    return
+  }
+
+  if (path === '/api/mindmaps' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      const mm = await lib.notes.create({ ...body, type: 'mindmap' })
+      json(res, 200, mm)
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  const mindmapMatch = path.match(/^\/api\/mindmaps\/([^/]+)$/)
+  if (mindmapMatch && req.method === 'GET') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    const note = await lib.notes.get(mindmapMatch[1])
+    if (!note) { json(res, 404, { error: 'Mindmap not found' }); return }
+    const nodes = await lib.mindmaps.getNodes(note.id)
+    const edges = await lib.mindmaps.getEdges(note.id)
+    json(res, 200, { ...note, nodes, edges })
+    return
+  }
+
+  // --- Mindmap node/edge operations ---
+  const mindmapNodesMatch = path.match(/^\/api\/mindmaps\/([^/]+)\/nodes$/)
+  if (mindmapNodesMatch && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      const node = await lib.mindmaps.addNode(mindmapNodesMatch[1], body)
+      json(res, 200, node)
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  const mindmapNodeMatch = path.match(/^\/api\/mindmaps\/nodes\/([^/]+)$/)
+  if (mindmapNodeMatch && req.method === 'PUT') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      const node = await lib.mindmaps.updateNode(mindmapNodeMatch[1], body)
+      json(res, 200, node)
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  if (mindmapNodeMatch && req.method === 'DELETE') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      await lib.mindmaps.removeNode(mindmapNodeMatch[1])
+      json(res, 200, { status: 'ok' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  const mindmapEdgesMatch = path.match(/^\/api\/mindmaps\/([^/]+)\/edges$/)
+  if (mindmapEdgesMatch && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      const edge = await lib.mindmaps.addEdge(mindmapEdgesMatch[1], body)
+      json(res, 200, edge)
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  const mindmapEdgeMatch = path.match(/^\/api\/mindmaps\/edges\/([^/]+)$/)
+  if (mindmapEdgeMatch && req.method === 'DELETE') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      await lib.mindmaps.removeEdge(mindmapEdgeMatch[1])
+      json(res, 200, { status: 'ok' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  const mindmapImportMatch = path.match(/^\/api\/mindmaps\/([^/]+)\/import$/)
+  if (mindmapImportMatch && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      const mindmapId = mindmapImportMatch[1]
+      const nodeIdMap = new Map<string, string>()
+
+      async function importNodes(nodes: any[], parentId?: string): Promise<void> {
+        for (const n of nodes) {
+          const node = await lib!.mindmaps.addNode(mindmapId, {
+            title: n.title,
+            parentId,
+            content: n.content,
+            color: n.color,
+            shape: n.shape,
+            notes: n.notes,
+            hyperlink: n.hyperlink,
+            imageUrl: n.imageUrl,
+            styleOverrides: n.styleOverrides,
+            positionX: n.positionX,
+            positionY: n.positionY,
+            floating: n.floating,
+          })
+          if (n.id) nodeIdMap.set(n.id, node.id)
+          if (n.children?.length) {
+            await importNodes(n.children, node.id)
+          }
+        }
+      }
+
+      await importNodes(body.nodes ?? [])
+
+      for (const e of body.edges ?? []) {
+        const sourceId = nodeIdMap.get(e.source) ?? e.source
+        const targetId = nodeIdMap.get(e.target) ?? e.target
+        await lib.mindmaps.addEdge(mindmapId, { sourceId, targetId, label: e.label })
+      }
+
+      const nodes = await lib.mindmaps.getNodes(mindmapId)
+      const edges = await lib.mindmaps.getEdges(mindmapId)
+      json(res, 200, { status: 'ok', nodeCount: nodes.length, edgeCount: edges.length })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  // --- Tags ---
+  if (path === '/api/tags' && req.method === 'GET') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    const tags = await lib.tags.list()
+    json(res, 200, tags)
+    return
+  }
+
+  if (path === '/api/tags' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      const tag = await lib.tags.create(body)
+      json(res, 200, tag)
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  if (path === '/api/tags/assign' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      await lib.tags.assign(body.targetId, body.targetType, body.tags)
+      json(res, 200, { status: 'ok' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
   // --- Annotations ---
   if (path === '/api/annotations' && req.method === 'GET') {
-    const lib = requireLib(res)
+    const lib = requireLib(res, query)
     if (!lib) return
     if (!query.docId) { json(res, 400, { error: 'docId required' }); return }
     const opts: Record<string, unknown> = { docId: query.docId }
@@ -203,7 +581,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   // --- Search ---
   if (path === '/api/search' && req.method === 'GET') {
-    const lib = requireLib(res)
+    const lib = requireLib(res, query)
     if (!lib) return
     if (!query.q) { json(res, 400, { error: 'q (query) required' }); return }
     const opts: Record<string, unknown> = {}
