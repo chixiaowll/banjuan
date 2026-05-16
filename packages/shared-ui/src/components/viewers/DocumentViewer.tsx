@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import PdfViewer from './PdfViewer.js'
 import TextViewer from './TextViewer.js'
+import HtmlViewer from './HtmlViewer.js'
 import MarkdownViewer from './MarkdownViewer.js'
 import ImageViewer from './ImageViewer.js'
 import VideoViewer from './VideoViewer.js'
@@ -22,6 +23,42 @@ interface Props {
   doc: DocInfo
   onBack: () => void
   onOpenNote?: (note: any) => void
+}
+
+function UnsupportedViewer({ doc }: { doc: DocInfo }) {
+  const api = useBanjuanAPI()
+  const [opened, setOpened] = useState(false)
+
+  const handleOpen = useCallback(() => {
+    api.documents.openInSystem(doc.path).then(() => setOpened(true))
+  }, [doc.path])
+
+  const ext = doc.path.split('.').pop()?.toUpperCase() || doc.type.toUpperCase()
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      height: '100%', gap: 16, color: 'var(--text-muted)',
+    }}>
+      <div style={{ fontSize: 48, opacity: 0.3 }}>
+        {ext}
+      </div>
+      <div style={{ fontSize: 13 }}>
+        {doc.title}
+      </div>
+      <button
+        onClick={handleOpen}
+        style={{
+          padding: '8px 20px', fontSize: 13, cursor: 'pointer',
+          border: '1px solid var(--border)', borderRadius: 6,
+          background: opened ? 'var(--surface)' : 'var(--accent)',
+          color: opened ? 'var(--text-muted)' : '#fff',
+        }}
+      >
+        {opened ? '已用系统应用打开' : '用系统默认应用打开'}
+      </button>
+    </div>
+  )
 }
 
 export default function DocumentViewer({ doc, onBack, onOpenNote }: Props) {
@@ -65,15 +102,16 @@ export default function DocumentViewer({ doc, onBack, onOpenNote }: Props) {
     case 'epub':
       return <EpubViewer data={fileData!} doc={doc} onOpenNote={onOpenNote} />
     case 'txt':
-    case 'html':
       return <TextViewer docPath={doc.path} />
+    case 'html':
+      return <HtmlViewer docPath={doc.path} />
     case 'md':
-      return <MarkdownViewer docPath={doc.path} />
+      return <MarkdownViewer docPath={doc.path} doc={doc} onOpenNote={onOpenNote} />
     case 'image':
       return <ImageViewer filePath={filePath} />
     case 'video':
-      return <VideoViewer filePath={filePath} />
+      return <VideoViewer filePath={filePath} docPath={doc.path} doc={doc} onOpenNote={onOpenNote} />
     default:
-      return <div style={{ padding: 24 }}>Unsupported document type: {doc.type}</div>
+      return <UnsupportedViewer doc={doc} />
   }
 }

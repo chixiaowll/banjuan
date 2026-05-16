@@ -1,12 +1,16 @@
 /* ── Base Typography ── */
 .bn-editor {
   font-family: 'Inter', 'PingFang SC', 'Noto Sans SC', -apple-system, sans-serif;
-  font-size: 15px;
+  font-size: calc(15px * var(--note-font-scale, 1));
   line-height: 1.75;
   color: #333;
   max-width: min(900px, 80%);
   margin: 0 auto;
   padding: 32px 32px 32px 72px;
+}
+
+.bn-editor.bn-default-styles {
+  font-size: calc(15px * var(--note-font-scale, 1));
 }
 
 /* ── Heading gutter labels (Zettlr-style) ── */
@@ -45,7 +49,7 @@
 /* ── Heading styles ── */
 .bn-editor h1.bn-inline-content,
 .bn-editor [data-content-type="heading"][data-level="1"] .bn-inline-content {
-  font-size: 26px !important;
+  font-size: calc(26px * var(--note-font-scale, 1)) !important;
   line-height: 1.35 !important;
   font-weight: 700 !important;
   color: #2b579a !important;
@@ -57,7 +61,7 @@
 
 .bn-editor h2.bn-inline-content,
 .bn-editor [data-content-type="heading"][data-level="2"] .bn-inline-content {
-  font-size: 21px !important;
+  font-size: calc(21px * var(--note-font-scale, 1)) !important;
   line-height: 1.4 !important;
   font-weight: 600 !important;
   color: #1b7332 !important;
@@ -65,7 +69,7 @@
 
 .bn-editor h3.bn-inline-content,
 .bn-editor [data-content-type="heading"][data-level="3"] .bn-inline-content {
-  font-size: 17px !important;
+  font-size: calc(17px * var(--note-font-scale, 1)) !important;
   line-height: 1.45 !important;
   font-weight: 600 !important;
   color: #b5600e !important;
@@ -107,7 +111,7 @@
 /* ── Inline code ── */
 .bn-editor code {
   font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-  font-size: 13px;
+  font-size: 0.85em;
   background: #f3f4f6;
   color: #c7254e;
   padding: 2px 6px;
@@ -118,8 +122,9 @@
 /* ── Code block (Zettlr-style) ── */
 .bn-editor [data-content-type="codeBlock"] {
   font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-  font-size: 13px;
+  font-size: 0.85em;
   line-height: 1.6;
+  color: #24292e;
   background: #f6f8fa;
   border: 1px solid #e1e4e8;
   border-radius: 6px;
@@ -127,6 +132,28 @@
   margin: 16px 0;
   overflow-x: auto;
   position: relative;
+}
+
+/* Reset inline code styles inside code blocks */
+.bn-editor [data-content-type="codeBlock"] code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  font-size: inherit;
+}
+
+/* Language selector — override BlockNote's default (dark bg, opacity:0, left-aligned) */
+.bn-block-content[data-content-type="codeBlock"] > div > select {
+  color: #57606a;
+  opacity: 0.8;
+  transition-delay: 0s;
+}
+
+.bn-block-content[data-content-type="codeBlock"]:hover > div > select,
+.bn-block-content[data-content-type="codeBlock"] > div > select:focus {
+  opacity: 1;
 }
 
 /* SQL keyword colors in code blocks */
@@ -541,6 +568,17 @@
   .bn-editor [data-content-type="codeBlock"] {
     background: #2e3440;
     border-color: #434c5e;
+    color: #d8dee9;
+  }
+
+  .bn-editor [data-content-type="codeBlock"] code {
+    background: none;
+    color: inherit;
+    border-color: transparent;
+  }
+
+  .bn-block-content[data-content-type="codeBlock"] > div > select {
+    color: #d8dee9;
   }
 
   .bn-editor blockquote {

@@ -48,16 +48,21 @@ export class StubService {
     if (await this.fs.exists(path)) await this.fs.remove(path)
   }
 
-  async downloadFile(id: string, localPath: string): Promise<void> {
+  async downloadFile(id: string, localPath: string, onProgress?: (p: { loaded: number; total: number }) => void): Promise<void> {
     const stub = await this.getStub(id)
     if (!stub) throw new Error(`Stub not found: ${id}`)
     await this.fs.mkdir(dirname(localPath), { recursive: true })
-    await this.adapter.download('/' + stub.remotePath, localPath)
+    await this.adapter.download('/' + stub.remotePath, localPath, onProgress)
     await this.removeStub(id)
   }
 
   async uploadFile(localPath: string, remotePath: string): Promise<void> {
     await this.adapter.upload(localPath, '/' + remotePath)
+  }
+
+  async findByRemotePath(remotePath: string): Promise<StubData | null> {
+    const stubs = await this.listStubs()
+    return stubs.find(s => s.remotePath === remotePath) ?? null
   }
 
   async getStatus(docId: string, localFilePath: string): Promise<DocumentSyncStatus> {

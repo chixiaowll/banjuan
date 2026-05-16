@@ -34,6 +34,15 @@ export default function AnnotationPanel({ annotations, onAnnotationClick, onAnno
     if (!grouped.has(page)) grouped.set(page, [])
     grouped.get(page)!.push(ann)
   }
+  for (const [, list] of grouped) {
+    list.sort((a, b) => {
+      const posA = a.position
+      const posB = b.position
+      const yA = posA?.startOffset ?? posA?.bounds?.y ?? posA?.rect?.y ?? posA?.y ?? 0
+      const yB = posB?.startOffset ?? posB?.bounds?.y ?? posB?.rect?.y ?? posB?.y ?? 0
+      return yA - yB
+    })
+  }
   const sortedPages = [...grouped.keys()].sort((a, b) => a - b)
 
   const startEdit = (ann: AnnotationData) => {
@@ -65,7 +74,7 @@ export default function AnnotationPanel({ annotations, onAnnotationClick, onAnno
               key={ann.id}
               style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}
               onClick={() => {
-                if (onAnnotationNavigate && ann.position?.type === 'epub') {
+                if (onAnnotationNavigate && (ann.position?.type === 'epub' || ann.position?.type === 'text' || ann.position?.type === 'ink')) {
                   onAnnotationNavigate(ann)
                   return
                 }

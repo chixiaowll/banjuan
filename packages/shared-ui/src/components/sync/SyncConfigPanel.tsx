@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { Save, RefreshCw } from 'lucide-react'
+import { Save, RefreshCw, Wifi } from 'lucide-react'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 
@@ -34,6 +34,7 @@ export default function SyncConfigPanel({ onClose }: Props) {
   const [status, setStatus] = useState<{ message: string; isError: boolean } | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
   const [progress, setProgress] = useState<SyncProgressState | null>(null)
   const startTimeRef = useRef(0)
 
@@ -74,13 +75,26 @@ export default function SyncConfigPanel({ onClose }: Props) {
     return `${m}m ${s}s`
   }
 
+  const handleTestConnection = async () => {
+    setTesting(true)
+    setStatus(null)
+    try {
+      const result = await api.sync.testConnection(config as any)
+      setStatus({ message: result.message, isError: !result.ok })
+    } catch (err: any) {
+      setStatus({ message: err?.message ?? String(err), isError: true })
+    } finally {
+      setTesting(false)
+    }
+  }
+
   const handleSync = async () => {
     setSyncing(true)
     setStatus(null)
     startTimeRef.current = Date.now()
     setProgress({ phase: 'scanning', current: 0, total: 0, currentFile: '', startTime: Date.now() })
     try {
-      await api.sync.run((p) => {
+      const result = await api.sync.run((p) => {
         setProgress({
           phase: p.phase,
           current: p.current,
@@ -90,7 +104,8 @@ export default function SyncConfigPanel({ onClose }: Props) {
         })
       })
       setProgress(null)
-      setStatus({ message: t('sync.syncSuccess', 0, 0, 0, 0), isError: false })
+      const r = result ?? { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0 }
+      setStatus({ message: t('sync.syncSuccess', r.uploaded, r.downloaded, r.deletedLocal, r.deletedRemote), isError: false })
     } catch (err: any) {
       setProgress(null)
       setStatus({ message: t('sync.syncFailed', err?.message ?? String(err)), isError: true })
@@ -160,6 +175,17 @@ export default function SyncConfigPanel({ onClose }: Props) {
           <input style={inputStyle} type="text" placeholder="/banjuan" value={config.remotePath}
             onChange={(e) => setConfig(c => ({ ...c, remotePath: e.target.value }))} disabled={syncing} />
         </div>
+
+        <button onClick={handleTestConnection} disabled={testing || syncing}
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            padding: '6px 12px', fontSize: '13px', color: 'var(--text-muted)',
+            border: '1px solid var(--border)', borderRadius: '6px', background: 'transparent',
+            cursor: testing || syncing ? 'not-allowed' : 'pointer', opacity: testing || syncing ? 0.5 : 1,
+            alignSelf: 'flex-start',
+          }}>
+          <Wifi size={14} />{testing ? t('sync.testing') : t('sync.testConnection')}
+        </button>
 
         {progress && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

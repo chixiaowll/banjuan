@@ -29,6 +29,8 @@ import type {
   StubData,
   DocumentSyncStatus,
   LibraryConfig,
+  SearchResult,
+  SearchOptions,
 } from '@banjuan/core'
 
 // ---------------------------------------------------------------------------
@@ -42,6 +44,8 @@ export interface BanjuanAPI {
     open(path: string): Promise<void>
     openNewWindow(): Promise<void>
     isOpen(): Promise<boolean>
+    getHistory?(): Promise<Array<{ path: string; name: string; lastOpened: string }>>
+    removeHistory?(path: string): Promise<void>
   }
 
   dialog: {
@@ -57,6 +61,7 @@ export interface BanjuanAPI {
     getFilePath(relativePath: string): Promise<string>
     readContent(relativePath: string): Promise<string>
     readFileBuffer(relativePath: string): Promise<ArrayBuffer>
+    openInSystem(relativePath: string): Promise<string>
   }
 
   tags: {
@@ -172,9 +177,10 @@ export interface BanjuanAPI {
   sync: {
     getConfig(): Promise<SyncConfig | null>
     saveConfig(config: SyncConfig): Promise<void>
-    run(onProgress?: (progress: { phase: string; current: number; total: number; currentFile: string }) => void): Promise<void>
+    testConnection(config: SyncConfig): Promise<{ ok: boolean; message: string }>
+    run(onProgress?: (progress: { phase: string; current: number; total: number; currentFile: string }) => void): Promise<{ uploaded: number; downloaded: number; deletedLocal: number; deletedRemote: number } | void>
     stubList(): Promise<StubData[]>
-    stubDownload(docId: string): Promise<void>
+    stubDownload(docId: string, onProgress?: (p: { loaded: number; total: number }) => void): Promise<void>
     stubUpload(docId: string): Promise<void>
     getDocStatus(docId: string): Promise<DocumentSyncStatus>
   }
@@ -189,6 +195,10 @@ export interface BanjuanAPI {
   clipboard?: {
     readFiles(): Promise<Array<{ path: string; name: string }>>
     readFileBuffer(filePath: string): Promise<ArrayBuffer>
+  }
+
+  search?: {
+    query(query: string, options?: SearchOptions): Promise<SearchResult[]>
   }
 
   index: {

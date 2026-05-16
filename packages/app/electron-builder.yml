@@ -1,0 +1,42 @@
+appId: com.banjuan.app
+productName: 半卷
+copyright: Copyright © 2026
+directories:
+  output: release
+  buildResources: resources
+files:
+  - dist/**/*
+  - resources/**/*
+  - "!node_modules/**/*.{ts,map,md}"
+  - "!node_modules/**/{test,tests,__tests__}/**"
+extraResources:
+  - from: resources/cli-bundle/
+    to: cli/
+    filter:
+      - "**/*"
+extraMetadata:
+  main: dist/main/index.js
+mac:
+  icon: resources/icon.icns
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - arm64
+    - target: zip
+      arch:
+        - arm64
+dmg:
+  title: "半卷"
+  artifactName: "${productName}-${version}-mac-${arch}.${ext}"
+win:
+  icon: resources/icon.png
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+linux:
+  icon: resources/icon.png
+  target:
+    - AppImage

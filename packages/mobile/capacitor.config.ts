@@ -6,6 +6,10 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     androidScheme: 'https',
+    iosScheme: 'https',
+  },
+  ios: {
+    allowsLinkPreview: false,
   },
   plugins: {
     CapacitorSQLite: {

@@ -1,4 +1,4 @@
-import { createClient, type WebDAVClient } from 'webdav'
+import { createClient, AuthType, type WebDAVClient } from 'webdav'
 import type { PlatformFS } from '../platform/index.js'
 import { dirname } from '../platform/path.js'
 import type { SyncConfig, RemoteFile } from '../types.js'
@@ -19,6 +19,7 @@ export class WebDAVAdapter implements SyncAdapter {
 
   async connect(config: SyncConfig): Promise<void> {
     this.client = createClient(config.url, {
+      authType: AuthType.Password,
       username: config.username,
       password: config.password,
     })
@@ -35,15 +36,21 @@ export class WebDAVAdapter implements SyncAdapter {
 
   async list(remotePath: string): Promise<RemoteFile[]> {
     const client = this.getClient()
-    const items = (await client.getDirectoryContents(remotePath, {
-      deep: true,
-    })) as WebDAVStat[]
-    return items.map((item) => ({
-      path: item.filename,
-      mtime: new Date(item.lastmod).getTime(),
-      size: item.size,
-      isDirectory: item.type === 'directory',
-    }))
+    const results: RemoteFile[] = []
+    const queue = [remotePath.endsWith('/') ? remotePath : remotePath + '/']
+    while (queue.length > 0) {
+      const dir = queue.shift()!
+      const items = (await client.getDirectoryContents(dir)) as WebDAVStat[]
+      for (const item of items) {
+        if (item.type === 'directory') {
+          queue.push(item.filename.endsWith('/') ? item.filename : item.filename + '/')
+          results.push({ path: item.filename, mtime: new Date(item.lastmod).getTime(), size: item.size, isDirectory: true })
+        } else {
+          results.push({ path: item.filename, mtime: new Date(item.lastmod).getTime(), size: item.size, isDirectory: false })
+        }
+      }
+    }
+    return results
   }
 
   async upload(localPath: string, remotePath: string): Promise<void> {
@@ -52,9 +59,11 @@ export class WebDAVAdapter implements SyncAdapter {
     await client.putFileContents(remotePath, Buffer.from(content))
   }
 
-  async download(remotePath: string, localPath: string): Promise<void> {
+  async download(remotePath: string, localPath: string, onProgress?: (p: { loaded: number; total: number }) => void): Promise<void> {
     const client = this.getClient()
-    const content = (await client.getFileContents(remotePath)) as ArrayBuffer
+    const content = (await client.getFileContents(remotePath, {
+      onDownloadProgress: onProgress,
+    })) as ArrayBuffer
     await this.fs.mkdir(dirname(localPath), { recursive: true })
     await this.fs.writeFile(localPath, new Uint8Array(content))
   }

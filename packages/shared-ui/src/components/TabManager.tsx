@@ -17,9 +17,10 @@ const LIBRARY_TAB_ID = 'library'
 interface Props {
   libraryPath: string
   libraryName: string
+  onSwitchLibrary?: () => void
 }
 
-export default function TabManager({ libraryPath, libraryName }: Props) {
+export default function TabManager({ libraryPath, libraryName, onSwitchLibrary }: Props) {
   const api = useBanjuanAPI()
   const t = useT()
   const isNarrow = useMediaQuery('(max-width: 768px)')
@@ -220,7 +221,17 @@ export default function TabManager({ libraryPath, libraryName }: Props) {
             title={libraryName}
             position="left"
           >
-            {titleBarElement}
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div style={{ flex: 1, overflow: 'auto' }}>{titleBarElement}</div>
+              {onSwitchLibrary && (
+                <div style={{ padding: '12px 8px', borderTop: '1px solid var(--border, #e0e0e0)' }}>
+                  <button onClick={() => { setSidebarOpen(false); onSwitchLibrary() }}
+                    style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--border, #e0e0e0)', background: 'transparent', fontSize: 14, cursor: 'pointer' }}>
+                    Switch Library
+                  </button>
+                </div>
+              )}
+            </div>
           </Drawer>
         </>
       ) : (

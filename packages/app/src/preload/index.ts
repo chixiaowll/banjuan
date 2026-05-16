@@ -7,6 +7,8 @@ const api = {
     open: (path: string) => ipcRenderer.invoke('library:open', path),
     openNewWindow: () => ipcRenderer.invoke('library:openNewWindow'),
     isOpen: () => ipcRenderer.invoke('library:isOpen'),
+    getHistory: () => ipcRenderer.invoke('library:getHistory'),
+    removeHistory: (path: string) => ipcRenderer.invoke('library:removeHistory', path),
   },
   dialog: {
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
@@ -21,6 +23,7 @@ const api = {
     getFilePath: (relativePath: string) => ipcRenderer.invoke('documents:getFilePath', relativePath),
     readContent: (relativePath: string) => ipcRenderer.invoke('documents:readContent', relativePath),
     readFileBuffer: (relativePath: string) => ipcRenderer.invoke('documents:readFileBuffer', relativePath),
+    openInSystem: (relativePath: string) => ipcRenderer.invoke('documents:openInSystem', relativePath),
   },
   tags: {
     list: () => ipcRenderer.invoke('tags:list'),
@@ -168,9 +171,23 @@ const api = {
     saveConfig: (config: {
       type: 'webdav'; url: string; username: string; password: string; remotePath: string
     }) => ipcRenderer.invoke('sync:saveConfig', config),
-    run: () => ipcRenderer.invoke('sync:run'),
+    testConnection: (config: { url: string; username: string; password: string; remotePath: string }) =>
+      ipcRenderer.invoke('sync:testConnection', config),
+    run: (onProgress?: (p: { phase: string; current: number; total: number; currentFile: string }) => void) => {
+      const handler = onProgress ? (_event: any, p: any) => onProgress(p) : undefined
+      if (handler) ipcRenderer.on('sync:progress', handler)
+      return ipcRenderer.invoke('sync:run').finally(() => {
+        if (handler) ipcRenderer.removeListener('sync:progress', handler)
+      })
+    },
     stubList: () => ipcRenderer.invoke('sync:stubList'),
-    stubDownload: (docId: string) => ipcRenderer.invoke('sync:stubDownload', docId),
+    stubDownload: (docId: string, onProgress?: (p: { loaded: number; total: number }) => void) => {
+      const handler = onProgress ? (_event: any, p: any) => onProgress(p) : undefined
+      if (handler) ipcRenderer.on('sync:downloadProgress', handler)
+      return ipcRenderer.invoke('sync:stubDownload', docId).finally(() => {
+        if (handler) ipcRenderer.removeListener('sync:downloadProgress', handler)
+      })
+    },
     stubUpload: (docId: string) => ipcRenderer.invoke('sync:stubUpload', docId),
     getDocStatus: (docId: string) => ipcRenderer.invoke('sync:getDocStatus', docId),
   },
@@ -183,6 +200,10 @@ const api = {
   clipboard: {
     readFiles: () => ipcRenderer.invoke('clipboard:readFiles') as Promise<Array<{ path: string; name: string }>>,
     readFileBuffer: (filePath: string) => ipcRenderer.invoke('clipboard:readFileBuffer', filePath) as Promise<ArrayBuffer>,
+  },
+  search: {
+    query: (query: string, options?: { type?: string; limit?: number }) =>
+      ipcRenderer.invoke('search:query', query, options),
   },
   index: {
     rebuild: () => ipcRenderer.invoke('index:rebuild'),

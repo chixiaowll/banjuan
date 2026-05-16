@@ -12,6 +12,7 @@ const zh = {
   'welcome.cancel': '取消',
   'welcome.creating': '创建中...',
   'welcome.create': '创建',
+  'welcome.recentLibraries': '最近打开',
 
   // Common
   'common.save': '保存',
@@ -199,6 +200,8 @@ const zh = {
   'sync.syncSuccess': '同步成功 — 上传 {0}，下载 {1}，本地删除 {2}，远端删除 {3}',
   'sync.syncWithErrors': '同步完成（有错误）：{0}',
   'sync.syncFailed': '同步失败：{0}',
+  'sync.testConnection': '测试连接',
+  'sync.testing': '测试中…',
 
   // Annotation sidebar
   'annotation.title': '标注',
@@ -235,6 +238,12 @@ const zh = {
   'epub.noOutline': '此文档无目录',
   'epub.newNote': '+ 新建笔记',
   'epub.chapter': '章节',
+
+  // Markdown viewer
+  'md.thumbnails': '章节',
+  'md.outline': '目录',
+  'md.annotations': '标注',
+  'md.notes': '笔记',
 
   // Note creation from PDF
   'note.defaultTitle': '{0} — 笔记',

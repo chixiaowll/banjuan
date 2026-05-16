@@ -18,11 +18,12 @@ export interface SearchOptions {
 }
 
 export const ANNOTATION_COLORS = [
-  { name: 'yellow', value: '#fde68a' },
-  { name: 'red', value: '#fca5a5' },
-  { name: 'green', value: '#86efac' },
-  { name: 'blue', value: '#93c5fd' },
-  { name: 'purple', value: '#c4b5fd' },
+  { name: 'yellow', value: '#ffe066' },
+  { name: 'orange', value: '#ffb347' },
+  { name: 'pink', value: '#ff9f9f' },
+  { name: 'green', value: '#77dd77' },
+  { name: 'blue', value: '#7ec8e3' },
+  { name: 'purple', value: '#b19cd9' },
 ]
 
 interface PdfViewerContextValue {
