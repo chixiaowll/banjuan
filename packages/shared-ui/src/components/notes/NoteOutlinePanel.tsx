@@ -31,7 +31,7 @@ export default function NoteOutlinePanel({ headings, activeId }: Props) {
 
   if (headings.length === 0) {
     return (
-      <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)' }}>
+      <div style={{ padding: 16, fontSize: 13, color: 'var(--text-muted)' }}>
         暂无标题
       </div>
     )
@@ -46,7 +46,7 @@ export default function NoteOutlinePanel({ headings, activeId }: Props) {
           style={{
             padding: '4px 12px',
             paddingLeft: 12 + (h.level - 1) * 16,
-            fontSize: 12,
+            fontSize: 13,
             cursor: 'pointer',
             color: activeId === h.id ? 'var(--accent)' : 'var(--text)',
             fontWeight: activeId === h.id ? 600 : 400,

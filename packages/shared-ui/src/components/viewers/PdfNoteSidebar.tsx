@@ -135,7 +135,7 @@ function SidebarMindmap({ noteId }: { noteId: string }) {
     <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <MindmapTitleBar />
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-        <MindmapCanvas hideMiniMap />
+        <MindmapCanvas />
         <MindmapFloatingToolbar />
       </div>
       <SidebarMindmapNodeEditor containerRef={containerRef} />
