@@ -1,15 +1,19 @@
 import React, { useState } from 'react'
-import { Eraser, Lasso, Trash2, Undo2, Redo2, Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Eraser, Lasso, Trash2, Undo2, Redo2, Minus, Plus, ChevronLeft, ChevronRight, Pen, Highlighter, ImagePlus, Hand } from 'lucide-react'
 import { useHandwritingStore } from './useHandwritingStore.js'
 import { useT } from '../../i18n/index.js'
 import type { DrawingTool, ToolState, ToolPreset } from './HandwritingEditor.js'
 
 const COLORS = [
-  '#1a1a1a', '#5c5c5c', '#e53e3e', '#dd6b20',
-  '#d69e2e', '#38a169', '#3182ce', '#805ad5',
+  '#1a1a1a', '#5c5c5c', '#3182ce', '#805ad5',
+  '#e53e3e', '#dd6b20', '#d69e2e', '#38a169',
   '#d53f8c', '#ffffff',
 ]
-const WIDTHS = [1, 2, 4, 6, 8, 12]
+const STROKE_WIDTHS = [
+  { value: 1, height: 1 },
+  { value: 3, height: 2 },
+  { value: 6, height: 3 },
+]
 
 interface Props {
   toolState: ToolState
@@ -26,13 +30,14 @@ interface Props {
   onZoomOut: () => void
   onZoomFit: () => void
   onClearPage: () => void
+  onImportImage?: () => void
 }
 
 export default function HandwritingToolbar({
   toolState, onToolStateChange,
   presets, activePresetIndex, onSelectPreset,
   onUndo, onRedo, canUndo, canRedo,
-  zoom, onZoomIn, onZoomOut, onZoomFit, onClearPage,
+  zoom, onZoomIn, onZoomOut, onZoomFit, onClearPage, onImportImage,
 }: Props) {
   const t = useT()
   const pages = useHandwritingStore(s => s.pages)
@@ -44,115 +49,177 @@ export default function HandwritingToolbar({
 
   const isEraserActive = toolState.tool === 'eraser'
   const isLassoActive = toolState.tool === 'lasso'
+  const isHandActive = toolState.tool === 'hand'
+  const isPenLike = !isEraserActive && !isLassoActive && !isHandActive
 
   const closePopups = () => {
     setShowColorPicker(false)
     setShowWidthPicker(false)
   }
 
-  const presetBtn = (preset: ToolPreset, index: number) => {
-    const isActive = !isEraserActive && !isLassoActive && activePresetIndex === index
-    const isLastUsed = (isEraserActive || isLassoActive) && activePresetIndex === index
-    const dotSize = Math.min(16, 6 + preset.width)
+  const activePreset = presets[activePresetIndex]
+  const activeColor = isPenLike ? activePreset?.color ?? toolState.color : toolState.color
 
-    return (
-      <button
-        key={index}
-        onClick={() => { onSelectPreset(index); closePopups() }}
-        title={t(preset.tool === 'pen' ? 'handwriting.tool.pen' : 'handwriting.tool.highlighter')}
-        style={{
-          width: 32, height: 32,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: isActive ? 'var(--accent-light, rgba(49,130,206,0.12))' : 'none',
-          border: isActive
-            ? '2px solid var(--accent)'
-            : isLastUsed
-              ? '2px dashed var(--accent)'
-              : '2px solid transparent',
-          borderRadius: 8, cursor: 'pointer', padding: 0,
-          transition: 'all 0.15s',
-        }}
-      >
-        <div style={{
-          width: dotSize, height: dotSize,
-          borderRadius: '50%',
-          background: preset.color,
-          opacity: preset.tool === 'highlighter' ? 0.5 : 1,
-          border: preset.color === '#ffffff' ? '1px solid #ccc' : 'none',
-        }} />
-      </button>
-    )
-  }
-
-  const sep = () => (
-    <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 6px', flexShrink: 0 }} />
-  )
-
-  const iconBtn = (
+  const toolBtn = (
     onClick: () => void,
     icon: React.ReactNode,
-    title: string,
-    opts?: { disabled?: boolean; active?: boolean; danger?: boolean },
+    active: boolean,
+    color?: string,
   ) => (
     <button
       onClick={onClick}
-      disabled={opts?.disabled}
-      title={title}
       style={{
-        background: opts?.active ? 'var(--accent-light, rgba(49,130,206,0.12))' : 'none',
-        color: opts?.disabled ? 'var(--border)' : opts?.danger ? '#e53e3e' : opts?.active ? 'var(--accent)' : 'var(--text-muted)',
-        border: opts?.active ? '1px solid var(--accent)' : '1px solid transparent',
-        borderRadius: 6, padding: '3px 7px',
-        cursor: opts?.disabled ? 'default' : 'pointer',
-        fontSize: 14, lineHeight: 1,
+        width: 36, height: 36,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: active ? (color ? `${color}18` : 'rgba(0,0,0,0.08)') : 'transparent',
+        border: 'none',
+        borderRadius: 8, cursor: 'pointer', padding: 0,
+        color: active ? (color || '#1a1a1a') : '#8e8e93',
         transition: 'all 0.15s',
       }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+      onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
     >
       {icon}
     </button>
   )
 
+  const presetIcon = (preset: ToolPreset, index: number, size: number) => {
+    if (preset.tool === 'highlighter') return <Highlighter size={size} />
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+        {index > 0 && <path d="M15 5 19 9" />}
+      </svg>
+    )
+  }
+
+  const sep = () => (
+    <div style={{ width: 1, height: 24, background: '#d1d1d6', margin: '0 4px', flexShrink: 0 }} />
+  )
+
   return (
     <div style={{
-      height: 42, padding: '0 10px', borderBottom: '1px solid var(--border)',
-      display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0,
-      background: 'var(--surface)',
+      height: 48, padding: '0 8px',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0,
+      background: '#f2f2f7',
+      borderBottom: '1px solid #d1d1d6',
     }}>
-      {/* Presets */}
-      {presets.map((p, i) => presetBtn(p, i))}
+      {/* Left: undo/redo */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        {toolBtn(onUndo, <Undo2 size={18} />, false)}
+        {toolBtn(onRedo, <Redo2 size={18} />, false)}
+      </div>
 
       {sep()}
 
-      {/* Eraser */}
-      {iconBtn(
-        () => { onToolStateChange({ ...toolState, tool: 'eraser' }); closePopups() },
-        <Eraser size={16} />, t('handwriting.tool.eraser'),
-        { active: isEraserActive },
-      )}
+      {/* Center: tools */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 2,
+        background: '#e5e5ea',
+        borderRadius: 10, padding: '3px 4px',
+      }}>
+        {/* Lasso */}
+        {toolBtn(
+          () => { onToolStateChange({ ...toolState, tool: 'lasso' }); closePopups() },
+          <Lasso size={18} />,
+          isLassoActive,
+        )}
 
-      {/* Lasso */}
-      {iconBtn(
-        () => { onToolStateChange({ ...toolState, tool: 'lasso' }); closePopups() },
-        <Lasso size={16} />, t('handwriting.tool.lasso'),
-        { active: toolState.tool === 'lasso' },
-      )}
+        {/* Presets */}
+        {presets.map((preset, i) => {
+          const isActive = isPenLike && activePresetIndex === i
+          return (
+            <button
+              key={i}
+              onClick={() => { onSelectPreset(i); closePopups() }}
+              style={{
+                width: 36, height: 36,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: isActive ? `${preset.color}20` : 'transparent',
+                border: 'none',
+                borderRadius: 8, cursor: 'pointer', padding: 0,
+                color: isActive ? preset.color : '#8e8e93',
+                transition: 'all 0.15s',
+                position: 'relative',
+              }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? `${preset.color}20` : 'transparent' }}
+            >
+              {presetIcon(preset, i, 18)}
+              {/* Color dot indicator */}
+              <div style={{
+                position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)',
+                width: 5, height: 5, borderRadius: '50%',
+                background: preset.color,
+                border: preset.color === '#ffffff' ? '1px solid #ccc' : 'none',
+              }} />
+            </button>
+          )
+        })}
 
-      {/* Clear page */}
-      {iconBtn(onClearPage, <Trash2 size={16} />, t('handwriting.clearPage'), { danger: true })}
+        {/* Eraser */}
+        {toolBtn(
+          () => { onToolStateChange({ ...toolState, tool: 'eraser' }); closePopups() },
+          <Eraser size={18} />,
+          isEraserActive,
+        )}
+
+        {/* Hand (pan) */}
+        {toolBtn(
+          () => { onToolStateChange({ ...toolState, tool: 'hand' }); closePopups() },
+          <Hand size={18} />,
+          isHandActive,
+        )}
+      </div>
 
       {sep()}
 
-      {/* Color picker */}
+      {/* Stroke width */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        {STROKE_WIDTHS.map(sw => {
+          const isActive = toolState.width === sw.value
+          return (
+            <button
+              key={sw.value}
+              onClick={() => {
+                onToolStateChange({ ...toolState, width: sw.value, tool: toolState.tool === 'eraser' ? 'pen' : toolState.tool })
+                closePopups()
+              }}
+              style={{
+                width: 28, height: 28,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: isActive ? 'rgba(0,0,0,0.08)' : 'transparent',
+                border: 'none', borderRadius: 6, cursor: 'pointer', padding: 0,
+              }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? 'rgba(0,0,0,0.08)' : 'transparent' }}
+            >
+              <div style={{
+                width: 16,
+                height: sw.height + 1,
+                background: isActive ? activeColor : '#8e8e93',
+                borderRadius: 1,
+              }} />
+            </button>
+          )
+        })}
+      </div>
+
+      {sep()}
+
+      {/* Color dots */}
       <div style={{ position: 'relative' }}>
         <button
           onClick={() => { setShowColorPicker(v => !v); setShowWidthPicker(false) }}
-          title={t('handwriting.tool.pen')}
           style={{
-            width: 26, height: 26, borderRadius: '50%',
-            border: showColorPicker ? '2px solid var(--accent)' : '2px solid var(--border)',
-            background: toolState.color, cursor: 'pointer',
+            width: 28, height: 28, borderRadius: '50%',
+            border: `2.5px solid ${showColorPicker ? '#007aff' : '#d1d1d6'}`,
+            background: activeColor, cursor: 'pointer',
             transition: 'border-color 0.15s',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 0,
           }}
         />
         {showColorPicker && (
@@ -160,11 +227,11 @@ export default function HandwritingToolbar({
             <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowColorPicker(false)} />
             <div style={{
               position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
-              marginTop: 6, zIndex: 100,
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: 10, padding: 10, display: 'grid',
-              gridTemplateColumns: 'repeat(5, 1fr)', gap: 6,
-              boxShadow: '0 6px 20px rgba(0,0,0,0.15)',
+              marginTop: 8, zIndex: 100,
+              background: '#fff', border: '1px solid #d1d1d6',
+              borderRadius: 12, padding: 12, display: 'grid',
+              gridTemplateColumns: 'repeat(5, 1fr)', gap: 8,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
             }}>
               {COLORS.map(c => (
                 <button
@@ -174,9 +241,9 @@ export default function HandwritingToolbar({
                     setShowColorPicker(false)
                   }}
                   style={{
-                    width: 28, height: 28, borderRadius: '50%',
-                    border: c === toolState.color ? '2.5px solid var(--accent)' : c === '#ffffff' ? '2px solid #ccc' : '2px solid transparent',
-                    background: c, cursor: 'pointer',
+                    width: 30, height: 30, borderRadius: '50%',
+                    border: c === activeColor ? '3px solid #007aff' : c === '#ffffff' ? '2px solid #d1d1d6' : '2px solid transparent',
+                    background: c, cursor: 'pointer', padding: 0,
                     transition: 'transform 0.1s',
                   }}
                   onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.15)'}
@@ -188,122 +255,67 @@ export default function HandwritingToolbar({
         )}
       </div>
 
-      {/* Width picker */}
-      <div style={{ position: 'relative' }}>
+      {sep()}
+
+      {/* Zoom */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        {toolBtn(onZoomOut, <Minus size={16} />, false)}
         <button
-          onClick={() => { setShowWidthPicker(v => !v); setShowColorPicker(false) }}
+          onClick={onZoomFit}
           style={{
-            background: 'none', border: showWidthPicker ? '1px solid var(--accent)' : '1px solid var(--border)',
-            borderRadius: 6, padding: '3px 10px', cursor: 'pointer',
-            fontSize: 12, color: 'var(--text-muted)',
-            display: 'flex', alignItems: 'center', gap: 6,
-            transition: 'border-color 0.15s',
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 11, color: '#8e8e93', padding: '2px 4px',
+            minWidth: 38, textAlign: 'center', fontVariantNumeric: 'tabular-nums',
+            fontWeight: 500,
           }}
         >
-          <span style={{
-            display: 'inline-block',
-            width: 18, height: Math.max(2, toolState.width),
-            background: toolState.color,
-            borderRadius: toolState.width / 2,
-            verticalAlign: 'middle',
-          }} />
-          <span>{toolState.width}</span>
+          {Math.round(zoom * 100)}%
         </button>
-        {showWidthPicker && (
-          <>
-            <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowWidthPicker(false)} />
-            <div style={{
-              position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
-              marginTop: 6, zIndex: 100,
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: 10, padding: 8,
-              boxShadow: '0 6px 20px rgba(0,0,0,0.15)',
-              minWidth: 120,
-            }}>
-              {WIDTHS.map(w => (
-                <button
-                  key={w}
-                  onClick={() => {
-                    onToolStateChange({ ...toolState, width: w, tool: toolState.tool === 'eraser' ? 'pen' : toolState.tool })
-                    setShowWidthPicker(false)
-                  }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    width: '100%', padding: '5px 10px', border: 'none',
-                    background: w === toolState.width ? 'var(--accent-light, rgba(49,130,206,0.12))' : 'none',
-                    textAlign: 'left', fontSize: 12, cursor: 'pointer', borderRadius: 6,
-                    color: 'var(--text)',
-                  }}
-                  onMouseEnter={e => { if (w !== toolState.width) e.currentTarget.style.background = 'var(--hover)' }}
-                  onMouseLeave={e => { if (w !== toolState.width) e.currentTarget.style.background = 'none' }}
-                >
-                  <span style={{
-                    display: 'inline-block', width: 40,
-                    height: Math.max(2, w),
-                    background: toolState.color, borderRadius: w / 2,
-                  }} />
-                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{w}px</span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+        {toolBtn(onZoomIn, <Plus size={16} />, false)}
       </div>
 
       {sep()}
 
-      {/* Undo / Redo */}
-      {iconBtn(onUndo, <Undo2 size={16} />, 'Undo (⌘Z)', { disabled: !canUndo })}
-      {iconBtn(onRedo, <Redo2 size={16} />, 'Redo (⌘⇧Z)', { disabled: !canRedo })}
+      {/* Image import */}
+      {onImportImage && toolBtn(() => onImportImage(), <ImagePlus size={16} />, false)}
 
       {sep()}
 
-      {/* Zoom controls */}
-      {iconBtn(onZoomOut, <Minus size={16} />, t('handwriting.zoomOut'))}
-      <button
-        onClick={onZoomFit}
-        title={t('handwriting.zoomFit')}
-        style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          fontSize: 11, color: 'var(--text-muted)', padding: '2px 4px',
-          minWidth: 40, textAlign: 'center', fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {Math.round(zoom * 100)}%
-      </button>
-      {iconBtn(onZoomIn, <Plus size={16} />, t('handwriting.zoomIn'))}
+      {/* Clear */}
+      {toolBtn(onClearPage, <Trash2 size={16} />, false)}
 
       <div style={{ flex: 1 }} />
 
       {/* Page navigation */}
-      <button
-        onClick={() => setCurrentPage(currentPageIndex - 1)}
-        disabled={currentPageIndex === 0}
-        style={{
-          background: 'none', border: 'none', cursor: currentPageIndex === 0 ? 'default' : 'pointer',
-          fontSize: 12, color: currentPageIndex === 0 ? 'var(--border)' : 'var(--text-muted)', padding: '4px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        <ChevronLeft size={14} />
-      </button>
-      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-        {currentPageIndex + 1} / {pages.length}
-      </span>
-      <button
-        onClick={() => setCurrentPage(currentPageIndex + 1)}
-        disabled={currentPageIndex === pages.length - 1}
-        style={{
-          background: 'none', border: 'none',
-          cursor: currentPageIndex === pages.length - 1 ? 'default' : 'pointer',
-          fontSize: 12,
-          color: currentPageIndex === pages.length - 1 ? 'var(--border)' : 'var(--text-muted)',
-          padding: '4px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        <ChevronRight size={14} />
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <button
+          onClick={() => setCurrentPage(currentPageIndex - 1)}
+          disabled={currentPageIndex === 0}
+          style={{
+            background: 'none', border: 'none',
+            cursor: currentPageIndex === 0 ? 'default' : 'pointer',
+            color: currentPageIndex === 0 ? '#d1d1d6' : '#8e8e93',
+            padding: 4, display: 'flex', alignItems: 'center',
+          }}
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <span style={{ fontSize: 12, color: '#8e8e93', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
+          {currentPageIndex + 1} / {pages.length}
+        </span>
+        <button
+          onClick={() => setCurrentPage(currentPageIndex + 1)}
+          disabled={currentPageIndex === pages.length - 1}
+          style={{
+            background: 'none', border: 'none',
+            cursor: currentPageIndex === pages.length - 1 ? 'default' : 'pointer',
+            color: currentPageIndex === pages.length - 1 ? '#d1d1d6' : '#8e8e93',
+            padding: 4, display: 'flex', alignItems: 'center',
+          }}
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
     </div>
   )
 }

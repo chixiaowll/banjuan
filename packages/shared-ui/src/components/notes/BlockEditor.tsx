@@ -698,6 +698,20 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     return filterSuggestionItems([...defaultItems, mermaidItem], query)
   }, [editor])
 
+  useEffect(() => {
+    const handler = (e: PointerEvent) => {
+      const target = e.target as HTMLElement
+      const item = target.closest('.bn-suggestion-menu-item') as HTMLElement | null
+      if (item) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        item.click()
+      }
+    }
+    document.addEventListener('pointerdown', handler, true)
+    return () => document.removeEventListener('pointerdown', handler, true)
+  }, [])
+
   return (
     <div className={readOnly ? 'reading-mode' : ''}>
       <BlockNoteView
