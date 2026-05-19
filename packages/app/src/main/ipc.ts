@@ -178,16 +178,29 @@ export function registerIpcHandlers() {
     return result.filePaths[0]
   })
 
-  ipcMain.handle('documents:import', async (event) => {
+  ipcMain.handle('documents:import', async (event, destDir?: string) => {
     const library = getLib(event)
     const result = await dialog.showOpenDialog({
-      properties: ['openFile'],
+      properties: ['openFile', 'multiSelections'],
       filters: [
-        { name: 'All Supported', extensions: ['pdf', 'epub', 'txt', 'md', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'mp4', 'mov', 'webm', 'html'] },
+        { name: 'All Supported', extensions: ['pdf', 'epub', 'txt', 'md', 'markdown', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'mp4', 'mov', 'webm', 'html', 'htm', 'sh', 'bash', 'zsh', 'yaml', 'yml', 'json', 'xml', 'csv', 'tsv', 'log', 'conf', 'cfg', 'ini', 'toml', 'env', 'py', 'js', 'ts', 'jsx', 'tsx', 'css', 'scss', 'less', 'sql', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'swift', 'kt', 'r', 'tex', 'bib', 'rst'] },
       ],
     })
     if (result.canceled) return null
-    return library.documents.import(result.filePaths[0])
+    const fs = await import('node:fs/promises')
+    const path = await import('node:path')
+    const targetDir = destDir ? path.join(library.rootPath, destDir) : library.rootPath
+    await fs.mkdir(targetDir, { recursive: true })
+    let lastDoc = null
+    for (const srcPath of result.filePaths) {
+      const fileName = path.basename(srcPath)
+      const destPath = path.join(targetDir, fileName)
+      if (srcPath !== destPath) {
+        await fs.copyFile(srcPath, destPath)
+      }
+      lastDoc = await library.documents.import(destPath)
+    }
+    return lastDoc
   })
 
   ipcMain.handle('documents:list', async (event, options?: Record<string, unknown>) => {
@@ -200,6 +213,26 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('documents:delete', async (event, id: string) => {
     return getLib(event).documents.delete(id)
+  })
+
+  ipcMain.handle('documents:markRead', async (event, id: string) => {
+    return getLib(event).documents.markRead(id)
+  })
+
+  ipcMain.handle('documents:refresh', async (event) => {
+    return getLib(event).syncWithDisk()
+  })
+
+  ipcMain.handle('documents:createDir', async (event, dirPath: string) => {
+    return getLib(event).documents.createDir(dirPath)
+  })
+
+  ipcMain.handle('documents:move', async (event, id: string, destDir: string) => {
+    return getLib(event).documents.move(id, destDir)
+  })
+
+  ipcMain.handle('documents:listDirs', async (event) => {
+    return getLib(event).documents.listDirs()
   })
 
   ipcMain.handle('documents:update', async (event, id: string, updates: {
@@ -326,6 +359,10 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('notes:move', async (event, id: string, targetFolder: string | null) => {
     return getLib(event).notes.move(id, targetFolder)
+  })
+
+  ipcMain.handle('notes:refresh', async (event) => {
+    await getLib(event).notes.syncDisk()
   })
 
   ipcMain.handle('notes:listDirs', async (event) => {
@@ -537,13 +574,13 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('plugins:getRendererSource', async (event, pluginId: string) => {
-    const p = getLib(event).plugins.getPluginRendererPath(pluginId)
+    const p = await getLib(event).plugins.getPluginRendererPath(pluginId)
     if (!p) return null
     return readFileSync(p, 'utf-8')
   })
 
   ipcMain.handle('plugins:getCssSource', async (event, pluginId: string) => {
-    const p = getLib(event).plugins.getPluginCssPath(pluginId)
+    const p = await getLib(event).plugins.getPluginCssPath(pluginId)
     if (!p) return null
     return readFileSync(p, 'utf-8')
   })

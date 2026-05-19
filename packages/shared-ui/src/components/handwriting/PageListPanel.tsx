@@ -65,7 +65,7 @@ export default function PageListPanel() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '8px 8px 80px' }}>
         {pages.map((page, index) => (
           <div
             key={page.id}

@@ -75,7 +75,7 @@ export default function ThumbnailPanel() {
   useEffect(() => { setScrollEl(scrollRef.current) }, [])
 
   return (
-    <div ref={scrollRef} style={{ height: '100%', overflow: 'auto' }}>
+    <div ref={scrollRef} style={{ height: '100%', overflow: 'auto', paddingBottom: 80 }}>
       {Array.from({ length: numPages }, (_, i) => (
         <Thumbnail key={i + 1} pageNum={i + 1} scrollRoot={scrollEl} />
       ))}

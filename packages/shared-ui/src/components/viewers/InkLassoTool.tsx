@@ -1,4 +1,5 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react'
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import { Trash2 } from 'lucide-react'
 import { renderStroke } from '../handwriting/renderStrokes.js'
 import type { Stroke } from '@banjuan/core'
 import { useBanjuanAPI } from '../../api.js'
@@ -296,6 +297,20 @@ export default function InkLassoTool({ active, pageNum, docId, existingAnnotatio
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [active, deleteSelected])
 
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  const ctxMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!ctxMenu) return
+    const handler = (e: MouseEvent) => {
+      if (ctxMenuRef.current && !ctxMenuRef.current.contains(e.target as Node)) setCtxMenu(null)
+    }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null) }
+    document.addEventListener('mousedown', handler)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', esc) }
+  }, [ctxMenu])
+
   if (!active && existingStrokes.length === 0) return null
 
   const cursor = active
@@ -308,6 +323,12 @@ export default function InkLassoTool({ active, pageNum, docId, existingAnnotatio
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onContextMenu={(e) => {
+        if (selectedRef.current.size > 0) {
+          e.preventDefault()
+          setCtxMenu({ x: e.clientX, y: e.clientY })
+        }
+      }}
       style={{
         position: 'absolute', inset: 0,
         cursor,
@@ -318,6 +339,26 @@ export default function InkLassoTool({ active, pageNum, docId, existingAnnotatio
       }}
     >
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} />
+      {ctxMenu && (
+        <div ref={ctxMenuRef} style={{
+          position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: 9999,
+          background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.18)', padding: 4, minWidth: 120,
+        }}>
+          <button
+            onClick={() => { deleteSelected(); setCtxMenu(null) }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px',
+              cursor: 'pointer', fontSize: 13, color: '#e53e3e', border: 'none',
+              background: 'none', width: '100%', textAlign: 'left', borderRadius: 4,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--selected)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          >
+            <Trash2 size={14} /> 删除
+          </button>
+        </div>
+      )}
     </div>
   )
 }

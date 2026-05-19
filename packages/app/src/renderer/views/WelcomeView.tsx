@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useBanjuanAPI, useI18n, PoetryCard } from '@banjuan/shared-ui'
 import type { Locale } from '@banjuan/shared-ui'
+import { FolderOpen, Plus, X, ChevronRight } from 'lucide-react'
 
 interface RecentLibrary {
   path: string
@@ -20,6 +21,7 @@ export default function WelcomeView({ onOpen }: Props) {
   const [libraryName, setLibraryName] = useState('')
   const [loading, setLoading] = useState(false)
   const [recentLibraries, setRecentLibraries] = useState<RecentLibrary[]>([])
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
 
   useEffect(() => {
     api.library.getHistory?.().then((h: RecentLibrary[]) => setRecentLibraries(h ?? []))
@@ -80,84 +82,174 @@ export default function WelcomeView({ onOpen }: Props) {
     setLibraryName('')
   }
 
+  const formatLastOpened = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr)
+      const now = new Date()
+      const diffMs = now.getTime() - d.getTime()
+      const diffDays = Math.floor(diffMs / 86400000)
+      if (diffDays === 0) return locale === 'zh' ? '今天' : 'Today'
+      if (diffDays === 1) return locale === 'zh' ? '昨天' : 'Yesterday'
+      if (diffDays < 7) return locale === 'zh' ? `${diffDays} 天前` : `${diffDays}d ago`
+      return d.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' })
+    } catch { return '' }
+  }
+
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', minHeight: '100vh', gap: 16,
-      overflowY: 'auto', padding: '40px 0',
+      justifyContent: 'center', minHeight: '100vh',
+      overflowY: 'auto', padding: '60px 24px',
+      background: 'var(--bg)',
     }}>
+      {/* Drag region */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 40,
         WebkitAppRegion: 'drag' as any,
       }} />
+
+      {/* Language switcher */}
       <div style={{ position: 'absolute', top: 12, right: 16, WebkitAppRegion: 'no-drag' as any }}>
         <select
           value={locale}
           onChange={(e) => setLocale(e.target.value as Locale)}
-          style={{ fontSize: 12, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--surface)', color: 'var(--text)' }}
+          style={{
+            fontSize: 12, padding: '4px 8px',
+            border: '1px solid var(--border-solid)', borderRadius: 'var(--radius-sm)',
+            background: 'var(--surface-raised)', color: 'var(--text-muted)',
+          }}
         >
           <option value="zh">中文</option>
           <option value="en">English</option>
         </select>
       </div>
 
-      <h1 style={{ fontSize: 32, marginBottom: 8 }}>{t('app.name')}</h1>
-      <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>{t('app.slogan')}</p>
-      <div style={{ width: 380, marginBottom: 24 }}>
-        <PoetryCard locale={locale} />
-      </div>
-
       {!showNameDialog ? (
-        <>
+        <div style={{ width: 480, maxWidth: '100%' }}>
+          {/* Hero */}
+          <div style={{ textAlign: 'center', marginBottom: 40 }}>
+            <h1 style={{
+              fontSize: 32, fontWeight: 700, letterSpacing: '-0.03em',
+              color: 'var(--text)', marginBottom: 6, lineHeight: 1.2,
+            }}>
+              {t('app.name')}
+            </h1>
+            <p style={{ fontSize: 15, color: 'var(--text-muted)', fontWeight: 400 }}>
+              {t('app.slogan')}
+            </p>
+          </div>
+
+          {/* Poetry */}
+          <div style={{ marginBottom: 40 }}>
+            <PoetryCard locale={locale} />
+          </div>
+
+          {/* Recent libraries */}
           {recentLibraries.length > 0 && (
-            <div style={{ width: 380, marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{
+                fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
+                marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em',
+              }}>
                 {t('welcome.recentLibraries') ?? 'Recent Libraries'}
               </div>
-              <div style={{
-                border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden',
-                background: 'var(--surface)',
-              }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {recentLibraries.map((lib, i) => (
                   <div key={lib.path}
                     onClick={() => !loading && openLibrary(lib.path)}
+                    onMouseEnter={() => setHoveredIdx(i)}
+                    onMouseLeave={() => setHoveredIdx(null)}
                     style={{
-                      padding: '10px 14px', cursor: loading ? 'default' : 'pointer',
-                      borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 12px', cursor: loading ? 'default' : 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 12,
                       opacity: loading ? 0.5 : 1,
+                      background: hoveredIdx === i ? 'var(--hover)' : 'transparent',
+                      borderRadius: 'var(--radius-sm)',
+                      transition: 'background 0.15s ease',
                     }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 8,
+                      background: 'var(--accent-soft)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <FolderOpen size={16} style={{ color: 'var(--accent)' }} />
+                    </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{
+                        fontSize: 14, fontWeight: 500, overflow: 'hidden',
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        color: 'var(--text)', lineHeight: 1.3,
+                      }}>
                         {lib.name}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                      <div style={{
+                        fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden',
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1,
+                        lineHeight: 1.3,
+                      }}>
                         {lib.path}
                       </div>
                     </div>
-                    <button onClick={(e) => handleRemoveRecent(e, lib.path)}
-                      style={{ fontSize: 14, padding: '2px 6px', color: 'var(--text-muted)', border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-                      title="Remove">×</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      {lib.lastOpened && (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {formatLastOpened(lib.lastOpened)}
+                        </span>
+                      )}
+                      <button onClick={(e) => handleRemoveRecent(e, lib.path)}
+                        style={{
+                          width: 20, height: 20, padding: 0,
+                          color: 'var(--text-muted)', border: 'none', background: 'transparent',
+                          cursor: 'pointer', borderRadius: 'var(--radius-sm)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          opacity: hoveredIdx === i ? 0.6 : 0,
+                          transition: 'opacity 0.15s ease',
+                        }}
+                        title="Remove">
+                        <X size={13} />
+                      </button>
+                      <ChevronRight size={14} style={{ color: 'var(--text-muted)', opacity: 0.4 }} />
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
-          <button className="primary" onClick={handleSelectDir} disabled={loading}>
+
+          {/* Open button */}
+          <button className="primary" onClick={handleSelectDir} disabled={loading}
+            style={{
+              width: '100%', padding: '12px 20px', fontSize: 14, fontWeight: 600,
+              borderRadius: 'var(--radius-md)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}>
+            <Plus size={16} />
             {loading ? t('welcome.opening') : t('welcome.selectDir')}
           </button>
-        </>
+        </div>
       ) : (
+        /* Create library dialog */
         <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          gap: 12, padding: 24, border: '1px solid var(--border)',
-          borderRadius: 8, background: 'var(--surface)', minWidth: 320,
+          display: 'flex', flexDirection: 'column', alignItems: 'stretch',
+          gap: 16, padding: 28, width: 420,
+          border: '1px solid var(--border-solid)',
+          borderRadius: 'var(--radius-lg)', background: 'var(--surface-raised)',
+          boxShadow: 'var(--shadow-lg)',
         }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>{t('welcome.createLibrary')}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-            {t('welcome.createLibraryDesc')}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6, color: 'var(--text)' }}>
+              {t('welcome.createLibrary')}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              {t('welcome.createLibraryDesc')}
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', wordBreak: 'break-all', textAlign: 'center' }}>
+          <div style={{
+            fontSize: 12, color: 'var(--text-muted)', wordBreak: 'break-all',
+            textAlign: 'center', padding: '8px 12px',
+            background: 'var(--surface)', borderRadius: 'var(--radius-sm)',
+          }}>
             {pendingDir}
           </div>
           <input
@@ -167,14 +259,16 @@ export default function WelcomeView({ onOpen }: Props) {
             placeholder={t('welcome.libraryName')}
             autoFocus
             onKeyDown={(e) => { if (e.key === 'Enter') handleCreateLibrary() }}
-            style={{
-              width: '100%', fontSize: 14, padding: '8px 12px',
-              border: '1px solid var(--border)', borderRadius: 4,
-            }}
+            style={{ fontSize: 14, padding: '10px 14px' }}
           />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handleCancel} disabled={loading}>{t('welcome.cancel')}</button>
-            <button className="primary" onClick={handleCreateLibrary} disabled={loading || !libraryName.trim()}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={handleCancel} disabled={loading}
+              style={{ flex: 1, borderRadius: 'var(--radius-sm)' }}>
+              {t('welcome.cancel')}
+            </button>
+            <button className="primary" onClick={handleCreateLibrary}
+              disabled={loading || !libraryName.trim()}
+              style={{ flex: 1, borderRadius: 'var(--radius-sm)' }}>
               {loading ? t('welcome.creating') : t('welcome.create')}
             </button>
           </div>

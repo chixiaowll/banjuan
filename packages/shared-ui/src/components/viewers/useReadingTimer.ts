@@ -10,15 +10,13 @@ function formatTime(ms: number): string {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-export function useReadingTimer(docId: string, metadata: Record<string, unknown>) {
+export function useReadingTimer(docId: string, _metadata: Record<string, unknown>) {
   const api = useBanjuanAPI()
   const [elapsed, setElapsed] = useState(0)
   const accumulatedRef = useRef(0)
   const sessionStartRef = useRef(0)
   const activeRef = useRef(true)
-  const metadataRef = useRef(metadata)
   const readyRef = useRef(false)
-  metadataRef.current = metadata
 
   useEffect(() => {
     readyRef.current = false
@@ -28,7 +26,6 @@ export function useReadingTimer(docId: string, metadata: Record<string, unknown>
     api.documents.get(docId).then((fresh: any) => {
       const saved = (fresh?.metadata?.readingTimeMs as number) ?? 0
       accumulatedRef.current = saved
-      metadataRef.current = fresh?.metadata ?? metadata
       setElapsed(saved)
       readyRef.current = true
     }).catch(() => {
@@ -73,7 +70,7 @@ export function useReadingTimer(docId: string, metadata: Record<string, unknown>
       ? accumulatedRef.current + (Date.now() - sessionStartRef.current)
       : accumulatedRef.current
     api.documents.update(docId, {
-      metadata: { ...metadataRef.current, readingTimeMs: total },
+      metadata: { readingTimeMs: total },
     }).catch(() => {})
   }, [docId])
 

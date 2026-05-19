@@ -10,6 +10,7 @@ export interface Document {
   metadata: Record<string, unknown>
   createdAt: string
   updatedAt: string
+  lastReadAt?: string
 }
 
 export interface DocumentCreateInput {
@@ -31,7 +32,7 @@ export interface DocumentUpdateInput {
   metadata?: Record<string, unknown>
 }
 
-export type AnnotationType = 'highlight' | 'note' | 'bookmark' | 'ink' | 'area'
+export type AnnotationType = 'highlight' | 'underline' | 'note' | 'bookmark' | 'ink' | 'area'
 
 export interface PdfPosition {
   type: 'pdf'
@@ -164,6 +165,7 @@ export interface NoteListOptions {
   type?: NoteType
   docId?: string
   folderId?: string
+  folder?: string
   tag?: string
   sort?: 'created_at' | 'title' | 'updated_at'
   order?: 'asc' | 'desc'
@@ -471,8 +473,19 @@ export interface Stroke {
   opacity: number
 }
 
+export interface CanvasImage {
+  id: string
+  dataUrl: string
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+}
+
 export interface CanvasSnapshot {
   strokes: Stroke[]
+  images?: CanvasImage[]
 }
 
 export interface HandwritingPage {
@@ -520,6 +533,7 @@ export type DocumentSyncStatus = 'local' | 'cloud' | 'synced'
 export type BanjuanEventMap = {
   'document:imported': { document: Document }
   'document:deleted': { id: string }
+  'document:moved': { id: string; from: string; to: string }
   'annotation:created': { annotation: Annotation }
   'annotation:updated': { annotation: Annotation }
   'annotation:deleted': { id: string; docId: string }

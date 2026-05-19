@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS documents (
     hash TEXT NOT NULL,
     metadata TEXT DEFAULT '{}',
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    last_read_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS annotations (
@@ -182,5 +183,11 @@ export function initSchema(db: PlatformDatabase): void {
     if (!nodeColNames.has(name)) {
       db.execute(`ALTER TABLE mindmap_nodes ADD COLUMN ${name} ${type}`)
     }
+  }
+
+  // Migrate documents: add last_read_at if missing
+  const docColumns = db.pragma('table_info(documents)') as Array<{ name: string }>
+  if (!docColumns.some(c => c.name === 'last_read_at')) {
+    db.execute('ALTER TABLE documents ADD COLUMN last_read_at TEXT')
   }
 }

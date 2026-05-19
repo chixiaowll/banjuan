@@ -13,7 +13,7 @@ export const MermaidBlock = createReactBlockSpec(
     type: 'mermaidBlock' as const,
     propSchema: {
       code: { default: FLOWCHART_TEMPLATE },
-      viewMode: { default: 'split' as const },
+      viewMode: { default: 'preview' as const },
       theme: { default: 'neutral' as const },
       renderWidth: { default: 500 },
     },

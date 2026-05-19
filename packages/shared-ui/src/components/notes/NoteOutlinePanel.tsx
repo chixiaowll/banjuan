@@ -38,7 +38,7 @@ export default function NoteOutlinePanel({ headings, activeId }: Props) {
   }
 
   return (
-    <div style={{ padding: '8px 0', overflow: 'auto', height: '100%' }}>
+    <div style={{ padding: '8px 0 80px', overflow: 'auto', height: '100%' }}>
       {headings.map((h) => (
         <div
           key={h.id}

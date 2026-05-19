@@ -53,10 +53,15 @@ export interface BanjuanAPI {
   }
 
   documents: {
-    import(): Promise<Document | null>
+    import(destDir?: string): Promise<Document | null>
+    markRead(id: string): Promise<void>
+    refresh(): Promise<{ imported: number; removed: number }>
     list(options?: DocumentListOptions): Promise<Document[]>
     get(id: string): Promise<Document | null>
     delete(id: string): Promise<void>
+    createDir(dirPath: string): Promise<void>
+    move(id: string, destDir: string): Promise<Document | null>
+    listDirs(): Promise<string[]>
     update(id: string, updates: DocumentUpdateInput): Promise<Document>
     getFilePath(relativePath: string): Promise<string>
     readContent(relativePath: string): Promise<string>
@@ -92,6 +97,7 @@ export interface BanjuanAPI {
     delete(id: string): Promise<void>
     getAnnotations(noteId: string): Promise<Annotation[]>
     move(id: string, targetFolder: string | null): Promise<void>
+    refresh(): Promise<void>
     listDirs(): Promise<string[]>
     createDir(dirPath: string): Promise<void>
     renameDir(oldPath: string, newPath: string): Promise<void>

@@ -105,13 +105,13 @@ export default function NodeShell({ id, data, selected, icon, accentColor, child
   const isDropBefore = dropTarget?.nodeId === id && dropTarget?.position === 'before'
   const isDropAfter = dropTarget?.nodeId === id && dropTarget?.position === 'after'
 
-  const borderColor = isDropInside ? '#3182ce' : selected ? '#4A90D9' : (accentColor ?? levelStyle.stroke)
+  const borderColor = isDropInside ? 'var(--accent, #5856d6)' : selected ? 'var(--accent, #5856d6)' : (accentColor ?? levelStyle.stroke)
   const borderWidth = isDropInside ? 2 : selected ? 2 : 1
   const radius = isUnderline ? 0 : (levelStyle.borderRadius ?? 8)
   const hasContent = hasBlockContent(data.content)
 
   const containerStyle: React.CSSProperties = {
-    background: isDropInside ? 'rgba(49,130,206,0.08)' : isUnderline ? 'transparent' : fill,
+    background: isDropInside ? 'var(--accent-soft, rgba(88,86,214,0.08))' : isUnderline ? 'transparent' : fill,
     border: 'none',
     borderBottom: isUnderline ? `2px solid ${levelStyle.stroke}` : undefined,
     borderRadius: radius,
@@ -140,7 +140,7 @@ export default function NodeShell({ id, data, selected, icon, accentColor, child
     left: 0,
     right: 0,
     height: 2,
-    background: '#3182ce',
+    background: 'var(--accent, #5856d6)',
     borderRadius: 1,
     pointerEvents: 'none',
   }

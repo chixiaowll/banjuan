@@ -199,7 +199,7 @@ export class NoteService {
         if (tpl) blocks = JSON.parse(tpl.content)
       }
       if (input.content) {
-        try { blocks = JSON.parse(input.content) } catch { blocks = [] }
+        try { blocks = JSON.parse(input.content) } catch { blocks = markdownToBlocks(input.content) }
       }
       await this.fs.writeTextFile(fullPath, JSON.stringify({ meta, blocks }, null, 2))
       contentStr = JSON.stringify(blocks)
@@ -241,6 +241,7 @@ export class NoteService {
     if (options?.type) { conditions.push('type = ?'); params.push(options.type) }
     if (options?.docId) { conditions.push('doc_id = ?'); params.push(options.docId) }
     if (options?.folderId) { conditions.push('folder_id = ?'); params.push(options.folderId) }
+    if (options?.folder) { conditions.push('path LIKE ?'); params.push(options.folder + '/%') }
     if (options?.tag) {
       conditions.push('id IN (SELECT note_id FROM note_tags JOIN tags ON tags.id = note_tags.tag_id WHERE tags.name = ?)')
       params.push(options.tag)

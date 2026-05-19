@@ -59,7 +59,7 @@ export default function PdfLeftSidebar({
           </button>
         ))}
       </div>
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80 }}>
         {leftSidebarTab === 'thumbnails' && <ThumbnailPanel />}
         {leftSidebarTab === 'outline' && <OutlinePanel />}
         {leftSidebarTab === 'annotations' && (

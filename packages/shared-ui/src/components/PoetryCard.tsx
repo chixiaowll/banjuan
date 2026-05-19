@@ -1,17 +1,6 @@
-import React, { useMemo, useEffect } from 'react'
+import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react'
 
-const POETRY_FONT = '"Noto Serif TC", "Source Han Serif TC", "PMingLiU", serif'
-const FONT_CSS_URL = 'https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&display=swap'
-
-let fontLoaded = false
-function loadPoetryFont() {
-  if (fontLoaded || typeof document === 'undefined') return
-  fontLoaded = true
-  const link = document.createElement('link')
-  link.rel = 'stylesheet'
-  link.href = FONT_CSS_URL
-  document.head.appendChild(link)
-}
+const POETRY_FONT = '"Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif'
 
 interface Poem {
   title: string
@@ -24,8 +13,7 @@ interface PoetryCardProps {
   locale?: 'zh' | 'en'
 }
 
-const EN_FONT = '"Noto Serif", "Georgia", "Times New Roman", serif'
-const EN_FONT_CSS_URL = 'https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&display=swap'
+const EN_FONT = '"Georgia", "Times New Roman", serif'
 
 const EN_POEMS: Poem[] = [
   {
@@ -448,74 +436,115 @@ function getDailyPoem(poems: Poem[]): Poem {
   return poems[dayOfYear % poems.length]
 }
 
+const arrowBtnStyle: React.CSSProperties = {
+  position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+  width: 28, height: 28, borderRadius: '50%',
+  border: 'none', background: 'var(--surface-raised, rgba(255,255,255,0.85))',
+  boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  color: 'var(--text-muted, #888)', fontSize: 16, lineHeight: 1,
+  opacity: 0, transition: 'opacity 0.2s ease',
+  zIndex: 2,
+}
+
 export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
   const isEn = locale === 'en'
+  const poems = isEn ? EN_POEMS : POEMS
 
-  useEffect(() => {
-    loadPoetryFont()
-    if (isEn) {
-      if (typeof document === 'undefined') return
-      const existing = document.querySelector(`link[href="${EN_FONT_CSS_URL}"]`)
-      if (existing) return
-      const link = document.createElement('link')
-      link.rel = 'stylesheet'
-      link.href = EN_FONT_CSS_URL
-      document.head.appendChild(link)
-    }
-  }, [isEn])
+  const [index, setIndex] = useState(() => Math.floor(Math.random() * poems.length))
+  const [fading, setFading] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const dragRef = useRef<{ startX: number; startY: number; locked: boolean } | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  const poem = useMemo(() => getDailyPoem(isEn ? EN_POEMS : POEMS), [isEn])
+  const poem = poems[index]
+
+  const navigate = useCallback(() => {
+    setFading(true)
+    setTimeout(() => {
+      setIndex(prev => {
+        let next: number
+        do { next = Math.floor(Math.random() * poems.length) } while (next === prev && poems.length > 1)
+        return next
+      })
+      setFading(false)
+    }, 80)
+  }, [poems.length])
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (fading) return
+    dragRef.current = { startX: e.clientX, startY: e.clientY, locked: false }
+    containerRef.current?.setPointerCapture(e.pointerId)
+  }, [fading])
+
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current) return
+    const dx = e.clientX - dragRef.current.startX
+    dragRef.current = null
+    if (Math.abs(dx) > 50) navigate()
+  }, [navigate])
+
+  const contentStyle: React.CSSProperties = {
+    opacity: fading ? 0 : 1,
+    transition: 'opacity 0.08s ease',
+  }
+
+  const cardBase: React.CSSProperties = {
+    borderRadius: 16,
+    border: '1px solid var(--border, #e8e8e8)',
+    background: 'var(--surface, #fff)',
+    position: 'relative',
+    overflow: 'hidden',
+    touchAction: 'pan-y',
+    userSelect: 'none',
+  }
+
+  const arrows = (
+    <>
+      <button
+        onClick={(e) => { e.stopPropagation(); navigate() }}
+        style={{ ...arrowBtnStyle, left: 8, opacity: hovered ? 0.8 : 0 }}
+        aria-label="Previous"
+      >‹</button>
+      <button
+        onClick={(e) => { e.stopPropagation(); navigate() }}
+        style={{ ...arrowBtnStyle, right: 8, opacity: hovered ? 0.8 : 0 }}
+        aria-label="Next"
+      >›</button>
+    </>
+  )
 
   if (isEn) {
     return (
-      <div style={{
-        borderRadius: 16,
-        border: '1px solid var(--border, #e8e8e8)',
-        background: 'var(--surface, #fff)',
-        padding: '32px 28px',
-        minHeight: 200,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-      }}>
-        <div style={{
-          fontFamily: EN_FONT,
-          fontSize: 16,
-          lineHeight: 1.9,
-          fontStyle: 'italic',
-          color: 'var(--text, #1a1a1a)',
-        }}>
-          {poem.lines.map((line, i) => (
-            <div key={i}>{line}</div>
-          ))}
-        </div>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          marginTop: 20,
-        }}>
-          <span style={{
-            fontFamily: EN_FONT,
-            fontSize: 14,
-            color: 'var(--text-muted, #888)',
+      <div
+        ref={containerRef}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => { dragRef.current = null }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{ ...cardBase, padding: '32px 28px', minHeight: 200 }}
+      >
+        {arrows}
+        <div style={contentStyle}>
+          <div style={{
+            fontFamily: EN_FONT, fontSize: 16, lineHeight: 1.9,
+            fontStyle: 'italic', color: 'var(--text, #1a1a1a)',
           }}>
-            — {poem.author}
-          </span>
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2px 8px',
-            borderRadius: 4,
-            background: '#c0392b',
-            color: '#fff',
-            fontSize: 11,
-            fontFamily: EN_FONT,
-            fontWeight: 600,
-          }}>
-            {poem.tag}
-          </span>
+            {poem.lines.map((line, i) => <div key={i}>{line}</div>)}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20 }}>
+            <span style={{ fontFamily: EN_FONT, fontSize: 14, color: 'var(--text-muted, #888)' }}>
+              — {poem.author}
+            </span>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              padding: '2px 8px', borderRadius: 4, background: '#c0392b',
+              color: '#fff', fontSize: 11, fontFamily: EN_FONT, fontWeight: 600,
+            }}>
+              {poem.tag}
+            </span>
+          </div>
         </div>
       </div>
     )
@@ -524,65 +553,43 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
   const maxLineLen = Math.max(...poem.lines.map(l => l.length))
 
   return (
-    <div style={{
-      borderRadius: 16,
-      border: '1px solid var(--border, #e8e8e8)',
-      background: 'var(--surface, #fff)',
-      padding: '32px 28px',
-      position: 'relative',
-      minHeight: 280,
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-    }}>
-      <div style={{
-        writingMode: 'vertical-rl',
-        textOrientation: 'mixed',
-        fontFamily: POETRY_FONT,
-        fontSize: maxLineLen > 5 ? 22 : 28,
-        lineHeight: 1.8,
-        letterSpacing: '0.08em',
-        color: 'var(--text, #1a1a1a)',
-        alignSelf: 'flex-end',
-        paddingRight: 8,
-      }}>
-        {poem.lines.map((line, i) => (
-          <span key={i} style={{ display: 'block' }}>{line}</span>
-        ))}
-      </div>
-
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 6,
-        marginTop: 24,
-        alignSelf: 'flex-start',
-      }}>
-        <span style={{
-          writingMode: 'vertical-rl',
-          fontFamily: POETRY_FONT,
-          fontSize: 14,
-          color: 'var(--text-muted, #888)',
-          letterSpacing: '0.1em',
+    <div
+      ref={containerRef}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => { dragRef.current = null }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ ...cardBase, padding: '32px 28px', minHeight: 280, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+    >
+      {arrows}
+      <div style={{ ...contentStyle, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1 }}>
+        <div style={{
+          writingMode: 'vertical-rl', textOrientation: 'mixed',
+          fontFamily: POETRY_FONT, fontSize: maxLineLen > 5 ? 22 : 28,
+          lineHeight: 1.8, letterSpacing: '0.08em',
+          color: 'var(--text, #1a1a1a)', alignSelf: 'flex-end', paddingRight: 8,
         }}>
-          {poem.author}
-        </span>
-        <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 18,
-          height: 18,
-          borderRadius: 3,
-          background: '#c0392b',
-          color: '#fff',
-          fontSize: 10,
-          fontFamily: POETRY_FONT,
-          fontWeight: 600,
+          {poem.lines.map((line, i) => <span key={i} style={{ display: 'block' }}>{line}</span>)}
+        </div>
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          gap: 6, marginTop: 24, alignSelf: 'flex-start',
         }}>
-          {poem.tag}
-        </span>
+          <span style={{
+            writingMode: 'vertical-rl', fontFamily: POETRY_FONT, fontSize: 14,
+            color: 'var(--text-muted, #888)', letterSpacing: '0.1em',
+          }}>
+            {poem.author}
+          </span>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 18, height: 18, borderRadius: 3, background: '#c0392b',
+            color: '#fff', fontSize: 10, fontFamily: POETRY_FONT, fontWeight: 600,
+          }}>
+            {poem.tag}
+          </span>
+        </div>
       </div>
     </div>
   )

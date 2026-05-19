@@ -300,7 +300,7 @@ export default function VideoViewer({ filePath, docPath, doc, onOpenNote }: Prop
                   </button>
                 ))}
               </div>
-              <div style={{ flex: 1, overflow: 'auto' }}>
+              <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80 }}>
                 {leftTab === 'screenshots' && (
                   <div style={{ padding: 8 }}>
                     {screenshots.length === 0 && (
@@ -415,7 +415,7 @@ export default function VideoViewer({ filePath, docPath, doc, onOpenNote }: Prop
               <div style={{
                 width: rightResize.width, borderLeft: 'none',
                 display: 'flex', flexDirection: 'column', flexShrink: 0,
-                background: 'var(--bg)', overflow: 'auto',
+                background: 'var(--bg)', overflow: 'auto', paddingBottom: 80,
               }}>
                 <div style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>
                   {doc.title}

@@ -64,15 +64,16 @@ export default function AnnotationPanel({ annotations, onAnnotationClick, onAnno
       {sortedPages.map(page => (
         <div key={page}>
           <div style={{
-            padding: '6px 12px', fontSize: 11, fontWeight: 600,
+            padding: '8px 12px', fontSize: 11, fontWeight: 600,
             color: 'var(--text-muted)', background: 'var(--surface)',
+            textTransform: 'uppercase' as const, letterSpacing: '0.06em',
           }}>
             {isEpub ? `Loc ${page}` : t('pdf.page', page)}
           </div>
           {grouped.get(page)!.map(ann => (
             <div
               key={ann.id}
-              style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 12 }}
+              style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13, transition: 'background var(--transition, 0.15s ease)' }}
               onClick={() => {
                 if (onAnnotationNavigate && (ann.position?.type === 'epub' || ann.position?.type === 'text' || ann.position?.type === 'ink')) {
                   onAnnotationNavigate(ann)
@@ -128,8 +129,9 @@ export default function AnnotationPanel({ annotations, onAnnotationClick, onAnno
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
                     style={{
-                      width: '100%', minHeight: 50, fontSize: 11,
-                      border: '1px solid var(--border)', borderRadius: 3, padding: 4, resize: 'vertical',
+                      width: '100%', minHeight: 50, fontSize: 12, fontFamily: 'inherit',
+                      border: '1px solid var(--border-solid, #e5e5e7)', borderRadius: 'var(--radius-sm, 6px)', padding: '6px 8px', resize: 'vertical',
+                      outline: 'none',
                     }}
                   />
                   <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>

@@ -79,6 +79,7 @@ banjuan note list [--doc <id>] [--type <type>] [--tag <tag>] [--folder <folder-i
 banjuan note show <id>
 banjuan note update <id> [--title "new"] [--content "markdown 文本"]
 banjuan note delete <id>
+banjuan note move <id> [folder-id]
 ```
 
 ### Annotations
@@ -105,7 +106,9 @@ banjuan mindmap import <mindmap-id> --json '<data>' | --file <path> | stdin
 
 ```bash
 banjuan tag list [--json]
-banjuan tag assign <target-id> <type> <tag-name>   # type: document|note
+banjuan tag assign <target-id> <type> <tag-name>     # type: document|note
+banjuan tag unassign <target-id> <type> <tag-name>   # 移除标签
+banjuan tag delete <id>                              # 删除标签
 ```
 
 ### Search

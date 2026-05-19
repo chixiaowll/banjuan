@@ -60,7 +60,7 @@ export default function AnnotationSidebar({ annotations, onAnnotationClick, onAn
       }}>
         {t('annotation.title')} ({annotations.length})
       </div>
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80 }}>
         {sortedKeys.map((pageKey) => (
           <div key={pageKey ?? 'none'}>
             {pageKey !== null && (

@@ -170,7 +170,7 @@ function MindmapRightSidebar({ noteId, onOpenNote, rightPanel }: {
             </button>
           ))}
         </div>
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80 }}>
           {rightTab === 'properties' && <MindmapPanels />}
           {rightTab === 'backlinks' && (
             <BacklinksPanel noteId={noteId} docId={null} onOpenNote={onOpenNote} onOpenMindmap={onOpenNote} />
@@ -204,7 +204,12 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(noteFolder)
   const [showTemplatePicker, setShowTemplatePicker] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
-  const [leftTab, setLeftTab] = useState<'files' | 'outline' | 'pages'>('files')
+  const [leftTab, setLeftTab] = useState<'files' | 'outline' | 'pages'>(() => {
+    const t = note.type ?? 'markdown'
+    if (t === 'handwriting') return 'pages'
+    if (t === 'markdown') return 'outline'
+    return 'files'
+  })
   const [headings, setHeadings] = useState<HeadingItem[]>([])
   const editorRef = useRef<BlockEditorHandle>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -317,9 +322,9 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
           <div style={{ width: leftPanel.width, flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ display: 'flex', height: 40, alignItems: 'stretch', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               {([
-                ['files', t('note.notes')],
-                ...(!isMindmap && !isHandwriting ? [['outline', t('note.outline')]] : []),
                 ...(isHandwriting ? [['pages', t('handwriting.pages')]] : []),
+                ...(!isMindmap && !isHandwriting ? [['outline', t('note.outline')]] : []),
+                ['files', t('note.notes')],
               ] as [string, string][]).map(([id, label]) => (
                 <button
                   key={id}
@@ -337,7 +342,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
                 </button>
               ))}
             </div>
-            <div style={{ flex: 1, overflow: 'auto' }}>
+            <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80 }}>
               {leftTab === 'files' && (
                 <FolderTree
                   onSelectFolder={setSelectedFolder}
@@ -429,7 +434,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
                   style={{
                     position: 'absolute', top: '100%', right: 0, marginTop: 4,
                     background: 'var(--surface)', border: '1px solid var(--border)',
-                    borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    borderRadius: 'var(--radius-md, 10px)', boxShadow: 'var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.08))',
                     zIndex: 100, minWidth: 140, padding: '4px 0',
                   }}
                 >
@@ -491,7 +496,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
           </div>
 
           {/* Editor */}
-          <div style={{ flex: 1, overflow: 'auto', ['--note-font-scale' as any]: noteFontSize / 100 }}>
+          <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80, ['--note-font-scale' as any]: noteFontSize / 100 }}>
             <BlockEditor
               ref={editorRef}
               key={note.id}
