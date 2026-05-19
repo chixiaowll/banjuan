@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { ChevronDown, ChevronRight, FilePlus, FolderPlus, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, FilePlus, FolderPlus, Pencil, Trash2, Folder, FolderOpen, FileText, Brain, PenTool } from 'lucide-react'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 
@@ -171,19 +171,21 @@ function InlineInput({ depth, icon, defaultValue, onConfirm, onCancel }: {
 
   return (
     <div style={{
-      padding: '2px 8px', paddingLeft: 12 + depth * 16,
-      display: 'flex', alignItems: 'center', gap: 4, fontSize: 12,
+      height: 30, paddingLeft: 12 + depth * 16, paddingRight: 12,
+      marginLeft: 8, marginRight: 8,
+      display: 'flex', alignItems: 'center', gap: 7, fontSize: 14,
     }}>
-      <span style={{ width: 14, flexShrink: 0 }} />
-      <span style={{ flexShrink: 0 }}>{icon}</span>
+      <span style={{ flexShrink: 0, lineHeight: 1, display: 'inline-flex', color: 'var(--text-muted)' }}>
+        {icon === '📁' ? <Folder size={16} /> : <FileText size={16} />}
+      </span>
       <input
         ref={inputRef}
         defaultValue={defaultValue}
         onKeyDown={handleKeyDown}
         onBlur={onCancel}
         style={{
-          flex: 1, fontSize: 12, padding: '1px 4px',
-          border: '1px solid var(--accent)', borderRadius: 3,
+          flex: 1, fontSize: 14, padding: '2px 6px',
+          border: '1px solid var(--accent)', borderRadius: 4,
           background: 'var(--bg)', color: 'var(--text)', outline: 'none',
           minWidth: 0,
         }}
@@ -288,35 +290,39 @@ function TreeItem({ node, depth, expandedSet, onToggle, onOpenNote, onContextMen
           onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e, node) }}
           title={node.name}
           style={{
-            padding: '3px 8px',
+            height: 30,
             paddingLeft: 12 + depth * 16,
+            paddingRight: 12,
+            marginLeft: 8,
+            marginRight: 8,
             cursor: 'pointer',
-            fontSize: 12,
+            fontSize: 14,
             display: 'flex',
             alignItems: 'center',
-            gap: 4,
-            background: isDropTarget ? 'rgba(49,130,206,0.1)' : isActive ? 'var(--selected)' : 'transparent',
-            color: isActive ? 'var(--text)' : 'var(--text)',
+            gap: 7,
+            background: isDropTarget ? 'rgba(49,130,206,0.1)' : isActive ? 'var(--accent-soft)' : 'transparent',
+            color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
             outline: isDropTarget ? '1px dashed #3182ce' : 'none',
-            borderRadius: isDropTarget ? 3 : 0,
+            borderRadius: 'var(--radius-sm, 4px)',
+            transition: 'background 0.15s ease',
           }}
           onMouseEnter={e => { if (!isActive && !isDropTarget) e.currentTarget.style.background = 'var(--hover)' }}
-          onMouseLeave={e => { if (!isActive && !isDropTarget) e.currentTarget.style.background = 'transparent' }}
+          onMouseLeave={e => { if (!isActive && !isDropTarget) e.currentTarget.style.background = isActive ? 'var(--accent-soft)' : 'transparent' }}
         >
-          {isDir ? (
-            <span style={{ width: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            </span>
-          ) : (
-            <span style={{ width: 14, flexShrink: 0 }} />
-          )}
-          <span style={{ flexShrink: 0 }}>{isDir ? (expanded ? '📂' : '📁') : (node.note?.type === 'mindmap' ? '🧠' : '📄')}</span>
+          <span style={{ flexShrink: 0, lineHeight: 1, display: 'inline-flex', color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}>
+            {isDir ? (expanded ? <FolderOpen size={16} /> : <Folder size={16} />) : (node.note?.type === 'mindmap' ? <Brain size={16} /> : node.note?.type === 'handwriting' ? <PenTool size={16} /> : <FileText size={16} />)}
+          </span>
           <span style={{
             flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             fontWeight: isActive ? 600 : 400,
           }}>
             {node.name}
           </span>
+          {isDir && node.children && node.children.length > 0 && (
+            <span style={{ color: 'var(--text-muted)', flexShrink: 0, display: 'inline-flex', alignItems: 'center' }}>
+              {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </span>
+          )}
         </div>
       )}
       {isDir && expanded && (
@@ -555,7 +561,7 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
       onContextMenu={handleRootContextMenu}
     >
-      <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '4px 0 80px' }}>
         <TreeItem
           node={rootNode}
           depth={0}

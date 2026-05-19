@@ -68,10 +68,18 @@ export class IndexService {
   }
 
   private indexDocument(doc: DocumentFileData): void {
+    const existing = this.db.queryOne<{ metadata: string }>('SELECT metadata FROM documents WHERE id = ?', [doc.id])
+    let mergedMeta = doc.metadata || {}
+    if (existing?.metadata) {
+      try {
+        const dbMeta = JSON.parse(existing.metadata)
+        mergedMeta = { ...dbMeta, ...mergedMeta }
+      } catch {}
+    }
     this.db.run(
       `INSERT OR REPLACE INTO documents (id, title, authors, path, type, hash, metadata, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [doc.id, doc.title, JSON.stringify(doc.authors), doc.path, doc.type, doc.hash, JSON.stringify(doc.metadata), doc.createdAt, doc.updatedAt],
+      [doc.id, doc.title, JSON.stringify(doc.authors), doc.path, doc.type, doc.hash, JSON.stringify(mergedMeta), doc.createdAt, doc.updatedAt],
     )
 
     if (this.ftsAvailable) this.db.run(
@@ -100,12 +108,9 @@ export class IndexService {
     const noteLinks: Array<{ sourceId: string; targetId: string; context: string }> = []
     const docLinks: Array<{ sourceId: string; targetId: string; context: string }> = []
     if (!(await this.fs.exists(this.notesDir))) {
-      console.log('[index] notesDir does not exist:', this.notesDir)
       return { noteLinks, docLinks }
     }
-    console.log('[index] scanning notesDir:', this.notesDir)
     await this.scanNotesDir(this.notesDir, '', noteLinks, docLinks)
-    console.log('[index] notes scan complete, noteLinks:', noteLinks.length, 'docLinks:', docLinks.length)
     return { noteLinks, docLinks }
   }
 

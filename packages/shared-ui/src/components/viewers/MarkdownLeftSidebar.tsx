@@ -59,7 +59,7 @@ export default function MarkdownLeftSidebar({
           </button>
         ))}
       </div>
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80 }}>
         {leftSidebarTab === 'outline' && <NoteOutlinePanel headings={headings} />}
         {leftSidebarTab === 'annotations' && (
           <AnnotationPanel

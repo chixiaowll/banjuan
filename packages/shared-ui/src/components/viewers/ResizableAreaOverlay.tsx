@@ -8,8 +8,9 @@ interface Props {
   id: string
   rect: Rect
   color: string
-  canvasRef: React.RefObject<HTMLCanvasElement | null>
+  buildCaptureCanvas: () => HTMLCanvasElement | null
   onResized: (id: string, newRect: Rect, imageData: string | undefined) => void
+  onContextMenu?: (e: React.MouseEvent, id: string) => void
 }
 
 type Handle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
@@ -41,7 +42,7 @@ function captureArea(canvas: HTMLCanvasElement | null, x: number, y: number, w: 
   return offscreen.toDataURL('image/png')
 }
 
-export default function ResizableAreaOverlay({ id, rect, color, canvasRef, onResized }: Props) {
+export default function ResizableAreaOverlay({ id, rect, color, buildCaptureCanvas, onResized, onContextMenu }: Props) {
   const [hovered, setHovered] = useState(false)
   const [dragging, setDragging] = useState<Handle | null>(null)
   const [currentRect, setCurrentRect] = useState(rect)
@@ -93,7 +94,8 @@ export default function ResizableAreaOverlay({ id, rect, color, canvasRef, onRes
     const onUp = () => {
       setDragging(null)
       const r = currentRectRef.current
-      const imageData = captureArea(canvasRef.current, r.x, r.y, r.w, r.h)
+      const canvas = buildCaptureCanvas()
+      const imageData = captureArea(canvas, r.x, r.y, r.w, r.h)
       onResized(id, r, imageData)
     }
 
@@ -103,7 +105,7 @@ export default function ResizableAreaOverlay({ id, rect, color, canvasRef, onRes
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
-  }, [dragging, id, canvasRef, onResized])
+  }, [dragging, id, buildCaptureCanvas, onResized])
 
   const r = currentRect
 
@@ -112,6 +114,7 @@ export default function ResizableAreaOverlay({ id, rect, color, canvasRef, onRes
       ref={containerRef}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => { if (!dragging) setHovered(false) }}
+      onContextMenu={(e) => { if (onContextMenu) { e.preventDefault(); e.stopPropagation(); onContextMenu(e, id) } }}
       style={{
         position: 'absolute',
         left: `${r.x * 100}%`, top: `${r.y * 100}%`,

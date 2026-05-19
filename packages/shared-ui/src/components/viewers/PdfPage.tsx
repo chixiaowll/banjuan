@@ -44,15 +44,17 @@ interface PdfPageProps {
   pageNum: number
   scale: number
   baseSize: { w: number; h: number }
-  highlights: Array<{ id: string; color: string; rects: Array<{ x: number; y: number; w: number; h: number }> }>
+  highlights: Array<{ id: string; color: string; type?: string; rects: Array<{ x: number; y: number; w: number; h: number }> }>
   scrollRoot?: HTMLElement | null
   onTextSelect?: (info: TextSelectInfo) => void
   onHighlightClick?: (id: string) => void
+  onAnnotationContextMenu?: (e: React.MouseEvent, id: string) => void
   searchHighlights?: Array<{ rects: Array<{ x: number; y: number; w: number; h: number }>; active: boolean }>
   onPageReady?: (pageNum: number, info: PageInfo) => void
   activeTool?: string
   activeColor?: string
   inkWidth?: number
+  inkEraserActive?: boolean
   docId?: string
   annotations?: AnnotationData[]
   onAnnotationCreated?: () => void
@@ -87,11 +89,13 @@ export default function PdfPage({
   scrollRoot,
   onTextSelect,
   onHighlightClick,
+  onAnnotationContextMenu,
   searchHighlights,
   onPageReady,
   activeTool = 'none',
   activeColor = '#fde68a',
   inkWidth = 2,
+  inkEraserActive = false,
   docId = '',
   annotations = [],
   onAnnotationCreated,
@@ -101,13 +105,52 @@ export default function PdfPage({
   const api = useBanjuanAPI()
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const unmaskedCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const textLayerRef = useRef<HTMLDivElement>(null)
   const pageInfoRef = useRef<PageInfo | null>(null)
   const viewportRef = useRef<pdfjsLib.PageViewport | null>(null)
   const renderedScaleRef = useRef<number>(0)
 
   const [ready, setReady] = useState(false)
+
+  const buildCaptureCanvas = useCallback((): HTMLCanvasElement | null => {
+    const canvas = canvasRef.current
+    const container = containerRef.current
+    const textLayer = textLayerRef.current
+    if (!canvas || !container) return null
+    const uc = document.createElement('canvas')
+    uc.width = canvas.width
+    uc.height = canvas.height
+    const uctx = uc.getContext('2d')!
+    uctx.drawImage(canvas, 0, 0)
+    if (textLayer) {
+      const cr = container.getBoundingClientRect()
+      if (cr.width > 0 && cr.height > 0) {
+        const sx = canvas.width / cr.width
+        const sy = canvas.height / cr.height
+        for (const span of textLayer.querySelectorAll('span')) {
+          const text = span.textContent
+          if (!text?.trim()) continue
+          const sr = span.getBoundingClientRect()
+          if (sr.width === 0 || sr.height === 0) continue
+          const x = (sr.left - cr.left) * sx
+          const y = (sr.top - cr.top) * sy
+          const h = sr.height * sy
+          const cs = window.getComputedStyle(span)
+          const fontSize = parseFloat(cs.fontSize) * sx
+          uctx.save()
+          uctx.font = `${cs.fontWeight} ${fontSize}px ${cs.fontFamily}`
+          uctx.fillStyle = cs.color
+          uctx.textBaseline = 'top'
+          const tw = uctx.measureText(text).width || 1
+          uctx.translate(x, y)
+          uctx.scale(sr.width * sx / tw, h / fontSize)
+          uctx.fillText(text, 0, 0)
+          uctx.restore()
+        }
+      }
+    }
+    return uc
+  }, [])
 
   // Render canvas + text layer + extract chars[] when mounted or scale changes.
   useEffect(() => {
@@ -132,8 +175,14 @@ export default function PdfPage({
         canvas.style.width = viewport.width + 'px'
         canvas.style.height = viewport.height + 'px'
         ctx = canvas.getContext('2d')!
+        const origFillText = ctx.fillText.bind(ctx)
+        const origStrokeText = ctx.strokeText.bind(ctx)
+        ctx.fillText = () => {}
+        ctx.strokeText = () => {}
         const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] as [number, number, number, number, number, number] : undefined
         await page.render({ canvasContext: ctx, viewport, transform }).promise.catch(() => {})
+        ctx.fillText = origFillText
+        ctx.strokeText = origStrokeText
       }
       if (cancelled) return
 
@@ -176,15 +225,6 @@ export default function PdfPage({
       const [, , vbW, vbH] = (page as any).view as [number, number, number, number]
       pageInfoRef.current = { width: vbW, height: vbH, chars }
       onPageReady?.(pageNum, pageInfoRef.current)
-
-      // Save unmasked canvas for area capture
-      if (canvas) {
-        const uc = document.createElement('canvas')
-        uc.width = canvas.width
-        uc.height = canvas.height
-        uc.getContext('2d')!.drawImage(canvas, 0, 0)
-        unmaskedCanvasRef.current = uc
-      }
 
       // Mask canvas text by line.
       if (ctx && chars.length > 0) {
@@ -369,6 +409,7 @@ export default function PdfPage({
           highlights={highlights}
           scale={scale}
           onHighlightClick={onHighlightClick}
+          onContextMenu={onAnnotationContextMenu}
         />
         {annotations.filter(a => a.page === pageNum && a.position?.type === 'area').map(a => {
           const r = a.position.rect
@@ -379,8 +420,9 @@ export default function PdfPage({
               id={a.id}
               rect={r}
               color={a.color}
-              canvasRef={unmaskedCanvasRef}
+              buildCaptureCanvas={buildCaptureCanvas}
               onResized={handleAreaResized}
+              onContextMenu={onAnnotationContextMenu}
             />
           )
         })}
@@ -409,7 +451,7 @@ export default function PdfPage({
             color={activeColor}
             pageNum={pageNum}
             docId={docId}
-            canvasRef={unmaskedCanvasRef}
+            buildCaptureCanvas={buildCaptureCanvas}
             onCreated={onAnnotationCreated || (() => {})}
           />
           <TextNoteTool
@@ -422,10 +464,12 @@ export default function PdfPage({
             }))}
             onCreated={onAnnotationCreated || (() => {})}
             onUpdated={onAnnotationUpdate || (() => {})}
+            onContextMenu={onAnnotationContextMenu}
           />
           {activeTool !== 'lasso' && (
             <InkTool
               active={activeTool === 'ink'}
+              eraserActive={inkEraserActive}
               color={activeColor}
               lineWidth={inkWidth}
               pageNum={pageNum}

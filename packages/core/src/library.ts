@@ -114,7 +114,6 @@ export class Library {
     const shmPath = dbPath + '-shm'
     if (await deps.fs.exists(walPath)) await deps.fs.remove(walPath)
     if (await deps.fs.exists(shmPath)) await deps.fs.remove(shmPath)
-
     const db = await deps.dbFactory.open(dbPath)
     initSchema(db)
 

@@ -11,6 +11,7 @@ interface InkStroke {
 
 interface Props {
   active: boolean
+  eraserActive?: boolean
   color: string
   lineWidth: number
   pageNum: number
@@ -31,7 +32,7 @@ function inkToAbsolute(strokes: InkStroke[], w: number, h: number): Stroke[] {
   }))
 }
 
-export default function InkTool({ active, color, lineWidth, pageNum, docId, existingAnnotationId, existingStrokes, onCreated }: Props) {
+export default function InkTool({ active, eraserActive, color, lineWidth, pageNum, docId, existingAnnotationId, existingStrokes, onCreated }: Props) {
   const api = useBanjuanAPI()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -59,13 +60,49 @@ export default function InkTool({ active, color, lineWidth, pageNum, docId, exis
 
   useEffect(() => { redraw() }, [redraw])
 
+  const handleErase = useCallback(async (e: React.PointerEvent) => {
+    if (!containerRef.current || !existingAnnotationId) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const pos = getRelativePos(e)
+    const threshold = 20
+
+    for (let si = 0; si < existingStrokes.length; si++) {
+      const stroke = existingStrokes[si]
+      for (const pt of stroke.points) {
+        const dx = (pt.x - pos.x) * rect.width
+        const dy = (pt.y - pos.y) * rect.height
+        if (Math.sqrt(dx * dx + dy * dy) < threshold) {
+          const remaining = existingStrokes.filter((_, i) => i !== si)
+          if (remaining.length === 0) {
+            await api.annotations.delete(existingAnnotationId)
+          } else {
+            const allPts = remaining.flatMap(s => s.points)
+            const xs = allPts.map(p => p.x)
+            const ys = allPts.map(p => p.y)
+            const bounds = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
+            await api.annotations.update(existingAnnotationId, {
+              position: { type: 'ink', page: pageNum, strokes: remaining, bounds },
+            })
+          }
+          onCreated()
+          return
+        }
+      }
+    }
+  }, [existingStrokes, existingAnnotationId, pageNum, onCreated])
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (eraserActive) {
+      e.preventDefault()
+      handleErase(e)
+      return
+    }
     if (!active) return
     e.preventDefault()
     setDrawing(true)
     const pos = getRelativePos(e)
     currentPointsRef.current = [pos]
-  }, [active])
+  }, [active, eraserActive, handleErase])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!drawing) return
@@ -120,12 +157,15 @@ export default function InkTool({ active, color, lineWidth, pageNum, docId, exis
     onCreated()
   }, [drawing, docId, pageNum, color, lineWidth, onCreated, existingStrokes, existingAnnotationId])
 
+  const isInteractive = active || (eraserActive && existingStrokes.length > 0)
+
   return (
     <div ref={containerRef} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}
-      style={{ position: 'absolute', inset: 0, cursor: active ? 'crosshair' : 'default',
-        pointerEvents: active ? 'auto' : 'none', zIndex: active ? 10 : 2,
+      style={{ position: 'absolute', inset: 0,
+        cursor: eraserActive ? 'pointer' : active ? 'crosshair' : 'default',
+        pointerEvents: isInteractive ? 'auto' : 'none', zIndex: isInteractive ? 10 : 2,
         touchAction: 'none',
-        display: active || existingStrokes.length > 0 ? undefined : 'none' }}>
+        display: isInteractive || existingStrokes.length > 0 ? undefined : 'none' }}>
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} />
     </div>
   )

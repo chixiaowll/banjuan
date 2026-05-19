@@ -6,14 +6,14 @@ interface Props {
 }
 
 const btnStyle: React.CSSProperties = {
-  background: 'none',
-  border: '1px solid var(--border, #ddd)',
-  borderRadius: 4,
+  background: 'var(--surface-raised, #fff)',
+  border: '1px solid var(--border-solid, #e5e5e7)',
+  borderRadius: 'var(--radius-sm, 6px)',
   cursor: 'pointer',
   padding: '4px 8px',
   display: 'inline-flex',
   alignItems: 'center',
-  color: 'var(--text-primary, #333)',
+  color: 'var(--text-secondary, #6e6e73)',
 }
 
 export default function ImageViewer({ filePath }: Props) {
@@ -52,7 +52,7 @@ export default function ImageViewer({ filePath }: Props) {
         gap: 6,
         alignItems: 'center',
         flexShrink: 0,
-        background: 'var(--surface, #fafbfc)',
+        background: 'var(--surface, #f8f7f5)',
       }}>
         <button style={btnStyle} onClick={() => setScale(s => Math.max(0.1, +(s - 0.25).toFixed(2)))}>
           <Minus size={14} />
@@ -84,7 +84,7 @@ export default function ImageViewer({ filePath }: Props) {
           display: 'flex',
           alignItems: scale <= 1 ? 'center' : 'flex-start',
           justifyContent: scale <= 1 ? 'center' : 'flex-start',
-          background: '#2a2a3a',
+          background: 'var(--surface, #f8f7f5)',
           padding: scale > 1 ? 16 : 0,
         }}
       >

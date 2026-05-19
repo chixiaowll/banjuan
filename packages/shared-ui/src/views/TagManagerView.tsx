@@ -125,7 +125,7 @@ export default function TagManagerView() {
       )}
 
       {/* Table */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 20px' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 80px' }}>
         <div style={{
           display: 'grid', gridTemplateColumns: '1fr 60px 60px 80px',
           padding: '10px 0', borderBottom: '1px solid var(--border)',

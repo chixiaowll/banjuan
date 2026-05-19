@@ -19,9 +19,10 @@ interface Props {
   pointAnnotations: PointAnnotation[]
   onCreated: () => void
   onUpdated: (id: string, updates: { content?: string }) => void
+  onContextMenu?: (e: React.MouseEvent, id: string) => void
 }
 
-export default function TextNoteTool({ active, color, pageNum, docId, pointAnnotations, onCreated, onUpdated }: Props) {
+export default function TextNoteTool({ active, color, pageNum, docId, pointAnnotations, onCreated, onUpdated, onContextMenu }: Props) {
   const api = useBanjuanAPI()
   const t = useT()
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -80,6 +81,7 @@ export default function TextNoteTool({ active, color, pageNum, docId, pointAnnot
         <div key={ann.id} style={{ position: 'absolute', left: `${ann.position.x * 100}%`, top: `${ann.position.y * 100}%`, transform: 'translate(-50%, -50%)' }}>
           <div
             onClick={(e) => { e.stopPropagation(); startEdit(ann) }}
+            onContextMenu={(e) => { if (onContextMenu) { e.preventDefault(); e.stopPropagation(); onContextMenu(e, ann.id) } }}
             style={{ fontSize: 18, cursor: 'pointer', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }}
           >
             📌

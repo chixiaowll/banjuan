@@ -1,14 +1,18 @@
-import React, { useState } from 'react'
-import { Eraser, Lasso, Undo2, Redo2, Trash2 } from 'lucide-react'
+import React, { useState, useRef, useCallback } from 'react'
+import { Eraser, Lasso, Undo2, Redo2, Trash2, Highlighter, GripVertical } from 'lucide-react'
 import { usePdfViewer } from './PdfViewerContext.js'
-import { useT } from '../../i18n/index.js'
 
 const INK_COLORS = [
-  '#1a1a1a', '#5c5c5c', '#e53e3e', '#dd6b20',
-  '#d69e2e', '#38a169', '#3182ce', '#805ad5',
+  '#1a1a1a', '#5c5c5c', '#3182ce', '#805ad5',
+  '#e53e3e', '#dd6b20', '#d69e2e', '#38a169',
   '#d53f8c', '#ffffff',
 ]
-const INK_WIDTHS = [1, 2, 4, 6, 8, 12]
+
+const STROKE_WIDTHS = [
+  { value: 1, height: 1 },
+  { value: 3, height: 2 },
+  { value: 6, height: 3 },
+]
 
 interface InkPreset {
   color: string
@@ -17,8 +21,8 @@ interface InkPreset {
 }
 
 const DEFAULT_PRESETS: InkPreset[] = [
-  { color: '#1a1a1a', width: 4, tool: 'pen' },
   { color: '#3182ce', width: 2, tool: 'pen' },
+  { color: '#1a1a1a', width: 4, tool: 'pen' },
   { color: '#d69e2e', width: 8, tool: 'highlighter' },
 ]
 
@@ -31,169 +35,298 @@ interface Props {
 }
 
 export default function PdfInkToolbar({ onUndo, onRedo, canUndo, canRedo, onClearPage }: Props) {
-  const t = useT()
   const ctx = usePdfViewer()
-  const [presets] = useState<InkPreset[]>(DEFAULT_PRESETS)
+  const [presets, setPresets] = useState<InkPreset[]>(() => DEFAULT_PRESETS.map(p => ({ ...p })))
   const [activePresetIndex, setActivePresetIndex] = useState(0)
   const [showColorPicker, setShowColorPicker] = useState(false)
-  const [showWidthPicker, setShowWidthPicker] = useState(false)
 
-  const isEraserActive = ctx.activeTool === 'eraser'
+  const [pos, setPos] = useState({ x: -1, y: 16 })
+  const dragging = useRef(false)
+  const dragStart = useRef({ x: 0, y: 0, px: 0, py: 0 })
+  const barRef = useRef<HTMLDivElement>(null)
+
+  const isEraserActive = ctx.inkEraserActive
   const isLassoActive = ctx.activeTool === 'lasso'
+  const isPenLike = !isEraserActive && !isLassoActive
 
-  const closePopups = () => {
-    setShowColorPicker(false)
-    setShowWidthPicker(false)
-  }
+  const closePopups = () => setShowColorPicker(false)
+
+  const activePreset = presets[activePresetIndex]
+  const activeColor = isPenLike ? activePreset?.color ?? ctx.activeColor : ctx.activeColor
 
   const selectPreset = (index: number) => {
     setActivePresetIndex(index)
     const p = presets[index]
     ctx.setActiveColor(p.color)
     ctx.setInkWidth(p.width)
-    if (ctx.activeTool === 'eraser') ctx.setActiveTool('ink')
+    ctx.setInkEraserActive(false)
+    if (ctx.activeTool !== 'ink') ctx.setActiveTool('ink')
     closePopups()
   }
 
-  const sep = () => (
-    <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 6px', flexShrink: 0 }} />
+  const setColor = (c: string) => {
+    ctx.setActiveColor(c)
+    setPresets(prev => {
+      const updated = [...prev]
+      updated[activePresetIndex] = { ...updated[activePresetIndex], color: c }
+      return updated
+    })
+    if (ctx.activeTool !== 'ink') ctx.setActiveTool('ink')
+    setShowColorPicker(false)
+  }
+
+  const setWidth = (w: number) => {
+    ctx.setInkWidth(w)
+    setPresets(prev => {
+      const updated = [...prev]
+      updated[activePresetIndex] = { ...updated[activePresetIndex], width: w }
+      return updated
+    })
+    if (ctx.activeTool !== 'ink') ctx.setActiveTool('ink')
+    closePopups()
+  }
+
+  const handleDragStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    dragging.current = true
+    const bar = barRef.current
+    const parent = bar?.parentElement
+    let px = pos.x, py = pos.y
+    if (px === -1 && bar && parent) {
+      const pr = parent.getBoundingClientRect()
+      const br = bar.getBoundingClientRect()
+      px = br.left - pr.left
+      py = br.top - pr.top
+    }
+    dragStart.current = { x: e.clientX, y: e.clientY, px, py }
+    document.body.style.cursor = 'grabbing'
+    document.body.style.userSelect = 'none'
+
+    const onMove = (ev: PointerEvent) => {
+      if (!dragging.current) return
+      const parent = barRef.current?.parentElement
+      const bar = barRef.current
+      if (!parent || !bar) return
+      const pr = parent.getBoundingClientRect()
+      const bw = bar.offsetWidth
+      const bh = bar.offsetHeight
+      const rawX = dragStart.current.px + (ev.clientX - dragStart.current.x)
+      const rawY = dragStart.current.py + (ev.clientY - dragStart.current.y)
+      setPos({
+        x: Math.max(0, Math.min(pr.width - bw, rawX)),
+        y: Math.max(0, Math.min(pr.height - bh, rawY)),
+      })
+    }
+    const onUp = () => {
+      dragging.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+    }
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+  }, [pos])
+
+  const toolBtn = (
+    onClick: () => void,
+    icon: React.ReactNode,
+    active: boolean,
+  ) => (
+    <button
+      onClick={onClick}
+      style={{
+        width: 34, height: 34,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: active ? 'rgba(0,0,0,0.08)' : 'transparent',
+        border: 'none',
+        borderRadius: 8, cursor: 'pointer', padding: 0,
+        color: active ? '#1a1a1a' : '#8e8e93',
+        transition: 'all 0.15s',
+      }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+      onMouseLeave={e => { if (!active) e.currentTarget.style.background = active ? 'rgba(0,0,0,0.08)' : 'transparent' }}
+    >
+      {icon}
+    </button>
   )
 
+  const presetIcon = (preset: InkPreset, index: number, size: number) => {
+    if (preset.tool === 'highlighter') return <Highlighter size={size} />
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+        {index > 0 && <path d="M15 5 19 9" />}
+      </svg>
+    )
+  }
+
+  const sep = () => (
+    <div style={{ width: 1, height: 22, background: '#c7c7cc', margin: '0 3px', flexShrink: 0 }} />
+  )
+
+  const centeredX = pos.x === -1
+
   return (
-    <div style={{
-      height: 38, padding: '0 10px', borderBottom: '1px solid var(--border)',
-      display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0,
-      background: 'var(--surface)',
-    }}>
-      {presets.map((preset, i) => {
-        const isActive = !isEraserActive && !isLassoActive && activePresetIndex === i
-        const isLastUsed = (isEraserActive || isLassoActive) && activePresetIndex === i
-        const dotSize = Math.min(16, 6 + preset.width)
-        return (
-          <button
-            key={i}
-            onClick={() => selectPreset(i)}
-            title={preset.tool === 'pen' ? 'Pen' : 'Highlighter'}
-            style={{
-              width: 32, height: 32,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: isActive ? 'var(--accent-light, rgba(49,130,206,0.12))' : 'none',
-              border: isActive
-                ? '2px solid var(--accent)'
-                : isLastUsed
-                  ? '2px dashed var(--accent)'
-                  : '2px solid transparent',
-              borderRadius: 8, cursor: 'pointer', padding: 0,
-              transition: 'all 0.15s',
-            }}
-          >
-            <div style={{
-              width: dotSize, height: dotSize,
-              borderRadius: '50%',
-              background: preset.color,
-              opacity: preset.tool === 'highlighter' ? 0.5 : 1,
-              border: preset.color === '#ffffff' ? '1px solid #ccc' : 'none',
-            }} />
-          </button>
-        )
-      })}
+    <div
+      ref={barRef}
+      style={{
+        position: 'absolute',
+        top: pos.y,
+        ...(centeredX
+          ? { left: '50%', transform: 'translateX(-50%)' }
+          : { left: pos.x }
+        ),
+        zIndex: 50,
+        display: 'flex', alignItems: 'center',
+        padding: '4px 6px',
+        background: 'rgba(242,242,247,0.92)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderRadius: 14,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.15), 0 1px 4px rgba(0,0,0,0.08)',
+        border: '1px solid rgba(0,0,0,0.06)',
+        gap: 2,
+        userSelect: 'none',
+      }}
+    >
+      {/* Drag handle */}
+      <div
+        onPointerDown={handleDragStart}
+        style={{
+          cursor: 'grab', display: 'flex', alignItems: 'center',
+          color: '#c7c7cc', padding: '0 2px', flexShrink: 0,
+          touchAction: 'none',
+        }}
+      >
+        <GripVertical size={14} />
+      </div>
 
       {sep()}
 
-      {/* Eraser */}
-      <button
-        onClick={() => {
-          ctx.setActiveTool(ctx.activeTool === 'eraser' ? 'ink' : 'eraser')
-          closePopups()
-        }}
-        title="Eraser"
-        style={{
-          background: isEraserActive ? 'var(--accent-light, rgba(49,130,206,0.12))' : 'none',
-          color: isEraserActive ? 'var(--accent)' : 'var(--text-muted)',
-          border: isEraserActive ? '1px solid var(--accent)' : '1px solid transparent',
-          borderRadius: 6, padding: '3px 7px',
-          cursor: 'pointer', fontSize: 14, lineHeight: 1,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.15s',
-        }}
-      >
-        <Eraser size={16} />
-      </button>
+      {/* Undo/redo */}
+      {toolBtn(onUndo, <Undo2 size={16} />, false)}
+      {toolBtn(onRedo, <Redo2 size={16} />, false)}
 
-      {/* Lasso */}
-      <button
-        onClick={() => {
-          ctx.setActiveTool(ctx.activeTool === 'lasso' ? 'ink' : 'lasso')
-          closePopups()
-        }}
-        title="Lasso"
-        style={{
-          background: isLassoActive ? 'var(--accent-light, rgba(49,130,206,0.12))' : 'none',
-          color: isLassoActive ? 'var(--accent)' : 'var(--text-muted)',
-          border: isLassoActive ? '1px solid var(--accent)' : '1px solid transparent',
-          borderRadius: 6, padding: '3px 7px',
-          cursor: 'pointer', fontSize: 14, lineHeight: 1,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.15s',
-        }}
-      >
-        <Lasso size={16} />
-      </button>
+      {sep()}
 
-      {/* Clear page strokes */}
-      <button
-        onClick={onClearPage}
-        title="Clear page ink"
-        style={{
-          background: 'none',
-          color: '#e53e3e',
-          border: '1px solid transparent',
-          borderRadius: 6, padding: '3px 7px',
-          cursor: 'pointer', fontSize: 14, lineHeight: 1,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.15s',
-        }}
-      >
-        <Trash2 size={16} />
-      </button>
+      {/* Tools group */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 1,
+        background: 'rgba(0,0,0,0.05)',
+        borderRadius: 10, padding: '2px 3px',
+      }}>
+        {/* Lasso */}
+        {toolBtn(
+          () => { ctx.setActiveTool(ctx.activeTool === 'lasso' ? 'ink' : 'lasso'); closePopups() },
+          <Lasso size={16} />,
+          isLassoActive,
+        )}
+
+        {/* Presets */}
+        {presets.map((preset, i) => {
+          const isActive = isPenLike && activePresetIndex === i
+          return (
+            <button
+              key={i}
+              onClick={() => selectPreset(i)}
+              style={{
+                width: 34, height: 34,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: isActive ? `${preset.color}20` : 'transparent',
+                border: 'none',
+                borderRadius: 8, cursor: 'pointer', padding: 0,
+                color: isActive ? preset.color : '#8e8e93',
+                transition: 'all 0.15s',
+                position: 'relative',
+              }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? `${preset.color}20` : 'transparent' }}
+            >
+              {presetIcon(preset, i, 16)}
+              <div style={{
+                position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)',
+                width: 4, height: 4, borderRadius: '50%',
+                background: preset.color,
+                border: preset.color === '#ffffff' ? '1px solid #ccc' : 'none',
+              }} />
+            </button>
+          )
+        })}
+
+        {/* Eraser */}
+        {toolBtn(
+          () => { ctx.setInkEraserActive(!ctx.inkEraserActive); closePopups() },
+          <Eraser size={16} />,
+          isEraserActive,
+        )}
+      </div>
+
+      {sep()}
+
+      {/* Stroke width */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+        {STROKE_WIDTHS.map(sw => {
+          const isActive = ctx.inkWidth === sw.value
+          return (
+            <button
+              key={sw.value}
+              onClick={() => setWidth(sw.value)}
+              style={{
+                width: 26, height: 26,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: isActive ? 'rgba(0,0,0,0.08)' : 'transparent',
+                border: 'none', borderRadius: 6, cursor: 'pointer', padding: 0,
+              }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(0,0,0,0.04)' }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = isActive ? 'rgba(0,0,0,0.08)' : 'transparent' }}
+            >
+              <div style={{
+                width: 14,
+                height: sw.height + 1,
+                background: isActive ? activeColor : '#8e8e93',
+                borderRadius: 1,
+              }} />
+            </button>
+          )
+        })}
+      </div>
 
       {sep()}
 
       {/* Color picker */}
       <div style={{ position: 'relative' }}>
         <button
-          onClick={() => { setShowColorPicker(v => !v); setShowWidthPicker(false) }}
-          title="Color"
+          onClick={() => setShowColorPicker(v => !v)}
           style={{
-            width: 26, height: 26, borderRadius: '50%',
-            border: showColorPicker ? '2px solid var(--accent)' : '2px solid var(--border)',
-            background: ctx.activeColor, cursor: 'pointer',
+            width: 24, height: 24, borderRadius: '50%',
+            border: `2px solid ${showColorPicker ? '#007aff' : 'rgba(0,0,0,0.12)'}`,
+            background: activeColor, cursor: 'pointer',
             transition: 'border-color 0.15s',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 0,
           }}
         />
         {showColorPicker && (
           <>
             <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowColorPicker(false)} />
             <div style={{
-              position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
-              marginTop: 6, zIndex: 100,
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: 10, padding: 10, display: 'grid',
+              position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
+              marginBottom: 8, zIndex: 100,
+              background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(0,0,0,0.08)',
+              borderRadius: 12, padding: 10, display: 'grid',
               gridTemplateColumns: 'repeat(5, 1fr)', gap: 6,
-              boxShadow: '0 6px 20px rgba(0,0,0,0.15)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
             }}>
               {INK_COLORS.map(c => (
                 <button
                   key={c}
-                  onClick={() => {
-                    ctx.setActiveColor(c)
-                    if (ctx.activeTool === 'eraser') ctx.setActiveTool('ink')
-                    setShowColorPicker(false)
-                  }}
+                  onClick={() => setColor(c)}
                   style={{
                     width: 28, height: 28, borderRadius: '50%',
-                    border: c === ctx.activeColor ? '2.5px solid var(--accent)' : c === '#ffffff' ? '2px solid #ccc' : '2px solid transparent',
-                    background: c, cursor: 'pointer',
+                    border: c === activeColor ? '3px solid #007aff' : c === '#ffffff' ? '2px solid #d1d1d6' : '2px solid transparent',
+                    background: c, cursor: 'pointer', padding: 0,
                     transition: 'transform 0.1s',
                   }}
                   onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.15)'}
@@ -205,106 +338,10 @@ export default function PdfInkToolbar({ onUndo, onRedo, canUndo, canRedo, onClea
         )}
       </div>
 
-      {/* Width picker */}
-      <div style={{ position: 'relative' }}>
-        <button
-          onClick={() => { setShowWidthPicker(v => !v); setShowColorPicker(false) }}
-          style={{
-            background: 'none', border: showWidthPicker ? '1px solid var(--accent)' : '1px solid var(--border)',
-            borderRadius: 6, padding: '3px 10px', cursor: 'pointer',
-            fontSize: 12, color: 'var(--text-muted)',
-            display: 'flex', alignItems: 'center', gap: 6,
-            transition: 'border-color 0.15s',
-          }}
-        >
-          <span style={{
-            display: 'inline-block',
-            width: 18, height: Math.max(2, ctx.inkWidth),
-            background: ctx.activeColor,
-            borderRadius: ctx.inkWidth / 2,
-            verticalAlign: 'middle',
-          }} />
-          <span>{ctx.inkWidth}</span>
-        </button>
-        {showWidthPicker && (
-          <>
-            <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowWidthPicker(false)} />
-            <div style={{
-              position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
-              marginTop: 6, zIndex: 100,
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: 10, padding: 8,
-              boxShadow: '0 6px 20px rgba(0,0,0,0.15)',
-              minWidth: 120,
-            }}>
-              {INK_WIDTHS.map(w => (
-                <button
-                  key={w}
-                  onClick={() => {
-                    ctx.setInkWidth(w)
-                    if (ctx.activeTool === 'eraser') ctx.setActiveTool('ink')
-                    setShowWidthPicker(false)
-                  }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    width: '100%', padding: '5px 10px', border: 'none',
-                    background: w === ctx.inkWidth ? 'var(--accent-light, rgba(49,130,206,0.12))' : 'none',
-                    textAlign: 'left', fontSize: 12, cursor: 'pointer', borderRadius: 6,
-                    color: 'var(--text)',
-                  }}
-                  onMouseEnter={e => { if (w !== ctx.inkWidth) e.currentTarget.style.background = 'var(--hover)' }}
-                  onMouseLeave={e => { if (w !== ctx.inkWidth) e.currentTarget.style.background = 'none' }}
-                >
-                  <span style={{
-                    display: 'inline-block', width: 40,
-                    height: Math.max(2, w),
-                    background: ctx.activeColor, borderRadius: w / 2,
-                  }} />
-                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{w}px</span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-
       {sep()}
 
-      {/* Undo / Redo */}
-      <button
-        onClick={onUndo}
-        disabled={!canUndo}
-        title="Undo (⌘Z)"
-        style={{
-          background: 'none',
-          color: !canUndo ? 'var(--border)' : 'var(--text-muted)',
-          border: '1px solid transparent',
-          borderRadius: 6, padding: '3px 7px',
-          cursor: !canUndo ? 'default' : 'pointer',
-          fontSize: 14, lineHeight: 1,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.15s',
-        }}
-      >
-        <Undo2 size={16} />
-      </button>
-      <button
-        onClick={onRedo}
-        disabled={!canRedo}
-        title="Redo (⌘⇧Z)"
-        style={{
-          background: 'none',
-          color: !canRedo ? 'var(--border)' : 'var(--text-muted)',
-          border: '1px solid transparent',
-          borderRadius: 6, padding: '3px 7px',
-          cursor: !canRedo ? 'default' : 'pointer',
-          fontSize: 14, lineHeight: 1,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.15s',
-        }}
-      >
-        <Redo2 size={16} />
-      </button>
+      {/* Clear */}
+      {toolBtn(onClearPage, <Trash2 size={16} />, false)}
     </div>
   )
 }

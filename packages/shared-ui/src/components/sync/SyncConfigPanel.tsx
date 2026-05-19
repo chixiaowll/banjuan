@@ -131,11 +131,12 @@ export default function SyncConfigPanel({ onClose }: Props) {
     }
   }
 
-  const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '4px' }
-  const labelStyle: React.CSSProperties = { fontSize: '13px', color: 'var(--text-muted)' }
+  const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '6px' }
+  const labelStyle: React.CSSProperties = { fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary, #6e6e73)' }
   const inputStyle: React.CSSProperties = {
-    padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)',
-    background: 'var(--surface)', fontSize: '14px', width: '100%', boxSizing: 'border-box',
+    padding: '8px 12px', borderRadius: 'var(--radius-sm, 6px)', border: '1px solid var(--border-solid, #e5e5e7)',
+    background: 'var(--surface-raised, #fff)', fontSize: '14px', width: '100%', boxSizing: 'border-box',
+    fontFamily: 'inherit', outline: 'none',
   }
 
   const pct = progress && progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0
@@ -146,8 +147,9 @@ export default function SyncConfigPanel({ onClose }: Props) {
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
     }} onClick={(e) => { if (e.target === e.currentTarget && !syncing) onClose() }}>
       <div style={{
-        background: 'var(--surface, #fff)', border: '1px solid var(--border)',
-        borderRadius: '12px', padding: '24px', width: '420px',
+        background: 'var(--surface-raised, #fff)', border: '1px solid var(--border-solid, #e5e5e7)',
+        borderRadius: 'var(--radius-lg, 14px)', padding: '24px', width: '420px',
+        boxShadow: 'var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.08))',
         display: 'flex', flexDirection: 'column', gap: '16px',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -196,7 +198,7 @@ export default function SyncConfigPanel({ onClose }: Props) {
             <div style={{ height: '6px', borderRadius: '3px', background: 'var(--border, #e0e0e0)', overflow: 'hidden' }}>
               <div style={{
                 height: '100%', borderRadius: '3px',
-                background: '#228be6',
+                background: 'var(--accent, #5856d6)',
                 width: progress.phase === 'scanning' ? '0%' : `${pct}%`,
                 transition: 'width 0.3s ease',
               }} />
@@ -209,9 +211,9 @@ export default function SyncConfigPanel({ onClose }: Props) {
 
         {status && !progress && (
           <div style={{
-            fontSize: '13px', color: status.isError ? '#c44040' : '#4a8c4a',
-            padding: '8px 10px', borderRadius: '6px',
-            background: status.isError ? 'rgba(196,64,64,0.08)' : 'rgba(74,140,74,0.08)',
+            fontSize: '13px', color: status.isError ? '#ff3b30' : '#34c759',
+            padding: '8px 12px', borderRadius: 'var(--radius-sm, 6px)',
+            background: status.isError ? 'rgba(255,59,48,0.06)' : 'rgba(52,199,89,0.06)',
           }}>
             {status.message}
           </div>

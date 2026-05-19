@@ -122,12 +122,20 @@ export function markdownToBlocks(markdown: string): unknown[] {
         i++
       }
       i++ // skip closing ```
-      blocks.push({
-        type: 'codeBlock',
-        props: { language: lang || undefined },
-        content: [{ type: 'text', text: codeLines.join('\n'), styles: {} }],
-        children: [],
-      })
+      if (lang === 'mermaid') {
+        blocks.push({
+          type: 'mermaidBlock',
+          props: { code: codeLines.join('\n'), theme: 'neutral' },
+          children: [],
+        })
+      } else {
+        blocks.push({
+          type: 'codeBlock',
+          props: { language: lang || undefined },
+          content: [{ type: 'text', text: codeLines.join('\n'), styles: {} }],
+          children: [],
+        })
+      }
       continue
     }
 

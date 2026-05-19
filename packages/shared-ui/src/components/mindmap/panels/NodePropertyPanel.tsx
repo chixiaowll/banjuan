@@ -30,7 +30,7 @@ export default function NodePropertyPanel({ nodeId, onClose }: Props) {
   if (!node) return null
 
   return (
-    <div style={{ padding: 16, overflowY: 'auto', height: '100%' }}>
+    <div style={{ padding: '16px 16px 80px', overflowY: 'auto', height: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h3 style={{ margin: 0, fontSize: 14 }}>Properties</h3>
         <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 18 }}>×</button>

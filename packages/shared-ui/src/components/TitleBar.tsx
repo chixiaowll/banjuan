@@ -192,7 +192,11 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
               title={pv.displayText}
               onClick={() => onTogglePluginPanel?.(pv.pluginId, pv.viewType)}
             >
-              <span>{pv.icon || '🧩'}</span>
+              {pv.icon && pv.icon.includes('<svg') ? (
+                <span dangerouslySetInnerHTML={{ __html: pv.icon }} />
+              ) : (
+                <span>{pv.icon || '🧩'}</span>
+              )}
             </button>
           ))}
         </div>

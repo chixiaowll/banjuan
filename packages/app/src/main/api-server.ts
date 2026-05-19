@@ -218,9 +218,57 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     if (query.type) opts.type = query.type
     if (query.docId) opts.docId = query.docId
     if (query.folderId) opts.folderId = query.folderId
+    if (query.folder) opts.folder = query.folder
     if (query.tag) opts.tag = query.tag
     const notes = await lib.notes.list(opts)
-    json(res, 200, notes.map(n => ({ id: n.id, title: n.title, type: n.type, docId: n.docId, folderId: n.folderId, createdAt: n.createdAt, updatedAt: n.updatedAt })))
+    json(res, 200, notes.map(n => ({ id: n.id, title: n.title, type: n.type, path: n.path, docId: n.docId, folderId: n.folderId, createdAt: n.createdAt, updatedAt: n.updatedAt })))
+    return
+  }
+
+  if (path === '/api/notes/refresh' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      await lib.notes.syncDisk()
+      json(res, 200, { status: 'ok' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  // --- Note Dirs (must come before noteMatch regex) ---
+  if (path === '/api/notes/dirs' && req.method === 'GET') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    const dirs = await lib.notes.listDirs()
+    json(res, 200, dirs)
+    return
+  }
+
+  if (path === '/api/notes/dirs' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      await lib.notes.createDir(body.path)
+      json(res, 200, { status: 'ok' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  if (path === '/api/notes/dirs/rename' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      await lib.notes.renameDir(body.oldPath, body.newPath)
+      json(res, 200, { status: 'ok' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
     return
   }
 
@@ -297,7 +345,69 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return
   }
 
+  const noteMoveMatch = path.match(/^\/api\/notes\/([^/]+)\/move$/)
+  if (noteMoveMatch && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      let targetFolder: string | null = null
+      if (body.folder !== undefined) {
+        targetFolder = body.folder
+      } else if (body.folderId) {
+        const folder = await lib.folders.get(body.folderId)
+        if (!folder) { json(res, 404, { error: 'Folder not found' }); return }
+        targetFolder = folder.name
+      }
+      const note = await lib.notes.move(noteMoveMatch[1], targetFolder)
+      json(res, 200, note)
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
   // --- Documents ---
+  if (path === '/api/documents/import' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      const filePath: string = body.filePath
+      if (!filePath) { json(res, 400, { error: 'filePath is required' }); return }
+      const fs = await import('node:fs/promises')
+      const path = await import('node:path')
+      const absPath = path.isAbsolute(filePath) ? filePath : path.resolve(filePath)
+      const stat = await fs.stat(absPath).catch(() => null)
+      if (!stat) { json(res, 404, { error: `File not found: ${absPath}` }); return }
+      const destDir = body.destDir as string | undefined
+      const targetDir = destDir ? join(lib.rootPath, destDir) : lib.rootPath
+      await fs.mkdir(targetDir, { recursive: true })
+      const fileName = path.basename(absPath)
+      const destPath = join(targetDir, fileName)
+      if (absPath !== destPath) {
+        await fs.copyFile(absPath, destPath)
+      }
+      const doc = await lib.documents.import(destPath, { title: body.title, tags: body.tags })
+      json(res, 200, doc)
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  if (path === '/api/documents/refresh' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const result = await lib.syncWithDisk()
+      json(res, 200, result)
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
   if (path === '/api/documents' && req.method === 'GET') {
     const lib = requireLib(res, query)
     if (!lib) return
@@ -306,6 +416,28 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     if (query.tag) opts.tag = query.tag
     const docs = await lib.documents.list(opts)
     json(res, 200, docs)
+    return
+  }
+
+  // --- Document Dirs (must come before docMatch regex) ---
+  if (path === '/api/documents/dirs' && req.method === 'GET') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    const dirs = await lib.documents.listDirs()
+    json(res, 200, dirs)
+    return
+  }
+
+  if (path === '/api/documents/dirs' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      await lib.documents.createDir(body.path)
+      json(res, 200, { status: 'ok' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
     return
   }
 
@@ -560,6 +692,32 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     try {
       const body = JSON.parse(await readBody(req))
       await lib.tags.assign(body.targetId, body.targetType, body.tags)
+      json(res, 200, { status: 'ok' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  if (path === '/api/tags/unassign' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      await lib.tags.unassign(body.targetId, body.targetType, body.tagName)
+      json(res, 200, { status: 'ok' })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  const tagMatch = path.match(/^\/api\/tags\/([^/]+)$/)
+  if (tagMatch && req.method === 'DELETE') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      await lib.tags.delete(tagMatch[1])
       json(res, 200, { status: 'ok' })
     } catch (e: any) {
       json(res, 500, { error: e.message })

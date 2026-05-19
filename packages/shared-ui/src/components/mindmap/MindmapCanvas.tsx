@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow, MiniMap, Controls, Panel,
   useReactFlow, type OnNodesChange, type OnEdgesChange,
@@ -15,7 +15,8 @@ import BoundaryOverlay from './overlays/BoundaryOverlay.js'
 import SummaryOverlay from './overlays/SummaryOverlay.js'
 import './MindmapCanvas.css'
 
-export default function MindmapCanvas({ readonly = false, hideMiniMap = false }: { readonly?: boolean; hideMiniMap?: boolean } = {}) {
+export default function MindmapCanvas({ readonly = false }: { readonly?: boolean } = {}) {
+  const [miniMapOpen, setMiniMapOpen] = useState(true)
   const {
     rfNodes, rfEdges, layout, theme: themeName,
     setRfNodes, setRfEdges, selectNode, toggleSelectNode,
@@ -307,12 +308,27 @@ export default function MindmapCanvas({ readonly = false, hideMiniMap = false }:
       >
         {!readonly && (
           <>
-            {!hideMiniMap && (
+            {miniMapOpen && (
               <MiniMap
                 style={{ background: theme.canvas.background }}
                 maskColor="rgba(0,0,0,0.1)"
               />
             )}
+            <Panel position="bottom-right" style={{ margin: miniMapOpen ? '0 10px 10px 0' : '0 10px 10px 0' }}>
+              <button
+                onClick={() => setMiniMapOpen(v => !v)}
+                style={{
+                  fontSize: 11, padding: '3px 8px',
+                  background: 'rgba(255,255,255,0.85)',
+                  border: '1px solid var(--border, #e0e0e0)',
+                  borderRadius: 4, cursor: 'pointer',
+                  color: 'var(--text-muted, #666)',
+                  backdropFilter: 'blur(4px)',
+                }}
+              >
+                {miniMapOpen ? '▼ 隐藏导航' : '▲ 显示导航'}
+              </button>
+            </Panel>
             <Controls />
           </>
         )}

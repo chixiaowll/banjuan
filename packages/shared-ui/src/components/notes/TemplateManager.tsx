@@ -47,7 +47,7 @@ export default function TemplateManager({ onClose }: Props) {
 
   return (
     <div style={{ display: 'flex', height: '100%' }}>
-      <div style={{ width: 240, borderRight: '1px solid var(--border)', overflow: 'auto' }}>
+      <div style={{ width: 240, borderRight: '1px solid var(--border)', overflow: 'auto', paddingBottom: 80 }}>
         <div style={{ padding: 12, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, fontSize: 14 }}>模板管理</h3>
           <button onClick={onClose} style={{ fontSize: 12 }}>关闭</button>

@@ -53,7 +53,7 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
     saveTimerRef.current = setTimeout(() => {
       const d = docRef.current
       api.documents.update(d.id, {
-        metadata: { ...d.metadata, readingPosition: { cfi, percentage } },
+        metadata: { readingPosition: { cfi, percentage } },
       }).catch(() => {})
     }, 1000)
   }, [])

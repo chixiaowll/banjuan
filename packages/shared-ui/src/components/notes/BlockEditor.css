@@ -1,16 +1,18 @@
 /* ── Base Typography ── */
 .bn-editor {
-  font-family: 'Inter', 'PingFang SC', 'Noto Sans SC', -apple-system, sans-serif;
-  font-size: calc(15px * var(--note-font-scale, 1));
-  line-height: 1.75;
-  color: #333;
+  font-family: -apple-system, 'PingFang SC', 'Noto Sans SC', 'Helvetica Neue', sans-serif;
+  font-size: calc(17px * var(--note-font-scale, 1));
+  line-height: 1.8;
+  letter-spacing: 0.01em;
+  color: var(--note-text, #2c2c2c);
   max-width: min(900px, 80%);
   margin: 0 auto;
   padding: 32px 32px 32px 72px;
+  -webkit-font-smoothing: antialiased;
 }
 
 .bn-editor.bn-default-styles {
-  font-size: calc(15px * var(--note-font-scale, 1));
+  font-size: calc(17px * var(--note-font-scale, 1));
 }
 
 /* ── Heading gutter labels (Zettlr-style) ── */
@@ -35,67 +37,67 @@
 
 .bn-editor [data-content-type="heading"][data-level="1"] .bn-inline-content::before {
   content: "h1";
-  color: #2b579a;
+  color: var(--note-h1-color, #2b579a);
 }
 .bn-editor [data-content-type="heading"][data-level="2"] .bn-inline-content::before {
   content: "h2";
-  color: #1b7332;
+  color: var(--note-h2-color, #1b7332);
 }
 .bn-editor [data-content-type="heading"][data-level="3"] .bn-inline-content::before {
   content: "h3";
-  color: #b5600e;
+  color: var(--note-h3-color, #b5600e);
 }
 
 /* ── Heading styles ── */
 .bn-editor h1.bn-inline-content,
 .bn-editor [data-content-type="heading"][data-level="1"] .bn-inline-content {
-  font-size: calc(26px * var(--note-font-scale, 1)) !important;
+  font-size: calc(28px * var(--note-font-scale, 1)) !important;
   line-height: 1.35 !important;
   font-weight: 700 !important;
-  color: #2b579a !important;
+  color: var(--note-h1-color, #2b579a) !important;
   display: block;
   padding-bottom: 6px;
-  border-bottom: 1px solid #d6e0f0;
+  border-bottom: 1px solid var(--note-h1-border, #d6e0f0);
   margin-top: 8px;
 }
 
 .bn-editor h2.bn-inline-content,
 .bn-editor [data-content-type="heading"][data-level="2"] .bn-inline-content {
-  font-size: calc(21px * var(--note-font-scale, 1)) !important;
+  font-size: calc(23px * var(--note-font-scale, 1)) !important;
   line-height: 1.4 !important;
   font-weight: 600 !important;
-  color: #1b7332 !important;
+  color: var(--note-h2-color, #1b7332) !important;
 }
 
 .bn-editor h3.bn-inline-content,
 .bn-editor [data-content-type="heading"][data-level="3"] .bn-inline-content {
-  font-size: calc(17px * var(--note-font-scale, 1)) !important;
+  font-size: calc(19px * var(--note-font-scale, 1)) !important;
   line-height: 1.45 !important;
   font-weight: 600 !important;
-  color: #b5600e !important;
+  color: var(--note-h3-color, #b5600e) !important;
 }
 
-.bn-editor h1, .bn-editor h1 * { color: #2b579a !important; }
-.bn-editor h2, .bn-editor h2 * { color: #1b7332 !important; }
-.bn-editor h3, .bn-editor h3 * { color: #b5600e !important; }
+.bn-editor h1, .bn-editor h1 * { color: var(--note-h1-color, #2b579a) !important; }
+.bn-editor h2, .bn-editor h2 * { color: var(--note-h2-color, #1b7332) !important; }
+.bn-editor h3, .bn-editor h3 * { color: var(--note-h3-color, #b5600e) !important; }
 
 .bn-editor [data-content-type="heading"][data-level="1"] {
-  margin-top: 36px !important;
-  margin-bottom: 12px !important;
+  margin-top: 40px !important;
+  margin-bottom: 16px !important;
 }
 .bn-editor [data-content-type="heading"][data-level="2"] {
-  margin-top: 28px !important;
-  margin-bottom: 10px !important;
+  margin-top: 32px !important;
+  margin-bottom: 12px !important;
 }
 .bn-editor [data-content-type="heading"][data-level="3"] {
-  margin-top: 22px !important;
-  margin-bottom: 8px !important;
+  margin-top: 24px !important;
+  margin-bottom: 10px !important;
 }
 
 /* ── Paragraph & lists ── */
 .bn-editor [data-content-type="paragraph"] {
   margin-bottom: 10px;
-  color: #333;
+  color: var(--note-text, #2c2c2c);
 }
 
 .bn-editor [data-content-type="bulletListItem"],
@@ -112,24 +114,24 @@
 .bn-editor code {
   font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
   font-size: 0.85em;
-  background: #f3f4f6;
-  color: #c7254e;
+  background: var(--note-code-bg, #f3f4f6);
+  color: var(--note-code-color, #c7254e);
   padding: 2px 6px;
   border-radius: 3px;
-  border: 1px solid #eaecef;
+  border: 1px solid var(--note-code-border, #eaecef);
 }
 
 /* ── Code block (Zettlr-style) ── */
 .bn-editor [data-content-type="codeBlock"] {
   font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-  font-size: 0.85em;
-  line-height: 1.6;
-  color: #24292e;
-  background: #f6f8fa;
-  border: 1px solid #e1e4e8;
+  font-size: 0.84em;
+  line-height: 1.65;
+  color: var(--note-codeblock-text, #24292e);
+  background: var(--note-codeblock-bg, #f6f8fa);
+  border: 1px solid var(--note-codeblock-border, #e1e4e8);
   border-radius: 6px;
   padding: 16px 20px;
-  margin: 16px 0;
+  margin: 20px 0;
   overflow-x: auto;
   position: relative;
 }
@@ -177,12 +179,12 @@
 
 /* ── Blockquote ── */
 .bn-editor blockquote {
-  border-left: 3px solid #dfe2e5;
-  background: #fafbfc;
+  border-left: 3px solid var(--note-blockquote-border, #dfe2e5);
+  background: var(--note-blockquote-bg, #fafbfc);
   padding: 8px 16px;
   border-radius: 0 4px 4px 0;
   margin: 12px 0;
-  color: #555;
+  color: var(--note-blockquote-text, #555);
   font-style: italic;
 }
 
@@ -196,7 +198,7 @@
 /* ── Links ── */
 .bn-editor a,
 .bn-editor .note-link {
-  color: #1a73e8;
+  color: var(--note-link-color, #1a73e8);
   text-decoration: none;
   border-bottom: 1px solid transparent;
   transition: border-color 150ms;
@@ -204,7 +206,7 @@
 
 .bn-editor a:hover,
 .bn-editor .note-link:hover {
-  border-bottom-color: #1a73e8;
+  border-bottom-color: var(--note-link-color, #1a73e8);
 }
 
 /* ── Bidirectional note links (custom inline content) ── */
@@ -249,7 +251,7 @@
 /* ── Bold / Italic / Mark ── */
 .bn-editor strong {
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--note-bold-color, #1a1a2e);
 }
 
 .bn-editor em {
@@ -257,7 +259,7 @@
 }
 
 .bn-editor mark {
-  background: #fff3bf;
+  background: var(--note-mark-bg, #fff3bf);
   padding: 1px 3px;
   border-radius: 2px;
 }
@@ -271,15 +273,15 @@
 }
 
 .bn-editor th {
-  background: #f6f8fa;
+  background: var(--note-table-header-bg, #f6f8fa);
   font-weight: 600;
   text-align: left;
-  border: 1px solid #e1e4e8;
+  border: 1px solid var(--note-table-border, #e1e4e8);
   padding: 8px 12px;
 }
 
 .bn-editor td {
-  border: 1px solid #e1e4e8;
+  border: 1px solid var(--note-table-border, #e1e4e8);
   padding: 8px 12px;
 }
 
@@ -866,6 +868,17 @@
 .mermaid-preview__svg svg {
   max-width: 100%;
   height: auto;
+}
+
+.mermaid-preview__svg foreignObject {
+  overflow: visible !important;
+}
+.mermaid-preview__svg foreignObject > div,
+.mermaid-preview__svg .nodeLabel,
+.mermaid-preview__svg .cluster-label span,
+.mermaid-preview__svg .cluster-label div {
+  overflow: visible !important;
+  text-overflow: clip !important;
 }
 
 

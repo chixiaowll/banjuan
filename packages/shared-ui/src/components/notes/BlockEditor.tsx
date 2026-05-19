@@ -2,6 +2,7 @@ import React, { useMemo, useCallback, useEffect, useState, useRef, useImperative
 import { BlockNoteView } from '@blocknote/mantine'
 import { SuggestionMenuController, useCreateBlockNote, getDefaultReactSlashMenuItems } from '@blocknote/react'
 import { BlockNoteSchema, defaultBlockSpecs, defaultInlineContentSpecs, filterSuggestionItems, insertOrUpdateBlockForSlashMenu, createCodeBlockSpec } from '@blocknote/core'
+import './noteThemes.js'
 import type { HeadingItem } from './NoteOutlinePanel.js'
 import { AnnotationEmbed } from './blocks/AnnotationEmbed.js'
 import { DocumentEmbed } from './blocks/DocumentEmbed.js'

@@ -92,7 +92,7 @@ export default function MarkdownThumbnailPanel({ content, headings, onSectionCli
   }
 
   return (
-    <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', height: '100%' }}>
+    <div style={{ padding: '8px 8px 80px', display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', height: '100%' }}>
       {sections.map((section, idx) => (
         <div
           key={section.heading.id || idx}

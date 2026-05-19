@@ -81,7 +81,7 @@ export default function NotesPanel({ docId, onOpenNote, onCreateNote, onDeleteNo
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80 }}>
         {notes.length === 0 && (
           <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)' }}>{t('pdf.noNotes')}</div>
         )}

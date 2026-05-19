@@ -23,6 +23,7 @@ interface Props {
   docId: string
   onTextSelect: (info: TextSelectInfo) => void
   onHighlightClick: (id: string) => void
+  onAnnotationContextMenu?: (e: React.MouseEvent, id: string) => void
   onAnnotationCreated: () => void
   onAnnotationDelete: (id: string) => void
   onAnnotationUpdate: (id: string, updates: any) => void
@@ -73,7 +74,7 @@ function getVisibleRange(
   return [first, last]
 }
 
-export default function PdfContentArea({ annotations, docId, onTextSelect, onHighlightClick, onAnnotationCreated, onAnnotationDelete, onAnnotationUpdate, onPageSizesComputed }: Props) {
+export default function PdfContentArea({ annotations, docId, onTextSelect, onHighlightClick, onAnnotationContextMenu, onAnnotationCreated, onAnnotationDelete, onAnnotationUpdate, onPageSizesComputed }: Props) {
   const t = useT()
   const ctx = usePdfViewer()
   const { pdfDoc, rawPageSize, pageSizes, zoom, scrollRef, setCurrentPage, setPageSizes,
@@ -209,13 +210,13 @@ export default function PdfContentArea({ annotations, docId, onTextSelect, onHig
   }, [scrollRef, pageSizes, pageOffsets, setCurrentPage])
 
   const highlightsByPage = useMemo(() => {
-    const map = new Map<number, Array<{ id: string; color: string; rects: Array<{ x: number; y: number; w: number; h: number }> }>>()
+    const map = new Map<number, Array<{ id: string; color: string; type?: string; rects: Array<{ x: number; y: number; w: number; h: number }> }>>()
     for (const ann of annotations) {
       if (ann.page == null) continue
       const rects = ann.position?.rects
       if (!Array.isArray(rects) || rects.length === 0) continue
       if (!map.has(ann.page)) map.set(ann.page, [])
-      map.get(ann.page)!.push({ id: ann.id, color: ann.color, rects })
+      map.get(ann.page)!.push({ id: ann.id, color: ann.color, type: ann.type, rects })
     }
     return map
   }, [annotations])
@@ -265,16 +266,18 @@ export default function PdfContentArea({ annotations, docId, onTextSelect, onHig
                   scale={pdfScale}
                   baseSize={sz}
                   scrollRoot={scrollEl}
-                  highlights={highlightsByPage.get(pageNum) || []}
+                  highlights={ctx.annotationsVisible ? (highlightsByPage.get(pageNum) || []) : []}
                   searchHighlights={searchHighlightsByPage.get(pageNum)}
                   onTextSelect={onTextSelect}
                   onHighlightClick={onHighlightClick}
+                  onAnnotationContextMenu={onAnnotationContextMenu}
                   onPageReady={handlePageReady}
                   activeTool={activeTool}
                   activeColor={activeColor}
                   inkWidth={ctx.inkWidth}
+                  inkEraserActive={ctx.inkEraserActive}
                   docId={docId}
-                  annotations={annotations}
+                  annotations={ctx.annotationsVisible ? annotations : []}
                   onAnnotationCreated={onAnnotationCreated}
                   onAnnotationDelete={onAnnotationDelete}
                   onAnnotationUpdate={onAnnotationUpdate}

@@ -31,6 +31,9 @@ const en = {
   'common.new': 'New',
 
   // Library sidebar
+  'library.home': 'Home',
+  'library.switchLibrary': 'Switch Library',
+  'library.recentNotes': 'Recently Updated Notes',
   'library.documents': 'Documents',
   'library.notes': 'Notes',
   'library.mindmaps': 'Mindmaps',
@@ -54,11 +57,17 @@ const en = {
   'library.emptyDir': 'No files in this directory',
   'library.emptyDocuments': 'Library is empty',
   'library.allNotes': 'All',
-  'library.recentNotes': 'Recent',
+  'library.recentNotes': 'Recently Updated Notes',
   'library.emptyNotes': 'No notes yet',
   'library.emptyMindmaps': 'No mindmaps yet',
   'library.newHandwriting': 'New Handwriting',
   'library.untitledHandwriting': 'Untitled Handwriting',
+  'library.refresh': 'Refresh',
+  'library.recentDocs': 'Recently Read Documents',
+  'library.move': 'Move to...',
+  'library.confirmDeleteDoc': 'Delete document "{0}"? The file will be removed from disk.',
+  'library.moveToRoot': 'Root',
+  'library.moveTitle': 'Move "{0}" to...',
 
   // Template picker
   'template.noteType': 'Note Type',
@@ -177,6 +186,7 @@ const en = {
   'mindmap.redo': 'Redo',
   'mindmap.export': 'Export',
   'mindmap.search': 'Search nodes...',
+  'mindmap.minimap': 'Minimap',
   'mindmap.properties': 'Properties',
   'mindmap.themes': 'Themes',
   'mindmap.selectNodeHint': 'Select a node to view properties',
@@ -212,6 +222,7 @@ const en = {
   // Settings
   'settings.title': 'Settings',
   'settings.language': 'Language / 语言',
+  'settings.noteTheme': 'Note Theme',
 
   // Selection toolbar
   'selection.annotate': 'Annotate',

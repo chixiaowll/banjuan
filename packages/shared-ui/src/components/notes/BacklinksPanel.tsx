@@ -120,7 +120,7 @@ export default function BacklinksPanel({ noteId, docId, onOpenNote, onOpenMindma
       }}>
         {t('backlinks.title')}
       </div>
-      <div style={{ flex: 1, padding: 12, fontSize: 13, overflow: 'auto' }}>
+      <div style={{ flex: 1, padding: '12px 12px 80px', fontSize: 13, overflow: 'auto' }}>
       {forwardLinks.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <h4 style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase' }}>

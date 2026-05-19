@@ -1,5 +1,5 @@
 import type { PlatformDatabase, PlatformFS, PlatformCrypto } from '../platform/index.js'
-import { join, relative, isAbsolute } from '../platform/path.js'
+import { join, relative, isAbsolute, dirname, basename } from '../platform/path.js'
 import type { Document, DocumentListOptions, DocumentFileData } from '../types.js'
 import { detectDocumentType, extractTitle } from './metadata.js'
 import type { SearchService } from '../search/service.js'
@@ -43,7 +43,6 @@ export class DocumentService {
     }
 
     const existing = await this.findExistingByPath(relPath)
-
     const type = detectDocumentType(absPath)
     const title = options?.title ?? existing?.title ?? extractTitle(absPath)
     const id = existing?.id ?? (await this.crypto.sha256(new TextEncoder().encode(relPath))).slice(0, 32)
@@ -54,7 +53,9 @@ export class DocumentService {
       id, title, authors: existing?.authors ?? [], path: relPath, type, hash,
       tags, metadata: existing?.metadata ?? {}, createdAt: existing?.createdAt ?? now, updatedAt: now,
     }
-    await this.store.write(fileData)
+    if (!existing) {
+      await this.store.write(fileData)
+    }
 
     this.db.run(
       `INSERT INTO documents (id, title, authors, path, type, hash, metadata, created_at, updated_at)
@@ -114,7 +115,7 @@ export class DocumentService {
     const now = new Date().toISOString()
     const newTitle = updates.title ?? existing.title
     const newAuthors = updates.authors ?? existing.authors
-    const newMetadata = updates.metadata ?? existing.metadata
+    const newMetadata = updates.metadata ? { ...existing.metadata, ...updates.metadata } : existing.metadata
 
     this.db.run(
       `UPDATE documents SET title = ?, authors = ?, metadata = ?, updated_at = ? WHERE id = ?`,
@@ -146,6 +147,55 @@ export class DocumentService {
     return removed
   }
 
+  async move(id: string, destDir: string): Promise<Document | null> {
+    const doc = await this.get(id)
+    if (!doc) return null
+
+    const srcAbs = join(this.rootPath, doc.path)
+    const destDirAbs = join(this.rootPath, destDir)
+    await this.fs.mkdir(destDirAbs, { recursive: true })
+
+    const fileName = basename(doc.path)
+    const destAbs = join(destDirAbs, fileName)
+    const newRelPath = relative(this.rootPath, destAbs)
+
+    await this.fs.rename(srcAbs, destAbs)
+
+    const now = new Date().toISOString()
+    this.db.run('UPDATE documents SET path = ?, updated_at = ? WHERE id = ?', [newRelPath, now, id])
+
+    const fileData = await this.store.read(id)
+    if (fileData) {
+      fileData.path = newRelPath
+      fileData.updatedAt = now
+      await this.store.write(fileData)
+    }
+
+    this.events.emit('document:moved', { id, from: doc.path, to: newRelPath })
+    return { ...doc, path: newRelPath, updatedAt: now }
+  }
+
+  async createDir(dirPath: string): Promise<void> {
+    const absPath = join(this.rootPath, dirPath)
+    await this.fs.mkdir(absPath, { recursive: true })
+  }
+
+  async listDirs(): Promise<string[]> {
+    const dirs = new Set<string>()
+    const rows = this.db.query<{ path: string }>('SELECT DISTINCT path FROM documents', [])
+    for (const row of rows) {
+      const dir = dirname(row.path)
+      if (dir && dir !== '.') dirs.add(dir)
+    }
+    try {
+      const entries = await this.fs.readdirWithTypes(this.rootPath)
+      for (const e of entries) {
+        if (e.isDirectory && !e.name.startsWith('.')) dirs.add(e.name)
+      }
+    } catch {}
+    return Array.from(dirs).sort()
+  }
+
   async delete(id: string): Promise<void> {
     const doc = await this.get(id)
     if (!doc) return
@@ -160,6 +210,11 @@ export class DocumentService {
     this.db.run('DELETE FROM documents WHERE id = ?', [id])
     this.events.emit('document:deleted', { id })
   }
+
+  async markRead(id: string): Promise<void> {
+    const now = new Date().toISOString()
+    this.db.run('UPDATE documents SET last_read_at = ? WHERE id = ?', [now, id])
+  }
 }
 
 function rowToDocument(row: Record<string, unknown>): Document {
@@ -173,5 +228,6 @@ function rowToDocument(row: Record<string, unknown>): Document {
     metadata: JSON.parse((row.metadata as string) || '{}'),
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
+    lastReadAt: (row.last_read_at as string) || undefined,
   }
 }

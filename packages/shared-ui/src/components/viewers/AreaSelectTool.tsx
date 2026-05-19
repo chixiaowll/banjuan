@@ -6,11 +6,11 @@ interface Props {
   color: string
   pageNum: number
   docId: string
-  canvasRef: React.RefObject<HTMLCanvasElement | null>
+  buildCaptureCanvas: () => HTMLCanvasElement | null
   onCreated: () => void
 }
 
-export default function AreaSelectTool({ active, color, pageNum, docId, canvasRef, onCreated }: Props) {
+export default function AreaSelectTool({ active, color, pageNum, docId, buildCaptureCanvas, onCreated }: Props) {
   const api = useBanjuanAPI()
   const [dragging, setDragging] = useState(false)
   const [start, setStart] = useState<{ x: number; y: number } | null>(null)
@@ -23,11 +23,8 @@ export default function AreaSelectTool({ active, color, pageNum, docId, canvasRe
   }
 
   const captureArea = (x: number, y: number, w: number, h: number): string | undefined => {
-    const canvas = canvasRef.current
-    if (!canvas) {
-      console.warn('[AreaSelectTool] canvasRef is null, cannot capture')
-      return undefined
-    }
+    const canvas = buildCaptureCanvas()
+    if (!canvas) return undefined
     const sx = Math.round(x * canvas.width)
     const sy = Math.round(y * canvas.height)
     const sw = Math.round(w * canvas.width)

@@ -103,6 +103,21 @@ export function createCapacitorAPI(): BanjuanAPI {
       async delete(id) {
         return getLib().documents.delete(id)
       },
+      async markRead(id) {
+        return getLib().documents.markRead(id)
+      },
+      async refresh() {
+        return getLib().syncWithDisk()
+      },
+      async createDir(dirPath) {
+        return getLib().documents.createDir(dirPath)
+      },
+      async move(id, destDir) {
+        return getLib().documents.move(id, destDir)
+      },
+      async listDirs() {
+        return getLib().documents.listDirs()
+      },
       async update(id, updates) {
         return getLib().documents.update(id, updates)
       },
@@ -192,6 +207,9 @@ export function createCapacitorAPI(): BanjuanAPI {
       },
       async move(id, targetFolder) {
         return getLib().notes.move(id, targetFolder)
+      },
+      async refresh() {
+        return getLib().notes.syncDisk()
       },
       async listDirs() {
         return getLib().notes.listDirs()

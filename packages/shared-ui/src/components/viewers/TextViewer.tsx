@@ -25,6 +25,7 @@ export default function TextViewer({ docPath }: Props) {
     <div style={{
       height: '100%',
       overflow: 'auto',
+      paddingBottom: 80,
       background: 'var(--surface, #fafbfc)',
     }}>
       <div style={{

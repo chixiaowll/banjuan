@@ -1,9 +1,38 @@
 import { Command } from 'commander'
 import chalk from 'chalk'
-import { apiGet, apiDelete } from '../lib.js'
+import { apiGet, apiPost, apiDelete } from '../lib.js'
 import { outputJson, outputTable, outputItem } from '../output.js'
 
 export const docCmd = new Command('doc').description('文档管理')
+
+docCmd
+  .command('import')
+  .description('导入文档到书房')
+  .argument('<file>', '文件路径')
+  .option('--dir <dir>', '目标子目录')
+  .option('--title <title>', '自定义标题')
+  .option('--tag <tags...>', '标签')
+  .action(async (file: string, opts: { dir?: string; title?: string; tag?: string[] }) => {
+    const { resolve } = await import('node:path')
+    const absPath = resolve(file)
+    const doc = await apiPost('/api/documents/import', {
+      filePath: absPath,
+      destDir: opts.dir,
+      title: opts.title,
+      tags: opts.tag,
+    })
+    console.log(chalk.green(`✓ 已导入文档：${doc.title}`))
+    console.log(chalk.dim(`  ID: ${doc.id}`))
+    console.log(chalk.dim(`  路径: ${doc.path}`))
+  })
+
+docCmd
+  .command('refresh')
+  .description('扫描书房目录，同步新增/删除的文件')
+  .action(async () => {
+    const result = await apiPost('/api/documents/refresh')
+    console.log(chalk.green(`✓ 同步完成：新增 ${result.imported}，移除 ${result.removed}`))
+  })
 
 docCmd
   .command('list')

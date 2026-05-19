@@ -18,12 +18,13 @@ export interface SearchOptions {
 }
 
 export const ANNOTATION_COLORS = [
-  { name: 'yellow', value: '#ffe066' },
-  { name: 'orange', value: '#ffb347' },
-  { name: 'pink', value: '#ff9f9f' },
-  { name: 'green', value: '#77dd77' },
-  { name: 'blue', value: '#7ec8e3' },
-  { name: 'purple', value: '#b19cd9' },
+  { name: 'blue', value: '#3182ce' },
+  { name: 'purple', value: '#805ad5' },
+  { name: 'red', value: '#e53e3e' },
+  { name: 'orange', value: '#dd6b20' },
+  { name: 'yellow', value: '#d69e2e' },
+  { name: 'green', value: '#38a169' },
+  { name: 'pink', value: '#d53f8c' },
 ]
 
 interface PdfViewerContextValue {
@@ -55,6 +56,10 @@ interface PdfViewerContextValue {
   setActiveColor: (color: string) => void
   inkWidth: number
   setInkWidth: (w: number) => void
+  inkEraserActive: boolean
+  setInkEraserActive: (active: boolean) => void
+  annotationsVisible: boolean
+  setAnnotationsVisible: (visible: boolean) => void
 
   searchOpen: boolean
   searchQuery: string
@@ -102,6 +107,8 @@ export function PdfViewerProvider({ pdfDoc, numPages, initialPageSizes, rawPageS
   const [activeTool, setActiveTool] = useState<AnnotationTool>('none')
   const [activeColor, setActiveColor] = useState(ANNOTATION_COLORS[0].value)
   const [inkWidth, setInkWidth] = useState(2)
+  const [inkEraserActive, setInkEraserActive] = useState(false)
+  const [annotationsVisible, setAnnotationsVisible] = useState(true)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOptionsState, setSearchOptionsState] = useState<SearchOptions>({ caseSensitive: false, wholeWord: false })
@@ -148,7 +155,7 @@ export function PdfViewerProvider({ pdfDoc, numPages, initialPageSizes, rawPageS
     zoom, setZoom, resetZoom,
     leftSidebarOpen, leftSidebarTab, setLeftSidebarOpen, setLeftSidebarTab,
     rightSidebarOpen, setRightSidebarOpen,
-    activeTool, setActiveTool, activeColor, setActiveColor, inkWidth, setInkWidth,
+    activeTool, setActiveTool, activeColor, setActiveColor, inkWidth, setInkWidth, inkEraserActive, setInkEraserActive, annotationsVisible, setAnnotationsVisible,
     searchOpen, searchQuery, searchOptions: searchOptionsState, searchMatches, currentMatchIndex,
     setSearchOpen, setSearchQuery, setSearchOptions, setSearchMatches, setCurrentMatchIndex,
     nextMatch, prevMatch,
@@ -159,7 +166,7 @@ export function PdfViewerProvider({ pdfDoc, numPages, initialPageSizes, rawPageS
     zoom, resetZoom,
     leftSidebarOpen, leftSidebarTab,
     rightSidebarOpen,
-    activeTool, activeColor, inkWidth,
+    activeTool, activeColor, inkWidth, inkEraserActive, annotationsVisible,
     searchOpen, searchQuery, searchOptionsState, searchMatches, currentMatchIndex,
     nextMatch, prevMatch,
   ])

@@ -31,7 +31,10 @@ const zh = {
   'common.new': '新建',
 
   // Library sidebar
-  'library.documents': '文档库',
+  'library.home': '首页',
+  'library.switchLibrary': '切换书房',
+  'library.recentNotes': '最近更新笔记',
+  'library.documents': '文档',
   'library.notes': '笔记',
   'library.mindmaps': '脑图',
   'library.graph': '知识图谱',
@@ -52,13 +55,19 @@ const zh = {
   'library.colType': '类型',
   'library.colCreatedAt': '创建时间',
   'library.emptyDir': '该目录下没有文件',
-  'library.emptyDocuments': '文档库为空',
+  'library.emptyDocuments': '暂无文档',
   'library.allNotes': '全部',
-  'library.recentNotes': '最近',
+  'library.recentNotes': '最近更新笔记',
   'library.emptyNotes': '还没有笔记',
   'library.emptyMindmaps': '还没有脑图',
   'library.newHandwriting': '新建手写',
   'library.untitledHandwriting': '未命名手写',
+  'library.refresh': '刷新',
+  'library.recentDocs': '最近阅读文档',
+  'library.move': '移动到...',
+  'library.confirmDeleteDoc': '确定删除文档「{0}」？文件将从磁盘上删除。',
+  'library.moveToRoot': '根目录',
+  'library.moveTitle': '移动「{0}」到...',
 
   // Template picker
   'template.noteType': '笔记类型',
@@ -177,6 +186,7 @@ const zh = {
   'mindmap.redo': '重做',
   'mindmap.export': '导出',
   'mindmap.search': '搜索节点...',
+  'mindmap.minimap': '导航',
   'mindmap.properties': '属性',
   'mindmap.themes': '主题',
   'mindmap.selectNodeHint': '选择一个节点以查看属性',
@@ -212,6 +222,7 @@ const zh = {
   // Settings
   'settings.title': '设置',
   'settings.language': '语言 / Language',
+  'settings.noteTheme': '笔记主题',
 
   // Selection toolbar
   'selection.annotate': '批注',

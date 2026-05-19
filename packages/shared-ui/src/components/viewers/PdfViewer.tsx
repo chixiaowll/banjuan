@@ -16,6 +16,8 @@ import type { TextSelectInfo } from './PdfPage.js'
 import TagInput from '../tags/TagInput.js'
 import { useResizable, ResizeHandle } from '../ResizeHandle.js'
 import { useBanjuanAPI } from '../../api.js'
+import TextSelectionToolbar from './TextSelectionToolbar.js'
+import AnnotationContextMenu from './AnnotationContextMenu.js'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   '@banjuan/zotero-pdfjs-dist/build/pdf.worker.mjs',
@@ -154,7 +156,7 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
     if (!pos) return
     const d = docRef.current
     api.documents.update(d.id, {
-      metadata: { ...d.metadata, readingPosition: pos },
+      metadata: { readingPosition: pos },
     }).catch(() => {})
   }, [])
 
@@ -179,10 +181,11 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
     api.documents.get(initialDoc.id).then((fresh: any) => {
       const pos = fresh?.metadata?.readingPosition
       if (!pos || !pos.page || pos.page <= 1) return
+      if (lastPositionRef.current) return
       const el = ctx.scrollRef.current
       if (!el) return
-      // Wait for layout to fully settle (pageSizes may update from ResizeObserver)
       setTimeout(() => {
+        if (lastPositionRef.current) return
         const sizes = pageSizesRef.current
         if (sizes.length === 0) return
         let pageTop = 0
@@ -202,6 +205,11 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
     }))
   }, [ctx.currentPage, ctx.numPages])
 
+  // --- Text selection toolbar ---
+  const [selectionToolbar, setSelectionToolbar] = useState<{ info: TextSelectInfo; pos: { x: number; y: number; bottom: number } } | null>(null)
+  const selectionColorRef = useRef(ctx.activeColor)
+  selectionColorRef.current = ctx.activeColor
+
   const handleTextSelect = useCallback(async (info: TextSelectInfo) => {
     document.dispatchEvent(new CustomEvent('banjuan:context-update', {
       detail: { selectedText: info.text, selectedPage: info.page }
@@ -209,8 +217,62 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
     if (ctx.activeTool === 'highlight') {
       await createHighlightFromSelection(api, doc.id, info, ctx.activeColor)
       reload()
+    } else if (ctx.activeTool === 'none') {
+      setSelectionToolbar({
+        info,
+        pos: {
+          x: info.clientRect.left + info.clientRect.width / 2,
+          y: info.clientRect.top,
+          bottom: info.clientRect.bottom,
+        },
+      })
     }
   }, [ctx.activeTool, ctx.activeColor, doc.id, reload])
+
+  const handleSelectionHighlight = useCallback(async () => {
+    if (!selectionToolbar) return
+    await createHighlightFromSelection(api, doc.id, selectionToolbar.info, selectionColorRef.current)
+    reload()
+    setSelectionToolbar(null)
+  }, [selectionToolbar, doc.id, reload])
+
+  const handleSelectionUnderline = useCallback(async () => {
+    if (!selectionToolbar) return
+    const info = selectionToolbar.info
+    await api.annotations.create({
+      docId: doc.id,
+      type: 'underline',
+      page: info.page,
+      position: { type: 'pdf', page: info.page, rects: info.rects, text: info.text },
+      selectedText: info.text,
+      color: selectionColorRef.current,
+    })
+    window.getSelection()?.removeAllRanges()
+    reload()
+    setSelectionToolbar(null)
+  }, [selectionToolbar, doc.id, reload])
+
+  const handleSelectionCopy = useCallback(() => {
+    if (!selectionToolbar) return
+    navigator.clipboard.writeText(selectionToolbar.info.text)
+    setSelectionToolbar(null)
+  }, [selectionToolbar])
+
+  // --- Annotation context menu ---
+  const [contextMenu, setContextMenu] = useState<{ position: { x: number; y: number }; annotationId: string } | null>(null)
+
+  const handleAnnotationContextMenu = useCallback((e: React.MouseEvent, id: string) => {
+    setContextMenu({ position: { x: e.clientX, y: e.clientY }, annotationId: id })
+    setSelectionToolbar(null)
+  }, [])
+
+  const handleContextMenuChangeColor = useCallback(async (id: string, color: string) => {
+    await update(id, { color })
+  }, [update])
+
+  const handleContextMenuDelete = useCallback(async (id: string) => {
+    await remove(id)
+  }, [remove])
 
   const handleAnnotationClick = useCallback((page: number, yFraction?: number) => {
     const el = ctx.scrollRef.current
@@ -271,15 +333,6 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PdfToolbar docId={doc.id} metadata={doc.metadata} />
-      {(ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso') && (
-        <PdfInkToolbar
-          onUndo={handleInkUndo}
-          onRedo={handleInkRedo}
-          canUndo={inkCanUndo}
-          canRedo={inkCanRedo}
-          onClearPage={handleInkClearPage}
-        />
-      )}
       <div style={{
         padding: '4px 12px', borderBottom: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
@@ -287,6 +340,15 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
         <TagInput targetId={doc.id} targetType="document" compact />
       </div>
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        {(ctx.activeTool === 'ink' || ctx.activeTool === 'lasso') && (
+          <PdfInkToolbar
+            onUndo={handleInkUndo}
+            onRedo={handleInkRedo}
+            canUndo={inkCanUndo}
+            canRedo={inkCanRedo}
+            onClearPage={handleInkClearPage}
+          />
+        )}
         <PdfLeftSidebar
           docId={doc.id}
           annotations={annotations}
@@ -304,6 +366,7 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
           docId={doc.id}
           onTextSelect={handleTextSelect}
           onHighlightClick={() => ctx.setLeftSidebarOpen(true)}
+          onAnnotationContextMenu={handleAnnotationContextMenu}
           onAnnotationCreated={() => { inkRedoStackRef.current.delete(ctx.currentPage); reload() }}
           onAnnotationDelete={handleAnnotationDelete}
           onAnnotationUpdate={handleAnnotationUpdate}
@@ -327,6 +390,33 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
         )}
         <SearchPopup />
       </div>
+      {selectionToolbar && (
+        <TextSelectionToolbar
+          position={selectionToolbar.pos}
+          color={ctx.activeColor}
+          onHighlight={handleSelectionHighlight}
+          onUnderline={handleSelectionUnderline}
+          onCopy={handleSelectionCopy}
+          onChangeColor={(c) => ctx.setActiveColor(c)}
+          onClose={() => setSelectionToolbar(null)}
+        />
+      )}
+      {contextMenu && (() => {
+        const ann = annotations.find(a => a.id === contextMenu.annotationId)
+        if (!ann) return null
+        return (
+          <AnnotationContextMenu
+            position={contextMenu.position}
+            annotationId={contextMenu.annotationId}
+            annotationType={ann.type}
+            annotationColor={ann.color}
+            selectedText={ann.position?.text || ann.position?.selectedText}
+            onDelete={handleContextMenuDelete}
+            onChangeColor={handleContextMenuChangeColor}
+            onClose={() => setContextMenu(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

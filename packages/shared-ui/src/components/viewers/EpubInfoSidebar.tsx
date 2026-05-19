@@ -122,7 +122,7 @@ export default function EpubInfoSidebar({ doc, onDocUpdated, width = 280 }: Prop
     <div style={{
       width, borderLeft: 'none',
       display: 'flex', flexDirection: 'column', flexShrink: 0,
-      background: 'var(--bg)', overflow: 'auto',
+      background: 'var(--bg)', overflow: 'auto', paddingBottom: 80,
     }}>
       <div style={{ padding: '10px 12px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--border)' }}>
         {doc.title}

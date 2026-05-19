@@ -1,16 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { FileText, Brain, PenTool } from 'lucide-react'
 import { useT } from '../../i18n/index.js'
-import { useBanjuanAPI } from '../../api.js'
 
 export type NoteType = 'markdown' | 'mindmap' | 'handwriting'
-
-interface Template {
-  id: string
-  name: string
-  description: string
-  isBuiltin: boolean
-}
 
 interface Props {
   onSelect: (templateId: string | null, title: string, type: NoteType) => void
@@ -25,20 +17,13 @@ const NOTE_TYPES: Array<{ type: NoteType; icon: React.ReactNode; color: string; 
 ]
 
 export default function TemplatePicker({ onSelect, onClose, error }: Props) {
-  const api = useBanjuanAPI()
   const t = useT()
-  const [templates, setTemplates] = useState<Template[]>([])
   const [title, setTitle] = useState('')
   const [noteType, setNoteType] = useState<NoteType>('markdown')
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
-
-  useEffect(() => {
-    api.templates.list().then(setTemplates)
-  }, [])
 
   const handleConfirm = () => {
     if (!title.trim()) return
-    onSelect(noteType === 'markdown' ? selectedTemplate : null, title.trim(), noteType)
+    onSelect(null, title.trim(), noteType)
   }
 
   const typeLabels: Record<NoteType, string> = {
@@ -53,8 +38,8 @@ export default function TemplatePicker({ onSelect, onClose, error }: Props) {
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
     }} onClick={onClose}>
       <div style={{
-        background: 'var(--surface, white)', borderRadius: 12, padding: 24, width: 400, maxHeight: 560,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.2)', overflow: 'auto',
+        background: 'var(--surface, white)', borderRadius: 12, padding: 24, width: 400,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
       }} onClick={e => e.stopPropagation()}>
         <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>{t('library.newNote')}</h3>
 
@@ -78,7 +63,7 @@ export default function TemplatePicker({ onSelect, onClose, error }: Props) {
           {NOTE_TYPES.map(({ type, icon, color, bg }) => (
             <div
               key={type}
-              onClick={() => { setNoteType(type); if (type !== 'markdown') setSelectedTemplate(null) }}
+              onClick={() => setNoteType(type)}
               style={{
                 flex: 1, padding: '10px 8px', borderRadius: 8, cursor: 'pointer',
                 textAlign: 'center', transition: 'all 0.15s',
@@ -94,42 +79,7 @@ export default function TemplatePicker({ onSelect, onClose, error }: Props) {
           ))}
         </div>
 
-        {noteType === 'markdown' && (
-          <>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{t('template.selectTemplate' as any)}</div>
-
-            <div
-              onClick={() => setSelectedTemplate(null)}
-              style={{
-                padding: '10px 14px', marginBottom: 6, borderRadius: 8, cursor: 'pointer',
-                border: selectedTemplate === null ? '2px solid var(--accent, #5e81ac)' : '1px solid var(--border)',
-                background: selectedTemplate === null ? 'var(--selected, #f0f4f8)' : 'transparent',
-              }}>
-              <div style={{ fontWeight: 500, fontSize: 13 }}>{t('template.blank' as any)}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('template.blankDesc' as any)}</div>
-            </div>
-
-            {templates.map(tpl => (
-              <div key={tpl.id}
-                onClick={() => setSelectedTemplate(tpl.id)}
-                style={{
-                  padding: '10px 14px', marginBottom: 6, borderRadius: 8, cursor: 'pointer',
-                  border: selectedTemplate === tpl.id ? '2px solid var(--accent, #5e81ac)' : '1px solid var(--border)',
-                  background: selectedTemplate === tpl.id ? 'var(--selected, #f0f4f8)' : 'transparent',
-                }}>
-                <div style={{ fontWeight: 500, fontSize: 13 }}>
-                  {tpl.name}
-                  {tpl.isBuiltin && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 8 }}>{t('template.builtin' as any)}</span>}
-                </div>
-                {tpl.description && (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{tpl.description}</div>
-                )}
-              </div>
-            ))}
-          </>
-        )}
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{ fontSize: 13, padding: '6px 16px' }}>{t('common.cancel')}</button>
           <button
             onClick={handleConfirm}

@@ -85,10 +85,15 @@ export class FileWatcher {
     if (!(await this.fs.exists(fullPath))) return
     try {
       const doc = JSON.parse(await this.fs.readTextFile(fullPath)) as DocumentFileData
+      const existing = this.db.queryOne<{ metadata: string }>('SELECT metadata FROM documents WHERE id = ?', [doc.id])
+      let mergedMeta = doc.metadata || {}
+      if (existing?.metadata) {
+        try { mergedMeta = { ...JSON.parse(existing.metadata), ...mergedMeta } } catch {}
+      }
       this.db.run(
         `INSERT OR REPLACE INTO documents (id, title, authors, path, type, hash, metadata, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [doc.id, doc.title, JSON.stringify(doc.authors), doc.path, doc.type, doc.hash, JSON.stringify(doc.metadata), doc.createdAt, doc.updatedAt],
+        [doc.id, doc.title, JSON.stringify(doc.authors), doc.path, doc.type, doc.hash, JSON.stringify(mergedMeta), doc.createdAt, doc.updatedAt],
       )
     } catch { /* ignore malformed files */ }
   }

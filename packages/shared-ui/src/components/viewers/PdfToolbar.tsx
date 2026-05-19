@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { PanelLeft, Minus, Plus, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Search, PanelRight, Highlighter, StickyNote, Square, Pen, Eraser, Clock } from 'lucide-react'
+import { PanelLeft, Minus, Plus, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Search, PanelRight, Highlighter, Square, Pen, Eraser, Clock, Eye, EyeOff } from 'lucide-react'
 import { usePdfViewer, ANNOTATION_COLORS, type AnnotationTool } from './PdfViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
 import { useT } from '../../i18n/index.js'
 
 const TOOL_IDS: Array<{ id: AnnotationTool; icon: React.ReactNode; key: string }> = [
   { id: 'highlight', icon: <Highlighter size={16} />, key: 'tool.highlight' },
-  { id: 'text', icon: <StickyNote size={16} />, key: 'tool.text' },
   { id: 'area', icon: <Square size={16} />, key: 'tool.area' },
   { id: 'ink', icon: <Pen size={16} />, key: 'tool.ink' },
   { id: 'eraser', icon: <Eraser size={16} />, key: 'tool.eraser' },
@@ -129,48 +128,59 @@ export default function PdfToolbar({ docId, metadata }: Props) {
           <button
             key={tool.id}
             style={ctx.activeTool === tool.id ? activeBtnStyle : btnStyle}
-            onClick={() => ctx.setActiveTool(ctx.activeTool === tool.id ? 'none' : tool.id)}
+            onClick={() => { ctx.setActiveTool(ctx.activeTool === tool.id ? 'none' : tool.id); ctx.setInkEraserActive(false) }}
             title={t(tool.key as any)}
           >
             {tool.icon}
           </button>
         ))}
 
-        <div ref={colorRef} style={{ position: 'relative' }}>
-          <button
-            style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 3 }}
-            onClick={() => setShowColorPicker(!showColorPicker)}
-            title="Color"
-          >
-            <span style={{
-              width: 14, height: 14, borderRadius: '50%',
-              background: ctx.activeColor, border: '1px solid var(--border)',
-              display: 'inline-block',
-            }} />
-            <ChevronDown size={14} />
-          </button>
-          {showColorPicker && (
-            <div style={{
-              position: 'absolute', top: '100%', left: 0, zIndex: 100,
-              background: 'var(--bg)', border: '1px solid var(--border)',
-              borderRadius: 6, padding: 6, display: 'flex', gap: 4,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            }}>
-              {ANNOTATION_COLORS.map(c => (
-                <button
-                  key={c.value}
-                  onClick={() => { ctx.setActiveColor(c.value); setShowColorPicker(false) }}
-                  style={{
-                    width: 22, height: 22, borderRadius: '50%',
-                    background: c.value, border: ctx.activeColor === c.value ? '2px solid var(--accent)' : '1px solid var(--border)',
-                    cursor: 'pointer', padding: 0,
-                  }}
-                  title={c.name}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+        {ctx.activeTool !== 'ink' && ctx.activeTool !== 'eraser' && ctx.activeTool !== 'lasso' && (
+          <div ref={colorRef} style={{ position: 'relative' }}>
+            <button
+              style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 3 }}
+              onClick={() => setShowColorPicker(!showColorPicker)}
+              title="Color"
+            >
+              <span style={{
+                width: 14, height: 14, borderRadius: '50%',
+                background: ctx.activeColor, border: '1px solid var(--border)',
+                display: 'inline-block',
+              }} />
+              <ChevronDown size={14} />
+            </button>
+            {showColorPicker && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, zIndex: 100,
+                background: 'var(--bg)', border: '1px solid var(--border)',
+                borderRadius: 6, padding: 6, display: 'flex', gap: 4,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              }}>
+                {ANNOTATION_COLORS.map(c => (
+                  <button
+                    key={c.value}
+                    onClick={() => { ctx.setActiveColor(c.value); setShowColorPicker(false) }}
+                    style={{
+                      width: 22, height: 22, borderRadius: '50%',
+                      background: c.value, border: ctx.activeColor === c.value ? '2px solid var(--accent)' : '1px solid var(--border)',
+                      cursor: 'pointer', padding: 0,
+                    }}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={sepStyle} />
+        <button
+          style={ctx.annotationsVisible ? btnStyle : activeBtnStyle}
+          onClick={() => ctx.setAnnotationsVisible(!ctx.annotationsVisible)}
+          title={ctx.annotationsVisible ? '隐藏标注' : '显示标注'}
+        >
+          {ctx.annotationsVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+        </button>
       </div>
 
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }} title="Reading time">
