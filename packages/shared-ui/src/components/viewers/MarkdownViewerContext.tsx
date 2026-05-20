@@ -12,13 +12,7 @@ export const ANNOTATION_COLORS = [
   { name: 'purple', value: '#b19cd9' },
 ]
 
-export const INK_COLORS = [
-  '#1a1a1a', '#6b7280', '#dc2626', '#ea580c',
-  '#ca8a04', '#16a34a', '#2563eb', '#7c3aed',
-  '#db2777', '#ffffff',
-]
-
-export const INK_WIDTHS = [1, 2, 4, 6, 8, 12]
+export { INK_COLORS, INK_WIDTHS } from './inkConfig.js'
 
 interface MarkdownViewerContextValue {
   leftSidebarOpen: boolean
