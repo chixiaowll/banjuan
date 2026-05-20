@@ -79,19 +79,19 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
           bookRef.current.destroy()
           bookRef.current = null
         }
-        // Remove all epub.js elements but preserve the React overlay wrapper
-        Array.from(container.children).forEach(child => {
-          if ((child as HTMLElement).dataset?.reactOverlay !== undefined) return
-          child.remove()
-        })
+        // Save React overlay, then fully clear container for epub.js
+        const overlay = container.querySelector('[data-react-overlay]')
+        container.innerHTML = ''
+        if (overlay) container.appendChild(overlay)
 
         const epubBook = ePub(data as any)
         bookRef.current = epubBook
 
         const isScrolled = flowModeRef.current === 'scrolled'
+        const rect = container.getBoundingClientRect()
         const rend = epubBook.renderTo(container, {
-          width: '100%',
-          height: '100%',
+          width: rect.width,
+          height: rect.height,
           spread: 'none',
           flow: (isScrolled ? 'scrolled-doc' : 'paginated') as any,
           manager: (isScrolled ? 'continuous' : 'default') as any,
