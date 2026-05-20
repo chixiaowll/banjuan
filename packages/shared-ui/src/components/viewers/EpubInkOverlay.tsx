@@ -14,7 +14,7 @@ interface InkAnnotation {
   id: string
   position: {
     type: 'ink'
-    page?: number
+    pageId?: string
     strokes: InkStroke[]
     bounds: { x: number; y: number; w: number; h: number }
   }
@@ -60,7 +60,7 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
   const isActive = ctx.activeTool === 'ink' || ctx.activeTool === 'eraser'
 
   const inkAnnotations: InkAnnotation[] = annotations.filter(
-    (a: any) => a.type === 'ink' && a.position?.type === 'ink' && a.position?.page === ctx.currentLocation
+    (a: any) => a.type === 'ink' && a.position?.type === 'ink' && a.position?.pageId === ctx.currentPageId
   )
 
   const redraw = useCallback(() => {
@@ -83,7 +83,7 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
   }, [inkAnnotations, containerRef])
 
   useEffect(() => { redraw() }, [redraw])
-  useEffect(() => { redraw() }, [ctx.currentLocation])
+  useEffect(() => { redraw() }, [ctx.currentPageId])
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (ctx.activeTool === 'eraser') {
@@ -148,14 +148,14 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
       width: ctx.inkWidth,
     }
 
-    const page = ctx.currentLocation
+    const pageId = ctx.currentPageId
     const existing = inkAnnotations[0]
     const allStrokes = existing
       ? [...existing.position.strokes, newStroke]
       : [newStroke]
 
     const bounds = computeBounds(allStrokes)
-    const position = { type: 'ink' as const, page, strokes: allStrokes, bounds }
+    const position = { type: 'ink' as const, pageId, strokes: allStrokes, bounds }
 
     if (existing) {
       ctx.pushInkUndo({ annotationId: existing.id, strokes: [...existing.position.strokes] })
@@ -163,13 +163,13 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     } else {
       ctx.pushInkUndo({ annotationId: '__new__', strokes: [] })
       await api.annotations.create({
-        docId, type: 'ink', page, position, color: ctx.inkColor,
+        docId, type: 'ink', position, color: ctx.inkColor,
       })
     }
     ctx.clearInkRedo()
     currentPointsRef.current = []
     onCreated()
-  }, [drawing, docId, ctx.inkColor, ctx.inkWidth, ctx.currentLocation, onCreated, inkAnnotations])
+  }, [drawing, docId, ctx.inkColor, ctx.inkWidth, ctx.currentPageId, onCreated, inkAnnotations])
 
   const handleErase = useCallback(async (e: React.PointerEvent) => {
     const container = containerRef.current
@@ -192,7 +192,7 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
             } else {
               const bounds = computeBounds(remaining)
               await api.annotations.update(ann.id, {
-                position: { type: 'ink', page: ann.position.page, strokes: remaining, bounds },
+                position: { type: 'ink', pageId: ann.position.pageId, strokes: remaining, bounds },
               })
             }
             onCreated()

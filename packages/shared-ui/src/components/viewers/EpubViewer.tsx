@@ -131,6 +131,9 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
             if (current?.start?.location != null) {
               ctx.setCurrentLocation(current.start.location)
             }
+            if (current?.start) {
+              ctx.setCurrentPageId(`${current.start.index ?? 0}-${current.start.displayed?.page ?? 0}`)
+            }
             if (current?.start?.percentage != null) {
               ctx.setPercentage(Math.round(current.start.percentage * 100))
             }
@@ -143,6 +146,7 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
           if (location.start.location != null) {
             ctx.setCurrentLocation(location.start.location)
           }
+          ctx.setCurrentPageId(`${location.start.index ?? 0}-${location.start.displayed?.page ?? 0}`)
           const pct = location.start.percentage != null
             ? Math.round(location.start.percentage * 100) : 0
           ctx.setPercentage(pct)
@@ -169,6 +173,7 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
       ctx.setToc([])
       ctx.setCurrentHref('')
       ctx.setCurrentLocation(0)
+      ctx.setCurrentPageId('')
       ctx.setTotalLocations(0)
       ctx.setPercentage(0)
     }
@@ -218,13 +223,13 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
 
   const handleInkClearPage = useCallback(async () => {
     const inkAnns = annotations.filter(
-      (a: any) => a.type === 'ink' && a.position?.page === ctx.currentLocation
+      (a: any) => a.type === 'ink' && a.position?.pageId === ctx.currentPageId
     )
     for (const ann of inkAnns) {
       await api.annotations.delete(ann.id)
     }
     reload()
-  }, [annotations, ctx.currentLocation, reload])
+  }, [annotations, ctx.currentPageId, reload])
 
   const handleInkUndo = useCallback(async () => {
     const entry = ctx.popInkUndo()

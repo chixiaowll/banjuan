@@ -25,6 +25,8 @@ interface EpubViewerContextValue {
 
   currentLocation: number
   setCurrentLocation: (loc: number) => void
+  currentPageId: string
+  setCurrentPageId: (id: string) => void
   totalLocations: number
   setTotalLocations: (total: number) => void
   percentage: number
@@ -83,6 +85,7 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
   const [toc, setToc] = useState<NavItem[]>([])
   const [currentHref, setCurrentHref] = useState('')
   const [currentLocation, setCurrentLocation] = useState(0)
+  const [currentPageId, setCurrentPageId] = useState('')
   const [totalLocations, setTotalLocations] = useState(0)
   const [percentage, setPercentage] = useState(0)
 
@@ -137,8 +140,8 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
   const value = useMemo<EpubViewerContextValue>(() => ({
     book, setBook, rendition, setRendition, toc, setToc,
     currentHref, setCurrentHref,
-    currentLocation, setCurrentLocation, totalLocations, setTotalLocations,
-    percentage, setPercentage,
+    currentLocation, setCurrentLocation, currentPageId, setCurrentPageId,
+    totalLocations, setTotalLocations, percentage, setPercentage,
     fontSize, setFontSize,
     leftSidebarOpen, leftSidebarTab, setLeftSidebarOpen, setLeftSidebarTab,
     rightSidebarOpen, setRightSidebarOpen,
@@ -152,7 +155,7 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
     navigateTo, goNext, goPrev,
   }), [
     book, rendition, toc, currentHref,
-    currentLocation, totalLocations, percentage,
+    currentLocation, currentPageId, totalLocations, percentage,
     fontSize,
     leftSidebarOpen, leftSidebarTab,
     rightSidebarOpen,

@@ -36,12 +36,16 @@ export default function EpubLeftSidebar({
   const handleAnnotationNavigate = (ann: any) => {
     if (ann?.position?.cfi) {
       onAnnotationClick(ann.position.cfi)
-    } else if (ann?.position?.type === 'ink' && ann?.position?.page != null) {
+    } else if (ann?.position?.type === 'ink' && ann?.position?.pageId) {
       const { book, rendition } = ctx
       if (book && rendition) {
         try {
-          const cfi = book.locations.cfiFromLocation(ann.position.page)
-          if (cfi) rendition.display(cfi)
+          const [sectionIndex, pageNum] = ann.position.pageId.split('-').map(Number)
+          const spine = (book as any).spine
+          if (spine) {
+            const section = spine.get(sectionIndex)
+            if (section) rendition.display(section.href)
+          }
         } catch {}
       }
     }
