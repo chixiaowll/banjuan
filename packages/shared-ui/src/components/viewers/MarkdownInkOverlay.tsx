@@ -280,6 +280,8 @@ export default function MarkdownInkOverlay({ docId, annotations, headings, scrol
         position: 'absolute',
         top: 0,
         left: 0,
+        width: '100%',
+        height: '100%',
         pointerEvents: isActive ? 'auto' : 'none',
         cursor: ctx.activeTool === 'ink' ? 'crosshair' : ctx.activeTool === 'eraser' ? 'pointer' : 'default',
         zIndex: isActive ? 10 : 2,
