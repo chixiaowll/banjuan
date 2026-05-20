@@ -114,8 +114,33 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
 
   const [searchOpen, setSearchOpen] = useState(false)
 
-  const navigateTo = useCallback((href: string) => {
-    rendition?.display(href)
+  const navigateTo = useCallback(async (href: string) => {
+    if (!rendition) return
+    try {
+      await rendition.display(href)
+    } catch {}
+    // Workaround for scrolled-doc + continuous: rendition.display() doesn't
+    // always scroll reliably (especially for not-yet-loaded sections). After
+    // display resolves, manually find the section's view in the DOM and
+    // scroll the epub-container to its offsetTop.
+    const cleanHref = href.split('#')[0]
+    const matchTarget = cleanHref.split('/').pop() || cleanHref
+    const tryScroll = (attempt: number) => {
+      const sc = document.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
+      if (!sc) return
+      const views = sc.querySelectorAll('.epub-view') as NodeListOf<HTMLElement>
+      for (const view of views) {
+        const iframe = view.querySelector('iframe')
+        const src = iframe?.getAttribute('src') || ''
+        if (src.includes(matchTarget)) {
+          sc.scrollTo({ top: view.offsetTop, behavior: 'smooth' })
+          return
+        }
+      }
+      // View not in DOM yet (still loading) — retry up to ~1s
+      if (attempt < 10) setTimeout(() => tryScroll(attempt + 1), 100)
+    }
+    tryScroll(0)
   }, [rendition])
 
   const value = useMemo<EpubViewerContextValue>(() => ({
