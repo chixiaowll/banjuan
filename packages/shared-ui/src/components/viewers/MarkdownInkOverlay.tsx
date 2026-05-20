@@ -28,6 +28,8 @@ interface Props {
   headings: HeadingItem[]
   scrollContainer: HTMLElement | null
   onCreated: () => void
+  onUndoRef?: React.MutableRefObject<(() => void) | null>
+  onRedoRef?: React.MutableRefObject<(() => void) | null>
 }
 
 let inkIdCounter = 0
@@ -69,7 +71,7 @@ function computeBounds(strokes: InkStroke[]) {
   }
 }
 
-export default function MarkdownInkOverlay({ docId, annotations, headings, scrollContainer, onCreated }: Props) {
+export default function MarkdownInkOverlay({ docId, annotations, headings, scrollContainer, onCreated, onUndoRef, onRedoRef }: Props) {
   const api = useBanjuanAPI()
   const ctx = useMarkdownViewer()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -228,6 +230,11 @@ export default function MarkdownInkOverlay({ docId, annotations, headings, scrol
     }
     onCreated()
   }, [inkAnnotations, onCreated])
+
+  useEffect(() => {
+    if (onUndoRef) onUndoRef.current = handleUndo
+    if (onRedoRef) onRedoRef.current = handleRedo
+  }, [handleUndo, handleRedo, onUndoRef, onRedoRef])
 
   const handleErase = useCallback(async (e: React.PointerEvent) => {
     if (!canvasRef.current || !scrollContainer) return
