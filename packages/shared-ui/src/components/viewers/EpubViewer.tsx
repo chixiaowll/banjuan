@@ -97,14 +97,24 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
           manager: (isScrolled ? 'continuous' : 'default') as any,
         })
 
+        // Paginated mode uses CSS multi-column layout — body width must be
+        // free to expand. Only constrain width in scrolled mode.
+        const bodyStyle: Record<string, string> = isScrolled
+          ? {
+              'max-width': '720px !important',
+              'margin': '0 auto !important',
+              'padding': '20px 40px !important',
+              'line-height': '1.8 !important',
+              'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important',
+            }
+          : {
+              'padding-top': '20px !important',
+              'padding-bottom': '20px !important',
+              'line-height': '1.8 !important',
+              'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important',
+            }
         rend.themes.default({
-          'body': {
-            'max-width': '720px !important',
-            'margin': '0 auto !important',
-            'padding': '20px 40px !important',
-            'line-height': '1.8 !important',
-            'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important',
-          },
+          'body': bodyStyle,
           'p': {
             'margin-bottom': '0.8em !important',
             'text-align': 'justify !important',
