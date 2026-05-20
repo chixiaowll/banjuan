@@ -104,8 +104,13 @@ export default function EpubToolbar({ docId, metadata }: Props) {
         style={ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso' ? activeBtnStyle : btnStyle}
         onClick={() => {
           const isInk = ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso'
-          ctx.setActiveTool(isInk ? 'none' : 'ink')
-          if (isInk) ctx.setInkEraserActive(false)
+          if (!isInk) {
+            if (ctx.flowMode === 'scrolled') ctx.setFlowMode('paginated')
+            ctx.setActiveTool('ink')
+          } else {
+            ctx.setActiveTool('none')
+            ctx.setInkEraserActive(false)
+          }
         }}
         title="Ink annotation"
       >

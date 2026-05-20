@@ -258,10 +258,11 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
   }
 
   return (
+    <div style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' }}>
     <div ref={(el) => {
       (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el
       if (scrollContainerRef) (scrollContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el
-    }} style={{ flex: 1, overflow: 'auto', minWidth: 0, position: 'relative' }}>
+    }} style={{ width: '100%', height: '100%', overflow: 'auto', position: 'relative' }}>
       <div
         className="reading-mode"
         style={{
@@ -298,16 +299,6 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
         scrollContainer={containerRef.current}
         onUpdated={onInkCreated}
       />
-
-      {(ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso') && (
-        <MarkdownInkToolbar
-          onUndo={() => undoRef.current?.()}
-          onRedo={() => redoRef.current?.()}
-          canUndo={ctx.inkUndoStack.length > 0}
-          canRedo={ctx.inkRedoStack.length > 0}
-          onClearAll={onClearAllInk}
-        />
-      )}
 
       {selectionPopup && (
         <div
@@ -412,6 +403,17 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
           </div>
         </div>
       )}
+    </div>
+
+    {(ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso') && (
+      <MarkdownInkToolbar
+        onUndo={() => undoRef.current?.()}
+        onRedo={() => redoRef.current?.()}
+        canUndo={ctx.inkUndoStack.length > 0}
+        canRedo={ctx.inkRedoStack.length > 0}
+        onClearAll={onClearAllInk}
+      />
+    )}
     </div>
   )
 }
