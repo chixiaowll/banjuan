@@ -21,5 +21,3 @@ export const DEFAULT_PRESETS: InkPreset[] = [
   { color: '#1a1a1a', width: 4, tool: 'pen' },
   { color: '#d69e2e', width: 8, tool: 'highlighter' },
 ]
-
-export const INK_WIDTHS = [1, 2, 4, 6, 8, 12]
