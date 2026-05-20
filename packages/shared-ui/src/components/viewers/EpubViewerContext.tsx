@@ -119,26 +119,28 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
     try {
       await rendition.display(href)
     } catch {}
-    // Workaround for scrolled-doc + continuous: rendition.display() doesn't
-    // always scroll reliably (especially for not-yet-loaded sections). After
-    // display resolves, manually find the section's view in the DOM and
-    // scroll the epub-container to its offsetTop.
+    // Workaround: rendition.display(href) in scrolled-doc + continuous doesn't
+    // reliably scroll to the section's start (especially for not-yet-loaded
+    // sections — epub.js's Default.display clears views and adds the section
+    // but doesn't always scrollTo afterwards). Use epub.js internals to find
+    // the target view, then scroll the epub-container to its offsetTop.
     const cleanHref = href.split('#')[0]
-    const matchTarget = cleanHref.split('/').pop() || cleanHref
+    const r = rendition as any
+    const targetSection = r?.book?.spine?.get?.(cleanHref)
+    if (!targetSection) return
+
     const tryScroll = (attempt: number) => {
+      const manager = r?.manager
+      const viewsList: any[] = manager?.views?._views ?? []
+      const view = viewsList.find(v => v?.section?.index === targetSection.index)
+      const el = view?.element ?? view?.container
       const sc = document.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
-      if (!sc) return
-      const views = sc.querySelectorAll('.epub-view') as NodeListOf<HTMLElement>
-      for (const view of views) {
-        const iframe = view.querySelector('iframe')
-        const src = iframe?.getAttribute('src') || ''
-        if (src.includes(matchTarget)) {
-          sc.scrollTo({ top: view.offsetTop, behavior: 'smooth' })
-          return
-        }
+      if (el && sc) {
+        sc.scrollTo({ top: el.offsetTop, behavior: 'smooth' })
+        return
       }
-      // View not in DOM yet (still loading) — retry up to ~1s
-      if (attempt < 10) setTimeout(() => tryScroll(attempt + 1), 100)
+      // View not yet loaded — retry up to ~1.5s
+      if (attempt < 15) setTimeout(() => tryScroll(attempt + 1), 100)
     }
     tryScroll(0)
   }, [rendition])
