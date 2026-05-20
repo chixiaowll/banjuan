@@ -213,7 +213,7 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
         background: 'var(--bg)',
       }}
     >
-      <div data-epub-container style={{ width: '100%', height: '100%' }} />
+      <div data-epub-container style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }} />
 
       {/* Selection toolbar - appears after text selection */}
       {selectionPopup && (
