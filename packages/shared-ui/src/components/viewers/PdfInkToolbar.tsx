@@ -1,30 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { Eraser, Lasso, Undo2, Redo2, Trash2, Highlighter, GripVertical } from 'lucide-react'
 import { usePdfViewer } from './PdfViewerContext.js'
-
-const INK_COLORS = [
-  '#1a1a1a', '#5c5c5c', '#3182ce', '#805ad5',
-  '#e53e3e', '#dd6b20', '#d69e2e', '#38a169',
-  '#d53f8c', '#ffffff',
-]
-
-const STROKE_WIDTHS = [
-  { value: 1, height: 1 },
-  { value: 3, height: 2 },
-  { value: 6, height: 3 },
-]
-
-interface InkPreset {
-  color: string
-  width: number
-  tool: 'pen' | 'highlighter'
-}
-
-const DEFAULT_PRESETS: InkPreset[] = [
-  { color: '#3182ce', width: 2, tool: 'pen' },
-  { color: '#1a1a1a', width: 4, tool: 'pen' },
-  { color: '#d69e2e', width: 8, tool: 'highlighter' },
-]
+import { INK_COLORS, STROKE_WIDTHS, DEFAULT_PRESETS, type InkPreset } from './inkConfig.js'
 
 interface Props {
   onUndo: () => void
