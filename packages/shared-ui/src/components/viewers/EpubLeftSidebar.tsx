@@ -28,13 +28,22 @@ export default function EpubLeftSidebar({
   onOpenNote, onCreateNote, width = 240,
 }: Props) {
   const t = useT()
-  const { leftSidebarTab, setLeftSidebarTab, leftSidebarOpen } = useEpubViewer()
+  const ctx = useEpubViewer()
+  const { leftSidebarTab, setLeftSidebarTab, leftSidebarOpen } = ctx
 
   if (!leftSidebarOpen) return null
 
   const handleAnnotationNavigate = (ann: any) => {
     if (ann?.position?.cfi) {
       onAnnotationClick(ann.position.cfi)
+    } else if (ann?.position?.type === 'ink' && ann?.position?.page != null) {
+      const { book, rendition } = ctx
+      if (book && rendition) {
+        try {
+          const cfi = book.locations.cfiFromLocation(ann.position.page)
+          if (cfi) rendition.display(cfi)
+        } catch {}
+      }
     }
   }
 
