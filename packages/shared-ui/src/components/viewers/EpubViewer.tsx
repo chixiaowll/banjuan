@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
-import ePub, { Book, Rendition, NavItem } from 'epubjs'
-import { EpubViewerProvider, useEpubViewer, type EpubFlowMode } from './EpubViewerContext.js'
+import ePub, { Book } from 'epubjs'
+import { EpubViewerProvider, useEpubViewer } from './EpubViewerContext.js'
 import EpubToolbar from './EpubToolbar.js'
 import EpubLeftSidebar from './EpubLeftSidebar.js'
 import EpubInfoSidebar from './EpubInfoSidebar.js'
@@ -38,15 +38,11 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
   const [doc, setDoc] = useState<DocInfo>(initialDoc)
 
   const bookRef = useRef<Book | null>(null)
-  const flowModeRef = useRef<EpubFlowMode>(ctx.flowMode)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rafRef = useRef<number>(0)
   const docRef = useRef(initialDoc)
 
   useEffect(() => { docRef.current = doc }, [doc])
-  useEffect(() => {
-    flowModeRef.current = ctx.flowMode
-  }, [ctx.flowMode])
 
   const saveReadingPosition = useCallback((cfi: string, percentage: number) => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
@@ -61,7 +57,6 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
   useEffect(() => {
     let cancelled = false
 
-    // Fetch latest metadata first (async), then init epub.js synchronously in RAF
     api.documents.get(docRef.current.id).then((freshDoc: any) => {
       if (!cancelled && freshDoc?.metadata) {
         docRef.current = { ...docRef.current, metadata: freshDoc.metadata }
@@ -79,7 +74,7 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
           bookRef.current.destroy()
           bookRef.current = null
         }
-        // Save React overlay, then fully clear container for epub.js
+        // Save React overlay, then clear container for epub.js
         const overlay = container.querySelector('[data-react-overlay]')
         container.innerHTML = ''
         if (overlay) container.appendChild(overlay)
@@ -87,34 +82,21 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
         const epubBook = ePub(data as any)
         bookRef.current = epubBook
 
-        const isScrolled = flowModeRef.current === 'scrolled'
-        const rect = container.getBoundingClientRect()
         const rend = epubBook.renderTo(container, {
-          width: rect.width,
-          height: rect.height,
-          spread: 'none',
-          flow: (isScrolled ? 'scrolled-doc' : 'paginated') as any,
-          manager: (isScrolled ? 'continuous' : 'default') as any,
+          width: '100%',
+          height: '100%',
+          flow: 'scrolled-doc' as any,
+          manager: 'continuous' as any,
         })
 
-        // Paginated mode uses CSS multi-column layout — body width must be
-        // free to expand. Only constrain width in scrolled mode.
-        const bodyStyle: Record<string, string> = isScrolled
-          ? {
-              'max-width': '720px !important',
-              'margin': '0 auto !important',
-              'padding': '20px 40px !important',
-              'line-height': '1.8 !important',
-              'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important',
-            }
-          : {
-              'padding-top': '20px !important',
-              'padding-bottom': '20px !important',
-              'line-height': '1.8 !important',
-              'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important',
-            }
         rend.themes.default({
-          'body': bodyStyle,
+          'body': {
+            'max-width': '720px !important',
+            'margin': '0 auto !important',
+            'padding': '20px 40px !important',
+            'line-height': '1.8 !important',
+            'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important',
+          },
           'p': {
             'margin-bottom': '0.8em !important',
             'text-align': 'justify !important',
@@ -135,31 +117,9 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
           if (!cancelled) ctx.setToc(nav.toc)
         })
 
-        epubBook.ready.then(() => {
-          return epubBook.locations.generate(1024)
-        }).then(() => {
-          if (!cancelled) {
-            ctx.setTotalLocations(epubBook.locations.length())
-            const current = rend.currentLocation() as any
-            if (current?.start?.location != null) {
-              ctx.setCurrentLocation(current.start.location)
-            }
-            if (current?.start) {
-              ctx.setCurrentPageId(`${current.start.index ?? 0}-${current.start.displayed?.page ?? 0}`)
-            }
-            if (current?.start?.percentage != null) {
-              ctx.setPercentage(Math.round(current.start.percentage * 100))
-            }
-          }
-        })
-
         rend.on('relocated', (location: any) => {
           if (cancelled) return
           ctx.setCurrentHref(location.start.href)
-          if (location.start.location != null) {
-            ctx.setCurrentLocation(location.start.location)
-          }
-          ctx.setCurrentPageId(`${location.start.index ?? 0}-${location.start.displayed?.page ?? 0}`)
           const pct = location.start.percentage != null
             ? Math.round(location.start.percentage * 100) : 0
           ctx.setPercentage(pct)
@@ -185,33 +145,28 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
       ctx.setRendition(null)
       ctx.setToc([])
       ctx.setCurrentHref('')
-      ctx.setCurrentLocation(0)
-      ctx.setCurrentPageId('')
-      ctx.setTotalLocations(0)
       ctx.setPercentage(0)
     }
-  }, [data, ctx.flowMode])
+  }, [data])
 
   const handleHighlightCreated = useCallback(async (cfiRange: string, text: string) => {
     await create({
       type: 'highlight',
-      page: ctx.currentLocation,
       position: { type: 'epub', cfi: cfiRange, text },
       selectedText: text,
       color: ctx.activeColor,
     })
-  }, [create, ctx.activeColor, ctx.currentLocation])
+  }, [create, ctx.activeColor])
 
   const handleNoteCreated = useCallback(async (cfiRange: string, text: string, noteContent: string) => {
     await create({
       type: 'note',
-      page: ctx.currentLocation,
       position: { type: 'epub', cfi: cfiRange, text },
       selectedText: text,
       content: noteContent,
       color: ctx.activeColor,
     })
-  }, [create, ctx.activeColor, ctx.currentLocation])
+  }, [create, ctx.activeColor])
 
   const handleAnnotationClick = useCallback(async (cfi: string) => {
     if (!ctx.rendition) return
@@ -235,17 +190,12 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
   }, [reload])
 
   const handleInkClearPage = useCallback(async () => {
-    const isScrolled = ctx.flowMode === 'scrolled'
-    const inkAnns = annotations.filter((a: any) => {
-      if (a.type !== 'ink') return false
-      if (isScrolled) return a.position?.scrolled === true
-      return a.position?.pageId === ctx.currentPageId
-    })
+    const inkAnns = annotations.filter((a: any) => a.type === 'ink')
     for (const ann of inkAnns) {
       await api.annotations.delete(ann.id)
     }
     reload()
-  }, [annotations, ctx.currentPageId, ctx.flowMode, reload])
+  }, [annotations, reload])
 
   const handleInkUndo = useCallback(async () => {
     const entry = ctx.popInkUndo()
@@ -351,7 +301,6 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
 }
 
 export default function EpubViewer({ data, doc, onOpenNote }: Props) {
-  const api = useBanjuanAPI()
   return (
     <EpubViewerProvider>
       <EpubViewerInner data={data} doc={doc} onOpenNote={onOpenNote} />

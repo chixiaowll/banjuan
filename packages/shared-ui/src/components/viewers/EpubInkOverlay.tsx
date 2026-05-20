@@ -14,8 +14,6 @@ interface InkAnnotation {
   id: string
   position: {
     type: 'ink'
-    pageId?: string
-    scrolled?: boolean
     strokes: InkStroke[]
     bounds: { x: number; y: number; w: number; h: number }
   }
@@ -49,9 +47,8 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
   const [drawing, setDrawing] = useState(false)
   const currentPointsRef = useRef<StrokePoint[]>([])
   const isActive = ctx.activeTool === 'ink' || ctx.activeTool === 'eraser'
-  const isScrolled = ctx.flowMode === 'scrolled'
 
-  // Find epub.js's internal scroll container (created on each rendition init)
+  // Find epub.js's internal scroll container
   const [scrollContainer, setScrollContainer] = useState<HTMLElement | null>(null)
   useEffect(() => {
     if (!containerRef.current) return
@@ -65,29 +62,21 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     }
     find()
     return () => { cancelled = true; if (timer) clearTimeout(timer) }
-  }, [containerRef, ctx.rendition, ctx.flowMode])
+  }, [containerRef, ctx.rendition])
 
-  // Track scroll position (scrolled mode only)
+  // Track scroll position
   const [scrollTop, setScrollTop] = useState(0)
   useEffect(() => {
-    if (!scrollContainer || !isScrolled) {
-      setScrollTop(0)
-      return
-    }
+    if (!scrollContainer) return
     const handler = () => setScrollTop(scrollContainer.scrollTop)
     handler()
     scrollContainer.addEventListener('scroll', handler, { passive: true })
     return () => scrollContainer.removeEventListener('scroll', handler)
-  }, [scrollContainer, isScrolled])
+  }, [scrollContainer])
 
-  // Filter annotations based on mode:
-  // - Scrolled: show all annotations marked as scrolled for this doc
-  // - Paginated: filter by current page ID
-  const inkAnnotations: InkAnnotation[] = annotations.filter((a: any) => {
-    if (a.type !== 'ink' || a.position?.type !== 'ink') return false
-    if (isScrolled) return a.position?.scrolled === true
-    return a.position?.pageId === ctx.currentPageId
-  })
+  const inkAnnotations: InkAnnotation[] = annotations.filter(
+    (a: any) => a.type === 'ink' && a.position?.type === 'ink'
+  )
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current
@@ -105,28 +94,21 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     for (const ann of inkAnnotations) {
       const strokes: Stroke[] = ann.position.strokes.map(s => ({
         id: `epub-ink-${++inkIdCounter}`,
-        points: s.points.map(p => isScrolled
-          ? { x: p.x * rect.width, y: p.y - scrollTop }
-          : { x: p.x * rect.width, y: p.y * rect.height }
-        ),
+        points: s.points.map(p => ({ x: p.x * rect.width, y: p.y - scrollTop })),
         color: s.color,
         width: s.width,
         opacity: 1,
       }))
       renderAllStrokes(c, strokes, rect.width, rect.height)
     }
-  }, [inkAnnotations, containerRef, scrollTop, isScrolled])
+  }, [inkAnnotations, containerRef, scrollTop])
 
   useEffect(() => { redraw() }, [redraw])
-  useEffect(() => { redraw() }, [ctx.currentPageId])
 
-  const toDocCoord = (e: React.PointerEvent, rect: DOMRect): { x: number; y: number } => {
-    const x = (e.clientX - rect.left) / rect.width
-    const y = isScrolled
-      ? (e.clientY - rect.top) + scrollTop  // absolute Y in scroll container
-      : (e.clientY - rect.top) / rect.height  // normalized within viewport
-    return { x, y }
-  }
+  const toDocCoord = (e: React.PointerEvent, rect: DOMRect): { x: number; y: number } => ({
+    x: (e.clientX - rect.left) / rect.width,
+    y: (e.clientY - rect.top) + scrollTop,
+  })
 
   const handleErase = useCallback(async (e: React.PointerEvent) => {
     const container = containerRef.current
@@ -140,17 +122,16 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
         const stroke = ann.position.strokes[si]
         for (const pt of stroke.points) {
           const dx = (pt.x - clickX) * rect.width
-          const dy = isScrolled ? (pt.y - clickY) : (pt.y - clickY) * rect.height
+          const dy = pt.y - clickY
           if (Math.sqrt(dx * dx + dy * dy) < threshold) {
             const remaining = ann.position.strokes.filter((_, i) => i !== si)
             if (remaining.length === 0) {
               await api.annotations.delete(ann.id)
             } else {
               const bounds = computeBounds(remaining)
-              const basePos = isScrolled
-                ? { type: 'ink' as const, scrolled: true, strokes: remaining, bounds }
-                : { type: 'ink' as const, pageId: ann.position.pageId, strokes: remaining, bounds }
-              await api.annotations.update(ann.id, { position: basePos })
+              await api.annotations.update(ann.id, {
+                position: { type: 'ink' as const, strokes: remaining, bounds },
+              })
             }
             onCreated()
             return
@@ -158,7 +139,7 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
         }
       }
     }
-  }, [inkAnnotations, containerRef, onCreated, isScrolled, scrollTop])
+  }, [inkAnnotations, containerRef, onCreated, scrollTop])
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (ctx.activeTool === 'eraser') {
@@ -174,7 +155,7 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     if (!container) return
     const rect = container.getBoundingClientRect()
     currentPointsRef.current = [toDocCoord(e, rect)]
-  }, [ctx.activeTool, containerRef, handleErase, isScrolled, scrollTop])
+  }, [ctx.activeTool, containerRef, handleErase, scrollTop])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!drawing || ctx.activeTool !== 'ink') return
@@ -192,14 +173,10 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     const c = canvas.getContext('2d')!
     c.scale(dpr, dpr)
 
-    // Re-render saved strokes
     for (const ann of inkAnnotations) {
       const strokes: Stroke[] = ann.position.strokes.map(s => ({
         id: `epub-ink-${++inkIdCounter}`,
-        points: s.points.map(p => isScrolled
-          ? { x: p.x * rect.width, y: p.y - scrollTop }
-          : { x: p.x * rect.width, y: p.y * rect.height }
-        ),
+        points: s.points.map(p => ({ x: p.x * rect.width, y: p.y - scrollTop })),
         color: s.color,
         width: s.width,
         opacity: 1,
@@ -207,19 +184,15 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
       renderAllStrokes(c, strokes, rect.width, rect.height)
     }
 
-    // Render live stroke
     const liveStroke: Stroke = {
       id: 'live',
-      points: currentPointsRef.current.map(p => isScrolled
-        ? { x: p.x * rect.width, y: p.y - scrollTop }
-        : { x: p.x * rect.width, y: p.y * rect.height }
-      ),
+      points: currentPointsRef.current.map(p => ({ x: p.x * rect.width, y: p.y - scrollTop })),
       color: ctx.inkColor,
       width: ctx.inkWidth,
       opacity: 1,
     }
     renderStroke(c, liveStroke)
-  }, [drawing, ctx.activeTool, ctx.inkColor, ctx.inkWidth, inkAnnotations, containerRef, isScrolled, scrollTop])
+  }, [drawing, ctx.activeTool, ctx.inkColor, ctx.inkWidth, inkAnnotations, containerRef, scrollTop])
 
   const handlePointerUp = useCallback(async () => {
     if (!drawing) return
@@ -238,9 +211,7 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
       ? [...existing.position.strokes, newStroke]
       : [newStroke]
     const bounds = computeBounds(allStrokes)
-    const position = isScrolled
-      ? { type: 'ink' as const, scrolled: true, strokes: allStrokes, bounds }
-      : { type: 'ink' as const, pageId: ctx.currentPageId, strokes: allStrokes, bounds }
+    const position = { type: 'ink' as const, strokes: allStrokes, bounds }
 
     if (existing) {
       ctx.pushInkUndo({ annotationId: existing.id, strokes: [...existing.position.strokes] })
@@ -254,7 +225,7 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     ctx.clearInkRedo()
     currentPointsRef.current = []
     onCreated()
-  }, [drawing, docId, ctx.inkColor, ctx.inkWidth, ctx.currentPageId, onCreated, inkAnnotations, isScrolled])
+  }, [drawing, docId, ctx.inkColor, ctx.inkWidth, onCreated, inkAnnotations])
 
   if (!isActive && inkAnnotations.length === 0) return null
 

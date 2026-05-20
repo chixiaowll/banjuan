@@ -1,13 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, ChevronLeft, ChevronRight, ChevronDown, Search, PanelRight, Highlighter, StickyNote, ScrollText, BookOpen, Clock, Pen } from 'lucide-react'
-import { useEpubViewer, ANNOTATION_COLORS, type EpubAnnotationTool } from './EpubViewerContext.js'
+import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, ChevronDown, Search, PanelRight, Clock, Pen } from 'lucide-react'
+import { useEpubViewer, ANNOTATION_COLORS } from './EpubViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
-import { useT } from '../../i18n/index.js'
-
-const TOOL_IDS: Array<{ id: EpubAnnotationTool; icon: React.ReactNode; key: string }> = [
-  { id: 'highlight', icon: <Highlighter size={16} />, key: 'tool.highlight' },
-  { id: 'note', icon: <StickyNote size={16} />, key: 'tool.text' },
-]
 
 interface Props {
   docId: string
@@ -15,7 +9,6 @@ interface Props {
 }
 
 export default function EpubToolbar({ docId, metadata }: Props) {
-  const t = useT()
   const ctx = useEpubViewer()
   const { formatted: readingTime } = useReadingTimer(docId, metadata)
   const [showColorPicker, setShowColorPicker] = useState(false)
@@ -55,6 +48,8 @@ export default function EpubToolbar({ docId, metadata }: Props) {
     margin: '0 4px',
   }
 
+  const inkActive = ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso'
+
   return (
     <div style={{
       display: 'flex',
@@ -83,28 +78,10 @@ export default function EpubToolbar({ docId, metadata }: Props) {
       </button>
 
       <div style={sepStyle} />
-
       <button
-        style={ctx.flowMode === 'scrolled' ? activeBtnStyle : btnStyle}
-        onClick={() => ctx.setFlowMode('scrolled')}
-        title="Scrolled mode"
-      >
-        <ScrollText size={16} />
-      </button>
-      <button
-        style={ctx.flowMode === 'paginated' ? activeBtnStyle : btnStyle}
-        onClick={() => ctx.setFlowMode('paginated')}
-        title="Paginated mode"
-      >
-        <BookOpen size={16} />
-      </button>
-
-      <div style={sepStyle} />
-      <button
-        style={ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso' ? activeBtnStyle : btnStyle}
+        style={inkActive ? activeBtnStyle : btnStyle}
         onClick={() => {
-          const isInk = ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso'
-          if (!isInk) {
+          if (!inkActive) {
             ctx.setActiveTool('ink')
           } else {
             ctx.setActiveTool('none')
@@ -117,22 +94,9 @@ export default function EpubToolbar({ docId, metadata }: Props) {
       </button>
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-        {ctx.flowMode === 'paginated' && (
-          <button style={btnStyle} onClick={ctx.goPrev} title="Previous">
-            <ChevronLeft size={16} />
-          </button>
-        )}
         <span style={{ fontSize: 11, minWidth: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
-          {ctx.totalLocations > 0
-            ? `${ctx.currentLocation} / ${ctx.totalLocations}`
-            : ctx.percentage > 0 ? `${ctx.percentage}%` : '—'
-          }
+          {ctx.percentage > 0 ? `${ctx.percentage}%` : '—'}
         </span>
-        {ctx.flowMode === 'paginated' && (
-          <button style={btnStyle} onClick={ctx.goNext} title="Next">
-            <ChevronRight size={16} />
-          </button>
-        )}
 
         <div style={sepStyle} />
 

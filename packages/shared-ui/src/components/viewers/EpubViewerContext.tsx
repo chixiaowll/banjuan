@@ -3,7 +3,6 @@ import type { Book, Rendition, NavItem } from 'epubjs'
 
 export type EpubLeftSidebarTab = 'outline' | 'annotations' | 'notes'
 export type EpubAnnotationTool = 'none' | 'highlight' | 'note' | 'ink' | 'eraser' | 'lasso'
-export type EpubFlowMode = 'scrolled' | 'paginated'
 
 export const ANNOTATION_COLORS = [
   { name: 'yellow', value: '#fde68a' },
@@ -23,12 +22,6 @@ interface EpubViewerContextValue {
   currentHref: string
   setCurrentHref: (href: string) => void
 
-  currentLocation: number
-  setCurrentLocation: (loc: number) => void
-  currentPageId: string
-  setCurrentPageId: (id: string) => void
-  totalLocations: number
-  setTotalLocations: (total: number) => void
   percentage: number
   setPercentage: (pct: number) => void
 
@@ -63,12 +56,7 @@ interface EpubViewerContextValue {
   searchOpen: boolean
   setSearchOpen: (open: boolean) => void
 
-  flowMode: EpubFlowMode
-  setFlowMode: (mode: EpubFlowMode) => void
-
   navigateTo: (href: string) => void
-  goNext: () => void
-  goPrev: () => void
 }
 
 const EpubViewerContext = createContext<EpubViewerContextValue | null>(null)
@@ -84,9 +72,6 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
   const [rendition, setRendition] = useState<Rendition | null>(null)
   const [toc, setToc] = useState<NavItem[]>([])
   const [currentHref, setCurrentHref] = useState('')
-  const [currentLocation, setCurrentLocation] = useState(0)
-  const [currentPageId, setCurrentPageId] = useState('')
-  const [totalLocations, setTotalLocations] = useState(0)
   const [percentage, setPercentage] = useState(0)
 
   const [fontSize, setFontSize] = useState(100)
@@ -128,20 +113,15 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
   const clearInkRedo = useCallback(() => setInkRedoStack([]), [])
 
   const [searchOpen, setSearchOpen] = useState(false)
-  const [flowMode, setFlowMode] = useState<EpubFlowMode>('scrolled')
 
   const navigateTo = useCallback((href: string) => {
     rendition?.display(href)
   }, [rendition])
 
-  const goNext = useCallback(() => { rendition?.next() }, [rendition])
-  const goPrev = useCallback(() => { rendition?.prev() }, [rendition])
-
   const value = useMemo<EpubViewerContextValue>(() => ({
     book, setBook, rendition, setRendition, toc, setToc,
     currentHref, setCurrentHref,
-    currentLocation, setCurrentLocation, currentPageId, setCurrentPageId,
-    totalLocations, setTotalLocations, percentage, setPercentage,
+    percentage, setPercentage,
     fontSize, setFontSize,
     leftSidebarOpen, leftSidebarTab, setLeftSidebarOpen, setLeftSidebarTab,
     rightSidebarOpen, setRightSidebarOpen,
@@ -151,19 +131,18 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
     inkUndoStack, inkRedoStack,
     pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo,
     searchOpen, setSearchOpen,
-    flowMode, setFlowMode,
-    navigateTo, goNext, goPrev,
+    navigateTo,
   }), [
     book, rendition, toc, currentHref,
-    currentLocation, currentPageId, totalLocations, percentage,
+    percentage,
     fontSize,
     leftSidebarOpen, leftSidebarTab,
     rightSidebarOpen,
     activeTool, activeColor,
     inkColor, inkWidth, inkEraserActive, inkUndoStack, inkRedoStack,
     pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo,
-    searchOpen, flowMode,
-    navigateTo, goNext, goPrev,
+    searchOpen,
+    navigateTo,
   ])
 
   return (
