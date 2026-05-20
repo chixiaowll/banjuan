@@ -116,33 +116,9 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
 
   const navigateTo = useCallback(async (href: string) => {
     if (!rendition) return
-    const cleanHref = href.split('#')[0]
-    const r = rendition as any
-
     try {
-      await rendition.display(cleanHref)
+      await rendition.display(href)
     } catch {}
-
-    // In scrolled-doc + continuous, display() clears views and adds the target
-    // section, then fill() prepends earlier sections asynchronously — shifting
-    // the target view's offsetTop downward. epub.js never re-scrolls after
-    // this, so we poll for the target view to be "displayed" and scroll to it.
-    const targetSection = r.book?.spine?.get?.(cleanHref)
-    if (!targetSection) return
-
-    const tryScroll = (attempt: number) => {
-      const manager = r.manager
-      const viewsList: any[] = manager?.views?._views ?? []
-      const view = viewsList.find(v => v?.section?.index === targetSection.index)
-      const el = view?.element
-      const sc = manager?.container as HTMLElement | undefined
-      if (view?.displayed && el && sc) {
-        sc.scrollTo({ top: el.offsetTop, behavior: 'smooth' })
-        return
-      }
-      if (attempt < 30) setTimeout(() => tryScroll(attempt + 1), 100)
-    }
-    setTimeout(() => tryScroll(0), 100)
   }, [rendition])
 
   const value = useMemo<EpubViewerContextValue>(() => ({
