@@ -74,6 +74,19 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     return () => scrollContainer.removeEventListener('scroll', handler)
   }, [scrollContainer])
 
+  // Forward wheel events through canvas to scroll container so user can
+  // still scroll the EPUB while ink mode is active
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !scrollContainer || !isActive) return
+    const handleWheel = (e: WheelEvent) => {
+      scrollContainer.scrollBy({ top: e.deltaY, left: e.deltaX })
+      e.preventDefault()
+    }
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', handleWheel)
+  }, [scrollContainer, isActive])
+
   const inkAnnotations: InkAnnotation[] = annotations.filter(
     (a: any) => a.type === 'ink' && a.position?.type === 'ink'
   )
@@ -142,6 +155,9 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
   }, [inkAnnotations, containerRef, onCreated, scrollTop])
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Let finger touch pass through for native scrolling (touch-action: pan-y).
+    // Drawing/erasing requires stylus or mouse.
+    if (e.pointerType === 'touch') return
     if (ctx.activeTool === 'eraser') {
       handleErase(e)
       return
@@ -244,7 +260,9 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
         pointerEvents: isActive ? 'auto' : 'none',
         cursor: ctx.activeTool === 'ink' ? 'crosshair' : ctx.activeTool === 'eraser' ? 'pointer' : 'default',
         zIndex: isActive ? 10 : 2,
-        touchAction: 'none',
+        // Allow finger pan-y scrolling on touch; stylus/mouse drawing still
+        // works (we call preventDefault in pointerDown for pen/mouse only).
+        touchAction: 'pan-y',
       }}
     />
   )
