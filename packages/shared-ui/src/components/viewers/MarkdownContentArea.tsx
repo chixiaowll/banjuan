@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useMarkdownViewer } from './MarkdownViewerContext.js'
 import MarkdownInkOverlay from './MarkdownInkOverlay.js'
 import MarkdownInkLassoTool from './MarkdownInkLassoTool.js'
+import MarkdownInkToolbar from './MarkdownInkToolbar.js'
 import BlockEditor from '../notes/BlockEditor.js'
 import type { HeadingItem } from '../notes/NoteOutlinePanel.js'
 
@@ -38,6 +39,7 @@ interface Props {
   onAnnotationClick?: (annotation: AnnotationData) => void
   onHeadingsChange: (headings: HeadingItem[]) => void
   onInkCreated: () => void
+  onClearAllInk: () => void
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>
 }
 
@@ -118,9 +120,11 @@ function applyHighlightMarks(container: HTMLElement, annotations: AnnotationData
   }
 }
 
-export default function MarkdownContentArea({ content, docId, annotations, onHighlightCreated, onNoteCreated, onAnnotationClick, onHeadingsChange, onInkCreated, scrollContainerRef }: Props) {
+export default function MarkdownContentArea({ content, docId, annotations, onHighlightCreated, onNoteCreated, onAnnotationClick, onHeadingsChange, onInkCreated, onClearAllInk, scrollContainerRef }: Props) {
   const ctx = useMarkdownViewer()
   const containerRef = useRef<HTMLDivElement>(null)
+  const undoRef = useRef<(() => void) | null>(null)
+  const redoRef = useRef<(() => void) | null>(null)
   const [selectionPopup, setSelectionPopup] = useState<SelectionPopup | null>(null)
   const [notePopup, setNotePopup] = useState<NotePopup | null>(null)
   const [noteText, setNoteText] = useState('')
@@ -284,6 +288,8 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
           headings={headings}
           scrollContainer={containerRef.current}
           onCreated={onInkCreated}
+          onUndoRef={undoRef}
+          onRedoRef={redoRef}
         />
       )}
       <MarkdownInkLassoTool
@@ -292,6 +298,16 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
         scrollContainer={containerRef.current}
         onUpdated={onInkCreated}
       />
+
+      {(ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso') && (
+        <MarkdownInkToolbar
+          onUndo={() => undoRef.current?.()}
+          onRedo={() => redoRef.current?.()}
+          canUndo={ctx.inkUndoStack.length > 0}
+          canRedo={ctx.inkRedoStack.length > 0}
+          onClearAll={onClearAllInk}
+        />
+      )}
 
       {selectionPopup && (
         <div

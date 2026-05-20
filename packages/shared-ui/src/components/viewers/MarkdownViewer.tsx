@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { MarkdownViewerProvider, useMarkdownViewer } from './MarkdownViewerContext.js'
 import MarkdownToolbar from './MarkdownToolbar.js'
-import MarkdownInkToolbar from './MarkdownInkToolbar.js'
 import MarkdownLeftSidebar from './MarkdownLeftSidebar.js'
 import MarkdownContentArea from './MarkdownContentArea.js'
 import MarkdownInkOverlay from './MarkdownInkOverlay.js'
@@ -130,12 +129,10 @@ function MarkdownViewerInner({ docPath, doc: initialDoc, onOpenNote }: Props) {
   }
 
   const showRightPanel = sidebarNoteId || ctx.rightSidebarOpen
-  const inkActive = ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <MarkdownToolbar docId={doc.id} metadata={doc.metadata} />
-      {inkActive && <MarkdownInkToolbar onClearAll={handleClearAllInk} />}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         <MarkdownLeftSidebar
           docId={doc.id}
@@ -159,6 +156,7 @@ function MarkdownViewerInner({ docPath, doc: initialDoc, onOpenNote }: Props) {
           onAnnotationClick={handleAnnotationClick}
           onHeadingsChange={setHeadings}
           onInkCreated={reload}
+          onClearAllInk={handleClearAllInk}
           scrollContainerRef={scrollContainerRef}
         />
         {showRightPanel && <ResizeHandle onPointerDown={rightResize.onPointerDown} />}
