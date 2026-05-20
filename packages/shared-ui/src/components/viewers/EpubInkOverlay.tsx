@@ -40,21 +40,22 @@ function computeBounds(strokes: InkStroke[]) {
   }
 }
 
-// Vertical distance between two bounds. Returns 0 if they overlap vertically.
-function verticalDistance(
-  a: { y: number; h: number },
-  b: { y: number; h: number },
-): number {
-  const aBottom = a.y + a.h
-  const bBottom = b.y + b.h
-  if (aBottom < b.y) return b.y - aBottom
-  if (bBottom < a.y) return a.y - bBottom
-  return 0
-}
+// A new stroke joins an existing annotation only if their bounding boxes
+// overlap (within a small tolerance). Strokes drawn in a separate spot
+// become their own annotation with their own thumbnail.
+const CLUSTER_PAD_X = 0.05  // 5% of container width (x is normalized 0-1)
+const CLUSTER_PAD_Y = 10    // 10 px (y is absolute pixels)
 
-// Strokes within this vertical distance get clustered into the same annotation.
-// Larger values = fewer, bigger thumbnails. Smaller = more, granular thumbnails.
-const CLUSTER_THRESHOLD_PX = 200
+function boundsOverlap(
+  a: { x: number; y: number; w: number; h: number },
+  b: { x: number; y: number; w: number; h: number },
+): boolean {
+  if (a.x + a.w + CLUSTER_PAD_X < b.x) return false
+  if (b.x + b.w + CLUSTER_PAD_X < a.x) return false
+  if (a.y + a.h + CLUSTER_PAD_Y < b.y) return false
+  if (b.y + b.h + CLUSTER_PAD_Y < a.y) return false
+  return true
+}
 
 export default function EpubInkOverlay({ docId, annotations, containerRef, onCreated }: Props) {
   const api = useBanjuanAPI()
@@ -238,25 +239,17 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
       width: ctx.inkWidth,
     }
 
-    // Find nearest existing annotation whose bounds are within the cluster
-    // threshold of the new stroke's bounds. New stroke joins that annotation;
-    // otherwise it becomes a new annotation (a separate thumbnail).
+    // Look for an existing annotation whose bounding box overlaps the new
+    // stroke (with small padding). Merge into it; otherwise create a new
+    // annotation so it becomes its own thumbnail.
     const newBounds = computeBounds([newStroke])
-    let nearest: InkAnnotation | null = null
-    let nearestDist = Infinity
-    for (const ann of inkAnnotations) {
-      const d = verticalDistance(ann.position.bounds, newBounds)
-      if (d < CLUSTER_THRESHOLD_PX && d < nearestDist) {
-        nearest = ann
-        nearestDist = d
-      }
-    }
+    const overlapping = inkAnnotations.find(a => boundsOverlap(a.position.bounds, newBounds))
 
-    if (nearest) {
-      const allStrokes = [...nearest.position.strokes, newStroke]
+    if (overlapping) {
+      const allStrokes = [...overlapping.position.strokes, newStroke]
       const bounds = computeBounds(allStrokes)
-      ctx.pushInkUndo({ annotationId: nearest.id, strokes: [...nearest.position.strokes] })
-      await api.annotations.update(nearest.id, {
+      ctx.pushInkUndo({ annotationId: overlapping.id, strokes: [...overlapping.position.strokes] })
+      await api.annotations.update(overlapping.id, {
         position: { type: 'ink', strokes: allStrokes, bounds },
       })
     } else {
