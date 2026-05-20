@@ -36,25 +36,10 @@ export default function EpubLeftSidebar({
   const handleAnnotationNavigate = (ann: any) => {
     if (ann?.position?.cfi) {
       onAnnotationClick(ann.position.cfi)
-    } else if (ann?.position?.type === 'ink') {
-      if (ann.position.scrolled === true && ann.position.bounds) {
-        // Scrolled-mode ink: scroll to absolute Y of the stroke
-        const sc = document.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
-        if (sc) {
-          sc.scrollTo({ top: Math.max(0, ann.position.bounds.y - sc.clientHeight / 3), behavior: 'smooth' })
-        }
-      } else if (ann.position.pageId) {
-        const { book, rendition } = ctx
-        if (book && rendition) {
-          try {
-            const [sectionIndex] = ann.position.pageId.split('-').map(Number)
-            const spine = (book as any).spine
-            if (spine) {
-              const section = spine.get(sectionIndex)
-              if (section) rendition.display(section.href)
-            }
-          } catch {}
-        }
+    } else if (ann?.position?.type === 'ink' && ann?.position?.bounds) {
+      const sc = document.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
+      if (sc) {
+        sc.scrollTo({ top: Math.max(0, ann.position.bounds.y - sc.clientHeight / 3), behavior: 'smooth' })
       }
     }
   }
