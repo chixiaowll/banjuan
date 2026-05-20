@@ -206,6 +206,7 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
   return (
     <div
       ref={containerRef}
+      data-epub-container
       style={{
         flex: 1,
         overflow: 'hidden',
@@ -213,8 +214,6 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
         background: 'var(--bg)',
       }}
     >
-      <div data-epub-container style={{ position: 'absolute', inset: 0, overflow: 'hidden' }} />
-
       {/* Selection toolbar - appears after text selection */}
       {selectionPopup && (
         <div
