@@ -41,7 +41,7 @@ export default function PdfLeftSidebar({
       display: 'flex', flexDirection: 'column', flexShrink: 0,
       background: 'var(--bg)', overflow: 'hidden',
     }}>
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border-solid, var(--border))', flexShrink: 0 }}>
         {TAB_IDS.map(tab => (
           <button
             key={tab.id}
@@ -59,7 +59,7 @@ export default function PdfLeftSidebar({
           </button>
         ))}
       </div>
-      <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80 }}>
+      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, position: 'relative' }}>
         {leftSidebarTab === 'thumbnails' && <ThumbnailPanel />}
         {leftSidebarTab === 'outline' && <OutlinePanel />}
         {leftSidebarTab === 'annotations' && (

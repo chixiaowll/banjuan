@@ -82,6 +82,14 @@ export class AnnotationService {
     return annotation
   }
 
+  async listRecent(limit = 10): Promise<(Annotation & { docTitle?: string })[]> {
+    const sql = `SELECT a.*, d.title as doc_title FROM annotations a
+      LEFT JOIN documents d ON a.doc_id = d.id
+      ORDER BY a.created_at DESC LIMIT ?`
+    const rows = this.db.query<Record<string, unknown>>(sql, [limit])
+    return rows.map(r => ({ ...rowToAnnotation(r), docTitle: (r.doc_title as string) || undefined }))
+  }
+
   async delete(id: string): Promise<void> {
     const ann = this.db.queryOne<{ doc_id: string }>('SELECT doc_id FROM annotations WHERE id = ?', [id])
     await this.store.delete(id)

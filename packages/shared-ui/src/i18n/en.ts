@@ -223,6 +223,7 @@ const en = {
   'settings.title': 'Settings',
   'settings.language': 'Language / 语言',
   'settings.noteTheme': 'Note Theme',
+  'settings.bgTint': 'Background Tint',
 
   // Selection toolbar
   'selection.annotate': 'Annotate',

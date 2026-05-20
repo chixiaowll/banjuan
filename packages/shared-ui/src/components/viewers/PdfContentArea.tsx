@@ -239,7 +239,7 @@ export default function PdfContentArea({ annotations, docId, onTextSelect, onHig
   return (
     <div
       ref={scrollRef as React.RefObject<HTMLDivElement>}
-      style={{ flex: 1, overflow: 'auto', background: '#525659' }}
+      style={{ flex: 1, overflow: 'auto', background: 'var(--pdf-surround, #525659)' }}
     >
       {!pdfDoc || pageSizes.length === 0 ? (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#aaa' }}>

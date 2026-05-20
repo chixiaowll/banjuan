@@ -223,6 +223,7 @@ const zh = {
   'settings.title': '设置',
   'settings.language': '语言 / Language',
   'settings.noteTheme': '笔记主题',
+  'settings.bgTint': '背景色调',
 
   // Selection toolbar
   'selection.annotate': '批注',

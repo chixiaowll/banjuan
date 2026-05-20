@@ -45,7 +45,9 @@ interface LibraryHistoryEntry {
 
 function readHistory(): LibraryHistoryEntry[] {
   try {
-    return JSON.parse(readFileSync(HISTORY_FILE, 'utf-8'))
+    const entries: LibraryHistoryEntry[] = JSON.parse(readFileSync(HISTORY_FILE, 'utf-8'))
+    entries.sort((a, b) => new Date(b.lastOpened).getTime() - new Date(a.lastOpened).getTime())
+    return entries
   } catch {
     return []
   }
@@ -321,6 +323,10 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('annotations:delete', async (event, id: string) => {
     return getLib(event).annotations.delete(id)
+  })
+
+  ipcMain.handle('annotations:listRecent', async (event, limit?: number) => {
+    return getLib(event).annotations.listRecent(limit)
   })
 
   ipcMain.handle('notes:create', async (event, input: {

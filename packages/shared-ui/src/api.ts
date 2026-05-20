@@ -87,6 +87,7 @@ export interface BanjuanAPI {
     get(id: string): Promise<Annotation | null>
     update(id: string, updates: { content?: string; color?: string; position?: unknown }): Promise<Annotation>
     delete(id: string): Promise<void>
+    listRecent?(limit?: number): Promise<Array<Annotation & { docTitle?: string }>>
   }
 
   notes: {
