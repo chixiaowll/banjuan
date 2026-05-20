@@ -79,12 +79,10 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
           bookRef.current.destroy()
           bookRef.current = null
         }
-        // Clean up epub.js elements but preserve React-managed children
+        // Remove all epub.js elements but preserve the React overlay wrapper
         Array.from(container.children).forEach(child => {
-          const el = child as HTMLElement
-          if (el.tagName === 'IFRAME' || el.classList?.contains('epub-container')) {
-            el.remove()
-          }
+          if ((child as HTMLElement).dataset?.reactOverlay !== undefined) return
+          child.remove()
         })
 
         const epubBook = ePub(data as any)
