@@ -212,6 +212,58 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
     await update(id, updates)
   }, [update])
 
+  const handleInkCreated = useCallback(() => {
+    reload()
+  }, [reload])
+
+  const handleInkClearPage = useCallback(async () => {
+    const inkAnns = annotations.filter(
+      (a: any) => a.type === 'ink' && a.position?.page === ctx.currentLocation
+    )
+    for (const ann of inkAnns) {
+      await api.annotations.delete(ann.id)
+    }
+    reload()
+  }, [annotations, ctx.currentLocation, reload])
+
+  const handleInkUndo = useCallback(async () => {
+    const entry = ctx.popInkUndo()
+    if (!entry) return
+    const current = annotations.find((a: any) => a.id === entry.annotationId)
+    if (current) {
+      ctx.pushInkRedo({ annotationId: current.id, strokes: [...(current as any).position.strokes] })
+      if (entry.strokes.length === 0) {
+        await api.annotations.delete(current.id)
+      } else {
+        const allPts = entry.strokes.flatMap((s: any) => s.points)
+        const xs = allPts.map((p: any) => p.x)
+        const ys = allPts.map((p: any) => p.y)
+        const bounds = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
+        await api.annotations.update(current.id, {
+          position: { ...(current as any).position, strokes: entry.strokes, bounds },
+        })
+      }
+    }
+    reload()
+  }, [annotations, reload])
+
+  const handleInkRedo = useCallback(async () => {
+    const entry = ctx.popInkRedo()
+    if (!entry) return
+    const current = annotations.find((a: any) => a.id === entry.annotationId)
+    if (current) {
+      ctx.pushInkUndo({ annotationId: current.id, strokes: [...(current as any).position.strokes] })
+      const allPts = entry.strokes.flatMap((s: any) => s.points)
+      const xs = allPts.map((p: any) => p.x)
+      const ys = allPts.map((p: any) => p.y)
+      const bounds = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
+      await api.annotations.update(current.id, {
+        position: { ...(current as any).position, strokes: entry.strokes, bounds },
+      })
+    }
+    reload()
+  }, [annotations, reload])
+
   const handleCreateNote = useCallback(async () => {
     let title = t('note.defaultTitle' as any, doc.title)
     let note: any
@@ -258,6 +310,12 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
           docId={doc.id}
           onHighlightCreated={handleHighlightCreated}
           onNoteCreated={handleNoteCreated}
+          onInkCreated={handleInkCreated}
+          onInkUndo={handleInkUndo}
+          onInkRedo={handleInkRedo}
+          onInkClearPage={handleInkClearPage}
+          inkCanUndo={ctx.inkUndoStack.length > 0}
+          inkCanRedo={ctx.inkRedoStack.length > 0}
         />
         {ctx.rightSidebarOpen && <ResizeHandle onPointerDown={rightResize.onPointerDown} />}
         <EpubInfoSidebar

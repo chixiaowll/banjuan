@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, ChevronLeft, ChevronRight, ChevronDown, Search, PanelRight, Highlighter, StickyNote, ScrollText, BookOpen, Clock } from 'lucide-react'
+import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, ChevronLeft, ChevronRight, ChevronDown, Search, PanelRight, Highlighter, StickyNote, ScrollText, BookOpen, Clock, Pen } from 'lucide-react'
 import { useEpubViewer, ANNOTATION_COLORS, type EpubAnnotationTool } from './EpubViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
 import { useT } from '../../i18n/index.js'
@@ -97,6 +97,19 @@ export default function EpubToolbar({ docId, metadata }: Props) {
         title="Paginated mode"
       >
         <BookOpen size={16} />
+      </button>
+
+      <div style={sepStyle} />
+      <button
+        style={ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso' ? activeBtnStyle : btnStyle}
+        onClick={() => {
+          const isInk = ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso'
+          ctx.setActiveTool(isInk ? 'none' : 'ink')
+          if (isInk) ctx.setInkEraserActive(false)
+        }}
+        title="Ink annotation"
+      >
+        <Pen size={16} />
       </button>
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>

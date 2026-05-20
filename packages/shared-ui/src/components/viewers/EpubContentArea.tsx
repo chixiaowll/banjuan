@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useEpubViewer } from './EpubViewerContext.js'
+import EpubInkOverlay from './EpubInkOverlay.js'
+import EpubInkToolbar from './EpubInkToolbar.js'
 
 interface Props {
   annotations: Array<{
@@ -11,6 +13,12 @@ interface Props {
   docId: string
   onHighlightCreated: (cfiRange: string, text: string) => void
   onNoteCreated: (cfiRange: string, text: string, noteContent: string) => void
+  onInkCreated: () => void
+  onInkUndo: () => void
+  onInkRedo: () => void
+  onInkClearPage: () => void
+  inkCanUndo: boolean
+  inkCanRedo: boolean
 }
 
 interface SelectionPopup {
@@ -55,7 +63,7 @@ function applyHighlight(rendition: any, cfi: string, id: string, color: string) 
   )
 }
 
-export default function EpubContentArea({ annotations, docId, onHighlightCreated, onNoteCreated }: Props) {
+export default function EpubContentArea({ annotations, docId, onHighlightCreated, onNoteCreated, onInkCreated, onInkUndo, onInkRedo, onInkClearPage, inkCanUndo, inkCanRedo }: Props) {
   const ctx = useEpubViewer()
   const renderedAnnotations = useRef(new Set<string>())
   const [selectionPopup, setSelectionPopup] = useState<SelectionPopup | null>(null)
@@ -244,6 +252,25 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
             📌
           </button>
         </div>
+      )}
+
+      {/* Ink overlay */}
+      <EpubInkOverlay
+        docId={docId}
+        annotations={annotations}
+        containerRef={containerRef}
+        onCreated={onInkCreated}
+      />
+
+      {/* Ink toolbar - shown when ink mode active */}
+      {(ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso') && (
+        <EpubInkToolbar
+          onUndo={onInkUndo}
+          onRedo={onInkRedo}
+          canUndo={inkCanUndo}
+          canRedo={inkCanRedo}
+          onClearPage={onInkClearPage}
+        />
       )}
 
       {/* Note input popup */}
