@@ -116,33 +116,33 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
 
   const navigateTo = useCallback(async (href: string) => {
     if (!rendition) return
-    try {
-      await rendition.display(href)
-    } catch {}
-    // Workaround: rendition.display(href) in scrolled-doc + continuous doesn't
-    // reliably scroll to the section's start (especially for not-yet-loaded
-    // sections — epub.js's Default.display clears views and adds the section
-    // but doesn't always scrollTo afterwards). Use epub.js internals to find
-    // the target view, then scroll the epub-container to its offsetTop.
     const cleanHref = href.split('#')[0]
     const r = rendition as any
-    const targetSection = r?.book?.spine?.get?.(cleanHref)
+
+    try {
+      await rendition.display(cleanHref)
+    } catch {}
+
+    // In scrolled-doc + continuous, display() clears views and adds the target
+    // section, then fill() prepends earlier sections asynchronously — shifting
+    // the target view's offsetTop downward. epub.js never re-scrolls after
+    // this, so we poll for the target view to be "displayed" and scroll to it.
+    const targetSection = r.book?.spine?.get?.(cleanHref)
     if (!targetSection) return
 
     const tryScroll = (attempt: number) => {
-      const manager = r?.manager
+      const manager = r.manager
       const viewsList: any[] = manager?.views?._views ?? []
       const view = viewsList.find(v => v?.section?.index === targetSection.index)
-      const el = view?.element ?? view?.container
-      const sc = document.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
-      if (el && sc) {
+      const el = view?.element
+      const sc = manager?.container as HTMLElement | undefined
+      if (view?.displayed && el && sc) {
         sc.scrollTo({ top: el.offsetTop, behavior: 'smooth' })
         return
       }
-      // View not yet loaded — retry up to ~1.5s
-      if (attempt < 15) setTimeout(() => tryScroll(attempt + 1), 100)
+      if (attempt < 30) setTimeout(() => tryScroll(attempt + 1), 100)
     }
-    tryScroll(0)
+    setTimeout(() => tryScroll(0), 100)
   }, [rendition])
 
   const value = useMemo<EpubViewerContextValue>(() => ({
