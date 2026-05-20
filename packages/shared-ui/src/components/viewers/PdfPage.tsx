@@ -384,7 +384,7 @@ export default function PdfPage({
         width: baseSize.w,
         height: baseSize.h,
         margin: '0 auto',
-        background: '#fff',
+        background: 'var(--surface-raised)',
       }}
     >
       <>
@@ -495,6 +495,12 @@ export default function PdfPage({
           />
         </>
       )}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'var(--pdf-tint, transparent)',
+        pointerEvents: 'none',
+        zIndex: 10,
+      }} />
     </div>
   )
 }

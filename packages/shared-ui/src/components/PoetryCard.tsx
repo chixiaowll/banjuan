@@ -242,6 +242,12 @@ const EN_POEMS: Poem[] = [
 
 const POEMS: Poem[] = [
   {
+    title: '定風波',
+    author: '蘇軾',
+    tag: '宋',
+    lines: ['莫聽穿林打葉聲', '何妨吟嘯且徐行', '竹杖芒鞋輕勝馬', '誰怕', '一蓑煙雨任平生'],
+  },
+  {
     title: '赴戍登程口占示家人',
     author: '林則徐',
     tag: '清',
@@ -439,11 +445,12 @@ function getDailyPoem(poems: Poem[]): Poem {
 const arrowBtnStyle: React.CSSProperties = {
   position: 'absolute', top: '50%', transform: 'translateY(-50%)',
   width: 28, height: 28, borderRadius: '50%',
-  border: 'none', background: 'var(--surface-raised, rgba(255,255,255,0.85))',
-  boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+  border: 'none', background: 'rgba(255,255,255,0.9)',
+  backdropFilter: 'blur(8px)',
+  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
   cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   color: 'var(--text-muted, #888)', fontSize: 16, lineHeight: 1,
-  opacity: 0, transition: 'opacity 0.2s ease',
+  opacity: 0, transition: 'opacity 0.25s ease',
   zIndex: 2,
 }
 
@@ -451,7 +458,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
   const isEn = locale === 'en'
   const poems = isEn ? EN_POEMS : POEMS
 
-  const [index, setIndex] = useState(() => Math.floor(Math.random() * poems.length))
+  const [index, setIndex] = useState(0)
   const [fading, setFading] = useState(false)
   const [hovered, setHovered] = useState(false)
   const dragRef = useRef<{ startX: number; startY: number; locked: boolean } | null>(null)
@@ -473,6 +480,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (fading) return
+    if ((e.target as HTMLElement).closest('button')) return
     dragRef.current = { startX: e.clientX, startY: e.clientY, locked: false }
     containerRef.current?.setPointerCapture(e.pointerId)
   }, [fading])
@@ -491,8 +499,9 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
 
   const cardBase: React.CSSProperties = {
     borderRadius: 16,
-    border: '1px solid var(--border, #e8e8e8)',
-    background: 'var(--surface, #fff)',
+    border: 'none',
+    background: 'linear-gradient(135deg, var(--surface, #f8f8fa) 0%, var(--surface-raised, #fff) 100%)',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03)',
     position: 'relative',
     overflow: 'hidden',
     touchAction: 'pan-y',
@@ -534,7 +543,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             {poem.lines.map((line, i) => <div key={i}>{line}</div>)}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20 }}>
-            <span style={{ fontFamily: EN_FONT, fontSize: 14, color: 'var(--text-muted, #888)' }}>
+            <span style={{ fontFamily: EN_FONT, fontSize: 14, color: 'var(--text-secondary, #6e6e73)' }}>
               — {poem.author}
             </span>
             <span style={{
@@ -578,14 +587,15 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
         }}>
           <span style={{
             writingMode: 'vertical-rl', fontFamily: POETRY_FONT, fontSize: 14,
-            color: 'var(--text-muted, #888)', letterSpacing: '0.1em',
+            color: 'var(--text-secondary, #6e6e73)', letterSpacing: '0.1em',
           }}>
             {poem.author}
           </span>
           <span style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 18, height: 18, borderRadius: 3, background: '#c0392b',
+            width: 20, height: 20, borderRadius: 4, background: '#bf4b3f',
             color: '#fff', fontSize: 10, fontFamily: POETRY_FONT, fontWeight: 600,
+            boxShadow: '0 1px 2px rgba(191,75,63,0.25)',
           }}>
             {poem.tag}
           </span>

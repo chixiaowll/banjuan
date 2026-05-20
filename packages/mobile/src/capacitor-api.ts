@@ -184,6 +184,9 @@ export function createCapacitorAPI(): BanjuanAPI {
       async delete(id) {
         return getLib().annotations.delete(id)
       },
+      async listRecent(limit?: number) {
+        return getLib().annotations.listRecent(limit)
+      },
     },
 
     notes: {

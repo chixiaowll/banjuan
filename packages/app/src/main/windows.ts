@@ -8,8 +8,8 @@ export function createWindow(): BrowserWindow {
     width: 1200,
     height: 800,
     icon: join(__dirname, '../../resources/icon.png'),
-    titleBarStyle: 'hidden',
-    trafficLightPosition: { x: 12, y: 10 },
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 12, y: 12 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

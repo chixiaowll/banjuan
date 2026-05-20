@@ -54,6 +54,7 @@ const api = {
     update: (id: string, updates: { content?: string; color?: string; position?: unknown }) =>
       ipcRenderer.invoke('annotations:update', id, updates),
     delete: (id: string) => ipcRenderer.invoke('annotations:delete', id),
+    listRecent: (limit?: number) => ipcRenderer.invoke('annotations:listRecent', limit),
   },
   notes: {
     create: (input: {
