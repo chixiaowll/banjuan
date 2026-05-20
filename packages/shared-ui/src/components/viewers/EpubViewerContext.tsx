@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import type { Book, Rendition, NavItem } from 'epubjs'
 
 export type EpubLeftSidebarTab = 'outline' | 'annotations' | 'notes'
-export type EpubAnnotationTool = 'none' | 'highlight' | 'note'
+export type EpubAnnotationTool = 'none' | 'highlight' | 'note' | 'ink' | 'eraser' | 'lasso'
 export type EpubFlowMode = 'scrolled' | 'paginated'
 
 export const ANNOTATION_COLORS = [
@@ -44,6 +44,19 @@ interface EpubViewerContextValue {
   setActiveTool: (tool: EpubAnnotationTool) => void
   activeColor: string
   setActiveColor: (color: string) => void
+  inkColor: string
+  setInkColor: (color: string) => void
+  inkWidth: number
+  setInkWidth: (w: number) => void
+  inkEraserActive: boolean
+  setInkEraserActive: (active: boolean) => void
+  inkUndoStack: Array<{ annotationId: string; strokes: any[] }>
+  inkRedoStack: Array<{ annotationId: string; strokes: any[] }>
+  pushInkUndo: (entry: { annotationId: string; strokes: any[] }) => void
+  popInkUndo: () => { annotationId: string; strokes: any[] } | undefined
+  pushInkRedo: (entry: { annotationId: string; strokes: any[] }) => void
+  popInkRedo: () => { annotationId: string; strokes: any[] } | undefined
+  clearInkRedo: () => void
 
   searchOpen: boolean
   setSearchOpen: (open: boolean) => void
@@ -79,6 +92,38 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
   const [activeTool, setActiveTool] = useState<EpubAnnotationTool>('none')
   const [activeColor, setActiveColor] = useState(ANNOTATION_COLORS[0].value)
+  const [inkColor, setInkColor] = useState('#1a1a1a')
+  const [inkWidth, setInkWidth] = useState(2)
+  const [inkEraserActive, setInkEraserActive] = useState(false)
+  const [inkUndoStack, setInkUndoStack] = useState<Array<{ annotationId: string; strokes: any[] }>>([])
+  const [inkRedoStack, setInkRedoStack] = useState<Array<{ annotationId: string; strokes: any[] }>>([])
+
+  const pushInkUndo = useCallback((entry: { annotationId: string; strokes: any[] }) => {
+    setInkUndoStack(prev => [...prev, entry])
+  }, [])
+  const popInkUndo = useCallback(() => {
+    let popped: { annotationId: string; strokes: any[] } | undefined
+    setInkUndoStack(prev => {
+      if (prev.length === 0) return prev
+      popped = prev[prev.length - 1]
+      return prev.slice(0, -1)
+    })
+    return popped
+  }, [])
+  const pushInkRedo = useCallback((entry: { annotationId: string; strokes: any[] }) => {
+    setInkRedoStack(prev => [...prev, entry])
+  }, [])
+  const popInkRedo = useCallback(() => {
+    let popped: { annotationId: string; strokes: any[] } | undefined
+    setInkRedoStack(prev => {
+      if (prev.length === 0) return prev
+      popped = prev[prev.length - 1]
+      return prev.slice(0, -1)
+    })
+    return popped
+  }, [])
+  const clearInkRedo = useCallback(() => setInkRedoStack([]), [])
+
   const [searchOpen, setSearchOpen] = useState(false)
   const [flowMode, setFlowMode] = useState<EpubFlowMode>('scrolled')
 
@@ -98,6 +143,10 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
     leftSidebarOpen, leftSidebarTab, setLeftSidebarOpen, setLeftSidebarTab,
     rightSidebarOpen, setRightSidebarOpen,
     activeTool, setActiveTool, activeColor, setActiveColor,
+    inkColor, setInkColor, inkWidth, setInkWidth,
+    inkEraserActive, setInkEraserActive,
+    inkUndoStack, inkRedoStack,
+    pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo,
     searchOpen, setSearchOpen,
     flowMode, setFlowMode,
     navigateTo, goNext, goPrev,
@@ -108,6 +157,8 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
     leftSidebarOpen, leftSidebarTab,
     rightSidebarOpen,
     activeTool, activeColor,
+    inkColor, inkWidth, inkEraserActive, inkUndoStack, inkRedoStack,
+    pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo,
     searchOpen, flowMode,
     navigateTo, goNext, goPrev,
   ])
