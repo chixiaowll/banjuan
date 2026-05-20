@@ -105,7 +105,6 @@ export default function EpubToolbar({ docId, metadata }: Props) {
         onClick={() => {
           const isInk = ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso'
           if (!isInk) {
-            if (ctx.flowMode === 'scrolled') ctx.setFlowMode('paginated')
             ctx.setActiveTool('ink')
           } else {
             ctx.setActiveTool('none')

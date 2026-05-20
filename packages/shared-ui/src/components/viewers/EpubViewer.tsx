@@ -235,14 +235,17 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
   }, [reload])
 
   const handleInkClearPage = useCallback(async () => {
-    const inkAnns = annotations.filter(
-      (a: any) => a.type === 'ink' && a.position?.pageId === ctx.currentPageId
-    )
+    const isScrolled = ctx.flowMode === 'scrolled'
+    const inkAnns = annotations.filter((a: any) => {
+      if (a.type !== 'ink') return false
+      if (isScrolled) return a.position?.scrolled === true
+      return a.position?.pageId === ctx.currentPageId
+    })
     for (const ann of inkAnns) {
       await api.annotations.delete(ann.id)
     }
     reload()
-  }, [annotations, ctx.currentPageId, reload])
+  }, [annotations, ctx.currentPageId, ctx.flowMode, reload])
 
   const handleInkUndo = useCallback(async () => {
     const entry = ctx.popInkUndo()
