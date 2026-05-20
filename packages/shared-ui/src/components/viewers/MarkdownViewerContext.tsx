@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo } from 'react'
+import React, { createContext, useContext, useState, useMemo, useCallback } from 'react'
 
 export type MdLeftSidebarTab = 'outline' | 'annotations' | 'notes'
 export type MdActiveTool = 'none' | 'ink' | 'eraser' | 'lasso'
@@ -31,6 +31,13 @@ interface MarkdownViewerContextValue {
   setInkColor: (color: string) => void
   inkWidth: number
   setInkWidth: (width: number) => void
+  inkUndoStack: Array<{ annotationId: string; strokes: any[] }>
+  inkRedoStack: Array<{ annotationId: string; strokes: any[] }>
+  pushInkUndo: (entry: { annotationId: string; strokes: any[] }) => void
+  popInkUndo: () => { annotationId: string; strokes: any[] } | undefined
+  pushInkRedo: (entry: { annotationId: string; strokes: any[] }) => void
+  popInkRedo: () => { annotationId: string; strokes: any[] } | undefined
+  clearInkRedo: () => void
 }
 
 const MarkdownViewerContext = createContext<MarkdownViewerContextValue | null>(null)
@@ -50,6 +57,34 @@ export function MarkdownViewerProvider({ children }: { children: React.ReactNode
   const [activeTool, setActiveTool] = useState<MdActiveTool>('none')
   const [inkColor, setInkColor] = useState('#1a1a1a')
   const [inkWidth, setInkWidth] = useState(4)
+  const [inkUndoStack, setInkUndoStack] = useState<Array<{ annotationId: string; strokes: any[] }>>([])
+  const [inkRedoStack, setInkRedoStack] = useState<Array<{ annotationId: string; strokes: any[] }>>([])
+
+  const pushInkUndo = useCallback((entry: { annotationId: string; strokes: any[] }) => {
+    setInkUndoStack(prev => [...prev, entry])
+  }, [])
+  const popInkUndo = useCallback(() => {
+    let popped: { annotationId: string; strokes: any[] } | undefined
+    setInkUndoStack(prev => {
+      if (prev.length === 0) return prev
+      popped = prev[prev.length - 1]
+      return prev.slice(0, -1)
+    })
+    return popped
+  }, [])
+  const pushInkRedo = useCallback((entry: { annotationId: string; strokes: any[] }) => {
+    setInkRedoStack(prev => [...prev, entry])
+  }, [])
+  const popInkRedo = useCallback(() => {
+    let popped: { annotationId: string; strokes: any[] } | undefined
+    setInkRedoStack(prev => {
+      if (prev.length === 0) return prev
+      popped = prev[prev.length - 1]
+      return prev.slice(0, -1)
+    })
+    return popped
+  }, [])
+  const clearInkRedo = useCallback(() => setInkRedoStack([]), [])
 
   const value = useMemo<MarkdownViewerContextValue>(() => ({
     leftSidebarOpen, setLeftSidebarOpen,
@@ -60,7 +95,9 @@ export function MarkdownViewerProvider({ children }: { children: React.ReactNode
     activeTool, setActiveTool,
     inkColor, setInkColor,
     inkWidth, setInkWidth,
-  }), [leftSidebarOpen, leftSidebarTab, rightSidebarOpen, fontSize, activeColor, activeTool, inkColor, inkWidth])
+    inkUndoStack, inkRedoStack,
+    pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo,
+  }), [leftSidebarOpen, leftSidebarTab, rightSidebarOpen, fontSize, activeColor, activeTool, inkColor, inkWidth, inkUndoStack, inkRedoStack, pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo])
 
   return (
     <MarkdownViewerContext.Provider value={value}>

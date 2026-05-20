@@ -177,6 +177,13 @@ export default function MarkdownInkOverlay({ docId, annotations, headings, scrol
     const position = { type: 'ink' as const, sectionId, strokes: allStrokes, bounds }
 
     if (existing) {
+      ctx.pushInkUndo({ annotationId: existing.id, strokes: [...existing.position.strokes] })
+    } else {
+      ctx.pushInkUndo({ annotationId: '__new__', strokes: [] })
+    }
+    ctx.clearInkRedo()
+
+    if (existing) {
       await api.annotations.update(existing.id, { position })
     } else {
       await api.annotations.create({
@@ -189,6 +196,38 @@ export default function MarkdownInkOverlay({ docId, annotations, headings, scrol
     currentPointsRef.current = []
     onCreated()
   }, [drawing, docId, ctx.inkColor, ctx.inkWidth, scrollContainer, onCreated, inkAnnotations, headings])
+
+  const handleUndo = useCallback(async () => {
+    const entry = ctx.popInkUndo()
+    if (!entry) return
+    const current = inkAnnotations.find(a => a.id === entry.annotationId)
+    if (current) {
+      ctx.pushInkRedo({ annotationId: current.id, strokes: [...current.position.strokes] })
+      if (entry.strokes.length === 0) {
+        await api.annotations.delete(current.id)
+      } else {
+        const bounds = computeBounds(entry.strokes)
+        await api.annotations.update(current.id, {
+          position: { ...current.position, strokes: entry.strokes, bounds },
+        })
+      }
+    }
+    onCreated()
+  }, [inkAnnotations, onCreated])
+
+  const handleRedo = useCallback(async () => {
+    const entry = ctx.popInkRedo()
+    if (!entry) return
+    const current = inkAnnotations.find(a => a.id === entry.annotationId)
+    if (current) {
+      ctx.pushInkUndo({ annotationId: current.id, strokes: [...current.position.strokes] })
+      const bounds = computeBounds(entry.strokes)
+      await api.annotations.update(current.id, {
+        position: { ...current.position, strokes: entry.strokes, bounds },
+      })
+    }
+    onCreated()
+  }, [inkAnnotations, onCreated])
 
   const handleErase = useCallback(async (e: React.PointerEvent) => {
     if (!canvasRef.current || !scrollContainer) return
