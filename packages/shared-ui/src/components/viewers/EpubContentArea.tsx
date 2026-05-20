@@ -214,130 +214,134 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
         background: 'var(--bg)',
       }}
     >
-      {/* Selection toolbar - appears after text selection */}
-      {selectionPopup && (
-        <div
-          data-selection-toolbar
-          style={{
+      {/* React overlay — marked so epub.js init cleanup preserves it */}
+      <div data-react-overlay style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 5 }}>
+        {selectionPopup && (
+          <div
+            data-selection-toolbar
+            style={{
+              position: 'fixed',
+              left: selectionPopup.x,
+              top: selectionPopup.y - 40,
+              transform: 'translateX(-50%)',
+              zIndex: 1000,
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              padding: '2px 4px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+              display: 'flex',
+              gap: 2,
+              pointerEvents: 'auto',
+            }}
+          >
+            <button
+              style={toolbarBtnStyle}
+              onClick={handleHighlight}
+              title="Highlight"
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+            >
+              🖍
+            </button>
+            <button
+              style={toolbarBtnStyle}
+              onClick={handleShowNote}
+              title="Add note"
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+            >
+              📌
+            </button>
+          </div>
+        )}
+
+        <EpubInkOverlay
+          docId={docId}
+          annotations={annotations}
+          containerRef={containerRef}
+          onCreated={onInkCreated}
+        />
+
+        {(ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso') && (
+          <EpubInkToolbar
+            onUndo={onInkUndo}
+            onRedo={onInkRedo}
+            canUndo={inkCanUndo}
+            canRedo={inkCanRedo}
+            onClearPage={onInkClearPage}
+          />
+        )}
+
+        {notePopup && (
+          <div style={{
             position: 'fixed',
-            left: selectionPopup.x,
-            top: selectionPopup.y - 40,
+            left: notePopup.x,
+            top: notePopup.y,
             transform: 'translateX(-50%)',
             zIndex: 1000,
-            background: 'var(--surface)',
+            background: 'var(--bg)',
             border: '1px solid var(--border)',
             borderRadius: 8,
-            padding: '2px 4px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
-            display: 'flex',
-            gap: 2,
-          }}
-        >
-          <button
-            style={toolbarBtnStyle}
-            onClick={handleHighlight}
-            title="Highlight"
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-          >
-            🖍
-          </button>
-          <button
-            style={toolbarBtnStyle}
-            onClick={handleShowNote}
-            title="Add note"
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-          >
-            📌
-          </button>
-        </div>
-      )}
-
-      {/* Ink overlay */}
-      <EpubInkOverlay
-        docId={docId}
-        annotations={annotations}
-        containerRef={containerRef}
-        onCreated={onInkCreated}
-      />
-
-      {/* Ink toolbar - shown when ink mode active */}
-      {(ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso') && (
-        <EpubInkToolbar
-          onUndo={onInkUndo}
-          onRedo={onInkRedo}
-          canUndo={inkCanUndo}
-          canRedo={inkCanRedo}
-          onClearPage={onInkClearPage}
-        />
-      )}
-
-      {/* Note input popup */}
-      {notePopup && (
-        <div style={{
-          position: 'fixed',
-          left: notePopup.x,
-          top: notePopup.y,
-          transform: 'translateX(-50%)',
-          zIndex: 1000,
-          background: 'var(--bg)',
-          border: '1px solid var(--border)',
-          borderRadius: 8,
-          padding: 10,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          width: 260,
-        }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            "{notePopup.text.slice(0, 60)}{notePopup.text.length > 60 ? '…' : ''}"
-          </div>
-          <textarea
-            ref={noteInputRef}
-            value={noteText}
-            onChange={e => setNoteText(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleNoteSubmit()
-              if (e.key === 'Escape') handleNoteCancel()
-            }}
-            placeholder="Add note..."
-            style={{
-              width: '100%',
-              height: 60,
-              resize: 'vertical',
-              border: '1px solid var(--border)',
-              borderRadius: 4,
-              padding: 6,
-              fontSize: 12,
-              background: 'var(--surface)',
-              color: 'var(--text)',
-              outline: 'none',
-              fontFamily: 'inherit',
-            }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 6 }}>
-            <button
-              onClick={handleNoteCancel}
-              style={{
-                border: '1px solid var(--border)', background: 'none', borderRadius: 4,
-                padding: '3px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--text)',
+            padding: 10,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            width: 260,
+            pointerEvents: 'auto',
+          }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              "{notePopup.text.slice(0, 60)}{notePopup.text.length > 60 ? '…' : ''}"
+            </div>
+            <textarea
+              ref={noteInputRef}
+              value={noteText}
+              onChange={e => setNoteText(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleNoteSubmit()
+                if (e.key === 'Escape') handleNoteCancel()
               }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleNoteSubmit}
-              disabled={!noteText.trim()}
+              placeholder="Add note..."
               style={{
-                border: 'none', background: 'var(--accent)', color: '#fff', borderRadius: 4,
-                padding: '3px 10px', fontSize: 11, cursor: 'pointer',
-                opacity: noteText.trim() ? 1 : 0.5,
+                width: '100%',
+                height: 60,
+                resize: 'vertical',
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                padding: 6,
+                fontSize: 12,
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                outline: 'none',
+                fontFamily: 'inherit',
+                pointerEvents: 'auto',
               }}
-            >
-              Save
-            </button>
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 6 }}>
+              <button
+                onClick={handleNoteCancel}
+                style={{
+                  border: '1px solid var(--border)', background: 'none', borderRadius: 4,
+                  padding: '3px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--text)',
+                  pointerEvents: 'auto',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleNoteSubmit}
+                disabled={!noteText.trim()}
+                style={{
+                  border: 'none', background: 'var(--accent)', color: '#fff', borderRadius: 4,
+                  padding: '3px 10px', fontSize: 11, cursor: 'pointer',
+                  opacity: noteText.trim() ? 1 : 0.5,
+                  pointerEvents: 'auto',
+                }}
+              >
+                Save
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
