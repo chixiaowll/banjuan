@@ -27,6 +27,10 @@ export default function AnnotationPanel({ annotations, onAnnotationClick, onAnno
   const [editContent, setEditContent] = useState('')
 
   const isEpub = annotations.some(a => a.position?.type === 'epub')
+  // Annotations have no meaningful page when all have null (e.g., EPUB scrolled
+  // mode — strokes use absolute Y, highlights use CFI). Hide the page header
+  // and show a flat sorted list.
+  const hasPages = annotations.some(a => a.page != null)
 
   const grouped = new Map<number, AnnotationData[]>()
   for (const ann of annotations) {
@@ -63,13 +67,15 @@ export default function AnnotationPanel({ annotations, onAnnotationClick, onAnno
     <div style={{ padding: '4px 0' }}>
       {sortedPages.map(page => (
         <div key={page}>
-          <div style={{
-            padding: '8px 12px', fontSize: 11, fontWeight: 600,
-            color: 'var(--text-muted)', background: 'var(--surface)',
-            textTransform: 'uppercase' as const, letterSpacing: '0.06em',
-          }}>
-            {isEpub ? `Loc ${page}` : t('pdf.page', page)}
-          </div>
+          {hasPages && (
+            <div style={{
+              padding: '8px 12px', fontSize: 11, fontWeight: 600,
+              color: 'var(--text-muted)', background: 'var(--surface)',
+              textTransform: 'uppercase' as const, letterSpacing: '0.06em',
+            }}>
+              {isEpub ? `Loc ${page}` : t('pdf.page', page)}
+            </div>
+          )}
           {grouped.get(page)!.map(ann => (
             <div
               key={ann.id}
