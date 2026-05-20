@@ -75,12 +75,17 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
         const container = document.querySelector('[data-epub-container]') as HTMLElement | null
         if (!container) return
 
-        container.innerHTML = ''
-
         if (bookRef.current) {
           bookRef.current.destroy()
           bookRef.current = null
         }
+        // Clean up epub.js elements but preserve React-managed children
+        Array.from(container.children).forEach(child => {
+          const el = child as HTMLElement
+          if (el.tagName === 'IFRAME' || el.classList?.contains('epub-container')) {
+            el.remove()
+          }
+        })
 
         const epubBook = ePub(data as any)
         bookRef.current = epubBook
