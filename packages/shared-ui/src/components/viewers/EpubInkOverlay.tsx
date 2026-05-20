@@ -40,6 +40,22 @@ function computeBounds(strokes: InkStroke[]) {
   }
 }
 
+// Vertical distance between two bounds. Returns 0 if they overlap vertically.
+function verticalDistance(
+  a: { y: number; h: number },
+  b: { y: number; h: number },
+): number {
+  const aBottom = a.y + a.h
+  const bBottom = b.y + b.h
+  if (aBottom < b.y) return b.y - aBottom
+  if (bBottom < a.y) return a.y - bBottom
+  return 0
+}
+
+// Strokes within this vertical distance get clustered into the same annotation.
+// Larger values = fewer, bigger thumbnails. Smaller = more, granular thumbnails.
+const CLUSTER_THRESHOLD_PX = 200
+
 export default function EpubInkOverlay({ docId, annotations, containerRef, onCreated }: Props) {
   const api = useBanjuanAPI()
   const ctx = useEpubViewer()
@@ -222,20 +238,34 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
       width: ctx.inkWidth,
     }
 
-    const existing = inkAnnotations[0]
-    const allStrokes = existing
-      ? [...existing.position.strokes, newStroke]
-      : [newStroke]
-    const bounds = computeBounds(allStrokes)
-    const position = { type: 'ink' as const, strokes: allStrokes, bounds }
+    // Find nearest existing annotation whose bounds are within the cluster
+    // threshold of the new stroke's bounds. New stroke joins that annotation;
+    // otherwise it becomes a new annotation (a separate thumbnail).
+    const newBounds = computeBounds([newStroke])
+    let nearest: InkAnnotation | null = null
+    let nearestDist = Infinity
+    for (const ann of inkAnnotations) {
+      const d = verticalDistance(ann.position.bounds, newBounds)
+      if (d < CLUSTER_THRESHOLD_PX && d < nearestDist) {
+        nearest = ann
+        nearestDist = d
+      }
+    }
 
-    if (existing) {
-      ctx.pushInkUndo({ annotationId: existing.id, strokes: [...existing.position.strokes] })
-      await api.annotations.update(existing.id, { position })
+    if (nearest) {
+      const allStrokes = [...nearest.position.strokes, newStroke]
+      const bounds = computeBounds(allStrokes)
+      ctx.pushInkUndo({ annotationId: nearest.id, strokes: [...nearest.position.strokes] })
+      await api.annotations.update(nearest.id, {
+        position: { type: 'ink', strokes: allStrokes, bounds },
+      })
     } else {
       ctx.pushInkUndo({ annotationId: '__new__', strokes: [] })
       await api.annotations.create({
-        docId, type: 'ink', position, color: ctx.inkColor,
+        docId,
+        type: 'ink',
+        position: { type: 'ink', strokes: [newStroke], bounds: newBounds },
+        color: ctx.inkColor,
       })
     }
     ctx.clearInkRedo()
