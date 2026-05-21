@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, PanelRight, Clock, ChevronDown, PenTool } from 'lucide-react'
+import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, PanelRight, Clock, ChevronDown, PenTool, Eye, EyeOff } from 'lucide-react'
 import { useMarkdownViewer, ANNOTATION_COLORS } from './MarkdownViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
 
@@ -122,6 +122,15 @@ export default function MarkdownToolbar({ docId, metadata }: Props) {
           title="Ink / Handwriting"
         >
           <PenTool size={16} />
+        </button>
+
+        <div style={sepStyle} />
+        <button
+          style={ctx.annotationsVisible ? btnStyle : activeBtnStyle}
+          onClick={() => ctx.setAnnotationsVisible(!ctx.annotationsVisible)}
+          title={ctx.annotationsVisible ? '隐藏标注' : '显示标注'}
+        >
+          {ctx.annotationsVisible ? <Eye size={16} /> : <EyeOff size={16} />}
         </button>
       </div>
 

@@ -250,6 +250,8 @@ const zh = {
   'epub.noOutline': '此文档无目录',
   'epub.newNote': '+ 新建笔记',
   'epub.chapter': '章节',
+  'epub.prevChapter': '上一章',
+  'epub.nextChapter': '下一章',
 
   // Markdown viewer
   'md.thumbnails': '章节',

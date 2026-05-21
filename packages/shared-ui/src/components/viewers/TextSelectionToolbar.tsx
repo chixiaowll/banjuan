@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Highlighter, Copy, Underline, ChevronDown } from 'lucide-react'
-import { ANNOTATION_COLORS } from './PdfViewerContext.js'
+import { ANNOTATION_COLORS as DEFAULT_COLORS } from './PdfViewerContext.js'
 
 interface Props {
   position: { x: number; y: number; bottom: number }
   color: string
+  colors?: Array<{ name: string; value: string }>
   onHighlight: () => void
   onUnderline: () => void
   onCopy: () => void
@@ -13,7 +14,7 @@ interface Props {
 }
 
 export default function TextSelectionToolbar({
-  position, color, onHighlight, onUnderline, onCopy, onChangeColor, onClose,
+  position, color, colors = DEFAULT_COLORS, onHighlight, onUnderline, onCopy, onChangeColor, onClose,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [above, setAbove] = useState(false)
@@ -80,7 +81,7 @@ export default function TextSelectionToolbar({
             borderRadius: 8, padding: 6, display: 'flex', gap: 5,
             boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
           }}>
-            {ANNOTATION_COLORS.map(c => (
+            {colors.map(c => (
               <button key={c.value} onClick={() => { onChangeColor(c.value); setShowColors(false) }} style={{
                 width: 20, height: 20, borderRadius: '50%', padding: 0, cursor: 'pointer',
                 background: c.value,

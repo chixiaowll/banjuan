@@ -121,16 +121,16 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     const c = canvas.getContext('2d')!
     c.scale(dpr, dpr)
 
-    for (const ann of inkAnnotations) {
-      const strokes: Stroke[] = ann.position.strokes.map(s => ({
+    const allStrokes: Stroke[] = inkAnnotations.flatMap(ann =>
+      ann.position.strokes.map(s => ({
         id: `epub-ink-${++inkIdCounter}`,
         points: s.points.map(p => ({ x: p.x * rect.width, y: p.y - scrollTop })),
         color: s.color,
         width: s.width,
         opacity: 1,
       }))
-      renderAllStrokes(c, strokes, rect.width, rect.height)
-    }
+    )
+    renderAllStrokes(c, allStrokes, rect.width, rect.height)
   }, [inkAnnotations, containerRef, scrollTop])
 
   useEffect(() => { redraw() }, [redraw])
@@ -206,16 +206,15 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     const c = canvas.getContext('2d')!
     c.scale(dpr, dpr)
 
-    for (const ann of inkAnnotations) {
-      const strokes: Stroke[] = ann.position.strokes.map(s => ({
+    const existingStrokes: Stroke[] = inkAnnotations.flatMap(ann =>
+      ann.position.strokes.map(s => ({
         id: `epub-ink-${++inkIdCounter}`,
         points: s.points.map(p => ({ x: p.x * rect.width, y: p.y - scrollTop })),
         color: s.color,
         width: s.width,
         opacity: 1,
       }))
-      renderAllStrokes(c, strokes, rect.width, rect.height)
-    }
+    )
 
     const liveStroke: Stroke = {
       id: 'live',
@@ -224,7 +223,7 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
       width: ctx.inkWidth,
       opacity: 1,
     }
-    renderStroke(c, liveStroke)
+    renderAllStrokes(c, [...existingStrokes, liveStroke], rect.width, rect.height)
   }, [drawing, ctx.activeTool, ctx.inkColor, ctx.inkWidth, inkAnnotations, containerRef, scrollTop])
 
   const handlePointerUp = useCallback(async () => {

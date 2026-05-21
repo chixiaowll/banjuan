@@ -5,11 +5,13 @@ export type EpubLeftSidebarTab = 'outline' | 'annotations' | 'notes'
 export type EpubAnnotationTool = 'none' | 'highlight' | 'note' | 'ink' | 'eraser' | 'lasso'
 
 export const ANNOTATION_COLORS = [
-  { name: 'yellow', value: '#fde68a' },
-  { name: 'red', value: '#fca5a5' },
-  { name: 'green', value: '#86efac' },
-  { name: 'blue', value: '#93c5fd' },
-  { name: 'purple', value: '#c4b5fd' },
+  { name: 'blue', value: '#3182ce' },
+  { name: 'purple', value: '#805ad5' },
+  { name: 'red', value: '#e53e3e' },
+  { name: 'orange', value: '#dd6b20' },
+  { name: 'yellow', value: '#d69e2e' },
+  { name: 'green', value: '#38a169' },
+  { name: 'pink', value: '#d53f8c' },
 ]
 
 interface EpubViewerContextValue {
@@ -53,10 +55,15 @@ interface EpubViewerContextValue {
   popInkRedo: () => { annotationId: string; strokes: any[] } | undefined
   clearInkRedo: () => void
 
+  annotationsVisible: boolean
+  setAnnotationsVisible: (visible: boolean) => void
+
   searchOpen: boolean
   setSearchOpen: (open: boolean) => void
 
   navigateTo: (href: string) => void
+  goNext: () => void
+  goPrev: () => void
 }
 
 const EpubViewerContext = createContext<EpubViewerContextValue | null>(null)
@@ -112,14 +119,38 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
   }, [])
   const clearInkRedo = useCallback(() => setInkRedoStack([]), [])
 
+  const [annotationsVisible, setAnnotationsVisible] = useState(true)
   const [searchOpen, setSearchOpen] = useState(false)
 
-  const navigateTo = useCallback(async (href: string) => {
-    if (!rendition) return
-    try {
-      await rendition.display(href)
-    } catch {}
+  const navigateTo = useCallback((href: string) => {
+    rendition?.display(href)
   }, [rendition])
+
+  const goNext = useCallback(() => {
+    if (!book || !rendition) return
+    const spine = (book as any).spine
+    if (!spine) { rendition.next(); return }
+    const loc = rendition.location
+    const currentHref = loc?.start?.href
+    if (!currentHref) { rendition.next(); return }
+    const currentIndex = spine.items.findIndex((s: any) => s.href === currentHref)
+    if (currentIndex >= 0 && currentIndex < spine.items.length - 1) {
+      rendition.display(spine.items[currentIndex + 1].href)
+    }
+  }, [book, rendition])
+
+  const goPrev = useCallback(() => {
+    if (!book || !rendition) return
+    const spine = (book as any).spine
+    if (!spine) { rendition.prev(); return }
+    const loc = rendition.location
+    const currentHref = loc?.start?.href
+    if (!currentHref) { rendition.prev(); return }
+    const currentIndex = spine.items.findIndex((s: any) => s.href === currentHref)
+    if (currentIndex > 0) {
+      rendition.display(spine.items[currentIndex - 1].href)
+    }
+  }, [book, rendition])
 
   const value = useMemo<EpubViewerContextValue>(() => ({
     book, setBook, rendition, setRendition, toc, setToc,
@@ -133,8 +164,9 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
     inkEraserActive, setInkEraserActive,
     inkUndoStack, inkRedoStack,
     pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo,
+    annotationsVisible, setAnnotationsVisible,
     searchOpen, setSearchOpen,
-    navigateTo,
+    navigateTo, goNext, goPrev,
   }), [
     book, rendition, toc, currentHref,
     percentage,
@@ -144,7 +176,8 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
     activeTool, activeColor,
     inkColor, inkWidth, inkEraserActive, inkUndoStack, inkRedoStack,
     pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo,
-    searchOpen,
+    annotationsVisible,
+    searchOpen, goNext, goPrev,
     navigateTo,
   ])
 

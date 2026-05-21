@@ -122,6 +122,7 @@ function applyHighlightMarks(container: HTMLElement, annotations: AnnotationData
 
 export default function MarkdownContentArea({ content, docId, annotations, onHighlightCreated, onNoteCreated, onAnnotationClick, onHeadingsChange, onInkCreated, onClearAllInk, scrollContainerRef }: Props) {
   const ctx = useMarkdownViewer()
+  const visibleAnnotations = ctx.annotationsVisible ? annotations : []
   const containerRef = useRef<HTMLDivElement>(null)
   const undoRef = useRef<(() => void) | null>(null)
   const redoRef = useRef<(() => void) | null>(null)
@@ -140,14 +141,14 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const key = annotations.map(a => a.id).sort().join(',')
+    const key = visibleAnnotations.map(a => a.id).sort().join(',')
     if (key === appliedRef.current) return
     requestAnimationFrame(() => {
       clearHighlightMarks(el)
-      applyHighlightMarks(el, annotations)
+      applyHighlightMarks(el, visibleAnnotations)
       appliedRef.current = key
     })
-  }, [annotations])
+  }, [visibleAnnotations])
 
   const handleMouseUp = useCallback(() => {
     const sel = window.getSelection()
@@ -285,7 +286,7 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
       {ctx.activeTool !== 'lasso' && (
         <MarkdownInkOverlay
           docId={docId}
-          annotations={annotations}
+          annotations={visibleAnnotations}
           headings={headings}
           scrollContainer={containerRef.current}
           onCreated={onInkCreated}
@@ -295,7 +296,7 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
       )}
       <MarkdownInkLassoTool
         docId={docId}
-        annotations={annotations}
+        annotations={visibleAnnotations}
         scrollContainer={containerRef.current}
         onUpdated={onInkCreated}
       />
