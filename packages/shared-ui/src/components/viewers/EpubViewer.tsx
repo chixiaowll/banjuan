@@ -42,6 +42,8 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rafRef = useRef<number>(0)
   const docRef = useRef(initialDoc)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const lastCfiRef = useRef<string | null>(null)
 
   useEffect(() => { docRef.current = doc }, [doc])
 
@@ -81,8 +83,11 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
         const epubBook = ePub(data as any)
         bookRef.current = epubBook
 
+        const containerWidth = container.clientWidth
+        ctx.setBaseWidth(containerWidth)
+
         const rend = epubBook.renderTo(container, {
-          width: '100%',
+          width: containerWidth,
           height: '100%',
           spread: 'none',
           flow: 'scrolled-doc' as any,
@@ -90,12 +95,22 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
         })
 
         rend.themes.default({
+          'html': {
+            'overflow-x': 'hidden !important',
+            'overscroll-behavior-x': 'none !important',
+          },
           'body': {
             'max-width': '720px !important',
             'margin': '0 auto !important',
             'padding': '20px 40px !important',
             'line-height': '1.8 !important',
             'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important',
+            'overflow-x': 'hidden !important',
+            'overscroll-behavior-x': 'none !important',
+          },
+          'img, video, svg, table, pre, code': {
+            'max-width': '100% !important',
+            'box-sizing': 'border-box !important',
           },
           'p': {
             'margin-bottom': '0.8em !important',
@@ -110,6 +125,11 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
         ctx.setRendition(rend)
         ctx.setBook(epubBook)
 
+        const epubContainer = container.querySelector('.epub-container') as HTMLElement | null
+        if (epubContainer) {
+          epubContainer.style.overflowX = 'hidden'
+        }
+
         const savedPosition = (docRef.current.metadata?.readingPosition as any)?.cfi
         rend.display(savedPosition || undefined)
 
@@ -119,13 +139,17 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
 
         rend.on('relocated', (location: any) => {
           if (cancelled) return
+
           ctx.setCurrentHref(location.start.href)
           const pct = location.start.percentage != null
             ? Math.round(location.start.percentage * 100) : 0
           ctx.setPercentage(pct)
 
           const cfi = location.start.cfi
-          if (cfi) saveReadingPosition(cfi, pct)
+          if (cfi) {
+            lastCfiRef.current = cfi
+            saveReadingPosition(cfi, pct)
+          }
         })
 
         rafRef.current = 0
@@ -148,6 +172,7 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
       ctx.setPercentage(0)
     }
   }, [data])
+
 
   const handleHighlightCreated = useCallback(async (cfiRange: string, text: string, docY?: number) => {
     await create({
@@ -180,6 +205,12 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
   const handleAnnotationClick = useCallback(async (cfi: string) => {
     if (!ctx.rendition) return
     await ctx.rendition.display(cfi)
+    requestAnimationFrame(() => {
+      const sc = document.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
+      if (sc && sc.scrollTop > 80) {
+        sc.scrollBy({ top: -80, behavior: 'smooth' })
+      }
+    })
   }, [ctx.rendition])
 
   const handleAnnotationDelete = useCallback(async (id: string) => {
@@ -272,7 +303,7 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
   }, [])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div ref={rootRef} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <EpubToolbar docId={doc.id} metadata={doc.metadata} />
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         <EpubLeftSidebar
@@ -298,6 +329,7 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
             onInkRedo={handleInkRedo}
             onInkClearPage={handleInkClearPage}
             onAnnotationDelete={handleAnnotationDelete}
+            onAnnotationUpdate={handleAnnotationUpdate}
             inkCanUndo={ctx.inkUndoStack.length > 0}
             inkCanRedo={ctx.inkRedoStack.length > 0}
           />

@@ -40,11 +40,8 @@ function computeBounds(strokes: InkStroke[]) {
   }
 }
 
-// A new stroke joins an existing annotation only if their bounding boxes
-// overlap (within a small tolerance). Strokes drawn in a separate spot
-// become their own annotation with their own thumbnail.
-const CLUSTER_PAD_X = 0.05  // 5% of container width (x is normalized 0-1)
-const CLUSTER_PAD_Y = 10    // 10 px (y is absolute pixels)
+const CLUSTER_PAD_X = 0.05
+const CLUSTER_PAD_Y = 10
 
 function boundsOverlap(
   a: { x: number; y: number; w: number; h: number },
@@ -57,6 +54,13 @@ function boundsOverlap(
   return true
 }
 
+function getScale(el: HTMLElement): number {
+  const rect = el.getBoundingClientRect()
+  const logical = el.clientWidth
+  if (!logical) return 1
+  return rect.width / logical
+}
+
 export default function EpubInkOverlay({ docId, annotations, containerRef, onCreated }: Props) {
   const api = useBanjuanAPI()
   const ctx = useEpubViewer()
@@ -65,7 +69,11 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
   const currentPointsRef = useRef<StrokePoint[]>([])
   const isActive = ctx.activeTool === 'ink' || ctx.activeTool === 'eraser'
 
-  // Find epub.js's internal scroll container
+  const scrollContainerRef = useRef<HTMLElement | null>(null)
+  const scrollTopRef = useRef(0)
+  const rafIdRef = useRef(0)
+  const inkAnnotationsRef = useRef<InkAnnotation[]>([])
+
   const [scrollContainer, setScrollContainer] = useState<HTMLElement | null>(null)
   useEffect(() => {
     if (!containerRef.current) return
@@ -74,84 +82,111 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     const find = () => {
       if (cancelled) return
       const sc = containerRef.current?.querySelector('.epub-container') as HTMLElement | null
-      if (sc) setScrollContainer(sc)
+      if (sc) { setScrollContainer(sc); scrollContainerRef.current = sc }
       else timer = setTimeout(find, 100)
     }
     find()
     return () => { cancelled = true; if (timer) clearTimeout(timer) }
   }, [containerRef, ctx.rendition])
 
-  // Track scroll position
-  const [scrollTop, setScrollTop] = useState(0)
-  useEffect(() => {
-    if (!scrollContainer) return
-    const handler = () => setScrollTop(scrollContainer.scrollTop)
-    handler()
-    scrollContainer.addEventListener('scroll', handler, { passive: true })
-    return () => scrollContainer.removeEventListener('scroll', handler)
-  }, [scrollContainer])
-
-  // Forward wheel events through canvas to scroll container so user can
-  // still scroll the EPUB while ink mode is active
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !scrollContainer || !isActive) return
-    const handleWheel = (e: WheelEvent) => {
-      scrollContainer.scrollBy({ top: e.deltaY, left: e.deltaX })
-      e.preventDefault()
-    }
-    canvas.addEventListener('wheel', handleWheel, { passive: false })
-    return () => canvas.removeEventListener('wheel', handleWheel)
-  }, [scrollContainer, isActive])
-
   const inkAnnotations: InkAnnotation[] = annotations.filter(
     (a: any) => a.type === 'ink' && a.position?.type === 'ink'
   )
+  inkAnnotationsRef.current = inkAnnotations
 
-  const redraw = useCallback(() => {
+  const drawFrame = useCallback(() => {
     const canvas = canvasRef.current
     const container = containerRef.current
     if (!canvas || !container) return
-    const rect = container.getBoundingClientRect()
+    const logicalW = container.clientWidth
+    const logicalH = container.clientHeight
+    if (!logicalW || !logicalH) return
     const dpr = window.devicePixelRatio || 1
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
-    canvas.style.width = `${rect.width}px`
-    canvas.style.height = `${rect.height}px`
+    const st = scrollTopRef.current
+
+    canvas.width = logicalW * dpr
+    canvas.height = logicalH * dpr
+    canvas.style.width = `${logicalW}px`
+    canvas.style.height = `${logicalH}px`
     const c = canvas.getContext('2d')!
     c.scale(dpr, dpr)
 
-    const allStrokes: Stroke[] = inkAnnotations.flatMap(ann =>
+    const allStrokes: Stroke[] = inkAnnotationsRef.current.flatMap(ann =>
       ann.position.strokes.map(s => ({
         id: `epub-ink-${++inkIdCounter}`,
-        points: s.points.map(p => ({ x: p.x * rect.width, y: p.y - scrollTop })),
+        points: s.points.map(p => ({ x: p.x * logicalW, y: p.y - st })),
         color: s.color,
         width: s.width,
         opacity: 1,
       }))
     )
-    renderAllStrokes(c, allStrokes, rect.width, rect.height)
-  }, [inkAnnotations, containerRef, scrollTop])
+    renderAllStrokes(c, allStrokes, logicalW, logicalH)
+  }, [containerRef])
 
-  useEffect(() => { redraw() }, [redraw])
+  // Sync scroll → immediate canvas redraw (no React state in the hot path)
+  useEffect(() => {
+    if (!scrollContainer) return
+    const onScroll = () => {
+      scrollTopRef.current = scrollContainer.scrollTop
+      cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = requestAnimationFrame(drawFrame)
+    }
+    scrollTopRef.current = scrollContainer.scrollTop
+    scrollContainer.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      scrollContainer.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(rafIdRef.current)
+    }
+  }, [scrollContainer, drawFrame])
 
-  const toDocCoord = (e: React.PointerEvent, rect: DOMRect): { x: number; y: number } => ({
-    x: (e.clientX - rect.left) / rect.width,
-    y: (e.clientY - rect.top) + scrollTop,
-  })
+  // Redraw when annotations change
+  useEffect(() => { drawFrame() }, [inkAnnotations.length, drawFrame])
+
+  // Redraw on container resize
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const ro = new ResizeObserver(() => drawFrame())
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [containerRef, drawFrame])
+
+  // Forward wheel events through canvas to scroll container
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const container = containerRef.current
+    if (!canvas || !scrollContainer || !isActive || !container) return
+    const handleWheel = (e: WheelEvent) => {
+      const scale = getScale(container)
+      scrollContainer.scrollBy({ top: e.deltaY / scale })
+      e.preventDefault()
+    }
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', handleWheel)
+  }, [scrollContainer, isActive, containerRef])
+
+  const toDocCoord = useCallback((e: React.PointerEvent): { x: number; y: number } => {
+    const container = containerRef.current!
+    const rect = container.getBoundingClientRect()
+    const scale = getScale(container)
+    return {
+      x: (e.clientX - rect.left) / rect.width,
+      y: (e.clientY - rect.top) / scale + scrollTopRef.current,
+    }
+  }, [containerRef])
 
   const handleErase = useCallback(async (e: React.PointerEvent) => {
     const container = containerRef.current
     if (!container) return
-    const rect = container.getBoundingClientRect()
-    const { x: clickX, y: clickY } = toDocCoord(e, rect)
+    const logicalW = container.clientWidth
+    const { x: clickX, y: clickY } = toDocCoord(e)
     const threshold = 20
 
-    for (const ann of inkAnnotations) {
+    for (const ann of inkAnnotationsRef.current) {
       for (let si = 0; si < ann.position.strokes.length; si++) {
         const stroke = ann.position.strokes[si]
         for (const pt of stroke.points) {
-          const dx = (pt.x - clickX) * rect.width
+          const dx = (pt.x - clickX) * logicalW
           const dy = pt.y - clickY
           if (Math.sqrt(dx * dx + dy * dy) < threshold) {
             const remaining = ann.position.strokes.filter((_, i) => i !== si)
@@ -169,11 +204,9 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
         }
       }
     }
-  }, [inkAnnotations, containerRef, onCreated, scrollTop])
+  }, [containerRef, onCreated, toDocCoord])
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    // Let finger touch pass through for native scrolling (touch-action: pan-y).
-    // Drawing/erasing requires stylus or mouse.
     if (e.pointerType === 'touch') return
     if (ctx.activeTool === 'eraser') {
       handleErase(e)
@@ -184,32 +217,31 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     e.stopPropagation()
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     setDrawing(true)
-    const container = containerRef.current
-    if (!container) return
-    const rect = container.getBoundingClientRect()
-    currentPointsRef.current = [toDocCoord(e, rect)]
-  }, [ctx.activeTool, containerRef, handleErase, scrollTop])
+    currentPointsRef.current = [toDocCoord(e)]
+  }, [ctx.activeTool, handleErase, toDocCoord])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!drawing || ctx.activeTool !== 'ink') return
     const canvas = canvasRef.current
     const container = containerRef.current
     if (!canvas || !container) return
-    const rect = container.getBoundingClientRect()
-    currentPointsRef.current.push(toDocCoord(e, rect))
+    currentPointsRef.current.push(toDocCoord(e))
 
+    const logicalW = container.clientWidth
+    const logicalH = container.clientHeight
+    const st = scrollTopRef.current
     const dpr = window.devicePixelRatio || 1
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
-    canvas.style.width = `${rect.width}px`
-    canvas.style.height = `${rect.height}px`
+    canvas.width = logicalW * dpr
+    canvas.height = logicalH * dpr
+    canvas.style.width = `${logicalW}px`
+    canvas.style.height = `${logicalH}px`
     const c = canvas.getContext('2d')!
     c.scale(dpr, dpr)
 
-    const existingStrokes: Stroke[] = inkAnnotations.flatMap(ann =>
+    const existingStrokes: Stroke[] = inkAnnotationsRef.current.flatMap(ann =>
       ann.position.strokes.map(s => ({
         id: `epub-ink-${++inkIdCounter}`,
-        points: s.points.map(p => ({ x: p.x * rect.width, y: p.y - scrollTop })),
+        points: s.points.map(p => ({ x: p.x * logicalW, y: p.y - st })),
         color: s.color,
         width: s.width,
         opacity: 1,
@@ -218,13 +250,13 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
 
     const liveStroke: Stroke = {
       id: 'live',
-      points: currentPointsRef.current.map(p => ({ x: p.x * rect.width, y: p.y - scrollTop })),
+      points: currentPointsRef.current.map(p => ({ x: p.x * logicalW, y: p.y - st })),
       color: ctx.inkColor,
       width: ctx.inkWidth,
       opacity: 1,
     }
-    renderAllStrokes(c, [...existingStrokes, liveStroke], rect.width, rect.height)
-  }, [drawing, ctx.activeTool, ctx.inkColor, ctx.inkWidth, inkAnnotations, containerRef, scrollTop])
+    renderAllStrokes(c, [...existingStrokes, liveStroke], logicalW, logicalH)
+  }, [drawing, ctx.activeTool, ctx.inkColor, ctx.inkWidth, containerRef, toDocCoord])
 
   const handlePointerUp = useCallback(async () => {
     if (!drawing) return
@@ -238,11 +270,8 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
       width: ctx.inkWidth,
     }
 
-    // Look for an existing annotation whose bounding box overlaps the new
-    // stroke (with small padding). Merge into it; otherwise create a new
-    // annotation so it becomes its own thumbnail.
     const newBounds = computeBounds([newStroke])
-    const overlapping = inkAnnotations.find(a => boundsOverlap(a.position.bounds, newBounds))
+    const overlapping = inkAnnotationsRef.current.find(a => boundsOverlap(a.position.bounds, newBounds))
 
     if (overlapping) {
       const allStrokes = [...overlapping.position.strokes, newStroke]
@@ -263,7 +292,7 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     ctx.clearInkRedo()
     currentPointsRef.current = []
     onCreated()
-  }, [drawing, docId, ctx.inkColor, ctx.inkWidth, onCreated, inkAnnotations])
+  }, [drawing, docId, ctx.inkColor, ctx.inkWidth, onCreated])
 
   if (!isActive && inkAnnotations.length === 0) return null
 
@@ -281,9 +310,7 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
         height: '100%',
         pointerEvents: isActive ? 'auto' : 'none',
         cursor: ctx.activeTool === 'ink' ? 'crosshair' : ctx.activeTool === 'eraser' ? 'pointer' : 'default',
-        zIndex: isActive ? 10 : 2,
-        // Allow finger pan-y scrolling on touch; stylus/mouse drawing still
-        // works (we call preventDefault in pointerDown for pen/mouse only).
+        zIndex: isActive ? 10 : 1,
         touchAction: 'pan-y',
       }}
     />

@@ -18,6 +18,7 @@ const zh = {
   'common.save': '保存',
   'common.cancel': '取消',
   'common.confirm': '确定',
+  'common.copy': '复制文字',
   'common.delete': '删除',
   'common.edit': '编辑',
   'common.back': '返回',

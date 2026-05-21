@@ -57,12 +57,12 @@ function computeBounds(strokes: InkStroke[]) {
   }
 }
 
-function getSelBounds(flatStrokes: FlatStroke[], indices: Set<number>, containerWidth: number): { x: number; y: number; w: number; h: number } | null {
+function getSelBounds(flatStrokes: FlatStroke[], indices: Set<number>, logicalWidth: number): { x: number; y: number; w: number; h: number } | null {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   for (const i of indices) {
     if (i >= flatStrokes.length) continue
     for (const p of flatStrokes[i].stroke.points) {
-      const px = p.x * containerWidth
+      const px = p.x * logicalWidth
       const py = p.y
       minX = Math.min(minX, px)
       minY = Math.min(minY, py)
@@ -77,6 +77,13 @@ function getSelBounds(flatStrokes: FlatStroke[], indices: Set<number>, container
 let lassoIdCounter = 0
 
 const SEL_MARGIN_PX = 12
+
+function getScale(el: HTMLElement): number {
+  const rect = el.getBoundingClientRect()
+  const logical = el.clientWidth
+  if (!logical) return 1
+  return rect.width / logical
+}
 
 export default function EpubInkLassoTool({ docId, annotations, containerRef, onUpdated }: Props) {
   const api = useBanjuanAPI()
@@ -106,32 +113,29 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
     const find = () => {
       if (cancelled) return
       const sc = containerRef.current?.querySelector('.epub-container') as HTMLElement | null
-      if (sc) setScrollContainer(sc)
+      if (sc) { setScrollContainer(sc); scrollContainerRef.current = sc }
       else timer = setTimeout(find, 100)
     }
     find()
     return () => { cancelled = true; if (timer) clearTimeout(timer) }
   }, [containerRef, ctx.rendition])
 
-  const [scrollTop, setScrollTop] = useState(0)
-  useEffect(() => {
-    if (!scrollContainer) return
-    const handler = () => setScrollTop(scrollContainer.scrollTop)
-    handler()
-    scrollContainer.addEventListener('scroll', handler, { passive: true })
-    return () => scrollContainer.removeEventListener('scroll', handler)
-  }, [scrollContainer])
+  const scrollTopRef = useRef(0)
+  const scrollContainerRef = useRef<HTMLElement | null>(null)
+  const rafIdRef = useRef(0)
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !scrollContainer || !active) return
+    const container = containerRef.current
+    if (!canvas || !scrollContainer || !active || !container) return
     const handleWheel = (e: WheelEvent) => {
-      scrollContainer.scrollBy({ top: e.deltaY, left: e.deltaX })
+      const scale = getScale(container)
+      scrollContainer.scrollBy({ top: e.deltaY / scale })
       e.preventDefault()
     }
     canvas.addEventListener('wheel', handleWheel, { passive: false })
     return () => canvas.removeEventListener('wheel', handleWheel)
-  }, [scrollContainer, active])
+  }, [scrollContainer, active, containerRef])
 
   const inkAnnotations: InkAnnotation[] = annotations.filter(
     (a: any) => a.type === 'ink' && a.position?.type === 'ink'
@@ -145,13 +149,15 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
     }))
   )
 
-  const getDocCoord = (e: React.PointerEvent): { x: number; y: number } => {
-    const rect = containerRef.current!.getBoundingClientRect()
+  const getDocCoord = useCallback((e: React.PointerEvent): { x: number; y: number } => {
+    const container = containerRef.current!
+    const rect = container.getBoundingClientRect()
+    const scale = getScale(container)
     return {
       x: e.clientX - rect.left,
-      y: (e.clientY - rect.top) + scrollTop,
+      y: (e.clientY - rect.top) / scale + scrollTopRef.current,
     }
-  }
+  }, [containerRef])
 
   const redraw = useCallback((opts?: {
     lassoPoints?: Array<{ x: number; y: number }>
@@ -161,31 +167,34 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
     const canvas = canvasRef.current
     const container = containerRef.current
     if (!canvas || !container) return
-    const rect = container.getBoundingClientRect()
+    const logicalW = container.clientWidth
+    const logicalH = container.clientHeight
+    if (!logicalW || !logicalH) return
     const dpr = window.devicePixelRatio || 1
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
-    canvas.style.width = `${rect.width}px`
-    canvas.style.height = `${rect.height}px`
+    canvas.width = logicalW * dpr
+    canvas.height = logicalH * dpr
+    canvas.style.width = `${logicalW}px`
+    canvas.style.height = `${logicalH}px`
     const c = canvas.getContext('2d')!
     c.scale(dpr, dpr)
-    const w = rect.width
 
     const sel = opts?.selected || selectedRef.current
     const offset = opts?.dragOffset || { x: 0, y: 0 }
+    const scale = getScale(container)
+    const st = scrollTopRef.current
 
     for (let i = 0; i < flatStrokes.length; i++) {
       const s = flatStrokes[i].stroke
       const absStroke: Stroke = {
         id: `lasso-${++lassoIdCounter}`,
-        points: s.points.map(p => ({ x: p.x * w, y: p.y - scrollTop })),
+        points: s.points.map(p => ({ x: p.x * logicalW, y: p.y - st })),
         color: s.color,
         width: s.width,
         opacity: 1,
       }
       if (sel.has(i)) {
         c.save()
-        c.translate(offset.x, offset.y)
+        c.translate(offset.x / scale, offset.y)
         renderStroke(c, absStroke)
         c.restore()
       } else {
@@ -193,11 +202,11 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
       }
     }
 
-    const bounds = sel.size > 0 ? getSelBounds(flatStrokes, sel, w) : null
+    const bounds = sel.size > 0 ? getSelBounds(flatStrokes, sel, logicalW) : null
     if (bounds) {
       const m = 8
-      const bx = bounds.x + offset.x
-      const by = bounds.y - scrollTop + offset.y
+      const bx = bounds.x + offset.x / scale
+      const by = bounds.y - st + offset.y
       const bw = bounds.w
       const bh = bounds.h
       c.save()
@@ -224,9 +233,10 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
     if (lassoP && lassoP.length > 2) {
       c.save()
       c.beginPath()
-      c.moveTo(lassoP[0].x, lassoP[0].y - scrollTop)
+      const s0 = lassoP[0]
+      c.moveTo(s0.x / scale, s0.y - st)
       for (let i = 1; i < lassoP.length; i++) {
-        c.lineTo(lassoP[i].x, lassoP[i].y - scrollTop)
+        c.lineTo(lassoP[i].x / scale, lassoP[i].y - st)
       }
       c.closePath()
       c.fillStyle = 'rgba(49,130,206,0.06)'
@@ -237,9 +247,25 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
       c.stroke()
       c.restore()
     }
-  }, [flatStrokes, containerRef, scrollTop])
+  }, [flatStrokes, containerRef])
 
   useEffect(() => { redraw() }, [redraw])
+
+  // Sync scroll → immediate canvas redraw (no React state in the hot path)
+  useEffect(() => {
+    if (!scrollContainer) return
+    const onScroll = () => {
+      scrollTopRef.current = scrollContainer.scrollTop
+      cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = requestAnimationFrame(() => redraw())
+    }
+    scrollTopRef.current = scrollContainer.scrollTop
+    scrollContainer.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      scrollContainer.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(rafIdRef.current)
+    }
+  }, [scrollContainer, redraw])
 
   useEffect(() => {
     if (!active) {
@@ -254,8 +280,11 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
   const isInsideSelection = useCallback((pos: { x: number; y: number }): boolean => {
     const b = selBoundsRef.current
     if (!b || selectedRef.current.size === 0) return false
-    const w = containerRef.current?.getBoundingClientRect().width || 1
-    return pos.x >= b.x - SEL_MARGIN_PX && pos.x <= b.x + b.w + SEL_MARGIN_PX &&
+    const container = containerRef.current
+    if (!container) return false
+    const scale = getScale(container)
+    const logicalX = pos.x / scale
+    return logicalX >= b.x - SEL_MARGIN_PX && logicalX <= b.x + b.w + SEL_MARGIN_PX &&
            pos.y >= b.y - SEL_MARGIN_PX && pos.y <= b.y + b.h + SEL_MARGIN_PX
   }, [containerRef])
 
@@ -277,7 +306,7 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
     modeRef.current = 'lasso'
     setMode('lasso')
     lassoPointsRef.current = [pos]
-  }, [active, isInsideSelection])
+  }, [active, isInsideSelection, getDocCoord])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (modeRef.current === 'lasso') {
@@ -293,13 +322,16 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
       redraw({ dragOffset: { x: dx, y: dy } })
       return
     }
-  }, [redraw])
+  }, [redraw, getDocCoord])
 
   const applyDrag = useCallback(async () => {
     const offset = dragOffsetRef.current
     if (offset.x === 0 && offset.y === 0) return
     const sel = selectedRef.current
-    const w = containerRef.current?.getBoundingClientRect().width || 1
+    const container = containerRef.current
+    if (!container) return
+    const logicalW = container.clientWidth
+    const scale = getScale(container)
 
     const affectedAnnotations = new Map<string, { original: InkAnnotation; strokeUpdates: Map<number, InkStroke> }>()
 
@@ -314,7 +346,7 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
       const moved: InkStroke = {
         ...fs.stroke,
         points: fs.stroke.points.map(p => ({
-          x: p.x + offset.x / w,
+          x: p.x + offset.x / scale / logicalW,
           y: p.y + offset.y,
         })),
       }
@@ -351,11 +383,14 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
         redraw()
         return
       }
-      const w = containerRef.current?.getBoundingClientRect().width || 1
+      const container = containerRef.current
+      if (!container) return
+      const logicalW = container.clientWidth
+      const scale = getScale(container)
       const indices = new Set<number>()
       for (let i = 0; i < flatStrokes.length; i++) {
         const hit = flatStrokes[i].stroke.points.some(p =>
-          isPointInPolygon(p.x * w, p.y, lasso)
+          isPointInPolygon(p.x * logicalW * scale, p.y, lasso)
         )
         if (hit) indices.add(i)
       }
@@ -365,7 +400,7 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
         return
       }
       setSelectedIndices(indices)
-      selBoundsRef.current = getSelBounds(flatStrokes, indices, w)
+      selBoundsRef.current = getSelBounds(flatStrokes, indices, logicalW)
       redraw({ selected: indices })
     }
   }, [flatStrokes, redraw, applyDrag, containerRef])

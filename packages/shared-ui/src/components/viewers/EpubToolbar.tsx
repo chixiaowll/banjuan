@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, ChevronDown, Search, PanelRight, Clock, Pen, Eraser, Highlighter, Eye, EyeOff } from 'lucide-react'
+import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, ChevronDown, Search, PanelRight, Clock, Pen, Eraser, Highlighter, Square, Eye, EyeOff } from 'lucide-react'
 import { useEpubViewer, ANNOTATION_COLORS } from './EpubViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
 import { useT } from '../../i18n/index.js'
@@ -9,8 +9,9 @@ interface Props {
   metadata: Record<string, unknown>
 }
 
-const TOOL_IDS: Array<{ id: 'highlight' | 'ink' | 'eraser'; icon: React.ReactNode; key: string }> = [
+const TOOL_IDS: Array<{ id: 'highlight' | 'area' | 'ink' | 'eraser'; icon: React.ReactNode; key: string }> = [
   { id: 'highlight', icon: <Highlighter size={16} />, key: 'tool.highlight' },
+  { id: 'area', icon: <Square size={16} />, key: 'tool.area' },
   { id: 'ink', icon: <Pen size={16} />, key: 'tool.ink' },
   { id: 'eraser', icon: <Eraser size={16} />, key: 'tool.eraser' },
 ]
@@ -101,7 +102,7 @@ export default function EpubToolbar({ docId, metadata }: Props) {
           </button>
         ))}
 
-        {ctx.activeTool !== 'ink' && ctx.activeTool !== 'eraser' && ctx.activeTool !== 'lasso' && (
+        {ctx.activeTool !== 'ink' && ctx.activeTool !== 'eraser' && ctx.activeTool !== 'lasso' && ctx.activeTool !== 'area' && (
           <div ref={colorRef} style={{ position: 'relative' }}>
             <button
               style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 3 }}

@@ -80,8 +80,7 @@ export default function TextNoteTool({ active, color, pageNum, docId, pointAnnot
       {pageAnns.map(ann => (
         <div key={ann.id} style={{ position: 'absolute', left: `${ann.position.x * 100}%`, top: `${ann.position.y * 100}%`, transform: 'translate(-50%, -50%)' }}>
           <div
-            onClick={(e) => { e.stopPropagation(); startEdit(ann) }}
-            onContextMenu={(e) => { if (onContextMenu) { e.preventDefault(); e.stopPropagation(); onContextMenu(e, ann.id) } }}
+            onClick={(e) => { e.stopPropagation(); if (onContextMenu) { onContextMenu(e, ann.id) } else { startEdit(ann) } }}
             style={{ fontSize: 18, cursor: 'pointer', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }}
           >
             📌
