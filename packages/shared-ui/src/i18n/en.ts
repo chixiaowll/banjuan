@@ -250,6 +250,8 @@ const en = {
   'epub.noOutline': 'No outline available',
   'epub.newNote': '+ New Note',
   'epub.chapter': 'Chapter',
+  'epub.prevChapter': 'Prev Chapter',
+  'epub.nextChapter': 'Next Chapter',
 
   // Markdown viewer
   'md.thumbnails': 'Sections',

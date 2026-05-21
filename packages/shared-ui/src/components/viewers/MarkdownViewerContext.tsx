@@ -4,12 +4,13 @@ export type MdLeftSidebarTab = 'outline' | 'annotations' | 'notes'
 export type MdActiveTool = 'none' | 'ink' | 'eraser' | 'lasso'
 
 export const ANNOTATION_COLORS = [
-  { name: 'yellow', value: '#ffe066' },
-  { name: 'orange', value: '#ffb347' },
-  { name: 'pink', value: '#ff9f9f' },
-  { name: 'green', value: '#77dd77' },
-  { name: 'blue', value: '#7ec8e3' },
-  { name: 'purple', value: '#b19cd9' },
+  { name: 'blue', value: '#3182ce' },
+  { name: 'purple', value: '#805ad5' },
+  { name: 'red', value: '#e53e3e' },
+  { name: 'orange', value: '#dd6b20' },
+  { name: 'yellow', value: '#d69e2e' },
+  { name: 'green', value: '#38a169' },
+  { name: 'pink', value: '#d53f8c' },
 ]
 
 export { INK_COLORS } from './inkConfig.js'
@@ -38,6 +39,8 @@ interface MarkdownViewerContextValue {
   pushInkRedo: (entry: { annotationId: string; strokes: any[] }) => void
   popInkRedo: () => { annotationId: string; strokes: any[] } | undefined
   clearInkRedo: () => void
+  annotationsVisible: boolean
+  setAnnotationsVisible: (visible: boolean) => void
 }
 
 const MarkdownViewerContext = createContext<MarkdownViewerContextValue | null>(null)
@@ -85,6 +88,7 @@ export function MarkdownViewerProvider({ children }: { children: React.ReactNode
     return popped
   }, [])
   const clearInkRedo = useCallback(() => setInkRedoStack([]), [])
+  const [annotationsVisible, setAnnotationsVisible] = useState(true)
 
   const value = useMemo<MarkdownViewerContextValue>(() => ({
     leftSidebarOpen, setLeftSidebarOpen,
@@ -97,7 +101,8 @@ export function MarkdownViewerProvider({ children }: { children: React.ReactNode
     inkWidth, setInkWidth,
     inkUndoStack, inkRedoStack,
     pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo,
-  }), [leftSidebarOpen, leftSidebarTab, rightSidebarOpen, fontSize, activeColor, activeTool, inkColor, inkWidth, inkUndoStack, inkRedoStack, pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo])
+    annotationsVisible, setAnnotationsVisible,
+  }), [leftSidebarOpen, leftSidebarTab, rightSidebarOpen, fontSize, activeColor, activeTool, inkColor, inkWidth, inkUndoStack, inkRedoStack, pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo, annotationsVisible])
 
   return (
     <MarkdownViewerContext.Provider value={value}>

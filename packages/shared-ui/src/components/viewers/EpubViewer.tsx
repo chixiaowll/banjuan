@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import ePub, { Book } from 'epubjs'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { EpubViewerProvider, useEpubViewer } from './EpubViewerContext.js'
 import EpubToolbar from './EpubToolbar.js'
 import EpubLeftSidebar from './EpubLeftSidebar.js'
@@ -70,14 +71,12 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
         const container = document.querySelector('[data-epub-container]') as HTMLElement | null
         if (!container) return
 
+        container.innerHTML = ''
+
         if (bookRef.current) {
           bookRef.current.destroy()
           bookRef.current = null
         }
-        // Save React overlay, then clear container for epub.js
-        const overlay = container.querySelector('[data-react-overlay]')
-        container.innerHTML = ''
-        if (overlay) container.appendChild(overlay)
 
         const epubBook = ePub(data as any)
         bookRef.current = epubBook
@@ -85,8 +84,9 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
         const rend = epubBook.renderTo(container, {
           width: '100%',
           height: '100%',
+          spread: 'none',
           flow: 'scrolled-doc' as any,
-          manager: 'continuous' as any,
+          manager: 'default' as any,
         })
 
         rend.themes.default({
@@ -149,19 +149,28 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
     }
   }, [data])
 
-  const handleHighlightCreated = useCallback(async (cfiRange: string, text: string) => {
+  const handleHighlightCreated = useCallback(async (cfiRange: string, text: string, docY?: number) => {
     await create({
       type: 'highlight',
-      position: { type: 'epub', cfi: cfiRange, text },
+      position: { type: 'epub', cfi: cfiRange, text, bounds: docY != null ? { y: docY } : undefined },
       selectedText: text,
       color: ctx.activeColor,
     })
   }, [create, ctx.activeColor])
 
-  const handleNoteCreated = useCallback(async (cfiRange: string, text: string, noteContent: string) => {
+  const handleUnderlineCreated = useCallback(async (cfiRange: string, text: string, docY?: number) => {
+    await create({
+      type: 'underline',
+      position: { type: 'epub', cfi: cfiRange, text, bounds: docY != null ? { y: docY } : undefined },
+      selectedText: text,
+      color: ctx.activeColor,
+    })
+  }, [create, ctx.activeColor])
+
+  const handleNoteCreated = useCallback(async (cfiRange: string, text: string, noteContent: string, docY?: number) => {
     await create({
       type: 'note',
-      position: { type: 'epub', cfi: cfiRange, text },
+      position: { type: 'epub', cfi: cfiRange, text, bounds: docY != null ? { y: docY } : undefined },
       selectedText: text,
       content: noteContent,
       color: ctx.activeColor,
@@ -176,7 +185,8 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
   const handleAnnotationDelete = useCallback(async (id: string) => {
     const ann = annotations.find(a => a.id === id)
     if (ann?.position?.cfi && ctx.rendition) {
-      try { ctx.rendition.annotations.remove(ann.position.cfi, 'highlight') } catch {}
+      const removeType = ann.type === 'underline' ? 'underline' : 'highlight'
+      try { ctx.rendition.annotations.remove(ann.position.cfi, removeType) } catch {}
     }
     await remove(id)
   }, [remove, annotations, ctx.rendition])
@@ -276,18 +286,58 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
           width={leftResize.width}
         />
         {ctx.leftSidebarOpen && <ResizeHandle onPointerDown={leftResize.onPointerDown} />}
-        <EpubContentArea
-          annotations={annotations}
-          docId={doc.id}
-          onHighlightCreated={handleHighlightCreated}
-          onNoteCreated={handleNoteCreated}
-          onInkCreated={handleInkCreated}
-          onInkUndo={handleInkUndo}
-          onInkRedo={handleInkRedo}
-          onInkClearPage={handleInkClearPage}
-          inkCanUndo={ctx.inkUndoStack.length > 0}
-          inkCanRedo={ctx.inkRedoStack.length > 0}
-        />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+          <EpubContentArea
+            annotations={annotations}
+            docId={doc.id}
+            onHighlightCreated={handleHighlightCreated}
+            onUnderlineCreated={handleUnderlineCreated}
+            onNoteCreated={handleNoteCreated}
+            onInkCreated={handleInkCreated}
+            onInkUndo={handleInkUndo}
+            onInkRedo={handleInkRedo}
+            onInkClearPage={handleInkClearPage}
+            onAnnotationDelete={handleAnnotationDelete}
+            inkCanUndo={ctx.inkUndoStack.length > 0}
+            inkCanRedo={ctx.inkRedoStack.length > 0}
+          />
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            display: 'flex', justifyContent: 'space-between',
+            padding: '12px 20px',
+            background: 'linear-gradient(transparent, var(--bg) 50%)',
+            zIndex: 20, pointerEvents: 'none',
+          }}>
+            <button
+              onClick={ctx.goPrev}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                border: '1px solid var(--border)', background: 'var(--surface)',
+                borderRadius: 6, padding: '6px 14px', fontSize: 12,
+                cursor: 'pointer', color: 'var(--text)',
+                pointerEvents: 'auto',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+              }}
+            >
+              <ChevronLeft size={14} />
+              {t('epub.prevChapter' as any)}
+            </button>
+            <button
+              onClick={ctx.goNext}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                border: '1px solid var(--border)', background: 'var(--surface)',
+                borderRadius: 6, padding: '6px 14px', fontSize: 12,
+                cursor: 'pointer', color: 'var(--text)',
+                pointerEvents: 'auto',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+              }}
+            >
+              {t('epub.nextChapter' as any)}
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
         {ctx.rightSidebarOpen && <ResizeHandle onPointerDown={rightResize.onPointerDown} />}
         <EpubInfoSidebar
           doc={doc}
