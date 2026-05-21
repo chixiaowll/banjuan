@@ -172,6 +172,13 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary }
     ;(window as any).__banjuanContext = base
   }, [activeTabId, tabs, tabData, libraryName])
 
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-tab-panel="${activeTabId}"]`)
+      if (el) el.dispatchEvent(new Event('tab-activated', { bubbles: true }))
+    })
+  }, [activeTabId])
+
   // Listen for context updates from child components (page changes, selections)
   useEffect(() => {
     const handler = (e: Event) => {
@@ -256,11 +263,14 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary }
           {tabs.map(tab => (
             <div
               key={tab.id}
+              data-tab-panel={tab.id}
               style={{
                 position: 'absolute',
                 inset: 0,
-                display: tab.id === activeTabId ? 'flex' : 'none',
+                display: 'flex',
                 flexDirection: 'column',
+                clipPath: tab.id === activeTabId ? 'none' : 'inset(100%)',
+                pointerEvents: tab.id === activeTabId ? 'auto' : 'none',
               }}
             >
               {tab.type === 'library' && (

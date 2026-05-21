@@ -81,7 +81,7 @@ export default function AnnotationPanel({ annotations, onAnnotationClick, onAnno
               key={ann.id}
               style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13, transition: 'background var(--transition, 0.15s ease)' }}
               onClick={() => {
-                if (onAnnotationNavigate && (ann.position?.type === 'epub' || ann.position?.type === 'text' || ann.position?.type === 'ink')) {
+                if (onAnnotationNavigate && (ann.position?.type === 'epub' || ann.position?.type === 'text' || ann.position?.type === 'ink' || ann.position?.type === 'area')) {
                   onAnnotationNavigate(ann)
                   return
                 }

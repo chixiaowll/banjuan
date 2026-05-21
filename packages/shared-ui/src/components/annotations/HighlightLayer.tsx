@@ -55,8 +55,7 @@ export default function HighlightLayer({ highlights, scale, onHighlightClick, on
               return (
                 <div
                   key={`${hl.id}-${i}`}
-                  onContextMenu={(e) => { if (onContextMenu) { e.preventDefault(); e.stopPropagation(); onContextMenu(e, hl.id) } }}
-                  onClick={(e) => { if (onHighlightClick) { e.stopPropagation(); onHighlightClick(hl.id) } }}
+                  onClick={(e) => { if (onContextMenu) { e.stopPropagation(); onContextMenu(e, hl.id) } }}
                   style={{
                     ...style,
                     backgroundColor: isUnderline ? 'transparent' : hl.color,

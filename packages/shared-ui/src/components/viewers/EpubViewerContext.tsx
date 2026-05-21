@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import type { Book, Rendition, NavItem } from 'epubjs'
 
 export type EpubLeftSidebarTab = 'outline' | 'annotations' | 'notes'
-export type EpubAnnotationTool = 'none' | 'highlight' | 'note' | 'ink' | 'eraser' | 'lasso'
+export type EpubAnnotationTool = 'none' | 'highlight' | 'note' | 'ink' | 'eraser' | 'lasso' | 'area'
 
 export const ANNOTATION_COLORS = [
   { name: 'blue', value: '#3182ce' },
@@ -60,6 +60,9 @@ interface EpubViewerContextValue {
 
   searchOpen: boolean
   setSearchOpen: (open: boolean) => void
+
+  baseWidth: number
+  setBaseWidth: (w: number) => void
 
   navigateTo: (href: string) => void
   goNext: () => void
@@ -121,6 +124,7 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
 
   const [annotationsVisible, setAnnotationsVisible] = useState(true)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [baseWidth, setBaseWidth] = useState(0)
 
   const navigateTo = useCallback((href: string) => {
     rendition?.display(href)
@@ -166,6 +170,7 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
     pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo,
     annotationsVisible, setAnnotationsVisible,
     searchOpen, setSearchOpen,
+    baseWidth, setBaseWidth,
     navigateTo, goNext, goPrev,
   }), [
     book, rendition, toc, currentHref,
@@ -177,7 +182,7 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
     inkColor, inkWidth, inkEraserActive, inkUndoStack, inkRedoStack,
     pushInkUndo, popInkUndo, pushInkRedo, popInkRedo, clearInkRedo,
     annotationsVisible,
-    searchOpen, goNext, goPrev,
+    searchOpen, baseWidth, goNext, goPrev,
     navigateTo,
   ])
 

@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { Trash2 } from 'lucide-react'
 import { useEpubViewer, ANNOTATION_COLORS } from './EpubViewerContext.js'
 import TextSelectionToolbar from './TextSelectionToolbar.js'
+import AnnotationContextMenu from './AnnotationContextMenu.js'
 import EpubInkOverlay from './EpubInkOverlay.js'
 import EpubInkLassoTool from './EpubInkLassoTool.js'
 import EpubInkToolbar from './EpubInkToolbar.js'
+import EpubAreaSelectTool from './EpubAreaSelectTool.js'
 
 interface Props {
   annotations: Array<{
@@ -22,6 +23,7 @@ interface Props {
   onInkRedo: () => void
   onInkClearPage: () => void
   onAnnotationDelete: (id: string) => void
+  onAnnotationUpdate: (id: string, updates: any) => void
   inkCanUndo: boolean
   inkCanRedo: boolean
 }
@@ -82,7 +84,77 @@ function applyAnnotationMark(rendition: any, cfi: string, id: string, color: str
   }
 }
 
-export default function EpubContentArea({ annotations, docId, onHighlightCreated, onUnderlineCreated, onNoteCreated, onInkCreated, onInkUndo, onInkRedo, onInkClearPage, onAnnotationDelete, inkCanUndo, inkCanRedo }: Props) {
+function EpubAreaOverlays({ annotations, containerRef }: {
+  annotations: any[]
+  containerRef: React.RefObject<HTMLDivElement | null>
+}) {
+  const ctx = useEpubViewer()
+  const scrollTopRef = useRef(0)
+  const [, forceRender] = useState(0)
+  const rafRef = useRef(0)
+
+  const [scrollContainer, setScrollContainer] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    if (!containerRef.current) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const find = () => {
+      if (cancelled) return
+      const sc = containerRef.current?.querySelector('.epub-container') as HTMLElement | null
+      if (sc) setScrollContainer(sc)
+      else timer = setTimeout(find, 100)
+    }
+    find()
+    return () => { cancelled = true; if (timer) clearTimeout(timer) }
+  }, [containerRef, ctx.rendition])
+
+  useEffect(() => {
+    if (!scrollContainer) return
+    const onScroll = () => {
+      scrollTopRef.current = scrollContainer.scrollTop
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => forceRender(n => n + 1))
+    }
+    scrollTopRef.current = scrollContainer.scrollTop
+    scrollContainer.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      scrollContainer.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(rafRef.current)
+    }
+  }, [scrollContainer])
+
+  const areaAnns = annotations.filter((a: any) => a.type === 'area' && a.position?.type === 'area' && a.position?.rect)
+  if (areaAnns.length === 0) return null
+
+  const st = scrollTopRef.current
+
+  return (
+    <>
+      {areaAnns.map((ann: any) => {
+        const r = ann.position.rect
+        return (
+          <div
+            key={ann.id}
+            style={{
+              position: 'absolute',
+              left: `${r.x * 100}%`,
+              top: r.y - st,
+              width: `${r.w * 100}%`,
+              height: r.h,
+              border: `2px solid ${ann.color}`,
+              background: `${ann.color}11`,
+              pointerEvents: 'none',
+              zIndex: 3,
+              borderRadius: 2,
+            }}
+          />
+        )
+      })}
+    </>
+  )
+}
+
+export default function EpubContentArea({ annotations, docId, onHighlightCreated, onUnderlineCreated, onNoteCreated, onInkCreated, onInkUndo, onInkRedo, onInkClearPage, onAnnotationDelete, onAnnotationUpdate, inkCanUndo, inkCanRedo }: Props) {
   const ctx = useEpubViewer()
   const renderedAnnotations = useRef(new Set<string>())
   const renderedCfiMap = useRef(new Map<string, string>())
@@ -90,47 +162,73 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
   const [selectionPopup, setSelectionPopup] = useState<SelectionPopup | null>(null)
   const [notePopup, setNotePopup] = useState<NotePopup | null>(null)
   const [noteText, setNoteText] = useState('')
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; annotationId: string } | null>(null)
-  const ctxMenuRef = useRef<HTMLDivElement>(null)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; annotationId: string; annotationType: string; annotationColor: string; selectedText?: string } | null>(null)
   const noteInputRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const outerRef = useRef<HTMLDivElement>(null)
+  const outerWidthRef = useRef(0)
+  const [outerWidth, setOuterWidth] = useState(0)
 
   useEffect(() => {
-    if (!ctx.rendition) return
-    ctx.rendition.themes.fontSize(`${ctx.fontSize}%`)
-  }, [ctx.fontSize, ctx.rendition])
+    const el = outerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      for (const e of entries) {
+        const w = Math.round(e.contentRect.width)
+        if (w !== outerWidthRef.current) {
+          outerWidthRef.current = w
+          setOuterWidth(w)
+        }
+      }
+    })
+    ro.observe(el)
+    outerWidthRef.current = Math.round(el.clientWidth)
+    setOuterWidth(outerWidthRef.current)
+    return () => ro.disconnect()
+  }, [])
 
-  // Apply highlights incrementally and remove deleted ones
+  const fontZoom = ctx.fontSize / 100
+  const rawScale = (ctx.baseWidth && outerWidth) ? (outerWidth / ctx.baseWidth) * fontZoom : fontZoom
+  const scale = Math.round(rawScale * 1000) / 1000
+  const visualWidth = ctx.baseWidth ? ctx.baseWidth * scale : outerWidth
+  const centerMargin = ctx.baseWidth ? (outerWidth - visualWidth) / 2 : 0
+
+  const iframeRangeToScreen = useCallback((rangeRect: DOMRect, iframe: HTMLIFrameElement) => {
+    const iframeRect = iframe.getBoundingClientRect()
+    const iframeLogicalW = iframe.clientWidth || 1
+    const s = iframeRect.width / iframeLogicalW
+    return {
+      left: iframeRect.left + rangeRect.left * s,
+      top: iframeRect.top + rangeRect.top * s,
+      right: iframeRect.left + rangeRect.right * s,
+      bottom: iframeRect.top + rangeRect.bottom * s,
+      width: rangeRect.width * s,
+      height: rangeRect.height * s,
+    }
+  }, [])
+
+  // Apply highlights — clear and re-apply on every sync for correctness
   useEffect(() => {
     if (!ctx.rendition) return
     const rendition = ctx.rendition
 
     const syncHighlights = () => {
-      const visibleAnns = ctx.annotationsVisible ? annotations : []
-      const currentIds = new Set(
-        visibleAnns
-          .filter(a => (a.type === 'highlight' || a.type === 'note' || a.type === 'underline') && a.position?.cfi)
-          .map(a => a.id)
-      )
-
-      // Remove annotations that no longer exist
+      // Remove all previously tracked marks
       for (const id of renderedAnnotations.current) {
-        if (!currentIds.has(id)) {
-          const cfi = renderedCfiMap.current.get(id)
-          const type = renderedTypeMap.current.get(id)
-          if (cfi) {
-            try { rendition.annotations.remove(cfi, type === 'underline' ? 'underline' : 'highlight') } catch {}
-          }
-          renderedAnnotations.current.delete(id)
-          renderedCfiMap.current.delete(id)
-          renderedTypeMap.current.delete(id)
+        const cfi = renderedCfiMap.current.get(id)
+        const type = renderedTypeMap.current.get(id)
+        if (cfi) {
+          try { rendition.annotations.remove(cfi, type === 'underline' ? 'underline' : 'highlight') } catch {}
         }
       }
+      renderedAnnotations.current.clear()
+      renderedCfiMap.current.clear()
+      renderedTypeMap.current.clear()
 
-      // Add new annotations
+      // Re-apply all visible annotations
+      const visibleAnns = ctx.annotationsVisible ? annotations : []
       for (const ann of visibleAnns) {
         if ((ann.type !== 'highlight' && ann.type !== 'note' && ann.type !== 'underline') || !ann.position?.cfi) continue
-        if (renderedAnnotations.current.has(ann.id)) continue
         try {
           applyAnnotationMark(rendition, ann.position.cfi, ann.id, ann.color, ann.type)
           renderedAnnotations.current.add(ann.id)
@@ -154,65 +252,130 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
     return () => { rendition.off('relocated', syncAndStyle) }
   }, [ctx.rendition, annotations, ctx.annotationsVisible])
 
-  // When rendition changes (e.g. flow mode switch), reset tracking
-  useEffect(() => {
-    renderedAnnotations.current.clear()
-    renderedCfiMap.current.clear()
-    renderedTypeMap.current.clear()
-  }, [ctx.rendition])
+  // Use refs for values accessed inside rendition event handlers
+  // so handler identity stays stable (epub.js off() needs same reference)
+  const annotationsRef = useRef(annotations)
+  annotationsRef.current = annotations
+  const activeColorRef = useRef(ctx.activeColor)
+  activeColorRef.current = ctx.activeColor
+  const scaleRef = useRef(scale)
+  scaleRef.current = scale
+  const activeToolRef = useRef(ctx.activeTool)
+  activeToolRef.current = ctx.activeTool
+  const onHighlightCreatedRef = useRef(onHighlightCreated)
+  onHighlightCreatedRef.current = onHighlightCreated
+  const markClickedAtRef = useRef(0)
 
-  // Click on highlight/underline mark → show delete menu
+  // Direct click handler on iframe contentDocument to detect annotation clicks.
+  // marks-pane's proxyMouse breaks under CSS transform: scale() because it
+  // compares iframe-local event coords against parent-viewport SVG rects.
+  // We bypass it by checking click coords against annotation text ranges directly.
   useEffect(() => {
     if (!ctx.rendition) return
-    const handler = (cfiRange: string, data: any, contents: any) => {
-      const annotationId = data?.id
-      if (!annotationId) return
-      const range = contents.range(cfiRange)
-      if (!range) return
-      const rect = range.getBoundingClientRect()
-      const iframe = containerRef.current?.querySelector('iframe')
-      const iframeRect = iframe?.getBoundingClientRect()
-      setCtxMenu({
-        x: (iframeRect?.left || 0) + rect.left + rect.width / 2,
-        y: (iframeRect?.top || 0) + rect.bottom + 4,
-        annotationId,
-      })
+    let iframeDoc: Document | null = null
+    let bound = false
+
+    const onClick = (e: MouseEvent) => {
+      const iframe = containerRef.current?.querySelector('iframe') as HTMLIFrameElement | null
+      if (!iframe) return
+      const contents = (ctx.rendition as any)?.getContents()?.[0]
+      if (!contents) return
+      const clickX = e.clientX
+      const clickY = e.clientY
+
+      for (const ann of annotationsRef.current) {
+        if ((ann.type !== 'highlight' && ann.type !== 'note' && ann.type !== 'underline') || !ann.position?.cfi) continue
+        try {
+          const range = contents.range(ann.position.cfi)
+          if (!range) continue
+          const rects = range.getClientRects()
+          for (let i = 0; i < rects.length; i++) {
+            const r = rects[i]
+            if (clickX >= r.left && clickX <= r.right && clickY >= r.top && clickY <= r.bottom) {
+              markClickedAtRef.current = Date.now()
+              const screen = iframeRangeToScreen(r, iframe)
+              setCtxMenu({
+                x: screen.left + screen.width / 2,
+                y: screen.bottom + 4,
+                annotationId: ann.id,
+                annotationType: ann.type,
+                annotationColor: ann.color || activeColorRef.current,
+                selectedText: ann.position?.text || ann.position?.selectedText,
+              })
+              setSelectionPopup(null)
+              e.stopPropagation()
+              return
+            }
+          }
+        } catch {}
+      }
+      setCtxMenu(null)
     }
-    ctx.rendition.on('markClicked', handler)
-    return () => { ctx.rendition?.off('markClicked', handler) }
-  }, [ctx.rendition])
 
+    const tryBind = () => {
+      const iframe = containerRef.current?.querySelector('iframe') as HTMLIFrameElement | null
+      try {
+        const doc = iframe?.contentDocument
+        if (doc && doc !== iframeDoc) {
+          if (iframeDoc) iframeDoc.removeEventListener('click', onClick)
+          iframeDoc = doc
+          doc.addEventListener('click', onClick)
+          bound = true
+        }
+      } catch {}
+    }
+
+    tryBind()
+    const timer = setInterval(tryBind, 500)
+    ctx.rendition.on('relocated', tryBind)
+
+    return () => {
+      clearInterval(timer)
+      if (iframeDoc) iframeDoc.removeEventListener('click', onClick)
+      ctx.rendition?.off('relocated', tryBind)
+    }
+  }, [ctx.rendition, iframeRangeToScreen])
+
+  // Handle text selection events from epub.js
   useEffect(() => {
     if (!ctx.rendition) return
-    const handler = (cfiRange: string, contents: any) => {
+
+    const onSelected = (cfiRange: string, contents: any) => {
+      if (Date.now() - markClickedAtRef.current < 300) return
+
       const range = contents.range(cfiRange)
       const text = range?.toString() || ''
       if (!text.trim()) return
 
       const rect = range?.getBoundingClientRect()
-      const iframe = containerRef.current?.querySelector('iframe')
-      const iframeRect = iframe?.getBoundingClientRect()
-      const containerRect = containerRef.current?.getBoundingClientRect()
-      const x = (iframeRect?.left || 0) + (rect?.left || 0) + ((rect?.width || 0) / 2)
-      const y = (iframeRect?.top || 0) + (rect?.top || 0)
-      const bottom = (iframeRect?.top || 0) + (rect?.bottom || 0)
+      const iframe = containerRef.current?.querySelector('iframe') as HTMLIFrameElement | null
+      if (!rect || !iframe) return
+      const screen = iframeRangeToScreen(rect, iframe)
+      const x = screen.left + screen.width / 2
+      const y = screen.top
+      const bottom = screen.bottom
 
       const sc = containerRef.current?.querySelector('.epub-container') as HTMLElement | null
       const scrollTop = sc?.scrollTop || 0
-      const docY = ((iframeRect?.top || 0) + (rect?.top || 0) - (containerRect?.top || 0)) + scrollTop
+      const containerRect = containerRef.current?.getBoundingClientRect()
+      const docY = (screen.top - (containerRect?.top || 0)) / scaleRef.current + scrollTop
 
-      if (ctx.activeTool === 'highlight') {
-        onHighlightCreated(cfiRange, text, docY)
+      if (activeToolRef.current === 'highlight') {
+        onHighlightCreatedRef.current(cfiRange, text, docY)
         contents?.window?.getSelection()?.removeAllRanges()
         return
       }
 
       setSelectionPopup({ cfiRange, text, x, y, bottom, docY, contents })
+      setCtxMenu(null)
       setNotePopup(null)
     }
-    ctx.rendition.on('selected', handler)
-    return () => { ctx.rendition?.off('selected', handler) }
-  }, [ctx.rendition, ctx.activeTool, onHighlightCreated])
+
+    ctx.rendition.on('selected', onSelected)
+    return () => {
+      ctx.rendition?.off('selected', onSelected)
+    }
+  }, [ctx.rendition, iframeRangeToScreen])
 
   const dismissSelection = useCallback(() => {
     setSelectionPopup(null)
@@ -289,58 +452,59 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
     ctx.setActiveColor(color)
   }, [ctx])
 
+  const handleCtxChangeColor = useCallback((id: string, color: string) => {
+    onAnnotationUpdate(id, { color })
+  }, [onAnnotationUpdate])
+
+  // Dismiss ctxMenu on scroll
   useEffect(() => {
     if (!ctxMenu) return
-    const dismiss = (e: MouseEvent) => {
-      if (ctxMenuRef.current && !ctxMenuRef.current.contains(e.target as Node)) setCtxMenu(null)
-    }
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null) }
-    document.addEventListener('mousedown', dismiss)
-    document.addEventListener('keydown', esc)
-    const iframes = containerRef.current?.querySelectorAll('iframe')
-    iframes?.forEach(iframe => {
-      try { iframe.contentDocument?.addEventListener('mousedown', () => setCtxMenu(null)) } catch {}
-    })
+    const dismiss = () => setCtxMenu(null)
+    const sc = containerRef.current?.querySelector('.epub-container') as HTMLElement | null
+    if (sc) sc.addEventListener('scroll', dismiss, { passive: true })
     return () => {
-      document.removeEventListener('mousedown', dismiss)
-      document.removeEventListener('keydown', esc)
+      if (sc) sc.removeEventListener('scroll', dismiss)
     }
   }, [ctxMenu])
 
-  const handleCtxDelete = useCallback(() => {
-    if (!ctxMenu) return
-    onAnnotationDelete(ctxMenu.annotationId)
-    setCtxMenu(null)
-  }, [ctxMenu, onAnnotationDelete])
-
   return (
     <div
-      ref={containerRef}
+      ref={outerRef}
       style={{
         flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
         overflow: 'hidden',
         position: 'relative',
         background: 'var(--bg)',
+        overscrollBehavior: 'none',
       }}
     >
+      <style>{`
+        [data-epub-container],
+        [data-epub-container] .epub-container,
+        [data-epub-container] .epub-container iframe {
+          overflow-x: hidden !important;
+          overscroll-behavior-x: none !important;
+        }
+      `}</style>
+      <div
+        ref={containerRef}
+        style={{
+          width: ctx.baseWidth || '100%',
+          height: ctx.baseWidth ? `${100 / scale}%` : '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          transformOrigin: 'top left',
+          transform: ctx.baseWidth ? `scale(${scale})` : undefined,
+          marginLeft: centerMargin,
+          overflowX: 'hidden',
+          overscrollBehaviorX: 'none',
+        }}
+      >
       <div
         data-epub-container
         style={{ flex: 1, minHeight: 0 }}
       />
-      {selectionPopup && (
-        <TextSelectionToolbar
-          position={{ x: selectionPopup.x, y: selectionPopup.y, bottom: selectionPopup.bottom }}
-          color={ctx.activeColor}
-          colors={ANNOTATION_COLORS}
-          onHighlight={handleHighlight}
-          onUnderline={handleUnderline}
-          onCopy={handleCopy}
-          onChangeColor={handleChangeColor}
-          onClose={dismissSelection}
-        />
-      )}
 
       {ctx.activeTool !== 'lasso' && (
         <EpubInkOverlay
@@ -360,6 +524,17 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
         />
       )}
 
+      <EpubAreaOverlays
+        annotations={ctx.annotationsVisible ? annotations : []}
+        containerRef={containerRef}
+      />
+
+      <EpubAreaSelectTool
+        docId={docId}
+        containerRef={containerRef}
+        onCreated={onInkCreated}
+      />
+
       {(ctx.activeTool === 'ink' || ctx.activeTool === 'eraser' || ctx.activeTool === 'lasso') && (
         <EpubInkToolbar
           onUndo={onInkUndo}
@@ -367,6 +542,21 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
           canUndo={inkCanUndo}
           canRedo={inkCanRedo}
           onClearPage={onInkClearPage}
+        />
+      )}
+
+      </div>
+
+      {selectionPopup && (
+        <TextSelectionToolbar
+          position={{ x: selectionPopup.x, y: selectionPopup.y, bottom: selectionPopup.bottom }}
+          color={ctx.activeColor}
+          colors={ANNOTATION_COLORS}
+          onHighlight={handleHighlight}
+          onUnderline={handleUnderline}
+          onCopy={handleCopy}
+          onChangeColor={handleChangeColor}
+          onClose={dismissSelection}
         />
       )}
 
@@ -436,24 +626,16 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
       )}
 
       {ctxMenu && (
-        <div ref={ctxMenuRef} style={{
-          position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: 9999,
-          background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.18)', padding: 4, minWidth: 120,
-        }}>
-          <button
-            onClick={handleCtxDelete}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px',
-              cursor: 'pointer', fontSize: 13, color: '#e53e3e', border: 'none',
-              background: 'none', width: '100%', textAlign: 'left', borderRadius: 4,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--selected)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-          >
-            <Trash2 size={14} /> Delete
-          </button>
-        </div>
+        <AnnotationContextMenu
+          position={{ x: ctxMenu.x, y: ctxMenu.y }}
+          annotationId={ctxMenu.annotationId}
+          annotationType={ctxMenu.annotationType}
+          annotationColor={ctxMenu.annotationColor}
+          selectedText={ctxMenu.selectedText}
+          onDelete={onAnnotationDelete}
+          onChangeColor={handleCtxChangeColor}
+          onClose={() => setCtxMenu(null)}
+        />
       )}
 
     </div>

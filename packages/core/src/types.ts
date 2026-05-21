@@ -87,7 +87,7 @@ export interface PointPosition {
 
 export interface AreaPosition {
   type: 'area'
-  page: number
+  page?: number
   rect: { x: number; y: number; w: number; h: number }
   imageData?: string
 }

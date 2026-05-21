@@ -114,7 +114,7 @@ export default function ResizableAreaOverlay({ id, rect, color, buildCaptureCanv
       ref={containerRef}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => { if (!dragging) setHovered(false) }}
-      onContextMenu={(e) => { if (onContextMenu) { e.preventDefault(); e.stopPropagation(); onContextMenu(e, id) } }}
+      onClick={(e) => { if (onContextMenu) { e.stopPropagation(); onContextMenu(e, id) } }}
       style={{
         position: 'absolute',
         left: `${r.x * 100}%`, top: `${r.y * 100}%`,

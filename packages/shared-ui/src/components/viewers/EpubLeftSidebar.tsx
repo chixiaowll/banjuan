@@ -41,6 +41,11 @@ export default function EpubLeftSidebar({
       if (sc) {
         sc.scrollTo({ top: Math.max(0, ann.position.bounds.y - sc.clientHeight / 3), behavior: 'smooth' })
       }
+    } else if (ann?.position?.type === 'area' && ann?.position?.rect) {
+      const sc = document.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
+      if (sc) {
+        sc.scrollTo({ top: Math.max(0, ann.position.rect.y - sc.clientHeight / 3), behavior: 'smooth' })
+      }
     }
   }
 

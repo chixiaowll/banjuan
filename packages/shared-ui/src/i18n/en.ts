@@ -18,6 +18,7 @@ const en = {
   'common.save': 'Save',
   'common.cancel': 'Cancel',
   'common.confirm': 'Confirm',
+  'common.copy': 'Copy Text',
   'common.delete': 'Delete',
   'common.edit': 'Edit',
   'common.back': 'Back',
