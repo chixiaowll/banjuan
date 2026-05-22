@@ -11,6 +11,8 @@ import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
 import { useI18n } from '../i18n/index.js'
 import { NOTE_THEMES, NOTE_THEME_KEYS, applyNoteTheme, getStoredNoteTheme } from '../components/notes/noteThemes.js'
 import type { Locale } from '../i18n/index.js'
+import { useTheme, APP_THEMES } from '../theme/index.js'
+import type { AppTheme } from '../theme/index.js'
 import { useBanjuanAPI } from '../api.js'
 
 interface Document {
@@ -86,17 +88,17 @@ function buildDirTree(docs: Document[], extraDirs?: string[]): DirNode[] {
 }
 
 const TYPE_PILLS: Record<string, { bg: string; color: string; label: string }> = {
-  markdown:    { bg: '#e8eff8', color: '#4a7ab5', label: 'Note' },
-  mindmap:     { bg: '#eeebf6', color: '#7b6ba8', label: 'Mind' },
-  handwriting: { bg: '#f4ede4', color: '#a07842', label: 'Hand' },
-  pdf:         { bg: '#f0e8e4', color: '#a06b4a', label: 'PDF' },
-  epub:        { bg: '#e6f2ec', color: '#3d8a66', label: 'EPUB' },
-  txt:         { bg: '#edeef0', color: '#737a84', label: 'TXT' },
-  md:          { bg: '#eaeaf5', color: '#5d5da0', label: 'MD' },
-  image:       { bg: '#f3efe3', color: '#9a8035', label: 'IMG' },
-  video:       { bg: '#f3e8ef', color: '#a35882', label: 'Video' },
-  html:        { bg: '#e4f0f1', color: '#3a7f86', label: 'HTML' },
-  other:       { bg: '#edeef0', color: '#737a84', label: 'Other' },
+  markdown:    { bg: 'var(--tag-md-bg)', color: 'var(--tag-md-color)', label: 'MD' },
+  mindmap:     { bg: 'var(--tag-mind-bg)', color: 'var(--tag-mind-color)', label: 'MIND' },
+  handwriting: { bg: 'var(--tag-hand-bg)', color: 'var(--tag-hand-color)', label: 'HAND' },
+  pdf:         { bg: 'var(--tag-pdf-bg)', color: 'var(--tag-pdf-color)', label: 'PDF' },
+  epub:        { bg: 'var(--tag-epub-bg)', color: 'var(--tag-epub-color)', label: 'EPUB' },
+  txt:         { bg: 'var(--tag-txt-bg)', color: 'var(--tag-txt-color)', label: 'TXT' },
+  md:          { bg: 'var(--tag-md-bg)', color: 'var(--tag-md-color)', label: 'MD' },
+  image:       { bg: 'var(--tag-img-bg)', color: 'var(--tag-img-color)', label: 'IMG' },
+  video:       { bg: 'var(--tag-video-bg)', color: 'var(--tag-video-color)', label: 'VIDEO' },
+  html:        { bg: 'var(--tag-html-bg)', color: 'var(--tag-html-color)', label: 'HTML' },
+  other:       { bg: 'var(--tag-txt-bg)', color: 'var(--tag-txt-color)', label: 'OTHER' },
 }
 
 function formatDate(dateStr: string, locale: string): string {
@@ -185,6 +187,10 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
 export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNote, onOpenMindmap, onOpenPluginView, onSwitchLibrary }: Props) {
   const api = useBanjuanAPI()
   const { t, locale, setLocale } = useI18n()
+  const { theme: appTheme } = useTheme()
+  const isMinimal = appTheme === 'minimal'
+  const isNotebook = appTheme === 'notebook'
+  const isModern = isMinimal || isNotebook
   const [documents, setDocuments] = useState<Document[]>([])
   const [notes, setNotes] = useState<any[]>([])
   const [plugins, setPlugins] = useState<any[]>([])
@@ -223,7 +229,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [pluginViews, setPluginViews] = useState<Array<{ viewType: string; pluginId: string; displayText: string; icon?: string; singleton?: boolean }>>([])
   const pluginIconCache = useRef<Map<string, string>>(new Map())
   const [recentAnnotations, setRecentAnnotations] = useState<Array<{ id: string; docId: string; type: string; selectedText: string | null; content: string | null; color: string; page: number | null; createdAt: string; docTitle?: string }>>([])
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => appTheme !== 'minimal' && appTheme !== 'notebook')
   const leftResize = useResizable(220, 160, 400, 'left')
   const rightResize = useResizable(280, 200, 500, 'right')
 
@@ -576,25 +582,31 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const displayItems = getDisplayItems()
 
   const sidebarStyle: React.CSSProperties = {
-    width: sidebarCollapsed ? 48 : leftResize.width,
-    minWidth: sidebarCollapsed ? 48 : 180,
-    background: 'var(--surface)',
-    borderRight: 'none', display: 'flex',
+    width: sidebarCollapsed ? 60 : (isModern ? 220 : leftResize.width),
+    minWidth: sidebarCollapsed ? 60 : (isModern ? 220 : 180),
+    background: isModern ? 'var(--bg)' : 'linear-gradient(180deg, #EFE8D7 0%, #E8DFC8 100%)',
+    borderRight: `1px solid ${isModern ? 'var(--border)' : 'var(--paper-edge)'}`, display: 'flex',
     flexDirection: 'column', overflow: 'hidden', userSelect: 'none',
     transition: 'width 0.2s ease, min-width 0.2s ease',
   }
 
   const sidebarItemStyle = (active: boolean): React.CSSProperties => ({
-    height: 32, display: 'flex', alignItems: 'center', gap: sidebarCollapsed ? 0 : 8,
-    padding: sidebarCollapsed ? '0' : '0 12px',
+    width: sidebarCollapsed ? 38 : 'auto',
+    height: sidebarCollapsed ? 38 : 32,
+    display: 'flex', alignItems: 'center', gap: sidebarCollapsed ? 0 : 8,
+    padding: sidebarCollapsed ? '0' : '0 8px',
     justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-    margin: sidebarCollapsed ? '1px 4px' : '1px 8px',
-    fontSize: 14, cursor: 'pointer',
-    fontWeight: active ? 600 : 400, color: active ? 'var(--accent)' : 'var(--text-secondary)',
-    background: active ? 'var(--accent-soft)' : 'transparent',
-    borderRadius: 'var(--radius-sm)',
+    margin: sidebarCollapsed ? '3px auto' : '1px 8px',
+    fontSize: 13, cursor: 'pointer',
+    fontFamily: isModern ? 'var(--font-cjk, var(--font-body))' : undefined,
+    fontWeight: active ? 500 : 400,
+    color: active ? (isNotebook ? '#fff' : isModern ? 'var(--ink)' : 'var(--vermilion)') : 'var(--ink-mute)',
+    background: active ? (isNotebook ? '#E8825D' : isModern ? 'var(--hover)' : 'var(--paper)') : 'transparent',
+    borderRadius: sidebarCollapsed ? 9 : (isNotebook ? 8 : 5),
+    boxShadow: isModern ? 'none' : (active ? '0 1px 0 rgba(255,255,255,0.7) inset, 0 1px 3px rgba(0,0,0,0.04)' : 'none'),
     transition: 'background 0.15s ease',
     overflow: 'hidden', whiteSpace: 'nowrap',
+    position: 'relative',
   })
 
   const ctxItemStyle: React.CSSProperties = {
@@ -622,35 +634,57 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
       {/* Left Sidebar */}
       <div style={sidebarStyle}>
         {/* Header */}
-        <div style={{
-          padding: sidebarCollapsed ? '12px 4px 10px' : '12px 20px 10px',
-          display: 'flex', alignItems: 'center',
-          justifyContent: sidebarCollapsed ? 'center' : 'space-between',
-          gap: 8, flexShrink: 0,
-        }}>
-          {!sidebarCollapsed && (
-            <span style={{
-              fontSize: 15, fontWeight: 600, color: 'var(--text-muted)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              letterSpacing: '0.02em',
-              textTransform: 'uppercase',
-            }}>
-              {libraryName}
-            </span>
-          )}
-          <div
-            onClick={() => setSidebarCollapsed(v => !v)}
-            style={{
-              width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)',
-              transition: 'background 0.15s ease', flexShrink: 0,
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-          >
-            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        {isModern && !sidebarCollapsed ? (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '6px 8px 14px', margin: '18px 12px 0',
+            borderBottom: '1px solid var(--border)',
+          }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: isNotebook ? 6 : 5,
+              background: isNotebook ? '#E8825D' : 'var(--ink)', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 500, flexShrink: 0,
+            }}>{t('library.sealChar')}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{libraryName}</div>
+              <div style={{ fontSize: 10, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>local</div>
+            </div>
+            <div style={{ color: 'var(--ink-faint)' }}>
+              <ChevronDown size={11} />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div style={{
+            padding: sidebarCollapsed ? '12px 4px 10px' : '12px 20px 10px',
+            display: 'flex', alignItems: 'center',
+            justifyContent: sidebarCollapsed ? 'center' : 'space-between',
+            gap: 8, flexShrink: 0,
+          }}>
+            {!sidebarCollapsed && (
+              <span style={{
+                fontSize: 15, fontWeight: 600, color: 'var(--text-muted)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                letterSpacing: '0.02em',
+                textTransform: 'uppercase',
+              }}>
+                {libraryName}
+              </span>
+            )}
+            <div
+              onClick={() => setSidebarCollapsed(v => !v)}
+              style={{
+                width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)',
+                transition: 'background 0.15s ease', flexShrink: 0,
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            </div>
+          </div>
+        )}
 
         <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80 }}>
           {/* Home */}
@@ -665,6 +699,15 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             {!sidebarCollapsed && (t('library.home') ?? 'Home')}
           </div>
 
+          {/* Group title: 资料库 (minimal/notebook) */}
+          {isModern && !sidebarCollapsed && (
+            <div style={{
+              padding: '14px 8px 6px', margin: '0 8px',
+              fontSize: 10, fontWeight: 500, color: 'var(--ink-faint)',
+              letterSpacing: '0.06em', textTransform: 'uppercase',
+            }}>{locale === 'zh' ? '资料库' : 'LIBRARY'}</div>
+          )}
+
           {/* Documents */}
           <div
             style={sidebarItemStyle(selectedSection === 'documents' && selectedDir === null && !selectedTag)}
@@ -674,9 +717,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             onMouseLeave={e => { if (!(selectedSection === 'documents' && selectedDir === null && !selectedTag)) e.currentTarget.style.background = 'transparent' }}
             title={sidebarCollapsed ? t('library.documents') : undefined}
           >
-            <LibraryBig size={18} style={{ flexShrink: 0 }} />
+            <LibraryBig size={isModern ? 14 : 18} style={{ flexShrink: 0, color: isModern ? 'var(--ink-mute)' : undefined }} />
             {!sidebarCollapsed && <><span style={{ flex: 1 }}>{t('library.documents')}</span>
-              {dirTree.length > 0 && <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{docSectionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>}
+              {isModern && <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)', fontWeight: 400 }}>{documents.length}</span>}
+              {!isModern && dirTree.length > 0 && <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{docSectionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>}
             </>}
           </div>
 
@@ -701,9 +745,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             onMouseLeave={e => { if (!(selectedSection === 'notes' && selectedNoteDir === null && !selectedTag)) e.currentTarget.style.background = 'transparent' }}
             title={sidebarCollapsed ? t('library.notes') : undefined}
           >
-            <PenLine size={18} style={{ flexShrink: 0 }} />
+            <PenLine size={isModern ? 14 : 18} style={{ flexShrink: 0, color: isModern ? 'var(--ink-mute)' : undefined }} />
             {!sidebarCollapsed && <><span style={{ flex: 1 }}>{t('library.notes')}</span>
-              {noteDirTree.length > 0 && <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{noteSectionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>}
+              {isModern && <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)', fontWeight: 400 }}>{notes.length}</span>}
+              {!isModern && noteDirTree.length > 0 && <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{noteSectionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>}
             </>}
           </div>
 
@@ -870,181 +915,453 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         )}
       </div>
 
-      {!sidebarCollapsed && <ResizeHandle onPointerDown={leftResize.onPointerDown} />}
+      {!sidebarCollapsed && !isModern && <ResizeHandle onPointerDown={leftResize.onPointerDown} />}
 
       {/* Center Panel */}
       <div style={centerStyle}>
         {selectedSection === 'home' ? (
-          <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 32px 80px' }}>
-            <div style={{ width: '100%', maxWidth: 720 }}>
-              {/* Header row: name + path | quick actions */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-                <div style={{ minWidth: 0 }}>
-                  <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text)', margin: 0 }}>
+          <div style={{ flex: 1, overflow: 'auto', padding: isModern ? '36px 48px 48px' : '36px 56px 80px' }}>
+            {/* Breadcrumb (modern themes) */}
+            {isModern && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 12, color: 'var(--ink-mute)', fontFamily: 'var(--font-mono)',
+                marginBottom: 24,
+              }}>
+                {rootPath.split('/').filter(Boolean).map((part, i, arr) => (
+                  <span key={i}>
+                    {i > 0 && <span style={{ color: 'var(--ink-ghost)', margin: '0 2px' }}>/</span>}
+                    <span style={i === arr.length - 1 ? { color: 'var(--ink)' } : undefined}>{part}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Page header */}
+            <div style={{
+              display: 'flex', alignItems: isModern ? 'flex-start' : 'flex-end', justifyContent: 'space-between',
+              paddingBottom: isModern ? 0 : 24, marginBottom: isModern ? 8 : 32,
+              borderBottom: isModern ? 'none' : '1px solid rgba(28,26,23,0.08)',
+              position: 'relative',
+            }}>
+              {!isModern && <div style={{
+                position: 'absolute', bottom: -1, left: 0, width: 64, height: 1,
+                background: 'var(--vermilion)',
+              }} />}
+              <div style={{ minWidth: 0 }}>
+                {!isModern && <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+                  <h1 style={{
+                    fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 34,
+                    color: 'var(--ink)', letterSpacing: '0.04em', lineHeight: 1, margin: 0,
+                  }}>
                     {libraryName}
-                  </h2>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, opacity: 0.6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {rootPath}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  <button
-                    onClick={() => setShowNotePicker(true)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 4,
-                      padding: '5px 10px', fontSize: 12, fontWeight: 500,
-                      border: 'none', borderRadius: 'var(--radius-sm)',
-                      background: 'rgba(0,0,0,0.03)', color: 'var(--text-muted)',
-                      cursor: 'pointer', transition: 'all 0.2s ease',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.03)'; e.currentTarget.style.color = 'var(--text-muted)' }}
-                  >
-                    <PenLine size={12} />
-                    {locale === 'zh' ? '新建笔记' : 'New Note'}
-                  </button>
-                  <button
-                    onClick={async () => { await api.documents.import(); await loadDocuments() }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 4,
-                      padding: '5px 10px', fontSize: 12, fontWeight: 500,
-                      border: 'none', borderRadius: 'var(--radius-sm)',
-                      background: 'rgba(0,0,0,0.03)', color: 'var(--text-muted)',
-                      cursor: 'pointer', transition: 'all 0.2s ease',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.03)'; e.currentTarget.style.color = 'var(--text-muted)' }}
-                  >
-                    <Plus size={12} />
-                    {locale === 'zh' ? '导入文档' : 'Import'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Poetry card with date overlay */}
-              <div style={{ position: 'relative', marginBottom: 24 }}>
-                <div style={{
-                  position: 'absolute', top: 14, left: 18, zIndex: 1,
-                  fontSize: 11, color: 'var(--text-secondary)', opacity: 0.65,
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  letterSpacing: '0.01em',
+                  </h1>
+                  <span style={{
+                    width: 26, height: 26, background: 'var(--seal)', color: '#FBE9D8',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
+                    borderRadius: 3, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)',
+                    transform: 'rotate(-2deg)',
+                  }}>
+                    {t('library.sealChar')}
+                  </span>
+                </div>}
+                {isModern && <h1 style={{
+                  fontSize: 30, fontWeight: 600, color: 'var(--ink)',
+                  letterSpacing: '-0.02em', lineHeight: 1.2, margin: 0,
+                }}>{libraryName}</h1>}
+                {!isModern && <div style={{
+                  marginTop: 8, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)',
+                  fontSize: 11, letterSpacing: '0.02em',
                 }}>
-                  {(() => {
-                    const now = new Date()
-                    if (locale === 'zh') {
-                      const weekdays = ['日', '一', '二', '三', '四', '五', '六']
-                      const solar = `${now.getMonth() + 1}月${now.getDate()}日 星期${weekdays[now.getDay()]}`
-
-                      const lunarDayNames = ['', '初一','初二','初三','初四','初五','初六','初七','初八','初九','初十',
-                        '十一','十二','十三','十四','十五','十六','十七','十八','十九','二十',
-                        '廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','廿九','三十']
-                      let lunarStr = ''
-                      try {
-                        const fmt = new Intl.DateTimeFormat('zh-CN-u-ca-chinese', { year: 'numeric', month: 'long', day: 'numeric' })
-                        const parts = fmt.formatToParts(now)
-                        const lunarMonth = parts.find(p => p.type === 'month')?.value
-                        const lunarDay = parseInt(parts.find(p => p.type === 'day')?.value || '1')
-                        lunarStr = `${lunarMonth}${lunarDayNames[lunarDay] || lunarDay}`
-                      } catch {}
-
-                      const solarTerms: [number, string, number][] = [
-                        [0,'小寒',5.4055],[0,'大寒',20.12],[1,'立春',3.87],[1,'雨水',18.73],
-                        [2,'惊蛰',5.63],[2,'春分',20.646],[3,'清明',4.81],[3,'谷雨',20.1],
-                        [4,'立夏',5.52],[4,'小满',21.04],[5,'芒种',5.678],[5,'夏至',21.37],
-                        [6,'小暑',7.108],[6,'大暑',22.83],[7,'立秋',7.5],[7,'处暑',23.13],
-                        [8,'白露',7.646],[8,'秋分',23.042],[9,'寒露',8.318],[9,'霜降',23.438],
-                        [10,'立冬',7.438],[10,'小雪',22.36],[11,'大雪',7.18],[11,'冬至',21.94],
-                      ]
-                      const y = now.getFullYear() - 2000
-                      const m = now.getMonth()
-                      const d = now.getDate()
-                      const calcDay = (c: number) => Math.floor(y * 0.2422 + c) - Math.floor(y / 4)
-                      const monthTerms = solarTerms.filter(t => t[0] === m)
-                      let termStr = ''
-                      if (monthTerms.length === 2) {
-                        const d1 = calcDay(monthTerms[0][2])
-                        const d2 = calcDay(monthTerms[1][2])
-                        if (d === d1) termStr = monthTerms[0][1]
-                        else if (d === d2) termStr = monthTerms[1][1]
-                      }
-
-                      return <>
-                        {solar}
-                        {lunarStr && <><span style={{ opacity: 0.3, margin: '0 5px' }}>|</span>{lunarStr}</>}
-                        {termStr && <><span style={{ opacity: 0.3, margin: '0 5px' }}>|</span><span style={{ color: 'var(--accent)', fontWeight: 600 }}>{termStr}</span></>}
-                      </>
-                    }
-                    return now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-                  })()}
-                </div>
-                <PoetryCard locale={locale} />
+                  {rootPath.split('/').map((part, i, arr) => (
+                    <span key={i}>
+                      {i > 0 && <span style={{ color: 'var(--ink-ghost)', margin: '0 2px' }}>/</span>}
+                      <span style={i === arr.length - 1 ? { color: 'var(--vermilion)' } : undefined}>{part}</span>
+                    </span>
+                  ))}
+                </div>}
               </div>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <button
+                  onClick={async () => { await api.documents.import(); await loadDocuments() }}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    height: isModern ? 32 : undefined,
+                    padding: isModern ? '0 12px' : '9px 18px', borderRadius: 6,
+                    fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
+                    color: 'var(--ink-soft)', border: '1px solid var(--border-solid)',
+                    background: isModern ? 'var(--surface-raised)' : 'transparent',
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = isModern ? 'var(--surface-raised)' : 'transparent' }}
+                >
+                  <Upload size={14} />
+                  {t('library.import')}
+                </button>
+                <button
+                  onClick={() => setShowNotePicker(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    height: isModern ? 32 : undefined,
+                    padding: isModern ? '0 12px' : '9px 18px', borderRadius: 6,
+                    fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
+                    background: 'var(--ink)', color: '#fff', border: 'none',
+                    cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#000' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--ink)' }}
+                >
+                  <Plus size={14} />
+                  {t('library.newNote')}
+                </button>
+              </div>
+            </div>
 
-              {/* Content sections */}
-              <div style={{ display: 'grid', gridTemplateColumns: notes.length > 0 && documents.length > 0 ? '1fr 1fr' : '1fr', gap: 20 }}>
+            {/* Stats line (minimal) */}
+            {isModern && (
+              <div style={{
+                fontSize: 13, color: 'var(--ink-mute)', marginBottom: 36,
+                display: 'flex', alignItems: 'center', gap: 14,
+              }}>
+                <span><strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{documents.length}</strong>&nbsp;{locale === 'zh' ? '文档' : 'docs'}</span>
+                <span style={{ color: 'var(--ink-ghost)' }}>·</span>
+                <span><strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{notes.length}</strong>&nbsp;{locale === 'zh' ? '笔记' : 'notes'}</span>
+                <span style={{ color: 'var(--ink-ghost)' }}>·</span>
+                <span><strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{recentAnnotations.length}</strong>&nbsp;{locale === 'zh' ? '批注' : 'annotations'}</span>
+              </div>
+            )}
 
-                {/* Recent notes card */}
-                {notes.length > 0 && (
-                  <div style={{ borderRadius: 'var(--radius-lg)', border: 'none', overflow: 'hidden', minWidth: 0, background: 'var(--surface-raised)', borderRadius: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.03)' }}>
-                    <div style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '10px 14px', borderBottom: 'none', background: 'transparent',
-                    }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: '#999', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                        {t('library.recentNotes') ?? 'Recent Notes'}
-                        <span style={{ fontWeight: 400, opacity: 0.5, marginLeft: 4 }}>{notes.length}</span>
-                      </span>
-                      <span onClick={() => handleSectionChange('notes')}
-                        style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer' }}>
-                        {locale === 'zh' ? '全部' : 'All'}
-                      </span>
+            {/* Poetry / Quote section */}
+            <div style={{ marginBottom: isModern ? 40 : 36, paddingBottom: isModern ? 32 : 0, borderBottom: (isModern && !isNotebook) ? '1px solid var(--border)' : 'none' }}>
+              <PoetryCard locale={locale} />
+            </div>
+
+            {isNotebook ? (<>
+              {/* ── Notebook theme: cover card grid ── */}
+
+              {/* Recent documents as cover cards */}
+              {documents.length > 0 && (
+                <div style={{ marginBottom: 40 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 15, fontWeight: 600 }}>📚 {t('library.recentDocs')}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-faint)', background: 'var(--hover)', padding: '2px 8px', borderRadius: 10 }}>{documents.length} {locale === 'zh' ? '个文档' : 'docs'}</span>
                     </div>
-                    {[...notes].sort((a, b) => ((b.updatedAt || b.createdAt) || '').localeCompare((a.updatedAt || a.createdAt) || '')).slice(0, 5).map(note => {
-                      const pill = TYPE_PILLS[note.type]
+                    <span onClick={() => handleSectionChange('documents')} style={{ fontSize: 12, color: 'var(--ink-mute)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 18 }}>
+                    {[...documents].sort((a, b) => ((b as any).lastReadAt || b.updatedAt || b.createdAt || '').localeCompare((a as any).lastReadAt || a.updatedAt || a.createdAt || '')).slice(0, 6).map((doc, di) => {
+                      const pill = TYPE_PILLS[doc.type]
+                      const coverColors = ['#E8DCC8', '#B85C4A', '#5B8C6B', '#8B7E9B', '#6B8EA0']
+                      const coverBg = coverColors[di % coverColors.length]
+                      const isLight = di === 0
+                      const extLabel = doc.type === 'other' || (doc.type === 'txt' && doc.path && !doc.path.endsWith('.txt'))
+                        ? (doc.path?.split('.').pop()?.toUpperCase() || (pill?.label ?? doc.type))
+                        : (pill?.label ?? doc.type)
                       return (
-                        <div key={note.id}
-                          onClick={() => { if (note.type === 'mindmap') onOpenMindmap(note); else onOpenNote(note) }}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 8,
-                            padding: '6px 14px', cursor: 'pointer', transition: 'background 0.15s ease',
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        <div key={doc.id} onClick={() => onOpenDoc(doc)} style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)' }}
+                          onMouseLeave={e => { e.currentTarget.style.transform = 'none' }}
                         >
-                          <span style={{
-                            fontSize: 9, fontWeight: 700, letterSpacing: 0.3,
-                            padding: '1px 5px', borderRadius: 9999, flexShrink: 0,
-                            background: pill?.bg ?? '#edeef0', color: pill?.color ?? '#737a84',
-                          }}>{pill?.label ?? note.type}</span>
-                          <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                            {note.title}
-                          </span>
-                          <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>
-                            {formatDate(note.updatedAt || note.createdAt, locale)}
-                          </span>
+                          <div style={{
+                            aspectRatio: '3/4', borderRadius: 10, overflow: 'hidden', position: 'relative',
+                            background: coverBg, padding: 16,
+                            display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)',
+                          }}>
+                            {/* Binding lines */}
+                            <div style={{ position: 'absolute', left: 12, top: 0, bottom: 0, width: 2, background: 'rgba(0,0,0,0.08)' }} />
+                            <div style={{ position: 'absolute', left: 15, top: 0, bottom: 0, width: 1, background: 'rgba(0,0,0,0.05)' }} />
+                            {/* Type badge */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <span style={{
+                                fontSize: 9, fontWeight: 600, letterSpacing: '0.05em',
+                                padding: '2px 6px', borderRadius: 3,
+                                background: 'rgba(255,255,255,0.25)', color: isLight ? 'var(--ink-soft)' : '#fff',
+                              }}>{extLabel}</span>
+                            </div>
+                            {/* Title */}
+                            <div style={{ marginTop: 'auto' }}>
+                              <div style={{
+                                fontSize: 14, fontWeight: 600, lineHeight: 1.3,
+                                color: isLight ? 'var(--ink)' : '#fff',
+                                display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                              }}>{doc.title}</div>
+                              {doc.authors?.[0] && <div style={{
+                                fontSize: 11, color: isLight ? 'var(--ink-mute)' : 'rgba(255,255,255,0.7)',
+                                marginTop: 4,
+                              }}>{doc.authors[0]}</div>}
+                            </div>
+                          </div>
+                          {/* Card footer */}
+                          <div style={{ padding: '8px 2px 0', fontSize: 12, color: 'var(--ink-soft)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{doc.title}</div>
+                          <div style={{ padding: '2px 2px 0', fontSize: 11, color: 'var(--ink-faint)' }}>
+                            {doc.authors?.[0] && <>{doc.authors[0]} · </>}
+                            {formatDate((doc as any).lastReadAt || doc.updatedAt || doc.createdAt, locale)}
+                          </div>
                         </div>
                       )
                     })}
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Recent documents card */}
-                {documents.length > 0 && (
-                  <div style={{ borderRadius: 'var(--radius-lg)', border: 'none', overflow: 'hidden', minWidth: 0, background: 'var(--surface-raised)', borderRadius: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.03)' }}>
+              {/* Notes as cover cards */}
+              <div style={{ marginBottom: 40 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 15, fontWeight: 600 }}>✏️ {locale === 'zh' ? '我的笔记' : 'My Notes'}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-faint)', background: 'var(--hover)', padding: '2px 8px', borderRadius: 10 }}>{notes.length} {locale === 'zh' ? '个' : ''}</span>
+                  </div>
+                  <span onClick={() => handleSectionChange('notes')} style={{ fontSize: 12, color: 'var(--ink-mute)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 18 }}>
+                  {[...notes].sort((a, b) => ((b.updatedAt || b.createdAt) || '').localeCompare((a.updatedAt || a.createdAt) || '')).slice(0, 5).map((note, ni) => {
+                    const pill = TYPE_PILLS[note.type]
+                    const noteColors = ['#5B8C6B', '#B85C4A', '#6B8EA0', '#8B7E9B', '#E07856']
+                    const coverBg = noteColors[ni % noteColors.length]
+                    return (
+                      <div key={note.id} onClick={() => { if (note.type === 'mindmap') onOpenMindmap(note); else onOpenNote(note) }}
+                        style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)' }}
+                        onMouseLeave={e => { e.currentTarget.style.transform = 'none' }}
+                      >
+                        <div style={{
+                          aspectRatio: '3/4', borderRadius: 10, overflow: 'hidden', position: 'relative',
+                          background: coverBg, padding: 16,
+                          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)',
+                        }}>
+                          <div style={{ position: 'absolute', left: 12, top: 0, bottom: 0, width: 2, background: 'rgba(0,0,0,0.08)' }} />
+                          <div style={{ position: 'absolute', left: 15, top: 0, bottom: 0, width: 1, background: 'rgba(0,0,0,0.05)' }} />
+                          <span style={{
+                            fontSize: 9, fontWeight: 600, letterSpacing: '0.05em',
+                            padding: '2px 6px', borderRadius: 3, alignSelf: 'flex-start',
+                            background: 'rgba(255,255,255,0.25)', color: '#fff',
+                          }}>{pill?.label ?? note.type.toUpperCase()}</span>
+                          <div style={{ marginTop: 'auto' }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3, color: '#fff',
+                              display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                            }}>{note.title}</div>
+                          </div>
+                        </div>
+                        <div style={{ padding: '8px 2px 0', fontSize: 12, color: 'var(--ink-soft)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{note.title}</div>
+                        <div style={{ padding: '2px 2px 0', fontSize: 11, color: 'var(--ink-faint)' }}>{formatDate(note.updatedAt || note.createdAt, locale)}</div>
+                      </div>
+                    )
+                  })}
+                  {/* New note card */}
+                  <div onClick={() => setShowNotePicker(true)} style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)' }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'none' }}
+                  >
                     <div style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '10px 14px', borderBottom: 'none', background: 'transparent',
+                      aspectRatio: '3/4', borderRadius: 10, overflow: 'hidden',
+                      border: '2px dashed var(--border-solid)', background: 'var(--surface-raised)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
                     }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: '#999', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                        {t('library.recentDocs')}
-                        <span style={{ fontWeight: 400, opacity: 0.5, marginLeft: 4 }}>{documents.length}</span>
-                      </span>
-                      <span onClick={() => handleSectionChange('documents')}
-                        style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer' }}>
-                        {locale === 'zh' ? '全部' : 'All'}
+                      <Plus size={24} style={{ color: 'var(--ink-faint)' }} />
+                      <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>{t('library.newNote')}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Annotations as sticky notes */}
+              {recentAnnotations.length > 0 && (
+                <div style={{ marginBottom: 40 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 15, fontWeight: 600 }}>📌 {t('library.recentAnnotations')}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-faint)', background: 'var(--hover)', padding: '2px 8px', borderRadius: 10 }}>{recentAnnotations.length}</span>
+                    </div>
+                    <span onClick={() => handleSectionChange('annotations' as any)} style={{ fontSize: 12, color: 'var(--ink-mute)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+                    {recentAnnotations.slice(0, 8).map((ann, i) => {
+                      const stickyColors = ['#FFFDF0', '#FFF0F2', '#F0F6FE']
+                      const tapeColors = ['rgba(255,225,150,0.65)', 'rgba(240,190,200,0.45)', 'rgba(180,210,240,0.45)']
+                      const stickyBg = stickyColors[i % stickyColors.length]
+                      const tapeBg = tapeColors[i % tapeColors.length]
+                      return (
+                        <div key={ann.id}
+                          onClick={() => { const doc = documents.find(d => d.id === ann.docId); if (doc) onOpenDoc(doc) }}
+                          style={{
+                            position: 'relative', cursor: 'pointer', transition: 'transform 0.15s',
+                            paddingTop: 12,
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px) rotate(-0.5deg)' }}
+                          onMouseLeave={e => { e.currentTarget.style.transform = 'none' }}
+                        >
+                          {/* Tape decoration */}
+                          <div style={{
+                            position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%) rotate(-2deg)',
+                            width: 48, height: 16, background: tapeBg, borderRadius: 2, zIndex: 1,
+                          }} />
+                          <div style={{
+                            background: stickyBg, borderRadius: 8, padding: '16px 18px', minHeight: 180,
+                            boxShadow: '0 4px 12px rgba(60,40,20,0.08), 0 2px 4px rgba(60,40,20,0.04)',
+                            display: 'flex', flexDirection: 'column', gap: 8,
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: ann.color || '#4CAF50' }} />
+                              <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'rgba(0,0,0,0.45)' }}>
+                                {ann.type === 'highlight' ? 'HIGHLIGHT' : ann.type === 'note' ? 'NOTE' : ann.type.toUpperCase()}
+                              </span>
+                            </div>
+                            <div style={{
+                              fontSize: 13, color: 'rgba(0,0,0,0.75)', lineHeight: 1.5, flex: 1,
+                              display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                            }}>
+                              {ann.selectedText ? `"${ann.selectedText}"` : ann.content || (ann.type === 'ink' ? t('library.inkAnnotation') : ann.type)}
+                            </div>
+                            <div style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              borderTop: '1px dashed rgba(0,0,0,0.10)', paddingTop: 10, marginTop: 'auto',
+                            }}>
+                              <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{ann.docTitle}</span>
+                              <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)', flexShrink: 0, marginLeft: 6 }}>
+                                {ann.page != null ? `P. ${String(ann.page + 1).padStart(2, '0')}` : ''}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </>) : (<>
+              {/* ── Default / Minimal layout ── */}
+
+              {/* Content sections — two columns */}
+              <div style={{ display: 'grid', gridTemplateColumns: notes.length > 0 && documents.length > 0 ? (isModern ? '1fr 1.4fr' : '1fr 1fr') : '1fr', gap: isModern ? 48 : 24, marginBottom: isModern ? 48 : 28 }}>
+
+                {/* Recent notes */}
+                {notes.length > 0 && (
+                  <div style={isModern ? {} : {
+                    background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(28,26,23,0.08)',
+                    borderRadius: 6, padding: '22px 24px',
+                  }}>
+                    <div style={{
+                      display: 'flex', alignItems: isModern ? 'baseline' : 'center', justifyContent: 'space-between',
+                      marginBottom: isModern ? 14 : 18,
+                      paddingBottom: isModern ? 0 : 14,
+                      borderBottom: isModern ? 'none' : '1px solid rgba(28,26,23,0.08)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          fontSize: 13, fontWeight: 600, color: 'var(--ink)',
+                          letterSpacing: isModern ? '.01em' : '0.06em',
+                          fontFamily: isModern ? undefined : 'var(--font-display)',
+                        }}>
+                          {t('library.recentNotes')}
+                        </span>
+                        <span style={{
+                          fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 400,
+                          color: 'var(--ink-faint)',
+                        }}>{notes.length}</span>
+                      </div>
+                      <span onClick={() => handleSectionChange('notes')}
+                        style={{
+                          fontSize: 12, color: 'var(--ink-mute)', cursor: 'pointer',
+                          display: 'inline-flex', alignItems: 'center', gap: 3,
+                        }}>
+                        {t('library.viewAll')}
+                        <ChevronRight size={11} />
                       </span>
                     </div>
-                    {[...documents].sort((a, b) => (b.lastReadAt || b.updatedAt || b.createdAt || '').localeCompare(a.lastReadAt || a.updatedAt || a.createdAt || '')).slice(0, 5).map(doc => {
+                    <div>
+                      {[...notes].sort((a, b) => ((b.updatedAt || b.createdAt) || '').localeCompare((a.updatedAt || a.createdAt) || '')).slice(0, 5).map(note => {
+                        const pill = TYPE_PILLS[note.type]
+                        return (
+                          <div key={note.id}
+                            onClick={() => { if (note.type === 'mindmap') onOpenMindmap(note); else onOpenNote(note) }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 10,
+                              padding: '10px 0',
+                              borderBottom: isModern ? '1px solid var(--border-soft, var(--border))' : 'none',
+                              borderRadius: isModern ? 0 : 4, cursor: 'pointer',
+                              transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={e => { if (isModern) { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.margin = '0 -8px'; e.currentTarget.style.padding = '10px 8px'; e.currentTarget.style.borderRadius = '5px' } else { e.currentTarget.style.background = 'rgba(255,255,255,0.6)' } }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; if (isModern) { e.currentTarget.style.margin = '0'; e.currentTarget.style.padding = '10px 0'; e.currentTarget.style.borderRadius = '0' } }}
+                          >
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              height: 18, minWidth: 38, padding: '0 6px', borderRadius: 3,
+                              fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500,
+                              letterSpacing: '0.02em',
+                              background: pill?.bg ?? 'var(--tag-txt-bg)', color: pill?.color ?? 'var(--tag-txt-color)',
+                            }}>{pill?.label ?? note.type.toUpperCase()}</span>
+                            <span style={{
+                              flex: 1, fontSize: 13, color: 'var(--ink)',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>
+                              {note.title}
+                            </span>
+                            <span style={{
+                              fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-faint)',
+                              flexShrink: 0,
+                            }}>
+                              {formatDate(note.updatedAt || note.createdAt, locale)}
+                            </span>
+                          </div>
+                        )
+                      })}
+                      {notes.length === 0 && (
+                        <div style={{
+                          padding: '32px 0', textAlign: 'center', color: 'var(--ink-faint)', fontSize: 12,
+                        }}>
+                          {t('library.emptyNotesPoetic')} · <span
+                            onClick={() => setShowNotePicker(true)}
+                            style={{ color: 'var(--ink)', cursor: 'pointer', borderBottom: '1px solid var(--ink-ghost)', paddingBottom: 1 }}
+                          >{t('library.createNote')}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recent documents */}
+                {documents.length > 0 && (
+                  <div style={isModern ? {} : {
+                    background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(28,26,23,0.08)',
+                    borderRadius: 6, padding: '22px 24px',
+                  }}>
+                    <div style={{
+                      display: 'flex', alignItems: isModern ? 'baseline' : 'center', justifyContent: 'space-between',
+                      marginBottom: isModern ? 14 : 18,
+                      paddingBottom: isModern ? 0 : 14,
+                      borderBottom: isModern ? 'none' : '1px solid rgba(28,26,23,0.08)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          fontSize: 13, fontWeight: 600, color: 'var(--ink)',
+                          letterSpacing: isModern ? '.01em' : '0.06em',
+                          fontFamily: isModern ? undefined : 'var(--font-display)',
+                        }}>
+                          {t('library.recentDocs')}
+                        </span>
+                        <span style={{
+                          fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 400,
+                          color: 'var(--ink-faint)',
+                        }}>{documents.length}</span>
+                      </div>
+                      <span onClick={() => handleSectionChange('documents')}
+                        style={{
+                          fontSize: 12, color: 'var(--ink-mute)', cursor: 'pointer',
+                          display: 'inline-flex', alignItems: 'center', gap: 3,
+                        }}>
+                        {t('library.viewAll')}
+                        <ChevronRight size={11} />
+                      </span>
+                    </div>
+                    <div>
+                    {[...documents].sort((a, b) => ((b as any).lastReadAt || b.updatedAt || b.createdAt || '').localeCompare((a as any).lastReadAt || a.updatedAt || a.createdAt || '')).slice(0, 5).map(doc => {
                       const pill = TYPE_PILLS[doc.type]
                       const extLabel = doc.type === 'other' || (doc.type === 'txt' && doc.path && !doc.path.endsWith('.txt'))
                         ? (doc.path?.split('.').pop()?.toUpperCase() || (pill?.label ?? doc.type))
@@ -1053,110 +1370,177 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                         <div key={doc.id}
                           onClick={() => onOpenDoc(doc)}
                           style={{
-                            display: 'flex', alignItems: 'center', gap: 8,
-                            padding: '6px 14px', cursor: 'pointer', transition: 'background 0.15s ease',
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '10px 0',
+                            borderBottom: isModern ? '1px solid var(--border-soft, var(--border))' : 'none',
+                            borderRadius: isModern ? 0 : 4, cursor: 'pointer',
+                            transition: 'all 0.15s',
                           }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          onMouseEnter={e => { if (isModern) { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.margin = '0 -8px'; e.currentTarget.style.padding = '10px 8px'; e.currentTarget.style.borderRadius = '5px' } else { e.currentTarget.style.background = 'rgba(255,255,255,0.6)' } }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; if (isModern) { e.currentTarget.style.margin = '0'; e.currentTarget.style.padding = '10px 0'; e.currentTarget.style.borderRadius = '0' } }}
                         >
                           <span style={{
-                            fontSize: 9, fontWeight: 700, letterSpacing: 0.3,
-                            padding: '1px 5px', borderRadius: 9999, flexShrink: 0,
-                            background: pill?.bg ?? '#edeef0', color: pill?.color ?? '#737a84',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            height: 18, minWidth: 38, padding: '0 6px', borderRadius: 3,
+                            fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500,
+                            letterSpacing: '0.02em',
+                            background: pill?.bg ?? 'var(--tag-txt-bg)', color: pill?.color ?? 'var(--tag-txt-color)',
                           }}>{extLabel}</span>
-                          <span style={{ fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                          <span style={{
+                            flex: 1, fontSize: 13, color: 'var(--ink)',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
                             {doc.title}
                           </span>
-                          <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>
-                            {formatDate(doc.lastReadAt || doc.updatedAt || doc.createdAt, locale)}
+                          {isModern && (doc as any).author && <span style={{
+                            color: 'var(--ink-faint)', fontSize: 12, flexShrink: 0,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140,
+                          }}>{(doc as any).author}</span>}
+                          <span style={{
+                            fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-faint)',
+                            flexShrink: 0, width: 64, textAlign: 'right',
+                          }}>
+                            {formatDate((doc as any).lastReadAt || doc.updatedAt || doc.createdAt, locale)}
                           </span>
                         </div>
                       )
                     })}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Tags + Annotations row */}
-              {(tagsWithCounts.length > 0 || recentAnnotations.length > 0) && (
-                <div style={{ display: 'grid', gridTemplateColumns: tagsWithCounts.length > 0 && recentAnnotations.length > 0 ? '1fr 1fr' : '1fr', gap: 20, marginTop: 24 }}>
-                  {/* Tags */}
-                  {tagsWithCounts.length > 0 && (
-                    <div style={{ borderRadius: 'var(--radius-lg)', border: 'none', overflow: 'hidden', minWidth: 0, background: 'var(--surface-raised)', borderRadius: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.03)' }}>
-                      <div style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '10px 14px', borderBottom: 'none', background: 'transparent',
+              {/* Annotations section */}
+              {recentAnnotations.length > 0 && (
+                <div style={isModern ? { marginBottom: 40 } : {
+                  background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(28,26,23,0.08)',
+                  borderRadius: 6, padding: '22px 24px',
+                }}>
+                  <div style={{
+                    display: 'flex', alignItems: isModern ? 'baseline' : 'center', justifyContent: 'space-between',
+                    marginBottom: isModern ? 14 : 20,
+                    paddingBottom: isModern ? 0 : 14,
+                    borderBottom: isModern ? 'none' : '1px solid rgba(28,26,23,0.08)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{
+                        fontSize: 13, fontWeight: 600, color: 'var(--ink)',
+                        letterSpacing: isModern ? '.01em' : '0.06em',
+                        fontFamily: isModern ? undefined : 'var(--font-display)',
                       }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: '#999', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                          {locale === 'zh' ? '标签' : 'Tags'}
-                        </span>
-                        <span onClick={() => handleSectionChange('tags' as any)}
-                          style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer' }}>
-                          {locale === 'zh' ? '管理' : 'Manage'}
-                        </span>
-                      </div>
-                      <div style={{ padding: '10px 14px', display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                        {tagsWithCounts.slice(0, 15).map(tag => (
-                          <span key={tag.id}
-                            onClick={() => { setSelectedTag(tag.id); setSelectedSection('documents') }}
-                            style={{
-                              padding: '3px 8px', borderRadius: 9999, fontSize: 11, fontWeight: 500,
-                              background: tag.color ? `${tag.color}18` : 'var(--hover)',
-                              color: tag.color || 'var(--text-secondary)',
-                              cursor: 'pointer', transition: 'opacity 0.15s ease',
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
-                            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-                          >
-                            {tag.name}
-                          </span>
-                        ))}
-                      </div>
+                        {t('library.recentAnnotations')}
+                      </span>
+                      <span style={{
+                        fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 400,
+                        color: 'var(--ink-faint)',
+                      }}>{recentAnnotations.slice(0, 6).length} / {recentAnnotations.length}</span>
                     </div>
-                  )}
-
-                  {/* Recent annotations */}
-                  {recentAnnotations.length > 0 && (
-                    <div style={{ borderRadius: 'var(--radius-lg)', border: 'none', overflow: 'hidden', minWidth: 0, background: 'var(--surface-raised)', borderRadius: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.03)' }}>
-                      <div style={{
-                        padding: '10px 14px', borderBottom: 'none', background: 'transparent',
-                        fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)',
+                    <span onClick={() => handleSectionChange('annotations' as any)}
+                      style={{
+                        fontSize: 12, color: 'var(--ink-mute)', cursor: 'pointer',
+                        display: 'inline-flex', alignItems: 'center', gap: 3,
                       }}>
-                        {locale === 'zh' ? '最近批注' : 'Recent Annotations'}
-                      </div>
-                      {recentAnnotations.slice(0, 4).map(ann => (
+                      {t('library.viewAll')}
+                      <ChevronRight size={11} />
+                    </span>
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: isModern ? 'repeat(3, 1fr)' : 'repeat(auto-fill, minmax(240px, 1fr))',
+                    gap: isModern ? 16 : 20,
+                  }}>
+                    {recentAnnotations.slice(0, isModern ? 3 : 6).map((ann, i) => {
+                      const markerColors = ['var(--ink)', '#10B981', '#F59E0B', '#3B82F6']
+                      const markerColor = ann.color || markerColors[i % markerColors.length]
+                      return (
                         <div key={ann.id}
                           onClick={() => { const doc = documents.find(d => d.id === ann.docId); if (doc) onOpenDoc(doc) }}
-                          style={{ padding: '6px 14px', cursor: 'pointer', transition: 'background 0.15s ease' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          style={isModern ? {
+                            background: 'var(--surface-raised)', border: '1px solid var(--border)',
+                            borderRadius: 8, padding: 16, cursor: 'pointer', transition: 'all 0.15s',
+                            display: 'flex', flexDirection: 'column', gap: 10, minHeight: 140,
+                          } : {
+                            borderLeft: `3px solid ${markerColor}`,
+                            padding: '4px 0 4px 16px', cursor: 'pointer',
+                            transition: 'transform 0.2s',
+                          }}
+                          onMouseEnter={e => { if (isModern) { e.currentTarget.style.borderColor = 'var(--ink-ghost)'; e.currentTarget.style.transform = 'translateY(-1px)' } else { e.currentTarget.style.transform = 'translateX(2px)' } }}
+                          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; if (isModern) e.currentTarget.style.borderColor = 'var(--border)' }}
                         >
-                          {ann.selectedText ? (
-                            <div style={{
-                              fontSize: 12, color: 'var(--text)', lineHeight: 1.4,
-                              borderLeft: `2px solid ${ann.color || 'var(--accent)'}`,
-                              paddingLeft: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            }}>{ann.selectedText}</div>
-                          ) : ann.content ? (
-                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {ann.content}
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                              {ann.type === 'ink' ? (locale === 'zh' ? '手写批注' : 'Ink annotation') : ann.type}
+                          {isModern && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ width: 3, height: 14, background: markerColor, borderRadius: 2 }} />
+                              <span style={{
+                                fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)',
+                                letterSpacing: '0.06em', textTransform: 'uppercase',
+                              }}>{ann.type === 'highlight' ? 'Highlight' : ann.type === 'note' ? 'Note' : ann.type}</span>
                             </div>
                           )}
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-                            {ann.docTitle}{ann.page != null ? ` · p.${ann.page + 1}` : ''}
-                          </div>
+                          {ann.selectedText ? (
+                            <div style={{
+                              fontSize: 13, color: 'var(--ink)', lineHeight: 1.55,
+                              flex: isModern ? 1 : undefined, marginBottom: isModern ? 0 : 8,
+                              display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                            }}>
+                              <em style={{ fontStyle: 'italic', color: 'var(--ink-soft)', fontWeight: 400 }}>
+                                "{ann.selectedText}"
+                              </em>
+                            </div>
+                          ) : ann.content ? (
+                            <div style={{
+                              fontSize: 13, color: 'var(--ink)', lineHeight: 1.55,
+                              flex: isModern ? 1 : undefined, marginBottom: isModern ? 0 : 8,
+                              display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                            }}>{ann.content}</div>
+                          ) : (
+                            <div style={{
+                              fontSize: 13, color: 'var(--ink-mute)', fontStyle: 'italic',
+                              flex: isModern ? 1 : undefined, marginBottom: isModern ? 0 : 8,
+                            }}>
+                              {ann.type === 'ink' ? t('library.inkAnnotation') : ann.type}
+                            </div>
+                          )}
+                          {isModern ? (
+                            <div style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              paddingTop: 10, borderTop: '1px solid var(--border-soft, var(--border))',
+                            }}>
+                              <div style={{
+                                fontSize: 11, color: 'var(--ink-mute)',
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
+                              }}>
+                                <strong style={{ color: 'var(--ink-soft)', fontWeight: 500 }}>{ann.docTitle}</strong>
+                              </div>
+                              <span style={{
+                                fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)',
+                                marginLeft: 8, flexShrink: 0,
+                              }}>
+                                {ann.page != null ? `P. ${String(ann.page + 1).padStart(2, '0')}` : ''}
+                              </span>
+                            </div>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: 11, color: 'var(--ink-mute)', lineHeight: 1.5 }}>
+                                <span style={{ color: 'var(--ink-soft)' }}>{ann.docTitle}</span>
+                              </div>
+                              <div style={{
+                                fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)',
+                                letterSpacing: '0.08em',
+                              }}>
+                                {ann.page != null ? `P. ${ann.page + 1}` : ''}
+                              </div>
+                            </>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      )
+                    })}
+                  </div>
                 </div>
               )}
+            </>)}
             </div>
-          </div>
         ) : selectedSection === 'settings' ? (
           <SettingsPanel locale={locale} setLocale={setLocale} t={t} />
         ) : selectedSection === 'plugins' ? (
@@ -1733,41 +2117,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   )
 }
 
-const BG_TINTS: { key: string; label: string; labelZh: string; bg: string; surface: string; surfaceRaised: string; pdfSurround: string; pdfTint: string }[] = [
-  { key: 'default', label: 'Default', labelZh: '默认', bg: '#ffffff', surface: '#f5f5f7', surfaceRaised: '#ffffff', pdfSurround: '#525659', pdfTint: 'transparent' },
-  { key: 'warm', label: 'Warm', labelZh: '暖黄', bg: '#faf8f2', surface: '#f3f0e8', surfaceRaised: '#fefcf6', pdfSurround: '#8a8070', pdfTint: 'rgba(245,220,180,0.25)' },
-  { key: 'green', label: 'Green', labelZh: '淡绿', bg: '#f5faf5', surface: '#ecf3ec', surfaceRaised: '#f9fdf9', pdfSurround: '#6e806e', pdfTint: 'rgba(180,220,180,0.2)' },
-  { key: 'sepia', label: 'Sepia', labelZh: '羊皮纸', bg: '#f9f3e8', surface: '#f0e8d8', surfaceRaised: '#fdf8ef', pdfSurround: '#8a7d6a', pdfTint: 'rgba(220,190,140,0.3)' },
-  { key: 'rose', label: 'Rose', labelZh: '淡粉', bg: '#fdf6f6', surface: '#f5ecec', surfaceRaised: '#fefafa', pdfSurround: '#8a7070', pdfTint: 'rgba(230,180,180,0.2)' },
-  { key: 'blue', label: 'Blue', labelZh: '浅蓝', bg: '#f4f7fb', surface: '#eaeff6', surfaceRaised: '#f9fbfe', pdfSurround: '#6a7a8a', pdfTint: 'rgba(180,200,235,0.2)' },
-  { key: 'gray', label: 'Gray', labelZh: '灰调', bg: '#f0f0f0', surface: '#e8e8e8', surfaceRaised: '#f6f6f6', pdfSurround: '#606060', pdfTint: 'rgba(140,140,140,0.15)' },
-  { key: 'eink', label: 'E-Ink', labelZh: '水墨屏', bg: '#e8e4de', surface: '#ddd8d1', surfaceRaised: '#efe9e3', pdfSurround: '#9a9590', pdfTint: 'rgba(120,115,105,0.2)' },
-  { key: 'dousha', label: 'Bean Green', labelZh: '豆沙绿', bg: '#c7edcc', surface: '#b8debb', surfaceRaised: '#d4f2d8', pdfSurround: '#6a8a6e', pdfTint: 'rgba(160,210,165,0.3)' },
-  { key: 'apricot', label: 'Apricot', labelZh: '杏仁黄', bg: '#faf9de', surface: '#f0efd0', surfaceRaised: '#fdfce8', pdfSurround: '#8a8968', pdfTint: 'rgba(235,225,170,0.25)' },
-  { key: 'kindle', label: 'Kindle', labelZh: 'Kindle', bg: '#fbf0d9', surface: '#f0e4c8', surfaceRaised: '#fef6e4', pdfSurround: '#8a7d60', pdfTint: 'rgba(230,200,140,0.3)' },
-]
-
-function getStoredBgTint(): string {
-  try { return localStorage.getItem('banjuan-bg-tint') || 'default' } catch { return 'default' }
-}
-
-function applyBgTint(key: string) {
-  const tint = BG_TINTS.find(t => t.key === key) || BG_TINTS[0]
-  const root = document.documentElement
-  root.style.setProperty('--bg', tint.bg)
-  root.style.setProperty('--surface', tint.surface)
-  root.style.setProperty('--surface-raised', tint.surfaceRaised)
-  root.style.setProperty('--pdf-surround', tint.pdfSurround)
-  root.style.setProperty('--pdf-tint', tint.pdfTint)
-  try { localStorage.setItem('banjuan-bg-tint', key) } catch {}
-}
-
-// Apply stored tint on load
-;(() => { const k = getStoredBgTint(); if (k !== 'default') applyBgTint(k) })()
 
 function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l: Locale) => void; t: (k: string, ...a: any[]) => string }) {
+  const { theme: appTheme, setTheme: setAppTheme } = useTheme()
   const [noteTheme, setNoteTheme] = React.useState(getStoredNoteTheme)
-  const [bgTint, setBgTint] = React.useState(getStoredBgTint)
 
   const handleThemeChange = useCallback((key: string) => {
     applyNoteTheme(key)
@@ -1790,28 +2143,52 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
         </select>
       </div>
 
-      <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600 }}>{t('settings.bgTint')}</div>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 28, flexWrap: 'wrap' }}>
-        {BG_TINTS.map(tint => {
-          const active = tint.key === bgTint
+      <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600 }}>{t('settings.appTheme')}</div>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
+        {APP_THEMES.map(th => {
+          const active = th.key === appTheme
+          const previewColors = th.key === 'minimal'
+            ? { bg: '#FAFAF9', titleBar: '#F5F5F4', titleBorder: '#E7E5E4', sidebar: '#FAFAF9', sidebarBorder: '#E7E5E4', heading: '#18181B', sub: '#A1A1AA', line: '#E7E5E4' }
+            : th.key === 'notebook'
+            ? { bg: '#F3EEE5', titleBar: '#F3EEE5', titleBorder: '#E0D8C8', sidebar: '#F3EEE5', sidebarBorder: '#E0D8C8', heading: '#2C2C2C', sub: '#E8825D', line: '#E0D8C8' }
+            : { bg: '#F7F3EA', titleBar: 'linear-gradient(180deg, #EFE8D7, #E8E0CC)', titleBorder: '#E5DCC4', sidebar: '#F7F3EA', sidebarBorder: 'rgba(28,26,23,0.08)', heading: '#1C1A17', sub: '#9A938A', line: '#E5DCC4' }
           return (
             <div
-              key={tint.key}
-              onClick={() => { applyBgTint(tint.key); setBgTint(tint.key) }}
+              key={th.key}
+              onClick={() => setAppTheme(th.key)}
               style={{
-                width: 56, cursor: 'pointer', textAlign: 'center',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                width: 120, cursor: 'pointer', textAlign: 'center',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
               }}
             >
               <div style={{
-                width: 40, height: 40, borderRadius: 10,
-                background: tint.bg,
+                width: 100, height: 64, borderRadius: 8, overflow: 'hidden',
                 border: active ? '2px solid var(--accent)' : '1px solid var(--border-solid)',
-                boxShadow: active ? '0 0 0 2px var(--accent-soft)' : 'inset 0 1px 3px rgba(0,0,0,0.06)',
+                boxShadow: active ? '0 0 0 2px var(--accent-soft)' : 'none',
                 transition: 'all 0.15s ease',
-              }} />
-              <span style={{ fontSize: 10, color: active ? 'var(--accent)' : 'var(--text-muted)', fontWeight: active ? 600 : 400 }}>
-                {locale === 'zh' ? tint.labelZh : tint.label}
+                background: previewColors.bg,
+                display: 'flex', flexDirection: 'column',
+              }}>
+                <div style={{
+                  height: 10,
+                  background: previewColors.titleBar,
+                  borderBottom: `1px solid ${previewColors.titleBorder}`,
+                }} />
+                <div style={{ flex: 1, display: 'flex' }}>
+                  <div style={{
+                    width: 20,
+                    background: previewColors.sidebar,
+                    borderRight: `1px solid ${previewColors.sidebarBorder}`,
+                  }} />
+                  <div style={{ flex: 1, padding: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div style={{ height: 4, width: '60%', borderRadius: 1, background: previewColors.heading }} />
+                    <div style={{ height: 3, width: '40%', borderRadius: 1, background: previewColors.sub }} />
+                    <div style={{ height: 3, width: '80%', borderRadius: 1, background: previewColors.line }} />
+                  </div>
+                </div>
+              </div>
+              <span style={{ fontSize: 12, color: active ? 'var(--accent)' : 'var(--text-muted)', fontWeight: active ? 600 : 400 }}>
+                {locale === 'zh' ? th.labelZh : th.label}
               </span>
             </div>
           )

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { usePdfViewer } from './PdfViewerContext.js'
+import { useEyeProtection, EYE_PROTECTION_TINT } from './useEyeProtection.js'
 
 interface ThumbProps {
   pageNum: number
@@ -9,6 +10,7 @@ interface ThumbProps {
 
 function Thumbnail({ pageNum, scrollRoot, onClickPage }: ThumbProps) {
   const { pdfDoc, currentPage, scrollToPage } = usePdfViewer()
+  const { eyeProtection } = useEyeProtection()
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [visible, setVisible] = useState(false)
@@ -69,7 +71,7 @@ function Thumbnail({ pageNum, scrollRoot, onClickPage }: ThumbProps) {
         position: 'relative',
       }}>
         <canvas ref={canvasRef} style={{ maxWidth: '100%', visibility: rendered ? 'visible' : 'hidden' }} />
-        <div style={{ position: 'absolute', inset: 0, background: 'var(--pdf-tint, transparent)', pointerEvents: 'none' }} />
+        {eyeProtection && <div style={{ position: 'absolute', inset: 0, background: EYE_PROTECTION_TINT, pointerEvents: 'none' }} />}
       </div>
       <span style={{ fontSize: 11, color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}>{pageNum}</span>
     </div>
