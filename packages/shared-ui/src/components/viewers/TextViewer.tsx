@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useBanjuanAPI } from '../../api.js'
+import { useEyeProtection, EYE_PROTECTION_TINT } from './useEyeProtection.js'
 
 interface Props {
   docPath: string
@@ -17,6 +18,8 @@ export default function TextViewer({ docPath }: Props) {
     })
   }, [docPath])
 
+  const { eyeProtection } = useEyeProtection()
+
   if (loading) return <div style={{ padding: 24, color: 'var(--text-muted)' }}>Loading...</div>
 
   const lines = content.split('\n')
@@ -27,7 +30,9 @@ export default function TextViewer({ docPath }: Props) {
       overflow: 'auto',
       paddingBottom: 80,
       background: 'var(--surface, #fafbfc)',
+      position: 'relative',
     }}>
+      {eyeProtection && <div style={{ position: 'sticky', top: 0, left: 0, width: '100%', height: 0, zIndex: 10 }}><div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '100vh', background: EYE_PROTECTION_TINT, pointerEvents: 'none' }} /></div>}
       <div style={{
         maxWidth: 860,
         margin: '0 auto',

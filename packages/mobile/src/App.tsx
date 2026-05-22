@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { MantineProvider } from '@mantine/core'
-import { BanjuanAPIProvider, I18nProvider, TabManager } from '@banjuan/shared-ui'
+import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager } from '@banjuan/shared-ui'
 import { createCapacitorAPI } from './capacitor-api.js'
 import { WelcomeView } from './WelcomeView.js'
 
@@ -13,6 +13,7 @@ export function App() {
 
   return (
     <MantineProvider>
+      <ThemeProvider>
       <I18nProvider>
         <BanjuanAPIProvider value={api}>
           {library
@@ -21,6 +22,7 @@ export function App() {
           }
         </BanjuanAPIProvider>
       </I18nProvider>
+      </ThemeProvider>
     </MantineProvider>
   )
 }

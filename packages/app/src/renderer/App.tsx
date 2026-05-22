@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { BanjuanAPIProvider, I18nProvider, TabManager, NoteRenderService } from '@banjuan/shared-ui'
+import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService } from '@banjuan/shared-ui'
 import WelcomeView from './views/WelcomeView.js'
 import { electronAPI } from './electron-api.js'
 
@@ -38,6 +38,7 @@ export default function App() {
   if (!ready) {
     return (
       <BanjuanAPIProvider value={electronAPI}>
+        <ThemeProvider>
         <I18nProvider>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -46,12 +47,14 @@ export default function App() {
             <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading...</div>
           </div>
         </I18nProvider>
+        </ThemeProvider>
       </BanjuanAPIProvider>
     )
   }
 
   return (
     <BanjuanAPIProvider value={electronAPI}>
+      <ThemeProvider>
       <I18nProvider>
         {!library
           ? <WelcomeView onOpen={(path, name) => setLibrary({ path, name })} />
@@ -62,6 +65,7 @@ export default function App() {
             />}
         <NoteRenderService />
       </I18nProvider>
+      </ThemeProvider>
     </BanjuanAPIProvider>
   )
 }

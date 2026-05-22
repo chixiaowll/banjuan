@@ -6,6 +6,10 @@ export type { BanjuanAPI } from './api.js'
 export { I18nProvider, useT, useI18n } from './i18n/index.js'
 export type { Locale } from './i18n/index.js'
 
+// Theme
+export { ThemeProvider, useTheme, APP_THEMES } from './theme/index.js'
+export type { AppTheme } from './theme/index.js'
+
 // Views
 export { default as LibraryView } from './views/LibraryView.js'
 export { default as NoteView } from './views/NoteView.js'

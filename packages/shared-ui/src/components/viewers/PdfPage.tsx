@@ -8,6 +8,7 @@ import InkTool from './InkTool.js'
 import InkLassoTool from './InkLassoTool.js'
 import EraserTool from './EraserTool.js'
 import { useBanjuanAPI } from '../../api.js'
+import { useEyeProtection, EYE_PROTECTION_TINT } from './useEyeProtection.js'
 
 export interface TextSelectInfo {
   page: number
@@ -103,6 +104,7 @@ export default function PdfPage({
   onAnnotationUpdate,
 }: PdfPageProps) {
   const api = useBanjuanAPI()
+  const { eyeProtection } = useEyeProtection()
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const textLayerRef = useRef<HTMLDivElement>(null)
@@ -495,12 +497,12 @@ export default function PdfPage({
           />
         </>
       )}
-      <div style={{
+      {eyeProtection && <div style={{
         position: 'absolute', inset: 0,
-        background: 'var(--pdf-tint, transparent)',
+        background: EYE_PROTECTION_TINT,
         pointerEvents: 'none',
         zIndex: 10,
-      }} />
+      }} />}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useEpubViewer, ANNOTATION_COLORS } from './EpubViewerContext.js'
+import { useEyeProtection, EYE_PROTECTION_TINT } from './useEyeProtection.js'
 import TextSelectionToolbar from './TextSelectionToolbar.js'
 import AnnotationContextMenu from './AnnotationContextMenu.js'
 import EpubInkOverlay from './EpubInkOverlay.js'
@@ -156,6 +157,7 @@ function EpubAreaOverlays({ annotations, containerRef }: {
 
 export default function EpubContentArea({ annotations, docId, onHighlightCreated, onUnderlineCreated, onNoteCreated, onInkCreated, onInkUndo, onInkRedo, onInkClearPage, onAnnotationDelete, onAnnotationUpdate, inkCanUndo, inkCanRedo }: Props) {
   const ctx = useEpubViewer()
+  const { eyeProtection } = useEyeProtection()
   const renderedAnnotations = useRef(new Set<string>())
   const renderedCfiMap = useRef(new Map<string, string>())
   const renderedTypeMap = useRef(new Map<string, string>())
@@ -545,6 +547,7 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
         />
       )}
 
+      {eyeProtection && <div style={{ position: 'absolute', inset: 0, background: EYE_PROTECTION_TINT, pointerEvents: 'none', zIndex: 5 }} />}
       </div>
 
       {selectionPopup && (

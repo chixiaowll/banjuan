@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { PanelLeft, Minus, Plus, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Search, PanelRight, Highlighter, Square, Pen, Eraser, Clock, Eye, EyeOff } from 'lucide-react'
+import { PanelLeft, Minus, Plus, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Search, PanelRight, Highlighter, Square, Pen, Eraser, Clock, Eye, EyeOff, Sun } from 'lucide-react'
 import { usePdfViewer, ANNOTATION_COLORS, type AnnotationTool } from './PdfViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
+import { useEyeProtection } from './useEyeProtection.js'
 import { useT } from '../../i18n/index.js'
 
 const TOOL_IDS: Array<{ id: AnnotationTool; icon: React.ReactNode; key: string }> = [
@@ -19,6 +20,7 @@ interface Props {
 export default function PdfToolbar({ docId, metadata }: Props) {
   const t = useT()
   const ctx = usePdfViewer()
+  const { eyeProtection, toggleEyeProtection } = useEyeProtection()
   const { formatted: readingTime } = useReadingTimer(docId, metadata)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [pageInput, setPageInput] = useState('')
@@ -177,9 +179,16 @@ export default function PdfToolbar({ docId, metadata }: Props) {
         <button
           style={ctx.annotationsVisible ? btnStyle : activeBtnStyle}
           onClick={() => ctx.setAnnotationsVisible(!ctx.annotationsVisible)}
-          title={ctx.annotationsVisible ? '隐藏标注' : '显示标注'}
+          title={ctx.annotationsVisible ? t('pdf.hideAnnotations' as any) : t('pdf.showAnnotations' as any)}
         >
           {ctx.annotationsVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+        </button>
+        <button
+          style={eyeProtection ? { ...btnStyle, color: '#d69e2e' } : btnStyle}
+          onClick={toggleEyeProtection}
+          title={t('pdf.eyeProtection' as any)}
+        >
+          <Sun size={16} />
         </button>
       </div>
 

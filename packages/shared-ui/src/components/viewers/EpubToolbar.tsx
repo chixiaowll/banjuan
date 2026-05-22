@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, ChevronDown, Search, PanelRight, Clock, Pen, Eraser, Highlighter, Square, Eye, EyeOff } from 'lucide-react'
+import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, ChevronDown, Search, PanelRight, Clock, Pen, Eraser, Highlighter, Square, Eye, EyeOff, Sun } from 'lucide-react'
 import { useEpubViewer, ANNOTATION_COLORS } from './EpubViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
+import { useEyeProtection } from './useEyeProtection.js'
 import { useT } from '../../i18n/index.js'
 
 interface Props {
@@ -19,6 +20,7 @@ const TOOL_IDS: Array<{ id: 'highlight' | 'area' | 'ink' | 'eraser'; icon: React
 export default function EpubToolbar({ docId, metadata }: Props) {
   const t = useT()
   const ctx = useEpubViewer()
+  const { eyeProtection, toggleEyeProtection } = useEyeProtection()
   const { formatted: readingTime } = useReadingTimer(docId, metadata)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const colorRef = useRef<HTMLDivElement>(null)
@@ -144,9 +146,16 @@ export default function EpubToolbar({ docId, metadata }: Props) {
         <button
           style={ctx.annotationsVisible ? btnStyle : activeBtnStyle}
           onClick={() => ctx.setAnnotationsVisible(!ctx.annotationsVisible)}
-          title={ctx.annotationsVisible ? '隐藏标注' : '显示标注'}
+          title={ctx.annotationsVisible ? t('pdf.hideAnnotations' as any) : t('pdf.showAnnotations' as any)}
         >
           {ctx.annotationsVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+        </button>
+        <button
+          style={eyeProtection ? { ...btnStyle, color: '#d69e2e' } : btnStyle}
+          onClick={toggleEyeProtection}
+          title={t('pdf.eyeProtection' as any)}
+        >
+          <Sun size={16} />
         </button>
       </div>
 
