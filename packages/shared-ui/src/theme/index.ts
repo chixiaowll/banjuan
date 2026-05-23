@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react'
+import { getThemeLayout } from './tokens.js'
+export type { ThemeLayout } from './tokens.js'
 
 export type AppTheme = 'xuan-paper' | 'minimal' | 'notebook'
 
@@ -53,4 +55,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useTheme() {
   return useContext(ThemeContext)
+}
+
+export function useThemeLayout() {
+  const { theme } = useContext(ThemeContext)
+  return useMemo(() => getThemeLayout(theme), [theme])
 }

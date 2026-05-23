@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { X } from 'lucide-react'
+import { useTheme } from '../theme/index.js'
 
 export interface Tab {
   id: string
@@ -28,6 +29,8 @@ interface Props {
 }
 
 export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, onReorderTabs, pluginViews, activePanelPlugin, onTogglePluginPanel }: Props) {
+  const { theme: appTheme } = useTheme()
+  const isNotebook = appTheme === 'notebook'
   const tabsRef = useRef<HTMLDivElement>(null)
   const tabRects = useRef<Map<string, DOMRect>>(new Map())
   const [dragState, setDragState] = useState<{
@@ -168,7 +171,16 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
             }}
           >
             <span className="title-bar-tab-icon">
-              {tab.type === 'library' ? '📚' : tab.type === 'document' ? '📄' : tab.type === 'tag-manager' ? '🏷' : tab.type === 'plugin' ? '🧩' : '📝'}
+              {tab.type === 'library' && isNotebook ? (
+                <span style={{
+                  width: 18, height: 18, borderRadius: 4,
+                  background: '#E07856', color: '#fff',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: 'var(--font-serif, "Noto Serif SC", serif)',
+                  fontSize: 11, fontWeight: 600,
+                  boxShadow: '0 1px 3px rgba(224,120,86,.3)',
+                }}>藏</span>
+              ) : tab.type === 'library' ? '📚' : tab.type === 'document' ? '📄' : tab.type === 'tag-manager' ? '🏷' : tab.type === 'plugin' ? '🧩' : '📝'}
             </span>
             <span className="title-bar-tab-title">{tab.title}</span>
             {tab.closable && (

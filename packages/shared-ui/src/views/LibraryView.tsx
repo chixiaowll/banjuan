@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { ChevronDown, ChevronRight, FilePlus, Download, Upload, Trash2, FolderPlus, Check, Pencil, LibraryBig, PenLine, Cloud, Puzzle, Settings, Folder, Tag, Home, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, FolderOutput, X, RefreshCw, Plus, Highlighter, MessageSquareQuote } from 'lucide-react'
+import { ChevronDown, ChevronRight, FilePlus, Download, Upload, Trash2, FolderPlus, Check, Pencil, LibraryBig, PenLine, Cloud, Puzzle, Settings, Folder, Tag, Home, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, FolderOutput, X, RefreshCw, Plus, Highlighter, MessageSquareQuote, Search, Star } from 'lucide-react'
 import { PoetryCard } from '../components/PoetryCard.js'
 import type { NoteType } from '../components/notes/TemplatePicker.js'
 import SyncConfigPanel from '../components/sync/SyncConfigPanel.js'
@@ -11,7 +11,7 @@ import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
 import { useI18n } from '../i18n/index.js'
 import { NOTE_THEMES, NOTE_THEME_KEYS, applyNoteTheme, getStoredNoteTheme } from '../components/notes/noteThemes.js'
 import type { Locale } from '../i18n/index.js'
-import { useTheme, APP_THEMES } from '../theme/index.js'
+import { useTheme, useThemeLayout, APP_THEMES } from '../theme/index.js'
 import type { AppTheme } from '../theme/index.js'
 import { useBanjuanAPI } from '../api.js'
 
@@ -50,10 +50,12 @@ interface DirNode {
   name: string
   path: string
   children: DirNode[]
+  count?: number
 }
 
 function buildDirTree(docs: Document[], extraDirs?: string[]): DirNode[] {
   const root: Record<string, any> = {}
+  const dirCounts: Record<string, number> = {}
   const addPath = (parts: string[]) => {
     let current = root
     let pathSoFar = ''
@@ -67,6 +69,8 @@ function buildDirTree(docs: Document[], extraDirs?: string[]): DirNode[] {
     const parts = doc.path.split('/')
     if (parts.length <= 1) continue
     addPath(parts.slice(0, -1))
+    const topDir = parts[0]
+    dirCounts[topDir] = (dirCounts[topDir] || 0) + 1
   }
   if (extraDirs) {
     for (const dir of extraDirs) {
@@ -82,6 +86,7 @@ function buildDirTree(docs: Document[], extraDirs?: string[]): DirNode[] {
         name: k,
         path: obj[k].__path,
         children: toNodes(obj[k]),
+        count: dirCounts[k],
       }))
   }
   return toNodes(root)
@@ -109,7 +114,91 @@ function formatDate(dateStr: string, locale: string): string {
   } catch { return dateStr }
 }
 
-function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onContextMenu, depth, icon, textColor }: {
+function formatRelativeTime(dateStr: string, locale: string): { relative: string; absolute: string } {
+  try {
+    const d = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - d.getTime()
+    const diffMin = Math.floor(diffMs / 60000)
+    const diffHr = Math.floor(diffMs / 3600000)
+    const isZh = locale === 'zh'
+    const absolute = d.toLocaleDateString(isZh ? 'zh-CN' : 'en-US', { year: 'numeric', month: '2-digit', day: '2-digit' })
+    const isToday = d.toDateString() === now.toDateString()
+    const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1)
+    const isYesterday = d.toDateString() === yesterday.toDateString()
+    const timeStr = d.toLocaleTimeString(isZh ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit' })
+
+    let relative: string
+    if (diffMin < 1) relative = isZh ? '刚刚' : 'just now'
+    else if (diffMin < 60) relative = isZh ? `${diffMin} 分钟前` : `${diffMin}m ago`
+    else if (diffHr < 24 && isToday) relative = isZh ? `${diffHr} 小时前` : `${diffHr}h ago`
+    else if (isYesterday) relative = isZh ? `昨天 ${timeStr}` : `Yesterday ${timeStr}`
+    else {
+      const diffDay = Math.floor(diffMs / 86400000)
+      relative = isZh ? `${diffDay} 天前` : `${diffDay}d ago`
+    }
+    return { relative, absolute }
+  } catch { return { relative: dateStr, absolute: dateStr } }
+}
+
+function groupByDate(items: any[], locale: string): { label: string; items: any[] }[] {
+  const now = new Date()
+  const today = now.toDateString()
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayStr = yesterday.toDateString()
+  const isZh = locale === 'zh'
+  const groups: Map<string, any[]> = new Map()
+  const groupLabels: Map<string, string> = new Map()
+
+  for (const item of items) {
+    const d = new Date(item.updatedAt || item.createdAt || '')
+    const ds = d.toDateString()
+    const key = ds
+    if (!groups.has(key)) {
+      groups.set(key, [])
+      let label: string
+      if (ds === today) {
+        label = isZh ? `今天 · ${d.getMonth() + 1}月 ${d.getDate()}` : `Today · ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+      } else if (ds === yesterdayStr) {
+        label = isZh ? `昨天 · ${d.getMonth() + 1}月 ${d.getDate()}` : `Yesterday · ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+      } else {
+        const weekday = isZh ? ['日','一','二','三','四','五','六'][d.getDay()] : ''
+        label = isZh ? `${d.getMonth() + 1}月 ${d.getDate()} · 周${weekday}` : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })
+      }
+      groupLabels.set(key, label)
+    }
+    groups.get(key)!.push(item)
+  }
+  return Array.from(groups.entries()).map(([key, items]) => ({ label: groupLabels.get(key)!, items }))
+}
+
+const COVER_PALETTES: Record<string, string[]> = {
+  pdf: ['#E07856', '#5FA3A0', '#A8835C', '#2C2825', '#6B95C9'],
+  markdown: ['#F0A858', '#7AAE7E', '#6B95C9', '#E6C84A', '#9881B8'],
+  epub: ['#9881B8', '#5FA3A0', '#E07856', '#6B95C9'],
+  mindmap: ['#6B95C9', '#9881B8', '#7AAE7E'],
+  handwriting: ['#E6C84A', '#F0A858', '#D89AA8'],
+  txt: ['#A8835C', '#8A8377', '#5FA3A0'],
+  image: ['#7AAE7E', '#6B95C9', '#5FA3A0'],
+  video: ['#D89AA8', '#9881B8', '#E07856'],
+  html: ['#5FA3A0', '#6B95C9', '#7AAE7E'],
+  other: ['#A8835C', '#8A8377'],
+}
+function coverColorFor(type: string, title: string) {
+  const palette = COVER_PALETTES[type] || COVER_PALETTES.other!
+  let h = 0
+  for (let i = 0; i < title.length; i++) h = ((h << 5) - h + title.charCodeAt(i)) | 0
+  return palette[Math.abs(h) % palette.length]
+}
+const COVER_COLORS: Record<string, string> = {
+  pdf: '#E07856', epub: '#9881B8', markdown: '#F0A858', mindmap: '#6B95C9',
+  handwriting: '#E6C84A', txt: '#A8835C', image: '#7AAE7E', video: '#D89AA8',
+  html: '#5FA3A0', other: '#A8835C',
+}
+
+const FOLDER_COLORS = ['#6B95C9', '#F0A858', '#7AAE7E', '#9881B8', '#E07856', '#5FA3A0', '#D89AA8', '#A8835C', '#E6C84A', '#6BAABD']
+
+function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onContextMenu, depth, icon, textColor, siblingIndex }: {
   node: DirNode
   selectedDir: string | null
   onSelect: (path: string | null) => void
@@ -119,10 +208,14 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
   depth: number
   icon?: React.ReactNode
   textColor?: string
+  siblingIndex?: number
 }) {
+  const { theme: itemTheme } = useTheme()
+  const isNb = itemTheme === 'notebook'
   const isExpanded = expandedDirs.has(node.path)
   const isSelected = selectedDir === node.path
   const hasChildren = node.children.length > 0
+  const fc = FOLDER_COLORS[(siblingIndex ?? 0) % FOLDER_COLORS.length]
 
   return (
     <>
@@ -136,28 +229,44 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
           onContextMenu?.(e, node.path)
         }}
         style={{
-          height: 30,
-          paddingLeft: 12 + depth * 16,
+          height: isNb ? 'auto' : 30,
+          padding: isNb ? '6px 10px 6px' : undefined,
+          paddingLeft: isNb ? (10 + depth * 18) : (12 + depth * 16),
           paddingRight: 12,
-          marginLeft: 8,
-          marginRight: 8,
-          fontSize: 14,
+          marginLeft: isNb ? 0 : 8,
+          marginRight: isNb ? 0 : 8,
+          marginBottom: isNb ? 1 : 0,
+          fontSize: isNb ? 13 : 14,
           cursor: 'pointer',
-          background: isSelected ? 'var(--accent-soft)' : 'transparent',
+          background: isSelected ? (isNb ? 'rgba(255,255,255,.6)' : 'var(--accent-soft)') : 'transparent',
           display: 'flex',
           alignItems: 'center',
-          gap: 7,
-          borderRadius: 'var(--radius-sm)',
-          transition: 'all 0.15s ease',
+          gap: isNb ? 10 : 7,
+          borderRadius: isNb ? 7 : 'var(--radius-sm)',
+          transition: 'all 0.12s ease',
         }}
-        onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--hover)' }}
-        onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = isSelected ? 'var(--accent-soft)' : 'transparent' }}
+        onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = isNb ? 'rgba(255,255,255,.6)' : 'var(--hover)' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = isSelected ? (isNb ? 'rgba(255,255,255,.6)' : 'var(--accent-soft)') : 'transparent' }}
       >
-        {icon && <span style={{ flexShrink: 0, lineHeight: 1, display: 'inline-flex', color: isSelected ? 'var(--accent)' : 'var(--text-muted)' }}>{icon}</span>}
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 400, color: isSelected ? 'var(--accent)' : (textColor || 'var(--text-secondary)') }}>
+        {isNb && depth === 1 ? (
+          <span style={{
+            width: 16, height: 13, borderRadius: '2px 2px 3px 3px', background: fc,
+            flexShrink: 0, position: 'relative', display: 'inline-block',
+          }}>
+            <span style={{ position: 'absolute', top: -2, left: 1, width: 6, height: 3, background: fc, borderRadius: '1px 1px 0 0' }} />
+          </span>
+        ) : isNb ? (
+          <Folder size={14} style={{ flexShrink: 0, color: 'var(--ink-faint)' }} />
+        ) : (
+          icon && <span style={{ flexShrink: 0, lineHeight: 1, display: 'inline-flex', color: isSelected ? 'var(--accent)' : 'var(--text-muted)' }}>{icon}</span>
+        )}
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 400, color: isNb ? 'var(--ink-soft, #5C564E)' : (isSelected ? 'var(--accent)' : (textColor || 'var(--text-secondary)')) }}>
           {node.name}
         </span>
-        {hasChildren && (
+        {isNb && node.count != null && (
+          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono, monospace)' }}>{node.count}</span>
+        )}
+        {!isNb && hasChildren && (
           <span
             onClick={(e) => { e.stopPropagation(); onToggle(node.path) }}
             style={{ color: 'var(--text-muted)', flexShrink: 0, display: 'inline-flex', alignItems: 'center' }}
@@ -166,7 +275,7 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
           </span>
         )}
       </div>
-      {isExpanded && node.children.map(child => (
+      {isExpanded && node.children.map((child, ci) => (
         <DirTreeItem
           key={child.path}
           node={child}
@@ -178,6 +287,7 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
           depth={depth + 1}
           icon={icon}
           textColor={textColor}
+          siblingIndex={ci}
         />
       ))}
     </>
@@ -188,6 +298,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const api = useBanjuanAPI()
   const { t, locale, setLocale } = useI18n()
   const { theme: appTheme } = useTheme()
+  const layout = useThemeLayout()
   const isMinimal = appTheme === 'minimal'
   const isNotebook = appTheme === 'notebook'
   const isModern = isMinimal || isNotebook
@@ -284,6 +395,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
   const loadDocuments = async () => {
     const docs = await api.documents.list()
+    try {
+      const tagResults = await Promise.all(docs.map(d => api.tags.forTarget(d.id, 'document').catch(() => [])))
+      docs.forEach((d: any, i) => { d.tags = tagResults[i].map((t: any) => t.name) })
+    } catch {}
     setDocuments(docs)
     loadDocStatuses(docs)
     try { const dirs = await api.documents.listDirs(); setDocExtraDirs(dirs) } catch {}
@@ -581,30 +696,32 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
   const displayItems = getDisplayItems()
 
+  const sb = layout.sidebar
   const sidebarStyle: React.CSSProperties = {
-    width: sidebarCollapsed ? 60 : (isModern ? 220 : leftResize.width),
-    minWidth: sidebarCollapsed ? 60 : (isModern ? 220 : 180),
-    background: isModern ? 'var(--bg)' : 'linear-gradient(180deg, #EFE8D7 0%, #E8DFC8 100%)',
-    borderRight: `1px solid ${isModern ? 'var(--border)' : 'var(--paper-edge)'}`, display: 'flex',
+    width: sidebarCollapsed ? sb.collapsedWidth : (layout.sidebarResizable ? leftResize.width : sb.width),
+    minWidth: sidebarCollapsed ? sb.collapsedWidth : sb.minWidth,
+    background: sb.background,
+    borderRight: `1px solid ${sb.borderColor}`, display: 'flex',
     flexDirection: 'column', overflow: 'hidden', userSelect: 'none',
     transition: 'width 0.2s ease, min-width 0.2s ease',
+    padding: sb.padding && !sidebarCollapsed ? sb.padding : undefined,
   }
 
   const sidebarItemStyle = (active: boolean): React.CSSProperties => ({
-    width: sidebarCollapsed ? 38 : 'auto',
-    height: sidebarCollapsed ? 38 : 32,
-    display: 'flex', alignItems: 'center', gap: sidebarCollapsed ? 0 : 8,
-    padding: sidebarCollapsed ? '0' : '0 8px',
+    width: sidebarCollapsed ? sb.collapsedItemSize : 'auto',
+    height: sidebarCollapsed ? sb.collapsedItemSize : sb.itemHeight,
+    display: 'flex', alignItems: 'center', gap: sidebarCollapsed ? 0 : 10,
+    padding: sidebarCollapsed ? '0' : sb.itemPadding,
     justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-    margin: sidebarCollapsed ? '3px auto' : '1px 8px',
-    fontSize: 13, cursor: 'pointer',
-    fontFamily: isModern ? 'var(--font-cjk, var(--font-body))' : undefined,
+    margin: sidebarCollapsed ? '3px auto' : sb.itemMargin,
+    fontSize: sb.itemFontSize, cursor: 'pointer',
+    fontFamily: sb.fontFamily,
     fontWeight: active ? 500 : 400,
-    color: active ? (isNotebook ? '#fff' : isModern ? 'var(--ink)' : 'var(--vermilion)') : 'var(--ink-mute)',
-    background: active ? (isNotebook ? '#E8825D' : isModern ? 'var(--hover)' : 'var(--paper)') : 'transparent',
-    borderRadius: sidebarCollapsed ? 9 : (isNotebook ? 8 : 5),
-    boxShadow: isModern ? 'none' : (active ? '0 1px 0 rgba(255,255,255,0.7) inset, 0 1px 3px rgba(0,0,0,0.04)' : 'none'),
-    transition: 'background 0.15s ease',
+    color: active ? sb.activeColor : sb.inactiveColor,
+    background: active ? sb.activeBackground : 'transparent',
+    borderRadius: sidebarCollapsed ? sb.collapsedRadius : sb.itemRadius,
+    boxShadow: active ? sb.activeShadow : 'none',
+    transition: 'all 0.12s ease',
     overflow: 'hidden', whiteSpace: 'nowrap',
     position: 'relative',
   })
@@ -620,7 +737,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
   const toolbarStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '10px 28px', borderBottom: '1px solid var(--border)', gap: 8, flexShrink: 0,
+    padding: layout.toolbar.padding,
+    borderBottom: layout.toolbar.showBorder ? '1px solid var(--border)' : 'none',
+    gap: layout.toolbar.gap, flexShrink: 0,
+    overflow: 'hidden',
   }
 
   const detailPanelStyle: React.CSSProperties = {
@@ -634,24 +754,65 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
       {/* Left Sidebar */}
       <div style={sidebarStyle}>
         {/* Header */}
-        {isModern && !sidebarCollapsed ? (
+        {isNotebook ? (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: sidebarCollapsed ? 0 : 10,
+            padding: sidebarCollapsed ? '10px 4px' : '6px 8px 14px',
+            margin: sidebarCollapsed ? 0 : '0 0 14px',
+            borderBottom: sidebarCollapsed ? 'none' : '1px solid var(--border)',
+            justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: '#E07856', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'var(--font-serif, "Noto Serif SC", serif)',
+              fontSize: 15, fontWeight: 600, flexShrink: 0,
+              boxShadow: '0 2px 6px rgba(224,120,86,.35)',
+              cursor: sidebarCollapsed ? 'pointer' : 'default',
+            }} onClick={() => { if (sidebarCollapsed) setSidebarCollapsed(false) }}>{t('library.sealChar')}</div>
+            {!sidebarCollapsed && <>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{libraryName}</div>
+              <div
+                onClick={() => setSidebarCollapsed(v => !v)}
+                style={{
+                  width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', borderRadius: 'var(--radius-sm)', color: 'var(--ink-mute)',
+                  transition: 'background 0.15s ease', flexShrink: 0,
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.6)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <PanelLeftClose size={16} />
+              </div>
+            </>}
+          </div>
+        ) : isMinimal && !sidebarCollapsed ? (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            padding: '6px 8px 14px', margin: '18px 12px 0',
+            padding: '6px 8px 14px',
+            margin: '18px 12px 0',
             borderBottom: '1px solid var(--border)',
           }}>
             <div style={{
-              width: 24, height: 24, borderRadius: isNotebook ? 6 : 5,
-              background: isNotebook ? '#E8825D' : 'var(--ink)', color: '#fff',
+              width: 24, height: 24, borderRadius: 5,
+              background: 'var(--ink)', color: '#fff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 500, flexShrink: 0,
+              fontFamily: 'var(--font-display)',
+              fontSize: 13, fontWeight: 600, flexShrink: 0,
             }}>{t('library.sealChar')}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{libraryName}</div>
-              <div style={{ fontSize: 10, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>local</div>
-            </div>
-            <div style={{ color: 'var(--ink-faint)' }}>
-              <ChevronDown size={11} />
+            <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{libraryName}</div>
+            <div
+              onClick={() => setSidebarCollapsed(v => !v)}
+              style={{
+                width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', borderRadius: 'var(--radius-sm)', color: 'var(--ink-mute)',
+                transition: 'background 0.15s ease', flexShrink: 0,
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <PanelLeftClose size={16} />
             </div>
           </div>
         ) : (
@@ -691,20 +852,20 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
           <div
             style={sidebarItemStyle(selectedSection === 'home')}
             onClick={() => handleSectionChange('home')}
-            onMouseEnter={e => { if (selectedSection !== 'home') e.currentTarget.style.background = 'var(--hover)' }}
+            onMouseEnter={e => { if (selectedSection !== 'home') e.currentTarget.style.background = sb.hoverBackground }}
             onMouseLeave={e => { if (selectedSection !== 'home') e.currentTarget.style.background = 'transparent' }}
             title={sidebarCollapsed ? (t('library.home') ?? 'Home') : undefined}
           >
-            <Home size={18} style={{ flexShrink: 0 }} />
+            <Home size={sb.iconSize} style={{ flexShrink: 0 }} />
             {!sidebarCollapsed && (t('library.home') ?? 'Home')}
           </div>
 
           {/* Group title: 资料库 (minimal/notebook) */}
-          {isModern && !sidebarCollapsed && (
+          {isMinimal && !sidebarCollapsed && (
             <div style={{
-              padding: '14px 8px 6px', margin: '0 8px',
-              fontSize: 10, fontWeight: 500, color: 'var(--ink-faint)',
-              letterSpacing: '0.06em', textTransform: 'uppercase',
+              padding: isNotebook ? '14px 10px 8px' : '14px 8px 6px', margin: sb.treeIndent ? 0 : '0 8px',
+              fontSize: 11, fontWeight: 600, color: 'var(--ink-mute)',
+              letterSpacing: '0.04em', textTransform: 'uppercase',
             }}>{locale === 'zh' ? '资料库' : 'LIBRARY'}</div>
           )}
 
@@ -713,24 +874,27 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             style={sidebarItemStyle(selectedSection === 'documents' && selectedDir === null && !selectedTag)}
             onClick={() => { handleSectionChange('documents'); if (!sidebarCollapsed) setDocSectionExpanded(prev => selectedSection === 'documents' ? !prev : true) }}
             onContextMenu={(e) => handleSidebarContextMenu(e, 'documents')}
-            onMouseEnter={e => { if (!(selectedSection === 'documents' && selectedDir === null && !selectedTag)) e.currentTarget.style.background = 'var(--hover)' }}
+            onMouseEnter={e => { if (!(selectedSection === 'documents' && selectedDir === null && !selectedTag)) e.currentTarget.style.background = sb.hoverBackground }}
             onMouseLeave={e => { if (!(selectedSection === 'documents' && selectedDir === null && !selectedTag)) e.currentTarget.style.background = 'transparent' }}
             title={sidebarCollapsed ? t('library.documents') : undefined}
           >
-            <LibraryBig size={isModern ? 14 : 18} style={{ flexShrink: 0, color: isModern ? 'var(--ink-mute)' : undefined }} />
+            <LibraryBig size={sb.iconSize} style={{ flexShrink: 0, color: isMinimal ? 'var(--ink-mute)' : undefined }} />
             {!sidebarCollapsed && <><span style={{ flex: 1 }}>{t('library.documents')}</span>
-              {isModern && <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)', fontWeight: 400 }}>{documents.length}</span>}
+              {sb.showBadge && <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, padding: '1px 7px', borderRadius: 9, minWidth: 22, textAlign: 'center', background: selectedSection === 'documents' && selectedDir === null && !selectedTag ? 'rgba(255,255,255,.22)' : 'rgba(0,0,0,.04)', color: selectedSection === 'documents' && selectedDir === null && !selectedTag ? '#fff' : 'var(--ink-mute)' }}>{documents.length}</span>}
+              {isMinimal && <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)', fontWeight: 400 }}>{documents.length}</span>}
               {!isModern && dirTree.length > 0 && <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{docSectionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>}
             </>}
           </div>
 
           {!sidebarCollapsed && docSectionExpanded && dirTree.length > 0 && (
-            <div>
-              {dirTree.map(node => (
+            <div style={sb.treeIndent ? { paddingLeft: sb.treeIndent } : undefined}>
+              {dirTree.map((node, ni) => (
                 <DirTreeItem
                   key={node.path} node={node} selectedDir={selectedDir}
                   onSelect={(p) => { setSelectedSection('documents'); setSelectedDir(p); setSelectedTag(null); setTagFilteredItems(null); setSelectedNoteDir(null); setSelectedItemId(null); setSelectedItemDetail(null) }}
                   expandedDirs={expandedDirs} onToggle={toggleDir} depth={1} icon={<Folder size={16} />}
+                  onContextMenu={(e, path) => handleSidebarContextMenu(e, 'docDir', path)}
+                  siblingIndex={ni}
                 />
               ))}
             </div>
@@ -741,20 +905,21 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             style={sidebarItemStyle(selectedSection === 'notes' && selectedNoteDir === null && !selectedTag)}
             onClick={() => { handleSectionChange('notes'); if (!sidebarCollapsed) setNoteSectionExpanded(prev => selectedSection === 'notes' ? !prev : true) }}
             onContextMenu={(e) => handleSidebarContextMenu(e, 'notes')}
-            onMouseEnter={e => { if (!(selectedSection === 'notes' && selectedNoteDir === null && !selectedTag)) e.currentTarget.style.background = 'var(--hover)' }}
+            onMouseEnter={e => { if (!(selectedSection === 'notes' && selectedNoteDir === null && !selectedTag)) e.currentTarget.style.background = sb.hoverBackground }}
             onMouseLeave={e => { if (!(selectedSection === 'notes' && selectedNoteDir === null && !selectedTag)) e.currentTarget.style.background = 'transparent' }}
             title={sidebarCollapsed ? t('library.notes') : undefined}
           >
-            <PenLine size={isModern ? 14 : 18} style={{ flexShrink: 0, color: isModern ? 'var(--ink-mute)' : undefined }} />
+            <PenLine size={sb.iconSize} style={{ flexShrink: 0, color: isMinimal ? 'var(--ink-mute)' : undefined }} />
             {!sidebarCollapsed && <><span style={{ flex: 1 }}>{t('library.notes')}</span>
-              {isModern && <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)', fontWeight: 400 }}>{notes.length}</span>}
+              {sb.showBadge && <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, padding: '1px 7px', borderRadius: 9, minWidth: 22, textAlign: 'center', background: selectedSection === 'notes' && selectedNoteDir === null && !selectedTag ? 'rgba(255,255,255,.22)' : 'rgba(0,0,0,.04)', color: selectedSection === 'notes' && selectedNoteDir === null && !selectedTag ? '#fff' : 'var(--ink-mute)' }}>{notes.length}</span>}
+              {isMinimal && <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)', fontWeight: 400 }}>{notes.length}</span>}
               {!isModern && noteDirTree.length > 0 && <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{noteSectionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>}
             </>}
           </div>
 
           {!sidebarCollapsed && noteSectionExpanded && noteDirTree.length > 0 && (
-            <div>
-              {noteDirTree.map(node => (
+            <div style={sb.treeIndent ? { paddingLeft: sb.treeIndent } : undefined}>
+              {noteDirTree.map((node, ni) => (
                 <DirTreeItem
                   key={node.path} node={node} selectedDir={selectedNoteDir}
                   onSelect={(p) => { setSelectedSection('notes'); setSelectedNoteDir(p); setSelectedTag(null); setTagFilteredItems(null); setSelectedDir(null); setSelectedItemId(null); setSelectedItemDetail(null) }}
@@ -764,63 +929,64 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   })}
                   onContextMenu={(e, path) => handleSidebarContextMenu(e, 'noteDir', path)}
                   depth={1} icon={<Folder size={16} />}
+                  siblingIndex={ni}
                 />
               ))}
             </div>
           )}
 
-          {!sidebarCollapsed && <div style={{ margin: '8px 16px', borderTop: '1px solid var(--border)' }} />}
+          {!sidebarCollapsed && <div style={{ margin: sb.dividerMargin, borderTop: '1px solid var(--border)' }} />}
           {sidebarCollapsed && <div style={{ margin: '6px 8px', borderTop: '1px solid var(--border)' }} />}
 
           {/* Utilities */}
           <div
             style={sidebarItemStyle(selectedSection === 'sync')}
             onClick={() => handleSectionChange('sync')}
-            onMouseEnter={e => { if (selectedSection !== 'sync') e.currentTarget.style.background = 'var(--hover)' }}
+            onMouseEnter={e => { if (selectedSection !== 'sync') e.currentTarget.style.background = sb.hoverBackground }}
             onMouseLeave={e => { if (selectedSection !== 'sync') e.currentTarget.style.background = 'transparent' }}
             title={sidebarCollapsed ? t('library.sync') : undefined}
           >
-            <Cloud size={18} style={{ flexShrink: 0 }} />
+            <Cloud size={sb.iconSize} style={{ flexShrink: 0 }} />
             {!sidebarCollapsed && t('library.sync')}
           </div>
           <div
             style={sidebarItemStyle(selectedSection === 'plugins')}
             onClick={() => handleSectionChange('plugins')}
-            onMouseEnter={e => { if (selectedSection !== 'plugins') e.currentTarget.style.background = 'var(--hover)' }}
+            onMouseEnter={e => { if (selectedSection !== 'plugins') e.currentTarget.style.background = sb.hoverBackground }}
             onMouseLeave={e => { if (selectedSection !== 'plugins') e.currentTarget.style.background = 'transparent' }}
             title={sidebarCollapsed ? t('library.plugins') : undefined}
           >
-            <Puzzle size={18} style={{ flexShrink: 0 }} />
+            <Puzzle size={sb.iconSize} style={{ flexShrink: 0 }} />
             {!sidebarCollapsed && <>{t('library.plugins')}{plugins.length > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 2 }}>({plugins.length})</span>}</>}
           </div>
           <div
             style={sidebarItemStyle(selectedSection === 'settings')}
             onClick={() => handleSectionChange('settings')}
-            onMouseEnter={e => { if (selectedSection !== 'settings') e.currentTarget.style.background = 'var(--hover)' }}
+            onMouseEnter={e => { if (selectedSection !== 'settings') e.currentTarget.style.background = sb.hoverBackground }}
             onMouseLeave={e => { if (selectedSection !== 'settings') e.currentTarget.style.background = 'transparent' }}
             title={sidebarCollapsed ? t('settings.title') : undefined}
           >
-            <Settings size={18} style={{ flexShrink: 0 }} />
+            <Settings size={sb.iconSize} style={{ flexShrink: 0 }} />
             {!sidebarCollapsed && t('settings.title')}
           </div>
-          {!sidebarCollapsed && <div style={{ margin: '8px 16px', borderTop: '1px solid var(--border)' }} />}
+          {!sidebarCollapsed && <div style={{ margin: sb.dividerMargin, borderTop: '1px solid var(--border)' }} />}
           {sidebarCollapsed && <div style={{ margin: '6px 8px', borderTop: '1px solid var(--border)' }} />}
 
           {/* Tags */}
           {sidebarCollapsed ? (
             <div
-              style={{ ...sidebarItemStyle(false), justifyContent: 'center' }}
+              style={{ ...sidebarItemStyle(selectedSection === 'tags'), justifyContent: 'center' }}
               onClick={() => handleSectionChange('tags')}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+              onMouseEnter={e => { if (selectedSection !== 'tags') e.currentTarget.style.background = sb.hoverBackground }}
+              onMouseLeave={e => { if (selectedSection !== 'tags') e.currentTarget.style.background = 'transparent' }}
               title={t('library.tags')}
             >
-              <Tag size={18} style={{ flexShrink: 0 }} />
+              <Tag size={sb.iconSize} style={{ flexShrink: 0 }} />
             </div>
           ) : (
-          <div style={{ padding: '4px 20px' }}>
+          <div style={{ padding: sb.tagPadding }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('library.tags')}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-mute, var(--text-muted))', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('library.tags')}</div>
               <Settings
                 size={13}
                 onClick={() => handleSectionChange('tags')}
@@ -915,14 +1081,15 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         )}
       </div>
 
-      {!sidebarCollapsed && !isModern && <ResizeHandle onPointerDown={leftResize.onPointerDown} />}
+      {!sidebarCollapsed && layout.sidebarResizable && <ResizeHandle onPointerDown={leftResize.onPointerDown} />}
 
       {/* Center Panel */}
       <div style={centerStyle}>
         {selectedSection === 'home' ? (
-          <div style={{ flex: 1, overflow: 'auto', padding: isModern ? '36px 48px 48px' : '36px 56px 80px' }}>
-            {/* Breadcrumb (modern themes) */}
-            {isModern && (
+          <div style={{ flex: 1, overflow: 'auto' }}>
+          <div style={{ padding: layout.homePadding, maxWidth: layout.contentMaxWidth ?? undefined, margin: layout.centeredContent ? '0 auto' : undefined }}>
+            {/* Breadcrumb */}
+            {layout.home.showPathBreadcrumb && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 fontSize: 12, color: 'var(--ink-mute)', fontFamily: 'var(--font-mono)',
@@ -939,20 +1106,20 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
             {/* Page header */}
             <div style={{
-              display: 'flex', alignItems: isModern ? 'flex-start' : 'flex-end', justifyContent: 'space-between',
-              paddingBottom: isModern ? 0 : 24, marginBottom: isModern ? 8 : 32,
-              borderBottom: isModern ? 'none' : '1px solid rgba(28,26,23,0.08)',
+              display: 'flex', alignItems: layout.home.headerAlign, justifyContent: 'space-between',
+              paddingBottom: layout.home.headerPaddingBottom, marginBottom: layout.home.headerMarginBottom,
+              borderBottom: layout.home.headerBorderBottom,
               position: 'relative',
             }}>
-              {!isModern && <div style={{
+              {layout.home.showSealChar && <div style={{
                 position: 'absolute', bottom: -1, left: 0, width: 64, height: 1,
                 background: 'var(--vermilion)',
               }} />}
               <div style={{ minWidth: 0 }}>
-                {!isModern && <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+                {layout.home.showSealChar && <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
                   <h1 style={{
-                    fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 34,
-                    color: 'var(--ink)', letterSpacing: '0.04em', lineHeight: 1, margin: 0,
+                    fontFamily: layout.home.titleFont, fontWeight: layout.home.titleFontWeight, fontSize: layout.home.titleFontSize,
+                    color: 'var(--ink)', letterSpacing: layout.home.titleLetterSpacing, lineHeight: 1, margin: 0,
                   }}>
                     {libraryName}
                   </h1>
@@ -966,11 +1133,19 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                     {t('library.sealChar')}
                   </span>
                 </div>}
-                {isModern && <h1 style={{
-                  fontSize: 30, fontWeight: 600, color: 'var(--ink)',
-                  letterSpacing: '-0.02em', lineHeight: 1.2, margin: 0,
-                }}>{libraryName}</h1>}
-                {!isModern && <div style={{
+                {!layout.home.showSealChar && <h1 style={{
+                  fontSize: layout.home.titleFontSize, fontWeight: layout.home.titleFontWeight, color: 'var(--ink)',
+                  letterSpacing: layout.home.titleLetterSpacing, lineHeight: 1.2, margin: 0,
+                  display: 'inline-flex', alignItems: 'center', gap: 14,
+                }}>{libraryName}
+                  {layout.home.showSyncBadge && <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '3px 10px', borderRadius: 12,
+                    background: '#E8F1FB', color: '#4A90E2',
+                    fontSize: 11, fontWeight: 600,
+                  }}><span style={{ width: 6, height: 6, background: '#4A90E2', borderRadius: '50%' }} />{locale === 'zh' ? '已同步' : 'Synced'}</span>}
+                </h1>}
+                {layout.home.showSealChar && <div style={{
                   marginTop: 8, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)',
                   fontSize: 11, letterSpacing: '0.02em',
                 }}>
@@ -987,15 +1162,15 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   onClick={async () => { await api.documents.import(); await loadDocuments() }}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                    height: isModern ? 32 : undefined,
-                    padding: isModern ? '0 12px' : '9px 18px', borderRadius: 6,
+                    height: layout.home.buttonHeight,
+                    padding: layout.home.buttonPadding, borderRadius: layout.home.buttonRadius,
                     fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
                     color: 'var(--ink-soft)', border: '1px solid var(--border-solid)',
-                    background: isModern ? 'var(--surface-raised)' : 'transparent',
+                    background: layout.home.importButtonBg,
                     cursor: 'pointer', transition: 'all 0.15s',
                   }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover)' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = isModern ? 'var(--surface-raised)' : 'transparent' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = layout.home.importButtonBg }}
                 >
                   <Upload size={14} />
                   {t('library.import')}
@@ -1004,15 +1179,15 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   onClick={() => setShowNotePicker(true)}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                    height: isModern ? 32 : undefined,
-                    padding: isModern ? '0 12px' : '9px 18px', borderRadius: 6,
+                    height: layout.home.buttonHeight,
+                    padding: layout.home.buttonPadding, borderRadius: layout.home.buttonRadius,
                     fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
-                    background: 'var(--ink)', color: '#fff', border: 'none',
-                    cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                    background: layout.home.primaryButtonBg, color: '#fff', border: 'none',
+                    cursor: 'pointer', boxShadow: layout.home.primaryButtonShadow,
                     transition: 'all 0.15s',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#000' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--ink)' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = layout.home.primaryButtonHoverBg }}
+                  onMouseLeave={e => { e.currentTarget.style.background = layout.home.primaryButtonBg }}
                 >
                   <Plus size={14} />
                   {t('library.newNote')}
@@ -1020,10 +1195,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               </div>
             </div>
 
-            {/* Stats line (minimal) */}
-            {isModern && (
+            {/* Stats line */}
+            {!layout.home.showSealChar && (
               <div style={{
-                fontSize: 13, color: 'var(--ink-mute)', marginBottom: 36,
+                fontSize: 13, color: 'var(--ink-mute)', marginBottom: layout.home.statsMarginBottom,
                 display: 'flex', alignItems: 'center', gap: 14,
               }}>
                 <span><strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{documents.length}</strong>&nbsp;{locale === 'zh' ? '文档' : 'docs'}</span>
@@ -1035,22 +1210,36 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             )}
 
             {/* Poetry / Quote section */}
-            <div style={{ marginBottom: isModern ? 40 : 36, paddingBottom: isModern ? 32 : 0, borderBottom: (isModern && !isNotebook) ? '1px solid var(--border)' : 'none' }}>
+            {layout.home.showDailyPick && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>
+                  <span style={{ fontSize: 18 }}>📅</span>
+                  {locale === 'zh' ? '今日卷' : 'Daily Pick'}
+                </div>
+                <span style={{ fontSize: 13, color: '#4A90E2', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>
+                  {locale === 'zh' ? '历史卷' : 'History'}<ChevronRight size={11} />
+                </span>
+              </div>
+            )}
+            <div style={{ marginBottom: layout.home.poetryMarginBottom, paddingBottom: layout.home.poetryPaddingBottom, borderBottom: layout.home.poetryBorderBottom }}>
               <PoetryCard locale={locale} />
             </div>
 
-            {isNotebook ? (<>
-              {/* ── Notebook theme: cover card grid ── */}
+            {layout.home.sectionCardStyle === 'card' ? (<>
+              {/* ── Card-style layout ── */}
 
               {/* Recent documents as cover cards */}
               {documents.length > 0 && (
                 <div style={{ marginBottom: 40 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 15, fontWeight: 600 }}>📚 {t('library.recentDocs')}</span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-faint)', background: 'var(--hover)', padding: '2px 8px', borderRadius: 10 }}>{documents.length} {locale === 'zh' ? '个文档' : 'docs'}</span>
+                      <span style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 18 }}>📚</span>
+                        {t('library.recentDocs')}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--ink-mute)', background: '#fff', padding: '2px 10px', borderRadius: 11, border: '1px solid var(--paper-edge, #F0EBE0)' }}>{documents.length} {locale === 'zh' ? '个文档' : 'docs'}</span>
                     </div>
-                    <span onClick={() => handleSectionChange('documents')} style={{ fontSize: 12, color: 'var(--ink-mute)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
+                    <span onClick={() => handleSectionChange('documents')} style={{ fontSize: 13, color: layout.home.linkColor, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 18 }}>
                     {[...documents].sort((a, b) => ((b as any).lastReadAt || b.updatedAt || b.createdAt || '').localeCompare((a as any).lastReadAt || a.updatedAt || a.createdAt || '')).slice(0, 6).map((doc, di) => {
@@ -1113,10 +1302,13 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               <div style={{ marginBottom: 40 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 15, fontWeight: 600 }}>✏️ {locale === 'zh' ? '我的笔记' : 'My Notes'}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-faint)', background: 'var(--hover)', padding: '2px 8px', borderRadius: 10 }}>{notes.length} {locale === 'zh' ? '个' : ''}</span>
+                    <span style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 18 }}>✎</span>
+                      {locale === 'zh' ? '我的笔记' : 'My Notes'}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--ink-mute)', background: '#fff', padding: '2px 10px', borderRadius: 11, border: '1px solid var(--paper-edge, #F0EBE0)' }}>{notes.length} {locale === 'zh' ? '个' : ''}</span>
                   </div>
-                  <span onClick={() => handleSectionChange('notes')} style={{ fontSize: 12, color: 'var(--ink-mute)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
+                  <span onClick={() => handleSectionChange('notes')} style={{ fontSize: 13, color: layout.home.linkColor, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 18 }}>
                   {[...notes].sort((a, b) => ((b.updatedAt || b.createdAt) || '').localeCompare((a.updatedAt || a.createdAt) || '')).slice(0, 5).map((note, ni) => {
@@ -1175,10 +1367,13 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 <div style={{ marginBottom: 40 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 15, fontWeight: 600 }}>📌 {t('library.recentAnnotations')}</span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-faint)', background: 'var(--hover)', padding: '2px 8px', borderRadius: 10 }}>{recentAnnotations.length}</span>
+                      <span style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 18 }}>🏷</span>
+                        {t('library.recentAnnotations')}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--ink-mute)', background: '#fff', padding: '2px 10px', borderRadius: 11, border: '1px solid var(--paper-edge, #F0EBE0)' }}>{recentAnnotations.length > 3 ? `3 / ${recentAnnotations.length}` : recentAnnotations.length}</span>
                     </div>
-                    <span onClick={() => handleSectionChange('annotations' as any)} style={{ fontSize: 12, color: 'var(--ink-mute)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
+                    <span onClick={() => handleSectionChange('annotations' as any)} style={{ fontSize: 13, color: layout.home.linkColor, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
                     {recentAnnotations.slice(0, 8).map((ann, i) => {
@@ -1235,28 +1430,28 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 </div>
               )}
             </>) : (<>
-              {/* ── Default / Minimal layout ── */}
+              {/* ── List-style layout ── */}
 
               {/* Content sections — two columns */}
-              <div style={{ display: 'grid', gridTemplateColumns: notes.length > 0 && documents.length > 0 ? (isModern ? '1fr 1.4fr' : '1fr 1fr') : '1fr', gap: isModern ? 48 : 24, marginBottom: isModern ? 48 : 28 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: notes.length > 0 && documents.length > 0 ? (!layout.home.showSealChar ? '1fr 1.4fr' : '1fr 1fr') : '1fr', gap: !layout.home.showSealChar ? 48 : 24, marginBottom: !layout.home.showSealChar ? 48 : 28 }}>
 
                 {/* Recent notes */}
                 {notes.length > 0 && (
-                  <div style={isModern ? {} : {
-                    background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(28,26,23,0.08)',
-                    borderRadius: 6, padding: '22px 24px',
-                  }}>
+                  <div style={layout.home.sectionBg ? {
+                    background: layout.home.sectionBg, border: layout.home.sectionBorder,
+                    borderRadius: layout.home.sectionRadius, padding: layout.home.sectionPadding,
+                  } : {}}>
                     <div style={{
-                      display: 'flex', alignItems: isModern ? 'baseline' : 'center', justifyContent: 'space-between',
-                      marginBottom: isModern ? 14 : 18,
-                      paddingBottom: isModern ? 0 : 14,
-                      borderBottom: isModern ? 'none' : '1px solid rgba(28,26,23,0.08)',
+                      display: 'flex', alignItems: layout.home.sectionBg ? 'center' : 'baseline', justifyContent: 'space-between',
+                      marginBottom: layout.home.sectionBg ? 18 : 14,
+                      paddingBottom: layout.home.sectionBg ? 14 : 0,
+                      borderBottom: layout.home.sectionBg ? '1px solid rgba(28,26,23,0.08)' : 'none',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{
                           fontSize: 13, fontWeight: 600, color: 'var(--ink)',
-                          letterSpacing: isModern ? '.01em' : '0.06em',
-                          fontFamily: isModern ? undefined : 'var(--font-display)',
+                          letterSpacing: layout.home.sectionTitleLetterSpacing,
+                          fontFamily: layout.home.sectionTitleFont,
                         }}>
                           {t('library.recentNotes')}
                         </span>
@@ -1283,12 +1478,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                             style={{
                               display: 'flex', alignItems: 'center', gap: 10,
                               padding: '10px 0',
-                              borderBottom: isModern ? '1px solid var(--border-soft, var(--border))' : 'none',
-                              borderRadius: isModern ? 0 : 4, cursor: 'pointer',
+                              borderBottom: layout.home.listItemBorderBottom,
+                              borderRadius: layout.home.sectionBg ? 4 : 0, cursor: 'pointer',
                               transition: 'all 0.15s',
                             }}
-                            onMouseEnter={e => { if (isModern) { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.margin = '0 -8px'; e.currentTarget.style.padding = '10px 8px'; e.currentTarget.style.borderRadius = '5px' } else { e.currentTarget.style.background = 'rgba(255,255,255,0.6)' } }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; if (isModern) { e.currentTarget.style.margin = '0'; e.currentTarget.style.padding = '10px 0'; e.currentTarget.style.borderRadius = '0' } }}
+                            onMouseEnter={e => { if (layout.home.listHoverStyle === 'expand') { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.margin = '0 -8px'; e.currentTarget.style.padding = '10px 8px'; e.currentTarget.style.borderRadius = '5px' } else { e.currentTarget.style.background = 'rgba(255,255,255,0.6)' } }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; if (layout.home.listHoverStyle === 'expand') { e.currentTarget.style.margin = '0'; e.currentTarget.style.padding = '10px 0'; e.currentTarget.style.borderRadius = '0' } }}
                           >
                             <span style={{
                               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -1328,21 +1523,21 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
                 {/* Recent documents */}
                 {documents.length > 0 && (
-                  <div style={isModern ? {} : {
-                    background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(28,26,23,0.08)',
-                    borderRadius: 6, padding: '22px 24px',
-                  }}>
+                  <div style={layout.home.sectionBg ? {
+                    background: layout.home.sectionBg, border: layout.home.sectionBorder,
+                    borderRadius: layout.home.sectionRadius, padding: layout.home.sectionPadding,
+                  } : {}}>
                     <div style={{
-                      display: 'flex', alignItems: isModern ? 'baseline' : 'center', justifyContent: 'space-between',
-                      marginBottom: isModern ? 14 : 18,
-                      paddingBottom: isModern ? 0 : 14,
-                      borderBottom: isModern ? 'none' : '1px solid rgba(28,26,23,0.08)',
+                      display: 'flex', alignItems: layout.home.sectionBg ? 'center' : 'baseline', justifyContent: 'space-between',
+                      marginBottom: layout.home.sectionBg ? 18 : 14,
+                      paddingBottom: layout.home.sectionBg ? 14 : 0,
+                      borderBottom: layout.home.sectionBg ? '1px solid rgba(28,26,23,0.08)' : 'none',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{
                           fontSize: 13, fontWeight: 600, color: 'var(--ink)',
-                          letterSpacing: isModern ? '.01em' : '0.06em',
-                          fontFamily: isModern ? undefined : 'var(--font-display)',
+                          letterSpacing: layout.home.sectionTitleLetterSpacing,
+                          fontFamily: layout.home.sectionTitleFont,
                         }}>
                           {t('library.recentDocs')}
                         </span>
@@ -1372,12 +1567,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           style={{
                             display: 'flex', alignItems: 'center', gap: 10,
                             padding: '10px 0',
-                            borderBottom: isModern ? '1px solid var(--border-soft, var(--border))' : 'none',
-                            borderRadius: isModern ? 0 : 4, cursor: 'pointer',
+                            borderBottom: layout.home.listItemBorderBottom,
+                            borderRadius: layout.home.sectionBg ? 4 : 0, cursor: 'pointer',
                             transition: 'all 0.15s',
                           }}
-                          onMouseEnter={e => { if (isModern) { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.margin = '0 -8px'; e.currentTarget.style.padding = '10px 8px'; e.currentTarget.style.borderRadius = '5px' } else { e.currentTarget.style.background = 'rgba(255,255,255,0.6)' } }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; if (isModern) { e.currentTarget.style.margin = '0'; e.currentTarget.style.padding = '10px 0'; e.currentTarget.style.borderRadius = '0' } }}
+                          onMouseEnter={e => { if (layout.home.listHoverStyle === 'expand') { e.currentTarget.style.background = 'var(--hover)'; e.currentTarget.style.margin = '0 -8px'; e.currentTarget.style.padding = '10px 8px'; e.currentTarget.style.borderRadius = '5px' } else { e.currentTarget.style.background = 'rgba(255,255,255,0.6)' } }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; if (layout.home.listHoverStyle === 'expand') { e.currentTarget.style.margin = '0'; e.currentTarget.style.padding = '10px 0'; e.currentTarget.style.borderRadius = '0' } }}
                         >
                           <span style={{
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -1392,7 +1587,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           }}>
                             {doc.title}
                           </span>
-                          {isModern && (doc as any).author && <span style={{
+                          {!layout.home.showSealChar && (doc as any).author && <span style={{
                             color: 'var(--ink-faint)', fontSize: 12, flexShrink: 0,
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140,
                           }}>{(doc as any).author}</span>}
@@ -1412,21 +1607,21 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
               {/* Annotations section */}
               {recentAnnotations.length > 0 && (
-                <div style={isModern ? { marginBottom: 40 } : {
-                  background: 'rgba(255,255,255,0.45)', border: '1px solid rgba(28,26,23,0.08)',
-                  borderRadius: 6, padding: '22px 24px',
-                }}>
+                <div style={layout.home.sectionBg ? {
+                  background: layout.home.sectionBg, border: layout.home.sectionBorder,
+                  borderRadius: layout.home.sectionRadius, padding: layout.home.sectionPadding,
+                } : { marginBottom: 40 }}>
                   <div style={{
-                    display: 'flex', alignItems: isModern ? 'baseline' : 'center', justifyContent: 'space-between',
-                    marginBottom: isModern ? 14 : 20,
-                    paddingBottom: isModern ? 0 : 14,
-                    borderBottom: isModern ? 'none' : '1px solid rgba(28,26,23,0.08)',
+                    display: 'flex', alignItems: layout.home.sectionBg ? 'center' : 'baseline', justifyContent: 'space-between',
+                    marginBottom: layout.home.sectionBg ? 20 : 14,
+                    paddingBottom: layout.home.sectionBg ? 14 : 0,
+                    borderBottom: layout.home.sectionBg ? '1px solid rgba(28,26,23,0.08)' : 'none',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{
                         fontSize: 13, fontWeight: 600, color: 'var(--ink)',
-                        letterSpacing: isModern ? '.01em' : '0.06em',
-                        fontFamily: isModern ? undefined : 'var(--font-display)',
+                        letterSpacing: layout.home.sectionTitleLetterSpacing,
+                        fontFamily: layout.home.sectionTitleFont,
                       }}>
                         {t('library.recentAnnotations')}
                       </span>
@@ -1446,16 +1641,16 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   </div>
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: isModern ? 'repeat(3, 1fr)' : 'repeat(auto-fill, minmax(240px, 1fr))',
-                    gap: isModern ? 16 : 20,
+                    gridTemplateColumns: layout.home.annotationGridColumns,
+                    gap: layout.home.annotationLayout === 'grid-card' ? 16 : 20,
                   }}>
-                    {recentAnnotations.slice(0, isModern ? 3 : 6).map((ann, i) => {
+                    {recentAnnotations.slice(0, layout.home.annotationSlice).map((ann, i) => {
                       const markerColors = ['var(--ink)', '#10B981', '#F59E0B', '#3B82F6']
                       const markerColor = ann.color || markerColors[i % markerColors.length]
                       return (
                         <div key={ann.id}
                           onClick={() => { const doc = documents.find(d => d.id === ann.docId); if (doc) onOpenDoc(doc) }}
-                          style={isModern ? {
+                          style={layout.home.annotationLayout === 'grid-card' ? {
                             background: 'var(--surface-raised)', border: '1px solid var(--border)',
                             borderRadius: 8, padding: 16, cursor: 'pointer', transition: 'all 0.15s',
                             display: 'flex', flexDirection: 'column', gap: 10, minHeight: 140,
@@ -1464,10 +1659,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                             padding: '4px 0 4px 16px', cursor: 'pointer',
                             transition: 'transform 0.2s',
                           }}
-                          onMouseEnter={e => { if (isModern) { e.currentTarget.style.borderColor = 'var(--ink-ghost)'; e.currentTarget.style.transform = 'translateY(-1px)' } else { e.currentTarget.style.transform = 'translateX(2px)' } }}
-                          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; if (isModern) e.currentTarget.style.borderColor = 'var(--border)' }}
+                          onMouseEnter={e => { if (layout.home.annotationLayout === 'grid-card') { e.currentTarget.style.borderColor = 'var(--ink-ghost)'; e.currentTarget.style.transform = 'translateY(-1px)' } else { e.currentTarget.style.transform = 'translateX(2px)' } }}
+                          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; if (layout.home.annotationLayout === 'grid-card') e.currentTarget.style.borderColor = 'var(--border)' }}
                         >
-                          {isModern && (
+                          {layout.home.annotationLayout === 'grid-card' && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span style={{ width: 3, height: 14, background: markerColor, borderRadius: 2 }} />
                               <span style={{
@@ -1479,7 +1674,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           {ann.selectedText ? (
                             <div style={{
                               fontSize: 13, color: 'var(--ink)', lineHeight: 1.55,
-                              flex: isModern ? 1 : undefined, marginBottom: isModern ? 0 : 8,
+                              flex: layout.home.annotationLayout === 'grid-card' ? 1 : undefined, marginBottom: layout.home.annotationLayout === 'grid-card' ? 0 : 8,
                               display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
                               overflow: 'hidden',
                             }}>
@@ -1490,19 +1685,19 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           ) : ann.content ? (
                             <div style={{
                               fontSize: 13, color: 'var(--ink)', lineHeight: 1.55,
-                              flex: isModern ? 1 : undefined, marginBottom: isModern ? 0 : 8,
+                              flex: layout.home.annotationLayout === 'grid-card' ? 1 : undefined, marginBottom: layout.home.annotationLayout === 'grid-card' ? 0 : 8,
                               display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
                               overflow: 'hidden',
                             }}>{ann.content}</div>
                           ) : (
                             <div style={{
                               fontSize: 13, color: 'var(--ink-mute)', fontStyle: 'italic',
-                              flex: isModern ? 1 : undefined, marginBottom: isModern ? 0 : 8,
+                              flex: layout.home.annotationLayout === 'grid-card' ? 1 : undefined, marginBottom: layout.home.annotationLayout === 'grid-card' ? 0 : 8,
                             }}>
                               {ann.type === 'ink' ? t('library.inkAnnotation') : ann.type}
                             </div>
                           )}
-                          {isModern ? (
+                          {layout.home.annotationLayout === 'grid-card' ? (
                             <div style={{
                               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                               paddingTop: 10, borderTop: '1px solid var(--border-soft, var(--border))',
@@ -1541,10 +1736,16 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               )}
             </>)}
             </div>
+            </div>
         ) : selectedSection === 'settings' ? (
-          <SettingsPanel locale={locale} setLocale={setLocale} t={t} />
+          <div style={layout.contentMaxWidth ? { flex: 1, overflow: 'auto' } : { display: 'contents' }}>
+            <div style={layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth, margin: '0 auto' } : { display: 'contents' }}>
+              <SettingsPanel locale={locale} setLocale={setLocale} t={t} />
+            </div>
+          </div>
         ) : selectedSection === 'plugins' ? (
           <div style={{ padding: '24px 28px 80px', overflow: 'auto', flex: 1 }}>
+            <div style={layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth, margin: '0 auto', padding: '12px 20px' } : {}}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
               {plugins.length === 0 && (
                 <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 60, color: 'var(--text-muted)', fontSize: 13 }}>
@@ -1636,58 +1837,356 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 )
               })}
             </div>
+            </div>
           </div>
         ) : selectedSection === 'sync' ? (
-          <SyncConfigPanel onClose={() => { handleSectionChange('home'); loadDocuments() }} />
+          <div style={layout.contentMaxWidth ? { flex: 1, overflow: 'auto' } : { display: 'contents' }}>
+            <div style={layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth, margin: '0 auto' } : { display: 'contents' }}>
+              <SyncConfigPanel onClose={() => { handleSectionChange('home'); loadDocuments() }} />
+            </div>
+          </div>
         ) : selectedSection === 'tags' ? (
           <TagManagerView />
         ) : (
           <>
+            {/* Page header */}
+            {layout.pageHeader.show && (
+              <div style={{ maxWidth: layout.pageHeader.maxWidth ?? undefined, margin: '0 auto', width: '100%', padding: layout.pageHeader.padding }}>
+                {/* Breadcrumb */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  fontSize: 12, color: 'var(--ink-mute)', fontFamily: 'var(--font-mono)',
+                  marginBottom: 24,
+                }}>
+                  <span style={{ cursor: 'pointer' }} onClick={() => handleSectionChange('home')}>{libraryName}</span>
+                  <ChevronRight size={12} style={{ color: 'var(--ink-ghost)' }} />
+                  <span style={{ color: 'var(--ink)' }}>{selectedSection === 'documents' ? (locale === 'zh' ? '文档' : 'Documents') : (locale === 'zh' ? '笔记' : 'Notes')}</span>
+                  {selectedSection === 'documents' && selectedDir && (<>
+                    <ChevronRight size={12} style={{ color: 'var(--ink-ghost)' }} />
+                    <span style={{ color: 'var(--ink)' }}>{selectedDir.split('/').pop()}</span>
+                  </>)}
+                </div>
+                {/* Title + buttons */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <h1 style={{
+                    fontSize: 30, fontWeight: 600, color: 'var(--ink)',
+                    letterSpacing: '-0.02em', lineHeight: 1.2, margin: 0,
+                    display: 'inline-flex', alignItems: 'center', gap: 14,
+                  }}>{selectedSection === 'documents' ? (locale === 'zh' ? '文档' : 'Documents') : (locale === 'zh' ? '笔记' : 'Notes')}
+                  </h1>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    {selectedSection === 'documents' && (<>
+                      <button
+                        onClick={async () => { await api.documents.refresh(); await loadDocuments() }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          height: 32, padding: '0 12px', borderRadius: 9,
+                          fontSize: 13, fontWeight: 500,
+                          color: 'var(--ink-soft)', border: '1px solid var(--border-solid)',
+                          background: 'var(--surface-raised)', cursor: 'pointer',
+                        }}
+                      ><RefreshCw size={14} />{locale === 'zh' ? '刷新' : 'Refresh'}</button>
+                      <button
+                        onClick={async () => { await api.documents.import(selectedDir || undefined); await loadDocuments() }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          height: 32, padding: '0 12px', borderRadius: 9,
+                          fontSize: 13, fontWeight: 500,
+                          background: '#4A90E2', color: '#fff', border: 'none',
+                          cursor: 'pointer', boxShadow: '0 2px 8px rgba(74,144,226,0.3)',
+                        }}
+                      ><Upload size={14} />{t('library.import')}</button>
+                    </>)}
+                    {selectedSection === 'notes' && (<>
+                      <button
+                        onClick={async () => { await api.notes.refresh(); await loadNotes(); await loadNoteDirs() }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          height: 32, padding: '0 12px', borderRadius: 9,
+                          fontSize: 13, fontWeight: 500,
+                          color: 'var(--ink-soft)', border: '1px solid var(--border-solid)',
+                          background: 'var(--surface-raised)', cursor: 'pointer',
+                        }}
+                      ><RefreshCw size={14} />{locale === 'zh' ? '刷新' : 'Refresh'}</button>
+                      <button
+                        onClick={() => setShowNotePicker(true)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          height: 32, padding: '0 12px', borderRadius: 9,
+                          fontSize: 13, fontWeight: 500,
+                          background: '#4A90E2', color: '#fff', border: 'none',
+                          cursor: 'pointer', boxShadow: '0 2px 8px rgba(74,144,226,0.3)',
+                        }}
+                      ><Plus size={14} />{t('library.newNote')}</button>
+                    </>)}
+                  </div>
+                </div>
+                {/* Stats */}
+                <div style={{ fontSize: 13, color: 'var(--ink-mute)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
+                  {selectedSection === 'documents' ? (<>
+                    <span><strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{displayItems.length}</strong>&nbsp;{locale === 'zh' ? '个文档' : 'documents'}</span>
+                    {selectedDir && (<>
+                      <span style={{ color: 'var(--ink-ghost)' }}>·</span>
+                      <span>{locale === 'zh' ? '共' : 'total'} {documents.length} {locale === 'zh' ? '个' : ''}</span>
+                    </>)}
+                  </>) : (<>
+                    <span><strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{displayItems.length}</strong>&nbsp;{locale === 'zh' ? '个笔记' : 'notes'}</span>
+                  </>)}
+                </div>
+              </div>
+            )}
             {/* Toolbar */}
-            <div style={toolbarStyle}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ ...toolbarStyle, ...(layout.contentMaxWidth ? { paddingLeft: 0, paddingRight: 0 } : {}) }}>
+            <div style={layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth, margin: '0 auto', width: '100%', padding: '0 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: layout.toolbar.gap, overflow: 'hidden' } : { display: 'contents' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0, overflow: 'hidden' }}>
                 {selectedSection === 'notes' && (
                   <>
-                    <button onClick={handleCreateNote} title={t('library.newNote')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><FilePlus size={18} /></button>
-                    <button onClick={async () => { await api.notes.refresh(); await loadNotes(); await loadNoteDirs() }} title={t('library.refresh')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><RefreshCw size={16} /></button>
+                    {!layout.toolbar.showSectionButtons && (() => {
+                      let baseItems: any[] = notes
+                      if (selectedNoteDir) { const prefix = selectedNoteDir + '/'; baseItems = baseItems.filter((n: any) => n.path?.startsWith(prefix)) }
+                      if (selectedTag && tagFilteredItems) { baseItems = tagFilteredItems }
+                      const typeCounts: Record<string, number> = {}
+                      for (const n of baseItems) { typeCounts[n.type] = (typeCounts[n.type] || 0) + 1 }
+                      const types = Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]).slice(0, 5)
+                      const DOT_COLORS: Record<string, string> = { note: '#5B8C6B', mindmap: '#9881B8', canvas: '#6B8EA0' }
+                      return (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0,
+                          background: '#fff', border: '1px solid var(--paper-edge)',
+                          borderRadius: 9, padding: 3, boxShadow: '0 1px 3px rgba(60,40,20,.06)',
+                        }}>
+                          <button onClick={() => setSearchQuery('')} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            height: 24, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                            background: !searchQuery ? '#4A90E2' : 'transparent',
+                            color: !searchQuery ? '#fff' : 'var(--ink-soft)',
+                            border: 'none', cursor: 'pointer',
+                            boxShadow: !searchQuery ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
+                          }}>
+                            {locale === 'zh' ? '全部' : 'All'}
+                            <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, opacity: 0.7, fontWeight: 400 }}>{baseItems.length}</span>
+                          </button>
+                          {types.map(tp => {
+                            const pill = TYPE_PILLS[tp]
+                            const isActive = searchQuery === tp
+                            return (
+                              <button key={tp} onClick={() => setSearchQuery(isActive ? '' : tp)} style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                height: 24, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                                background: isActive ? '#4A90E2' : 'transparent',
+                                color: isActive ? '#fff' : 'var(--ink-soft)',
+                                border: 'none', cursor: 'pointer',
+                                boxShadow: isActive ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
+                              }}>
+                                <span style={{ width: 5, height: 5, borderRadius: '50%', background: DOT_COLORS[tp] || pill?.color || '#888', boxShadow: isActive ? '0 0 0 1.5px rgba(255,255,255,.4)' : 'none' }} />
+                                {pill?.label || tp}
+                                <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, opacity: 0.7, fontWeight: 400 }}>{typeCounts[tp]}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )
+                    })()}
+                    {layout.toolbar.showSectionButtons && (
+                      <>
+                        <button onClick={handleCreateNote} title={t('library.newNote')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><FilePlus size={18} /></button>
+                        <button onClick={async () => { await api.notes.refresh(); await loadNotes(); await loadNoteDirs() }} title={t('library.refresh')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><RefreshCw size={16} /></button>
+                      </>
+                    )}
                   </>
                 )}
                 {selectedSection === 'documents' && (
                   <>
-                    <button onClick={async () => { await api.documents.import(selectedDir || undefined); await loadDocuments() }} title={t('common.import')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><Plus size={18} /></button>
-                    <button onClick={async () => { await api.documents.refresh(); await loadDocuments() }} title={t('library.refresh')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><RefreshCw size={16} /></button>
+                    {!layout.toolbar.showSectionButtons && (() => {
+                      let baseItems: any[] = documents
+                      if (selectedDir) { const prefix = selectedDir + '/'; baseItems = baseItems.filter((d: any) => d.path.startsWith(prefix)) }
+                      if (selectedTag && tagFilteredItems) { baseItems = tagFilteredItems }
+                      const typeCounts: Record<string, number> = {}
+                      for (const doc of baseItems) { typeCounts[doc.type] = (typeCounts[doc.type] || 0) + 1 }
+                      const types = Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]).slice(0, 5)
+                      const DOT_COLORS: Record<string, string> = { markdown: '#E6C84A', pdf: '#E07856', epub: '#7AAE7E', mindmap: '#9881B8' }
+                      return (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0,
+                          background: '#fff', border: '1px solid var(--paper-edge)',
+                          borderRadius: 9, padding: 3, boxShadow: '0 1px 3px rgba(60,40,20,.06)',
+                        }}>
+                          <button onClick={() => setSearchQuery('')} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            height: 24, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                            background: !searchQuery ? '#4A90E2' : 'transparent',
+                            color: !searchQuery ? '#fff' : 'var(--ink-soft)',
+                            border: 'none', cursor: 'pointer',
+                            boxShadow: !searchQuery ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
+                          }}>
+                            {locale === 'zh' ? '全部' : 'All'}
+                            <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, opacity: 0.7, fontWeight: 400 }}>{baseItems.length}</span>
+                          </button>
+                          {types.map(tp => {
+                            const pill = TYPE_PILLS[tp]
+                            const isActive = searchQuery === tp
+                            return (
+                              <button key={tp} onClick={() => setSearchQuery(isActive ? '' : tp)} style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                height: 24, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                                background: isActive ? '#4A90E2' : 'transparent',
+                                color: isActive ? '#fff' : 'var(--ink-soft)',
+                                border: 'none', cursor: 'pointer',
+                                boxShadow: isActive ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
+                              }}>
+                                <span style={{ width: 5, height: 5, borderRadius: '50%', background: DOT_COLORS[tp] || pill?.color || '#888', boxShadow: isActive ? '0 0 0 1.5px rgba(255,255,255,.4)' : 'none' }} />
+                                {pill?.label || tp}
+                                <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, opacity: 0.7, fontWeight: 400 }}>{typeCounts[tp]}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )
+                    })()}
+                    {layout.toolbar.showSectionButtons && (
+                      <>
+                        <button onClick={async () => { await api.documents.import(selectedDir || undefined); await loadDocuments() }} title={t('common.import')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><Plus size={18} /></button>
+                        <button onClick={async () => { await api.documents.refresh(); await loadDocuments() }} title={t('library.refresh')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><RefreshCw size={16} /></button>
+                      </>
+                    )}
                     {selectedDir && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{selectedDir}</span>}
                   </>
                 )}
                 {/* Sort controls */}
-                <div style={{ display: 'flex', gap: 2 }}>
-                  {['title', 'type', 'updatedAt', 'createdAt'].map(key => (
-                    <button
-                      key={key}
-                      onClick={() => { if (sortKey === key) setSortAsc(a => !a); else { setSortKey(key as any); setSortAsc(true) } }}
+                {layout.toolbar.showSectionButtons && (
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    {['title', 'type', 'updatedAt', 'createdAt'].map(key => (
+                      <button
+                        key={key}
+                        onClick={() => { if (sortKey === key) setSortAsc(a => !a); else { setSortKey(key as any); setSortAsc(true) } }}
+                        style={{
+                          background: sortKey === key ? 'var(--accent-soft)' : 'none',
+                          border: 'none', cursor: 'pointer', padding: '3px 8px',
+                          fontSize: 14, fontWeight: 500, borderRadius: 'var(--radius-sm)',
+                          color: sortKey === key ? 'var(--accent)' : 'var(--text-muted)',
+                        }}
+                      >
+                        {key === 'title' ? t('library.colTitle') : key === 'type' ? t('library.colType') : key === 'updatedAt' ? t('detail.updatedAt') : t('detail.createdAt')}
+                        {sortKey === key ? (sortAsc ? ' ↑' : ' ↓') : ''}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {layout.home.sectionCardStyle === 'card' && (selectedSection === 'documents' || selectedSection === 'notes') ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <div style={{
+                    height: 30, width: 200,
+                    display: 'flex', alignItems: 'center', gap: 7, padding: '0 12px',
+                    background: '#fff', border: '1px solid var(--paper-edge)', borderRadius: 8,
+                    boxShadow: '0 1px 3px rgba(60,40,20,.06)',
+                  }}>
+                    <Search size={13} style={{ color: 'var(--ink-mute)', flexShrink: 0 }} />
+                    <input
+                      type="text" placeholder={locale === 'zh' ? (selectedSection === 'notes' ? '在笔记中筛选…' : '在文档中筛选…') : 'Filter…'}
+                      value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                       style={{
-                        background: sortKey === key ? 'var(--accent-soft)' : 'none',
-                        border: 'none', cursor: 'pointer', padding: '3px 8px',
-                        fontSize: 14, fontWeight: 500, borderRadius: 'var(--radius-sm)',
-                        color: sortKey === key ? 'var(--accent)' : 'var(--text-muted)',
+                        flex: 1, border: 'none', outline: 'none', background: 'transparent',
+                        fontSize: 12, color: 'var(--ink)', minWidth: 0,
+                      }}
+                    />
+                    <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, color: 'var(--ink-faint)', flexShrink: 0 }}>⌘F</span>
+                  </div>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    height: 30, padding: '0 4px 0 10px', borderRadius: 8,
+                    fontSize: 12, color: 'var(--ink-soft)', fontWeight: 500,
+                    background: '#fff', border: '1px solid var(--paper-edge)',
+                    boxShadow: '0 1px 3px rgba(60,40,20,.06)', position: 'relative',
+                  }}>
+                    <span style={{ fontSize: 11 }}>⇅</span>
+                    <select
+                      value={sortKey ?? 'updatedAt'}
+                      onChange={e => { setSortKey(e.target.value as any); setSortAsc(false) }}
+                      style={{
+                        appearance: 'none', border: 'none', outline: 'none', background: 'transparent',
+                        fontSize: 12, color: 'var(--ink-soft)', fontWeight: 500, cursor: 'pointer',
+                        paddingRight: 16,
                       }}
                     >
-                      {key === 'title' ? t('library.colTitle') : key === 'type' ? t('library.colType') : key === 'updatedAt' ? t('detail.updatedAt') : t('detail.createdAt')}
-                      {sortKey === key ? (sortAsc ? ' ↑' : ' ↓') : ''}
-                    </button>
-                  ))}
+                      <option value="updatedAt">{locale === 'zh' ? '更新时间' : 'Updated'}</option>
+                      <option value="createdAt">{locale === 'zh' ? '创建时间' : 'Created'}</option>
+                      <option value="title">{locale === 'zh' ? '标题' : 'Title'}</option>
+                      <option value="type">{locale === 'zh' ? '类型' : 'Type'}</option>
+                    </select>
+                    <ChevronDown size={11} style={{ color: 'var(--ink-mute)', position: 'absolute', right: 8, pointerEvents: 'none' }} />
+                  </div>
+                  <div
+                    onClick={() => setSortAsc(a => !a)}
+                    style={{
+                      width: 30, height: 30, borderRadius: 8,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: '#fff', border: '1px solid var(--paper-edge)',
+                      cursor: 'pointer', boxShadow: '0 1px 3px rgba(60,40,20,.06)',
+                      fontSize: 12, color: 'var(--ink-soft)',
+                    }}
+                    title={sortAsc ? (locale === 'zh' ? '升序' : 'Ascending') : (locale === 'zh' ? '降序' : 'Descending')}
+                  >
+                    {sortAsc ? '↑' : '↓'}
+                  </div>
+                  {selectedSection === 'documents' && layout.toolbar.showSectionButtons && <>
+                    <div
+                      onClick={async () => { await api.documents.refresh(); await loadDocuments() }}
+                      style={{
+                        width: 30, height: 30, borderRadius: 8,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: '#fff', border: '1px solid var(--paper-edge)',
+                        cursor: 'pointer', boxShadow: '0 1px 3px rgba(60,40,20,.06)',
+                        color: 'var(--ink-soft)',
+                      }}
+                      title={locale === 'zh' ? '刷新' : 'Refresh'}
+                    >
+                      <RefreshCw size={13} />
+                    </div>
+                    <button onClick={async () => { await api.documents.import(selectedDir || undefined); await loadDocuments() }} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, height: 30,
+                    padding: '0 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                    background: '#4A90E2', color: '#fff', border: 'none',
+                    cursor: 'pointer', boxShadow: '0 2px 6px rgba(74,144,226,.3)',
+                    whiteSpace: 'nowrap',
+                  }}><Upload size={13} />{locale === 'zh' ? '导入' : 'Import'}</button>
+                  </>}
+                  {selectedSection === 'notes' && layout.toolbar.showSectionButtons && <>
+                    <div
+                      onClick={async () => { await api.notes.refresh(); await loadNotes(); await loadNoteDirs() }}
+                      style={{
+                        width: 30, height: 30, borderRadius: 8,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: '#fff', border: '1px solid var(--paper-edge)',
+                        cursor: 'pointer', boxShadow: '0 1px 3px rgba(60,40,20,.06)',
+                        color: 'var(--ink-soft)',
+                      }}
+                      title={locale === 'zh' ? '刷新' : 'Refresh'}
+                    >
+                      <RefreshCw size={13} />
+                    </div>
+                    <button onClick={handleCreateNote} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6, height: 30,
+                      padding: '0 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                      background: '#4A90E2', color: '#fff', border: 'none',
+                      cursor: 'pointer', boxShadow: '0 2px 6px rgba(74,144,226,.3)',
+                      whiteSpace: 'nowrap',
+                    }}><FilePlus size={13} />{locale === 'zh' ? '新建' : 'New'}</button>
+                  </>}
                 </div>
-              </div>
-              <input
-                type="search" placeholder={t('common.search')}
-                value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: 220, fontSize: 14, padding: '7px 12px', borderRadius: 'var(--radius-sm)' }}
-              />
+              ) : (
+                <input
+                  type="search" placeholder={t('common.search')}
+                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ width: 220, fontSize: 14, padding: '7px 12px', borderRadius: 'var(--radius-sm)' }}
+                />
+              )}
+            </div>
             </div>
 
             {/* List */}
             <div
-              style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '12px 24px 80px' }}
+              style={{ flex: 1, overflow: 'auto', minHeight: 0 }}
               onClick={(e) => { if (e.target === e.currentTarget) { setSelectedItemId(null); setSelectedItemDetail(null); setSelectedItemTags([]) } }}
               onContextMenu={(e) => {
                 if (e.target === e.currentTarget && selectedSection === 'documents') {
@@ -1695,13 +2194,258 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 }
               }}
             >
+            <div style={{ padding: layout.contentMaxWidth && (selectedSection === 'documents' || selectedSection === 'notes') ? layout.listPadding : '12px 24px 80px', maxWidth: layout.contentMaxWidth ?? undefined, margin: layout.centeredContent ? '0 auto' : undefined }}>
               {displayItems.length === 0 && (
                 <div style={{ padding: '40px 16px', color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
                   {selectedSection === 'documents' && (selectedDir ? t('library.emptyDir') : t('library.emptyDocuments'))}
                   {selectedSection === 'notes' && t('library.emptyNotes')}
                 </div>
               )}
-              {displayItems.map((item: any) => {
+              {layout.home.sectionCardStyle === 'card' && selectedSection === 'documents' ? (() => {
+                const sorted = [...displayItems].sort((a: any, b: any) => {
+                  const va = a.updatedAt || a.createdAt || ''
+                  const vb = b.updatedAt || b.createdAt || ''
+                  return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
+                })
+                const groups = groupByDate(sorted, locale)
+                return groups.map((group, gi) => (
+                  <div key={gi} style={{ marginBottom: 12 }}>
+                    {/* Date group header */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: gi === 0 ? '10px 12px 8px' : '14px 12px 8px',
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em', flexShrink: 0 }}>{group.label}</span>
+                      <span style={{ flex: 1, height: 1, background: 'var(--paper-edge)' }} />
+                      <span style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{group.items.length} {locale === 'zh' ? '个文档' : 'docs'}</span>
+                    </div>
+                    {group.items.map((item: any) => {
+                      const isSelected = selectedItemId === item.id
+                      const pill = TYPE_PILLS[item.type]
+                      const typeLabel = item.type === 'other' || (item.type === 'txt' && item.path && !item.path.endsWith('.txt'))
+                        ? (item.path?.split('.').pop()?.toUpperCase() || (pill?.label ?? item.type))
+                        : pill?.label ?? item.type
+                      const coverColor = coverColorFor(item.type, item.title || item.name || '')
+                      const rp = (item as any).metadata?.readingPosition
+                      const progressPct = rp?.percentage != null ? Math.round(rp.percentage * 100)
+                        : rp?.page != null && rp?.totalPages ? Math.round((rp.page / rp.totalPages) * 100)
+                        : 0
+                      const { relative, absolute } = formatRelativeTime(item.updatedAt || item.createdAt, locale)
+                      const pathParts = item.path?.split('/').filter(Boolean) || []
+                      const itemTags = (item as any).tags || []
+                      const isFavorite = !!(item as any).favorite || !!(item as any).starred
+                      const TAG_DOT_COLORS = ['#6B95C9','#7AAE7E','#9881B8','#E07856','#5FA3A0','#F0A858','#D89AA8','#A8835C']
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="nb-doc-row"
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '80px minmax(0,1fr) 110px 100px',
+                            gap: 14, alignItems: 'center',
+                            padding: '10px 12px', marginBottom: 2,
+                            cursor: 'pointer', borderRadius: 10,
+                            background: isSelected ? '#E8F1FB' : 'transparent',
+                            transition: 'all 0.12s',
+                            position: 'relative',
+                          }}
+                          onClick={() => handleSelectItem(item.id, 'document')}
+                          onDoubleClick={() => onOpenDoc(item)}
+                          onContextMenu={(e) => handleDocItemContextMenu(e, item.id, item.title)}
+                          onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.background = '#fff'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(60,40,20,.06), 0 1px 2px rgba(60,40,20,.04)' } }}
+                          onMouseLeave={e => { e.currentTarget.style.background = isSelected ? '#E8F1FB' : 'transparent'; e.currentTarget.style.boxShadow = 'none' }}
+                        >
+                          {isSelected && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, background: '#4A90E2', borderRadius: '0 3px 3px 0' }} />}
+                          {/* Mini cover */}
+                          <div style={{
+                            width: 48, height: 60, borderRadius: '3px 5px 5px 3px',
+                            background: `linear-gradient(135deg, ${coverColor} 0%, ${coverColor}CC 100%)`,
+                            position: 'relative', overflow: 'hidden',
+                            boxShadow: '0 1px 3px rgba(60,40,20,.06), 0 1px 2px rgba(60,40,20,.04)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
+                          }}>
+                            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: 'rgba(0,0,0,0.12)' }} />
+                            <div style={{ position: 'absolute', bottom: 0, right: 0, width: 0, height: 0, borderStyle: 'solid', borderWidth: '0 0 8px 8px', borderColor: 'transparent transparent rgba(255,255,255,.3) transparent' }} />
+                            <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.85)', letterSpacing: '0.06em', paddingLeft: 5, position: 'relative', zIndex: 1 }}>{typeLabel}</span>
+                          </div>
+                          {/* Title + path + tags */}
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{
+                              display: 'flex', alignItems: 'center', gap: 8,
+                              fontSize: 14, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.35,
+                            }}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.title || item.name}
+                              </span>
+                              {isFavorite && <Star size={13} style={{ color: '#E6C84A', fill: '#E6C84A', flexShrink: 0 }} />}
+                            </div>
+                            <div style={{
+                              display: 'flex', alignItems: 'center', gap: 6, marginTop: 3,
+                              overflow: 'hidden',
+                            }}>
+                              {pathParts.length > 0 && (
+                                <div style={{
+                                  fontSize: 11, color: 'var(--ink-mute)',
+                                  display: 'flex', alignItems: 'center', gap: 4,
+                                  fontFamily: 'var(--font-mono, monospace)',
+                                  flexShrink: 1, minWidth: 0,
+                                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                }}>
+                                  <Folder size={10} style={{ flexShrink: 0 }} />
+                                  {pathParts.slice(0, 2).map((p: string, pi: number) => (
+                                    <span key={pi}>
+                                      {pi > 0 && <span style={{ color: 'var(--ink-ghost)', margin: '0 2px' }}>/</span>}
+                                      <span style={{ color: pi === pathParts.slice(0, 2).length - 1 ? 'var(--ink-mute)' : 'var(--ink-faint)' }}>{p}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              {itemTags.length > 0 && itemTags.slice(0, 3).map((tag: string, ti: number) => (
+                                <span key={ti} style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                                  height: 18, padding: '0 7px', borderRadius: 9,
+                                  fontSize: 10, fontWeight: 500, color: 'var(--ink-soft)',
+                                  background: 'var(--cream, #FAF5EA)', border: '1px solid var(--paper-edge)',
+                                  flexShrink: 0, whiteSpace: 'nowrap',
+                                }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: TAG_DOT_COLORS[ti % TAG_DOT_COLORS.length] }} />
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Progress */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {progressPct != null ? (<>
+                              <div style={{
+                                flex: 1, height: 5, borderRadius: 3,
+                                background: 'var(--paper-edge)', minWidth: 48, overflow: 'hidden',
+                              }}>
+                                <div style={{
+                                  height: '100%', borderRadius: 3,
+                                  width: `${Math.min(progressPct, 100)}%`,
+                                  background: progressPct >= 100 ? '#7AAE7E' : progressPct < 10 ? 'var(--ink-ghost)' : `linear-gradient(90deg, #F0A858, #E07856)`,
+                                }} />
+                              </div>
+                              <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--ink-mute)', fontWeight: 500, minWidth: 30, textAlign: 'right' }}>
+                                {progressPct >= 100 ? (locale === 'zh' ? '完成' : 'Done') : progressPct === 0 ? (locale === 'zh' ? '未读' : 'New') : `${progressPct}%`}
+                              </span>
+                            </>) : null}
+                          </div>
+                          {/* Time */}
+                          <div style={{ textAlign: 'right', position: 'relative' }}>
+                            <span className="nb-time-rel" style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 500, transition: 'opacity 0.12s' }}>{relative}</span>
+                            <span className="nb-time-abs" style={{ position: 'absolute', top: 0, right: 0, fontSize: 11, color: 'var(--ink-mute)', fontFamily: 'var(--font-mono, monospace)', opacity: 0, transition: 'opacity 0.12s', pointerEvents: 'none' }}>{absolute}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))
+              })() : layout.home.sectionCardStyle === 'card' && selectedSection === 'notes' ? (() => {
+                const NOTE_COVER_COLORS: Record<string, string[]> = {
+                  note: ['#5B8C6B', '#4A7A5C', '#6B9B7B', '#3D6B4E', '#7DAE8E'],
+                  mindmap: ['#9881B8', '#8570A6', '#AB94CA', '#7563A0', '#B9A0D9'],
+                  default: ['#6B8EA0', '#5A7D8F', '#7CA0B2', '#4D7080', '#8DB2C4'],
+                }
+                const noteColorFor = (type: string, title: string) => {
+                  const palette = NOTE_COVER_COLORS[type] || NOTE_COVER_COLORS.default
+                  let h = 0; for (let i = 0; i < (title || '').length; i++) h = ((h << 5) - h + (title || '').charCodeAt(i)) | 0
+                  return palette[Math.abs(h) % palette.length]
+                }
+                const sorted = [...displayItems].sort((a: any, b: any) => {
+                  const va = a.updatedAt || a.createdAt || ''
+                  const vb = b.updatedAt || b.createdAt || ''
+                  return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
+                })
+                const groups = groupByDate(sorted, locale)
+                return groups.map((group, gi) => (
+                  <div key={gi} style={{ marginBottom: 12 }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: gi === 0 ? '10px 12px 8px' : '14px 12px 8px',
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em', flexShrink: 0 }}>{group.label}</span>
+                      <span style={{ flex: 1, height: 1, background: 'var(--paper-edge)' }} />
+                      <span style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{group.items.length} {locale === 'zh' ? '篇笔记' : 'notes'}</span>
+                    </div>
+                    {group.items.map((item: any) => {
+                      const isSelected = selectedItemId === item.id
+                      const pill = TYPE_PILLS[item.type]
+                      const typeLabel = pill?.label ?? item.type
+                      const coverColor = noteColorFor(item.type, item.title || '')
+                      const { relative, absolute } = formatRelativeTime(item.updatedAt || item.createdAt, locale)
+                      const pathParts = item.path?.split('/').filter(Boolean) || []
+                      return (
+                        <div
+                          key={item.id}
+                          className="nb-doc-row"
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '60px minmax(0,1fr) 110px',
+                            gap: 14, alignItems: 'center',
+                            padding: '10px 12px', marginBottom: 2,
+                            cursor: 'pointer', borderRadius: 10,
+                            background: isSelected ? '#E8F1FB' : 'transparent',
+                            transition: 'all 0.12s',
+                            position: 'relative',
+                          }}
+                          onClick={() => handleSelectItem(item.id, 'note')}
+                          onDoubleClick={() => { if (item.type === 'mindmap') onOpenMindmap(item); else onOpenNote(item) }}
+                          onContextMenu={(e) => handleNoteItemContextMenu(e, item.id, item.title)}
+                          onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.background = '#fff'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(60,40,20,.06), 0 1px 2px rgba(60,40,20,.04)' } }}
+                          onMouseLeave={e => { e.currentTarget.style.background = isSelected ? '#E8F1FB' : 'transparent'; e.currentTarget.style.boxShadow = 'none' }}
+                        >
+                          {isSelected && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, background: '#4A90E2', borderRadius: '0 3px 3px 0' }} />}
+                          {/* Mini cover */}
+                          <div style={{
+                            width: 40, height: 48, borderRadius: 6,
+                            background: `linear-gradient(135deg, ${coverColor} 0%, ${coverColor}CC 100%)`,
+                            position: 'relative', overflow: 'hidden',
+                            boxShadow: '0 1px 3px rgba(60,40,20,.06)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
+                          }}>
+                            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'rgba(0,0,0,0.1)' }} />
+                            <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.85)', letterSpacing: '0.04em', position: 'relative', zIndex: 1 }}>{typeLabel}</span>
+                          </div>
+                          {/* Title + path */}
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{
+                              fontSize: 14, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.35,
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>
+                              {item.title || item.name}
+                            </div>
+                            {pathParts.length > 0 && (
+                              <div style={{
+                                fontSize: 11, color: 'var(--ink-mute)', marginTop: 3,
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                display: 'flex', alignItems: 'center', gap: 4,
+                              }}>
+                                <Folder size={10} style={{ flexShrink: 0, opacity: 0.5 }} />
+                                {pathParts.map((seg: string, si: number) => (
+                                  <React.Fragment key={si}>
+                                    {si > 0 && <span style={{ opacity: 0.3 }}>/</span>}
+                                    <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10 }}>{seg}</span>
+                                  </React.Fragment>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {/* Time */}
+                          <div style={{ textAlign: 'right', position: 'relative' }}>
+                            <span className="nb-time-rel" style={{ fontSize: 12, color: 'var(--ink-soft)', fontWeight: 500, transition: 'opacity 0.12s' }}>{relative}</span>
+                            <span className="nb-time-abs" style={{ position: 'absolute', top: 0, right: 0, fontSize: 11, color: 'var(--ink-mute)', fontFamily: 'var(--font-mono, monospace)', opacity: 0, transition: 'opacity 0.12s', pointerEvents: 'none' }}>{absolute}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))
+              })() : displayItems.map((item: any) => {
                 const isSelected = selectedItemId === item.id
                 const pill = TYPE_PILLS[item.type]
                 const typeLabel = item.type === 'other' || (item.type === 'txt' && item.path && !item.path.endsWith('.txt'))
@@ -1784,6 +2528,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 )
               })}
             </div>
+          </div>
           </>
         )}
       </div>
@@ -2045,9 +2790,9 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
           borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
           padding: '4px 0', minWidth: 160,
         }}>
-          {contextMenu.type === 'documents' && (
+          {(contextMenu.type === 'documents' || contextMenu.type === 'docDir') && (
             <>
-              <div onClick={async () => { setContextMenu(null); await api.documents.import(selectedDir || undefined); await loadDocuments() }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
+              <div onClick={async () => { setContextMenu(null); await api.documents.import(contextMenu.dirPath || selectedDir || undefined); await loadDocuments() }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><Download size={14} />{t('common.import')}</div>
@@ -2055,6 +2800,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><FolderPlus size={14} />{t('library.newFolder')}</div>
+              {contextMenu.type === 'docDir' && contextMenu.dirPath && (
+                <div onClick={handleRenameDir} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                ><Pencil size={14} />{t('library.rename')}</div>
+              )}
             </>
           )}
           {(contextMenu.type === 'notes' || contextMenu.type === 'noteDir') && (
@@ -2118,7 +2869,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 }
 
 
-function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l: Locale) => void; t: (k: string, ...a: any[]) => string }) {
+function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l: Locale) => void; t: (...args: any[]) => string }) {
   const { theme: appTheme, setTheme: setAppTheme } = useTheme()
   const [noteTheme, setNoteTheme] = React.useState(getStoredNoteTheme)
 

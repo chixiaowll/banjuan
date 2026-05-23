@@ -155,10 +155,12 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
     const pos = lastPositionRef.current
     if (!pos) return
     const d = docRef.current
+    const total = ctx.numPages
+    const percentage = total > 0 ? pos.page / total : 0
     api.documents.update(d.id, {
-      metadata: { readingPosition: pos },
+      metadata: { readingPosition: { ...pos, totalPages: total, percentage } },
     }).catch(() => {})
-  }, [])
+  }, [ctx.numPages])
 
   useEffect(() => {
     if (ctx.currentPage <= 0) return

@@ -6,6 +6,8 @@ const POETRY_FONT = '"Noto Serif SC", "Songti SC", "STSong", "Noto Serif CJK SC"
 interface Poem {
   title: string
   author: string
+  dynasty?: string
+  year?: string
   tag: string
   lines: string[]
 }
@@ -440,43 +442,44 @@ interface FlowPoem {
   title: string
   author: string
   tag: string
+  mood: string
   lines: string[]
   dimStart: number
 }
 
 const POEMS_FLOW: FlowPoem[] = [
-  { title: '定风波', author: '苏轼', tag: '宋', lines: ['莫听穿林打叶声，何妨吟啸且徐行。', '竹杖芒鞋轻胜马，谁怕？一蓑烟雨任平生。'], dimStart: 5 },
-  { title: '赴戍登程口占示家人', author: '林则徐', tag: '清', lines: ['力微任重久神疲，再竭衰庸定不支。', '苟利国家生死以，岂因祸福避趋之。'], dimStart: 7 },
-  { title: '静夜思', author: '李白', tag: '唐', lines: ['床前明月光，疑是地上霜。', '举头望明月，低头思故乡。'], dimStart: 5 },
-  { title: '登鹳雀楼', author: '王之涣', tag: '唐', lines: ['白日依山尽，黄河入海流。', '欲穷千里目，更上一层楼。'], dimStart: 5 },
-  { title: '春晓', author: '孟浩然', tag: '唐', lines: ['春眠不觉晓，处处闻啼鸟。', '夜来风雨声，花落知多少。'], dimStart: 5 },
-  { title: '江雪', author: '柳宗元', tag: '唐', lines: ['千山鸟飞绝，万径人踪灭。', '孤舟蓑笠翁，独钓寒江雪。'], dimStart: 5 },
-  { title: '悯农', author: '李绅', tag: '唐', lines: ['锄禾日当午，汗滴禾下土。', '谁知盘中餐，粒粒皆辛苦。'], dimStart: 5 },
-  { title: '望岳', author: '杜甫', tag: '唐', lines: ['岱宗夫如何，齐鲁青未了。', '造化钟神秀，阴阳割昏晓。'], dimStart: 5 },
-  { title: '相思', author: '王维', tag: '唐', lines: ['红豆生南国，春来发几枝。', '愿君多采撷，此物最相思。'], dimStart: 5 },
-  { title: '出塞', author: '王昌龄', tag: '唐', lines: ['秦时明月汉时关，万里长征人未还。', '但使龙城飞将在，不教胡马度阴山。'], dimStart: 7 },
-  { title: '凉州词', author: '王翰', tag: '唐', lines: ['葡萄美酒夜光杯，欲饮琵琶马上催。', '醉卧沙场君莫笑，古来征战几人回。'], dimStart: 7 },
-  { title: '题西林壁', author: '苏轼', tag: '宋', lines: ['横看成岭侧成峰，远近高低各不同。', '不识庐山真面目，只缘身在此山中。'], dimStart: 7 },
-  { title: '示儿', author: '陆游', tag: '宋', lines: ['死去元知万事空，但悲不见九州同。', '王师北定中原日，家祭无忘告乃翁。'], dimStart: 7 },
-  { title: '夏日绝句', author: '李清照', tag: '宋', lines: ['生当作人杰，死亦为鬼雄。', '至今思项羽，不肯过江东。'], dimStart: 5 },
-  { title: '梅花', author: '王安石', tag: '宋', lines: ['墙角数枝梅，凌寒独自开。', '遥知不是雪，为有暗香来。'], dimStart: 5 },
-  { title: '己亥杂诗', author: '龚自珍', tag: '清', lines: ['九州生气恃风雷，万马齐喑究可哀。', '我劝天公重抖擞，不拘一格降人才。'], dimStart: 7 },
-  { title: '竹石', author: '郑燮', tag: '清', lines: ['咬定青山不放松，立根原在破岩中。', '千磨万击还坚劲，任尔东西南北风。'], dimStart: 7 },
-  { title: '游山西村', author: '陆游', tag: '宋', lines: ['莫笑农家腊酒浑，丰年留客足鸡豚。', '山重水复疑无路，柳暗花明又一村。'], dimStart: 7 },
-  { title: '乌衣巷', author: '刘禹锡', tag: '唐', lines: ['朱雀桥边野草花，乌衣巷口夕阳斜。', '旧时王谢堂前燕，飞入寻常百姓家。'], dimStart: 7 },
-  { title: '芙蓉楼送辛渐', author: '王昌龄', tag: '唐', lines: ['寒雨连江夜入吴，平明送客楚山孤。', '洛阳亲友如相问，一片冰心在玉壶。'], dimStart: 7 },
-  { title: '回乡偶书', author: '贺知章', tag: '唐', lines: ['少小离家老大回，乡音无改鬓毛衰。', '儿童相见不相识，笑问客从何处来。'], dimStart: 7 },
-  { title: '早发白帝城', author: '李白', tag: '唐', lines: ['朝辞白帝彩云间，千里江陵一日还。', '两岸猿声啼不住，轻舟已过万重山。'], dimStart: 7 },
-  { title: '绝句', author: '杜甫', tag: '唐', lines: ['两个黄鹂鸣翠柳，一行白鹭上青天。', '窗含西岭千秋雪，门泊东吴万里船。'], dimStart: 7 },
-  { title: '枫桥夜泊', author: '张继', tag: '唐', lines: ['月落乌啼霜满天，江枫渔火对愁眠。', '姑苏城外寒山寺，夜半钟声到客船。'], dimStart: 7 },
-  { title: '泊船瓜洲', author: '王安石', tag: '宋', lines: ['京口瓜洲一水间，钟山只隔数重山。', '春风又绿江南岸，明月何时照我还。'], dimStart: 7 },
-  { title: '山行', author: '杜牧', tag: '唐', lines: ['远上寒山石径斜，白云生处有人家。', '停车坐爱枫林晚，霜叶红于二月花。'], dimStart: 7 },
-  { title: '望庐山瀑布', author: '李白', tag: '唐', lines: ['日照香炉生紫烟，遥看瀑布挂前川。', '飞流直下三千尺，疑是银河落九天。'], dimStart: 7 },
-  { title: '饮湖上初晴后雨', author: '苏轼', tag: '宋', lines: ['水光潋滟晴方好，山色空蒙雨亦奇。', '欲把西湖比西子，淡妆浓抹总相宜。'], dimStart: 7 },
-  { title: '晓出净慈寺送林子方', author: '杨万里', tag: '宋', lines: ['毕竟西湖六月中，风光不与四时同。', '接天莲叶无穷碧，映日荷花别样红。'], dimStart: 7 },
-  { title: '送元二使安西', author: '王维', tag: '唐', lines: ['渭城朝雨浥轻尘，客舍青青柳色新。', '劝君更尽一杯酒，西出阳关无故人。'], dimStart: 7 },
-  { title: '别董大', author: '高适', tag: '唐', lines: ['千里黄云白日曛，北风吹雁雪纷纷。', '莫愁前路无知己，天下谁人不识君。'], dimStart: 7 },
-  { title: '春日', author: '朱熹', tag: '宋', lines: ['胜日寻芳泗水滨，无边光景一时新。', '等闲识得东风面，万紫千红总是春。'], dimStart: 7 },
+  { title: '定风波', author: '苏轼', tag: '宋', mood: '旷达', lines: ['莫听穿林打叶声，何妨吟啸且徐行。', '竹杖芒鞋轻胜马，谁怕？一蓑烟雨任平生。'], dimStart: 5 },
+  { title: '赴戍登程口占示家人', author: '林则徐', tag: '清', mood: '壮志', lines: ['力微任重久神疲，再竭衰庸定不支。', '苟利国家生死以，岂因祸福避趋之。'], dimStart: 7 },
+  { title: '静夜思', author: '李白', tag: '唐', mood: '思归', lines: ['床前明月光，疑是地上霜。', '举头望明月，低头思故乡。'], dimStart: 5 },
+  { title: '登鹳雀楼', author: '王之涣', tag: '唐', mood: '高远', lines: ['白日依山尽，黄河入海流。', '欲穷千里目，更上一层楼。'], dimStart: 5 },
+  { title: '春晓', author: '孟浩然', tag: '唐', mood: '闲适', lines: ['春眠不觉晓，处处闻啼鸟。', '夜来风雨声，花落知多少。'], dimStart: 5 },
+  { title: '江雪', author: '柳宗元', tag: '唐', mood: '孤傲', lines: ['千山鸟飞绝，万径人踪灭。', '孤舟蓑笠翁，独钓寒江雪。'], dimStart: 5 },
+  { title: '悯农', author: '李绅', tag: '唐', mood: '悯世', lines: ['锄禾日当午，汗滴禾下土。', '谁知盘中餐，粒粒皆辛苦。'], dimStart: 5 },
+  { title: '望岳', author: '杜甫', tag: '唐', mood: '豪迈', lines: ['岱宗夫如何，齐鲁青未了。', '造化钟神秀，阴阳割昏晓。'], dimStart: 5 },
+  { title: '相思', author: '王维', tag: '唐', mood: '深情', lines: ['红豆生南国，春来发几枝。', '愿君多采撷，此物最相思。'], dimStart: 5 },
+  { title: '出塞', author: '王昌龄', tag: '唐', mood: '慷慨', lines: ['秦时明月汉时关，万里长征人未还。', '但使龙城飞将在，不教胡马度阴山。'], dimStart: 7 },
+  { title: '凉州词', author: '王翰', tag: '唐', mood: '洒脱', lines: ['葡萄美酒夜光杯，欲饮琵琶马上催。', '醉卧沙场君莫笑，古来征战几人回。'], dimStart: 7 },
+  { title: '题西林壁', author: '苏轼', tag: '宋', mood: '超然', lines: ['横看成岭侧成峰，远近高低各不同。', '不识庐山真面目，只缘身在此山中。'], dimStart: 7 },
+  { title: '示儿', author: '陆游', tag: '宋', mood: '悲壮', lines: ['死去元知万事空，但悲不见九州同。', '王师北定中原日，家祭无忘告乃翁。'], dimStart: 7 },
+  { title: '夏日绝句', author: '李清照', tag: '宋', mood: '风骨', lines: ['生当作人杰，死亦为鬼雄。', '至今思项羽，不肯过江东。'], dimStart: 5 },
+  { title: '梅花', author: '王安石', tag: '宋', mood: '清雅', lines: ['墙角数枝梅，凌寒独自开。', '遥知不是雪，为有暗香来。'], dimStart: 5 },
+  { title: '己亥杂诗', author: '龚自珍', tag: '清', mood: '磊落', lines: ['九州生气恃风雷，万马齐喑究可哀。', '我劝天公重抖擞，不拘一格降人才。'], dimStart: 7 },
+  { title: '竹石', author: '郑燮', tag: '清', mood: '坚韧', lines: ['咬定青山不放松，立根原在破岩中。', '千磨万击还坚劲，任尔东西南北风。'], dimStart: 7 },
+  { title: '游山西村', author: '陆游', tag: '宋', mood: '悠然', lines: ['莫笑农家腊酒浑，丰年留客足鸡豚。', '山重水复疑无路，柳暗花明又一村。'], dimStart: 7 },
+  { title: '乌衣巷', author: '刘禹锡', tag: '唐', mood: '怀古', lines: ['朱雀桥边野草花，乌衣巷口夕阳斜。', '旧时王谢堂前燕，飞入寻常百姓家。'], dimStart: 7 },
+  { title: '芙蓉楼送辛渐', author: '王昌龄', tag: '唐', mood: '淡泊', lines: ['寒雨连江夜入吴，平明送客楚山孤。', '洛阳亲友如相问，一片冰心在玉壶。'], dimStart: 7 },
+  { title: '回乡偶书', author: '贺知章', tag: '唐', mood: '感怀', lines: ['少小离家老大回，乡音无改鬓毛衰。', '儿童相见不相识，笑问客从何处来。'], dimStart: 7 },
+  { title: '早发白帝城', author: '李白', tag: '唐', mood: '飘逸', lines: ['朝辞白帝彩云间，千里江陵一日还。', '两岸猿声啼不住，轻舟已过万重山。'], dimStart: 7 },
+  { title: '绝句', author: '杜甫', tag: '唐', mood: '灵动', lines: ['两个黄鹂鸣翠柳，一行白鹭上青天。', '窗含西岭千秋雪，门泊东吴万里船。'], dimStart: 7 },
+  { title: '枫桥夜泊', author: '张继', tag: '唐', mood: '惆怅', lines: ['月落乌啼霜满天，江枫渔火对愁眠。', '姑苏城外寒山寺，夜半钟声到客船。'], dimStart: 7 },
+  { title: '泊船瓜洲', author: '王安石', tag: '宋', mood: '思归', lines: ['京口瓜洲一水间，钟山只隔数重山。', '春风又绿江南岸，明月何时照我还。'], dimStart: 7 },
+  { title: '山行', author: '杜牧', tag: '唐', mood: '闲适', lines: ['远上寒山石径斜，白云生处有人家。', '停车坐爱枫林晚，霜叶红于二月花。'], dimStart: 7 },
+  { title: '望庐山瀑布', author: '李白', tag: '唐', mood: '豪迈', lines: ['日照香炉生紫烟，遥看瀑布挂前川。', '飞流直下三千尺，疑是银河落九天。'], dimStart: 7 },
+  { title: '饮湖上初晴后雨', author: '苏轼', tag: '宋', mood: '隽永', lines: ['水光潋滟晴方好，山色空蒙雨亦奇。', '欲把西湖比西子，淡妆浓抹总相宜。'], dimStart: 7 },
+  { title: '晓出净慈寺送林子方', author: '杨万里', tag: '宋', mood: '明快', lines: ['毕竟西湖六月中，风光不与四时同。', '接天莲叶无穷碧，映日荷花别样红。'], dimStart: 7 },
+  { title: '送元二使安西', author: '王维', tag: '唐', mood: '惜别', lines: ['渭城朝雨浥轻尘，客舍青青柳色新。', '劝君更尽一杯酒，西出阳关无故人。'], dimStart: 7 },
+  { title: '别董大', author: '高适', tag: '唐', mood: '豁达', lines: ['千里黄云白日曛，北风吹雁雪纷纷。', '莫愁前路无知己，天下谁人不识君。'], dimStart: 7 },
+  { title: '春日', author: '朱熹', tag: '宋', mood: '欣悦', lines: ['胜日寻芳泗水滨，无边光景一时新。', '等闲识得东风面，万紫千红总是春。'], dimStart: 7 },
 ]
 
 function getDailyPoem(poems: Poem[]): Poem {
@@ -616,10 +619,42 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
     if (monthTerms.length === 2) {
       const d1 = calcDay(monthTerms[0][2])
       const d2 = calcDay(monthTerms[1][2])
-      if (dd >= d2) { termStr = monthTerms[1][1]; termDesc = termDescMap[termStr] || '' }
-      else if (dd >= d1) { termStr = monthTerms[0][1]; termDesc = termDescMap[termStr] || '' }
+      if (dd === d2) { termStr = monthTerms[1][1]; termDesc = termDescMap[termStr] || '' }
+      else if (dd === d1) { termStr = monthTerms[0][1]; termDesc = termDescMap[termStr] || '' }
     }
-
+    const dailyQuotes = [
+      '读书不觉已春深，一寸光阴一寸金',
+      '腹有诗书气自华',
+      '好读书，不求甚解',
+      '书卷多情似故人，晨昏忧乐每相亲',
+      '读书破万卷，下笔如有神',
+      '半亩方塘一鉴开，天光云影共徘徊',
+      '纸上得来终觉浅，绝知此事要躬行',
+      '问渠那得清如许，为有源头活水来',
+      '旧书不厌百回读，熟读深思子自知',
+      '少年辛苦终身事，莫向光阴惰寸功',
+      '三更灯火五更鸡，正是男儿读书时',
+      '万般皆下品，惟有读书高',
+      '书山有路勤为径，学海无涯苦作舟',
+      '粗缯大布裹生涯，腹有诗书气自华',
+      '风声雨声读书声，声声入耳',
+      '鸟欲高飞先振翅，人求上进先读书',
+      '黑发不知勤学早，白首方悔读书迟',
+      '立身以立学为先，立学以读书为本',
+      '盛年不重来，一日难再晨',
+      '及时当勉励，岁月不待人',
+      '不畏浮云遮望眼，自缘身在最高层',
+      '千淘万漉虽辛苦，吹尽狂沙始到金',
+      '长风破浪会有时，直挂云帆济沧海',
+      '沉舟侧畔千帆过，病树前头万木春',
+      '山重水复疑无路，柳暗花明又一村',
+      '欲穷千里目，更上一层楼',
+      '会当凌绝顶，一览众山小',
+      '海内存知己，天涯若比邻',
+      '莫愁前路无知己，天下谁人不识君',
+      '天生我材必有用，千金散尽还复来',
+      '春风得意马蹄疾，一日看尽长安花',
+    ]
     const displayTitle = flowPoem?.title ?? poem.title
     const displayAuthor = flowPoem?.author ?? poem.author
     const displayTag = flowPoem?.tag ?? poem.tag
@@ -649,10 +684,11 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
     const calendarAccent = '#E07856'
     const yearNo = now.getFullYear()
     const dayOfYear = Math.floor((now.getTime() - new Date(yearNo, 0, 0).getTime()) / 86400000)
+    const dailyQuote = dailyQuotes[dayOfYear % dailyQuotes.length]
 
     return (
       <div
-        style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 18, position: 'relative' }}
+        style={{ display: 'grid', gridTemplateColumns: '2fr 3fr', gap: 18, position: 'relative' }}
       >
         {/* ── Torn calendar date card ── */}
         <div style={{
@@ -677,7 +713,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             </div>
           </div>
           {/* Card body */}
-          <div style={{ padding: '18px 24px 22px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <div style={{ padding: '16px 24px 20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
             {/* Day number */}
             <div style={{
               fontSize: 72, fontWeight: 700, color: 'var(--ink, #2A2722)', lineHeight: 1,
@@ -690,31 +726,29 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             {/* Divider */}
             <div style={{ height: 1, background: 'var(--border, #F0EBE0)', margin: '14px 0' }} />
             {/* Extra info */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 12, color: 'var(--ink-mute, #8A8377)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 12, color: 'var(--ink-mute, #8A8377)', flexWrap: 'wrap' }}>
               {lunarStr && <span style={{ fontWeight: 500 }}>{lunarStr}</span>}
               {!lunarStr && <span>{now.getFullYear()}</span>}
               {termStr && (
                 <span style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5,
                   padding: '3px 9px', borderRadius: 11,
-                  background: 'var(--accent-bg, #E8F1FB)', color: 'var(--accent, #E8825D)',
+                  background: '#E8F1FB', color: '#4A90E2',
                   fontSize: 11, fontWeight: 600,
                 }}>
-                  <span style={{ width: 5, height: 5, background: 'var(--accent, #E8825D)', borderRadius: '50%' }} />
+                  <span style={{ width: 5, height: 5, background: '#4A90E2', borderRadius: '50%' }} />
                   {termStr}
                 </span>
               )}
             </div>
             {/* Handwritten note */}
-            {termDesc && (
-              <div style={{
-                marginTop: 14, fontFamily: '"Caveat", "Kalam", cursive', fontSize: 17,
-                color: calendarAccent, textAlign: 'center', transform: 'rotate(-2deg)',
-                borderTop: '1px dashed var(--border, #F0EBE0)', paddingTop: 10,
-              }}>
-                {termDesc} ~
-              </div>
-            )}
+            <div style={{
+              marginTop: 14, fontFamily: '"Caveat", "Kalam", cursive', fontSize: 17,
+              color: calendarAccent, textAlign: 'center', transform: 'rotate(-2deg)',
+              borderTop: '1px dashed var(--border, #F0EBE0)', paddingTop: 10,
+            }}>
+              {termDesc ? `${termDesc} ~` : dailyQuote}
+            </div>
           </div>
         </div>
 
@@ -729,22 +763,17 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
           style={{
           background: '#fff', borderRadius: 14, padding: '26px 30px', position: 'relative', overflow: 'hidden',
           boxShadow: '0 4px 12px rgba(60,40,20,0.08), 0 2px 4px rgba(60,40,20,0.04)',
-          backgroundImage: [
-            'linear-gradient(180deg, transparent 0%, transparent 28px, rgba(74,144,226,0.08) 28px, rgba(74,144,226,0.08) 29px, transparent 29px)',
-            'linear-gradient(180deg, transparent 0%, transparent 60px, rgba(74,144,226,0.08) 60px, rgba(74,144,226,0.08) 61px, transparent 61px)',
-            'linear-gradient(180deg, transparent 0%, transparent 92px, rgba(74,144,226,0.08) 92px, rgba(74,144,226,0.08) 93px, transparent 93px)',
-            'linear-gradient(180deg, transparent 0%, transparent 124px, rgba(74,144,226,0.08) 124px, rgba(74,144,226,0.08) 125px, transparent 125px)',
-            'linear-gradient(180deg, transparent 0%, transparent 156px, rgba(74,144,226,0.08) 156px, rgba(74,144,226,0.08) 157px, transparent 157px)',
-            'linear-gradient(180deg, transparent 0%, transparent 188px, rgba(74,144,226,0.08) 188px, rgba(74,144,226,0.08) 189px, transparent 189px)',
-            'linear-gradient(180deg, transparent 0%, transparent 220px, rgba(74,144,226,0.08) 220px, rgba(74,144,226,0.08) 221px, transparent 221px)',
-          ].join(','),
+          backgroundImage: Array.from({ length: 8 }, (_, i) => {
+            const y = 28 + i * 34
+            return `linear-gradient(180deg, transparent 0%, transparent ${y}px, rgba(74,144,226,0.08) ${y}px, rgba(74,144,226,0.08) ${y + 1}px, transparent ${y + 1}px)`
+          }).join(','),
         }}>
           {/* Red binding margin line */}
-          <div style={{ position: 'absolute', left: 54, top: 0, bottom: 0, width: 1, background: 'rgba(224,120,86,0.4)' }} />
+          <div style={{ position: 'absolute', left: 48, top: 0, bottom: 0, width: 1, background: 'rgba(224,120,86,0.4)' }} />
           {/* Binding holes */}
-          {[36, 72, 108, 144, 180].map(top => (
+          {[32, 64, 96, 128, 160, 192].map(top => (
             <div key={top} style={{
-              position: 'absolute', left: 18, top, width: 8, height: 8, borderRadius: '50%',
+              position: 'absolute', left: 16, top, width: 7, height: 7, borderRadius: '50%',
               background: 'var(--bg, #F3EEE5)',
             }} />
           ))}
@@ -753,7 +782,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             {/* Poem header */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              marginLeft: 32, marginBottom: 14, paddingBottom: 10,
+              marginLeft: 32, marginBottom: 12, paddingBottom: 8,
               borderBottom: '1px solid var(--border, #F0EBE0)',
             }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ink-mute, #8A8377)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -767,31 +796,41 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             {/* Poem text */}
             <div style={{
               marginLeft: 32, fontFamily: isEn ? '"Inter", serif' : '"Source Han Serif SC", "Noto Serif SC", "Songti SC", serif',
-              fontSize: 18, fontWeight: 400, color: 'var(--ink, #2A2722)', lineHeight: '32px',
+              fontSize: 18, fontWeight: 400, color: 'var(--ink, #2A2722)', lineHeight: '34px',
               letterSpacing: isEn ? '0' : '0.05em',
             }}>
               {renderNotebookLines()}
             </div>
             {/* Author */}
-            <div style={{ marginLeft: 32, marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ marginLeft: 32, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border, #F0EBE0)', display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
-                width: 32, height: 32, borderRadius: '50%',
+                width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
                 background: 'linear-gradient(135deg, #A8835C, #E8D9B8)',
                 color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: '"Source Han Serif SC", "Noto Serif SC", serif', fontSize: 14, fontWeight: 600,
               }}>{displayAuthor[0]}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, color: 'var(--ink, #2A2722)', fontWeight: 600 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: 'var(--ink, #2A2722)', fontWeight: 600 }}>
                   {displayAuthor} ·《{displayTitle}》
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--ink-mute, #8A8377)' }}>
+                <div style={{ fontSize: 12, color: 'var(--ink-mute, #8A8377)' }}>
                   {displayTag}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button onClick={(e) => e.stopPropagation()} style={{
+                  width: 30, height: 30, borderRadius: '50%', border: 'none',
+                  background: '#FAF5EA', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#E07856', cursor: 'pointer', fontSize: 14,
+                }}>♥</button>
+                <button onClick={(e) => e.stopPropagation()} style={{
+                  width: 30, height: 30, borderRadius: '50%', border: 'none',
+                  background: '#FAF5EA', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--ink-soft, #5C564E)', cursor: 'pointer', fontSize: 14,
+                }}>⤴</button>
                 <button onClick={(e) => { e.stopPropagation(); navigate() }} style={{
                   width: 30, height: 30, borderRadius: '50%', border: 'none',
-                  background: 'var(--hover, #FAF5EA)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: '#FAF5EA', display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: 'var(--ink-soft, #5C564E)', cursor: 'pointer', fontSize: 14,
                 }}>↻</button>
               </div>
@@ -803,7 +842,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             fontFamily: '"Caveat", "Kalam", cursive', fontSize: 16,
             color: calendarAccent, transform: 'rotate(-3deg)', pointerEvents: 'none',
           }}>
-            ⌐ {isEn ? 'poetic' : '旷达'} ☂
+            ⌐ {isEn ? 'poetic' : (flowPoem?.mood ?? '诗意')} ☂
           </div>
         </div>
       </div>
@@ -858,9 +897,44 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
     if (monthTerms.length === 2) {
       const d1 = calcDay(monthTerms[0][2])
       const d2 = calcDay(monthTerms[1][2])
-      if (dd >= d2) { termStr = monthTerms[1][1]; termDesc = termDescMap[termStr] || '' }
-      else if (dd >= d1) { termStr = monthTerms[0][1]; termDesc = termDescMap[termStr] || '' }
+      if (dd === d2) { termStr = monthTerms[1][1]; termDesc = termDescMap[termStr] || '' }
+      else if (dd === d1) { termStr = monthTerms[0][1]; termDesc = termDescMap[termStr] || '' }
     }
+    const dailyQuotes2 = [
+      '读书不觉已春深，一寸光阴一寸金',
+      '腹有诗书气自华',
+      '好读书，不求甚解',
+      '书卷多情似故人，晨昏忧乐每相亲',
+      '读书破万卷，下笔如有神',
+      '半亩方塘一鉴开，天光云影共徘徊',
+      '纸上得来终觉浅，绝知此事要躬行',
+      '问渠那得清如许，为有源头活水来',
+      '旧书不厌百回读，熟读深思子自知',
+      '少年辛苦终身事，莫向光阴惰寸功',
+      '三更灯火五更鸡，正是男儿读书时',
+      '万般皆下品，惟有读书高',
+      '书山有路勤为径，学海无涯苦作舟',
+      '粗缯大布裹生涯，腹有诗书气自华',
+      '风声雨声读书声，声声入耳',
+      '鸟欲高飞先振翅，人求上进先读书',
+      '黑发不知勤学早，白首方悔读书迟',
+      '立身以立学为先，立学以读书为本',
+      '盛年不重来，一日难再晨',
+      '及时当勉励，岁月不待人',
+      '不畏浮云遮望眼，自缘身在最高层',
+      '千淘万漉虽辛苦，吹尽狂沙始到金',
+      '长风破浪会有时，直挂云帆济沧海',
+      '沉舟侧畔千帆过，病树前头万木春',
+      '山重水复疑无路，柳暗花明又一村',
+      '欲穷千里目，更上一层楼',
+      '会当凌绝顶，一览众山小',
+      '海内存知己，天涯若比邻',
+      '莫愁前路无知己，天下谁人不识君',
+      '天生我材必有用，千金散尽还复来',
+      '春风得意马蹄疾，一日看尽长安花',
+    ]
+    const dayOfYear2 = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)
+    const dailyQuote2 = dailyQuotes2[dayOfYear2 % dailyQuotes2.length]
 
     const displayTitle = flowPoem?.title ?? poem.title
     const displayAuthor = flowPoem?.author ?? poem.author
@@ -911,20 +985,24 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             {isEn ? weekdays[now.getDay()] : `周${weekdays[now.getDay()]}`}
             {lunarStr && ` · ${lunarStr}`}
           </div>
-          {termStr && (
-            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                height: 22, padding: '0 9px', borderRadius: 11,
-                background: 'var(--hover)', fontSize: 11, color: 'var(--ink-soft)', fontWeight: 500,
-                border: '1px solid var(--border)',
-              }}>
-                <span style={{ width: 5, height: 5, background: '#10B981', borderRadius: '50%' }} />
-                {termStr}
-              </span>
-              {termDesc && <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{termDesc}</span>}
-            </div>
-          )}
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {termStr ? (
+              <>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  height: 22, padding: '0 9px', borderRadius: 11,
+                  background: 'var(--hover)', fontSize: 11, color: 'var(--ink-soft)', fontWeight: 500,
+                  border: '1px solid var(--border)',
+                }}>
+                  <span style={{ width: 5, height: 5, background: '#10B981', borderRadius: '50%' }} />
+                  {termStr}
+                </span>
+                {termDesc && <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{termDesc}</span>}
+              </>
+            ) : (
+              <span style={{ fontSize: 11, color: 'var(--ink-faint)', fontStyle: 'italic' }}>{dailyQuote2}</span>
+            )}
+          </div>
         </div>
 
         {/* Quote block */}

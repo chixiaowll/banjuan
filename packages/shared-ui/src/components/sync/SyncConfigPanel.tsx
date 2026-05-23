@@ -131,10 +131,9 @@ export default function SyncConfigPanel({ onClose }: Props) {
     }
   }
 
-  const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '6px' }
-  const labelStyle: React.CSSProperties = { fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary, #6e6e73)' }
+  const labelStyle: React.CSSProperties = { fontSize: '12px', fontWeight: 500, color: 'var(--ink-mute, var(--text-secondary, #6e6e73))' }
   const inputStyle: React.CSSProperties = {
-    padding: '8px 12px', borderRadius: 'var(--radius-sm, 6px)', border: '1px solid var(--border-solid, #e5e5e7)',
+    padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--paper-edge, var(--border-solid, #e5e5e7))',
     background: 'var(--surface-raised, #fff)', fontSize: '14px', width: '100%', boxSizing: 'border-box',
     fontFamily: 'inherit', outline: 'none',
   }
@@ -143,67 +142,67 @@ export default function SyncConfigPanel({ onClose }: Props) {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-    }} onClick={(e) => { if (e.target === e.currentTarget && !syncing) onClose() }}>
-      <div style={{
-        background: 'var(--surface-raised, #fff)', border: '1px solid var(--border-solid, #e5e5e7)',
-        borderRadius: 'var(--radius-lg, 14px)', padding: '24px', width: '420px',
-        boxShadow: 'var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.08))',
-        display: 'flex', flexDirection: 'column', gap: '16px',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontSize: '16px', margin: 0 }}>{t('sync.title')}</h2>
-          <button onClick={onClose} disabled={syncing} style={{ fontSize: '16px', lineHeight: 1, padding: '2px 8px', opacity: syncing ? 0.3 : 1 }}>×</button>
+      flex: 1, overflow: 'auto',
+      display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+      padding: '48px 24px 80px',
+    }}>
+      <div style={{ width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 600, margin: '0 0 4px', color: 'var(--ink, #2A2722)' }}>{t('sync.title')}</h2>
+          <p style={{ fontSize: 13, color: 'var(--ink-mute, #8A8377)', margin: 0 }}>WebDAV</p>
         </div>
 
-        <div style={fieldStyle}>
-          <label style={labelStyle}>{t('sync.url')}</label>
-          <input style={inputStyle} type="url" placeholder="https://example.com/dav" value={config.url}
-            onChange={(e) => setConfig(c => ({ ...c, url: e.target.value }))} disabled={syncing} />
-        </div>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>{t('sync.username')}</label>
-          <input style={inputStyle} type="text" value={config.username}
-            onChange={(e) => setConfig(c => ({ ...c, username: e.target.value }))} disabled={syncing} />
-        </div>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>{t('sync.password')}</label>
-          <input style={inputStyle} type="password" value={config.password}
-            onChange={(e) => setConfig(c => ({ ...c, password: e.target.value }))} disabled={syncing} />
-        </div>
-        <div style={fieldStyle}>
-          <label style={labelStyle}>{t('sync.remotePath')}</label>
-          <input style={inputStyle} type="text" placeholder="/banjuan" value={config.remotePath}
-            onChange={(e) => setConfig(c => ({ ...c, remotePath: e.target.value }))} disabled={syncing} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <label style={labelStyle}>{t('sync.url')}</label>
+            <input style={inputStyle} type="url" placeholder="https://example.com/dav" value={config.url}
+              onChange={(e) => setConfig(c => ({ ...c, url: e.target.value }))} disabled={syncing} />
+          </div>
+          <div style={{ display: 'flex', gap: 14 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={labelStyle}>{t('sync.username')}</label>
+              <input style={inputStyle} type="text" value={config.username}
+                onChange={(e) => setConfig(c => ({ ...c, username: e.target.value }))} disabled={syncing} />
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={labelStyle}>{t('sync.password')}</label>
+              <input style={inputStyle} type="password" value={config.password}
+                onChange={(e) => setConfig(c => ({ ...c, password: e.target.value }))} disabled={syncing} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <label style={labelStyle}>{t('sync.remotePath')}</label>
+            <input style={inputStyle} type="text" placeholder="/banjuan" value={config.remotePath}
+              onChange={(e) => setConfig(c => ({ ...c, remotePath: e.target.value }))} disabled={syncing} />
+          </div>
         </div>
 
         <button onClick={handleTestConnection} disabled={testing || syncing}
           style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-            padding: '6px 12px', fontSize: '13px', color: 'var(--text-muted)',
-            border: '1px solid var(--border)', borderRadius: '6px', background: 'transparent',
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '7px 14px', fontSize: '13px', color: 'var(--ink-soft, var(--text-muted))',
+            border: '1px solid var(--paper-edge, var(--border))', borderRadius: '8px', background: 'var(--surface-raised, #fff)',
             cursor: testing || syncing ? 'not-allowed' : 'pointer', opacity: testing || syncing ? 0.5 : 1,
-            alignSelf: 'flex-start',
+            alignSelf: 'flex-start', fontWeight: 500,
           }}>
           <Wifi size={14} />{testing ? t('sync.testing') : t('sync.testConnection')}
         </button>
 
         {progress && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-muted)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--ink-mute, var(--text-muted))' }}>
               <span>{getPhaseLabel(progress.phase)}{progress.total > 0 ? ` ${progress.current}/${progress.total}` : ''}</span>
               {getEstimatedRemaining() && <span>{getEstimatedRemaining()} remaining</span>}
             </div>
-            <div style={{ height: '6px', borderRadius: '3px', background: 'var(--border, #e0e0e0)', overflow: 'hidden' }}>
+            <div style={{ height: '6px', borderRadius: '3px', background: 'var(--paper-edge, var(--border, #e0e0e0))', overflow: 'hidden' }}>
               <div style={{
                 height: '100%', borderRadius: '3px',
-                background: 'var(--accent, #5856d6)',
+                background: '#4A90E2',
                 width: progress.phase === 'scanning' ? '0%' : `${pct}%`,
                 transition: 'width 0.3s ease',
               }} />
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: '12px', color: 'var(--ink-mute, var(--text-muted))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {progress.currentFile}
             </div>
           </div>
@@ -212,20 +211,34 @@ export default function SyncConfigPanel({ onClose }: Props) {
         {status && !progress && (
           <div style={{
             fontSize: '13px', color: status.isError ? '#ff3b30' : '#34c759',
-            padding: '8px 12px', borderRadius: 'var(--radius-sm, 6px)',
+            padding: '10px 14px', borderRadius: '8px',
             background: status.isError ? 'rgba(255,59,48,0.06)' : 'rgba(52,199,89,0.06)',
           }}>
             {status.message}
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="primary" onClick={handleSave} disabled={saving || syncing}
-            style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={handleSave} disabled={saving || syncing}
+            style={{
+              flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '9px 16px', fontSize: 13, fontWeight: 500, borderRadius: 8,
+              background: '#4A90E2', color: '#fff', border: 'none',
+              cursor: saving || syncing ? 'not-allowed' : 'pointer',
+              opacity: saving || syncing ? 0.6 : 1,
+              boxShadow: '0 2px 6px rgba(74,144,226,.3)',
+            }}>
             <Save size={14} />{saving ? t('sync.saving') : t('sync.saveConfig')}
           </button>
           <button onClick={handleSync} disabled={syncing}
-            style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            style={{
+              flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '9px 16px', fontSize: 13, fontWeight: 500, borderRadius: 8,
+              background: 'var(--surface-raised, #fff)', color: 'var(--ink-soft, var(--text))',
+              border: '1px solid var(--paper-edge, var(--border))',
+              cursor: syncing ? 'not-allowed' : 'pointer',
+              opacity: syncing ? 0.6 : 1,
+            }}>
             <RefreshCw size={14} className={syncing ? 'spin' : ''} />
             {syncing ? `${pct}%` : t('sync.syncNow')}
           </button>
