@@ -1,0 +1,104 @@
+/* ── Theme: Notebook (GoodNotes-inspired) ── */
+:root[data-theme="notebook"] {
+  --paper: #FEFCF7;
+  --paper-deep: #F3EEE5;
+  --paper-edge: #F0EBE0;
+  --bg: #F3EEE5;
+  --surface: #F5EFE0;
+  --surface-flat: #F3EEE5;
+  --surface-raised: #FEFCF7;
+  --ink: #2A2722;
+  --ink-soft: #5C564E;
+  --ink-mute: #8A8377;
+  --ink-faint: #B8B0A0;
+  --ink-ghost: #D8D0BE;
+  --text: #2A2722;
+  --text-secondary: #5C564E;
+  --text-muted: #B8B0A0;
+  --vermilion: #E8825D;
+  --vermilion-d: #D06A45;
+  --seal: #E8825D;
+  --celadon: #6B8E7F;
+  --indigo: #4A90E2;
+  --gold: #E8A838;
+  --accent: #E8825D;
+  --accent-soft: rgba(232, 130, 93, 0.10);
+  --accent-hover: rgba(232, 130, 93, 0.15);
+  --border: rgba(42, 39, 34, 0.08);
+  --border-solid: #E8E0D0;
+  --hover: rgba(232, 130, 93, 0.06);
+  --selected: rgba(232, 130, 93, 0.10);
+  --shadow-sm: 0 1px 3px rgba(60, 40, 20, 0.06), 0 1px 2px rgba(60, 40, 20, 0.04);
+  --shadow-md: 0 4px 12px rgba(60, 40, 20, 0.08), 0 2px 4px rgba(60, 40, 20, 0.04);
+  --shadow-lg: 0 12px 24px rgba(60, 40, 20, 0.10), 0 4px 8px rgba(60, 40, 20, 0.06);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  --tag-pdf-bg: #FDDEDE;   --tag-pdf-color: #C0392B;
+  --tag-epub-bg: #D5F5E3;  --tag-epub-color: #27AE60;
+  --tag-md-bg: #FEF3C7;    --tag-md-color: #D4A017;
+  --tag-mind-bg: #E8DAEF;  --tag-mind-color: #8E44AD;
+  --tag-txt-bg: #EAECEE;   --tag-txt-color: #7F8C8D;
+  --tag-hand-bg: #FEF3C7;  --tag-hand-color: #D4A017;
+  --tag-img-bg: #FEF3C7;   --tag-img-color: #D4A017;
+  --tag-html-bg: #D5F5E3;  --tag-html-color: #27AE60;
+  --tag-video-bg: #FADBD8; --tag-video-color: #E74C3C;
+
+  --accent-bg: rgba(232, 130, 93, 0.08);
+
+  --font-display: "Inter", "Noto Sans SC", -apple-system, sans-serif;
+  --font-body: "Inter", "Noto Sans SC", -apple-system, sans-serif;
+  --font-cjk: "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
+  --font-latin: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", monospace;
+  --font-hand: "Caveat", "Kalam", cursive;
+}
+
+/* Title bar overrides */
+:root[data-theme="notebook"] .title-bar {
+  background: linear-gradient(180deg, #F8F4EC 0%, #F3EDE2 100%);
+  border-bottom-color: #E4DCD0;
+  height: 42px;
+}
+
+:root[data-theme="notebook"] .title-bar-tabs {
+  padding: 0 4px;
+  gap: 6px;
+  align-items: center;
+}
+
+:root[data-theme="notebook"] .title-bar-tab {
+  font-family: var(--font-body);
+  border-radius: 20px;
+  color: #8A8377;
+  top: 0;
+  height: 30px;
+  padding: 0 16px;
+}
+
+:root[data-theme="notebook"] .title-bar-tab:hover {
+  background: rgba(255, 255, 255, 0.55);
+  color: #5C564E;
+}
+
+:root[data-theme="notebook"] .title-bar-tab.active {
+  background: #fff;
+  border: 1px solid #E4DCD0;
+  color: #2A2722;
+  font-weight: 500;
+  box-shadow: 0 1px 4px rgba(60, 40, 20, 0.08);
+}
+
+:root[data-theme="notebook"] .title-bar-plugin-btn.active {
+  background: #E8825D;
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(232, 130, 93, 0.3);
+}
+
+:root[data-theme="notebook"] .textLayer ::selection {
+  background: rgba(232, 130, 93, 0.2);
+}
+
+.nb-doc-row:hover .nb-time-rel { opacity: 0 !important; }
+.nb-doc-row:hover .nb-time-abs { opacity: 1 !important; }

@@ -42,9 +42,31 @@ function MarkdownViewerInner({ docPath, doc: initialDoc, onOpenNote }: Props) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const { annotations, create, update, remove, reload } = useAnnotations(initialDoc.id)
 
+  const saveTimerRef = useRef<any>(null)
+  const docRef = useRef(initialDoc)
+  useEffect(() => { docRef.current = doc }, [doc])
+
   useEffect(() => {
     api.documents.readContent(docPath).then(setContent)
   }, [docPath])
+
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const onScroll = () => {
+      const pct = el.scrollHeight > el.clientHeight
+        ? el.scrollTop / (el.scrollHeight - el.clientHeight)
+        : 1
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = setTimeout(() => {
+        api.documents.update(docRef.current.id, {
+          metadata: { readingPosition: { scrollTop: el.scrollTop, percentage: Math.min(pct, 1) } },
+        }).catch(() => {})
+      }, 2000)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => { el.removeEventListener('scroll', onScroll); if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
+  }, [content])
 
   const handleHighlightCreated = useCallback(async (startOffset: number, endOffset: number, text: string) => {
     await create({

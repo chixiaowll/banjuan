@@ -125,7 +125,7 @@ export default function WelcomeView({ onOpen }: Props) {
       </div>
 
       {!showNameDialog ? (
-        <div style={{ width: 480, maxWidth: '100%' }}>
+        <div style={{ width: 720, maxWidth: '90%' }}>
           {/* Hero */}
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <h1 style={{

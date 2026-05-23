@@ -1,0 +1,74 @@
+/* ── Theme: Minimal ── */
+:root[data-theme="minimal"] {
+  --paper: #FFFFFF;
+  --paper-deep: #F5F5F4;
+  --paper-edge: #E7E5E4;
+  --bg: #FAFAF9;
+  --surface: #F5F5F4;
+  --surface-flat: #F5F5F4;
+  --surface-raised: #FFFFFF;
+  --ink: #18181B;
+  --ink-soft: #3F3F46;
+  --ink-mute: #71717A;
+  --ink-faint: #A1A1AA;
+  --ink-ghost: #D4D4D8;
+  --text: #18181B;
+  --text-secondary: #3F3F46;
+  --text-muted: #A1A1AA;
+  --vermilion: #18181B;
+  --vermilion-d: #000000;
+  --seal: #18181B;
+  --celadon: #10B981;
+  --indigo: #3B82F6;
+  --gold: #F59E0B;
+  --accent: #18181B;
+  --accent-soft: rgba(24, 24, 27, 0.06);
+  --accent-hover: rgba(24, 24, 27, 0.10);
+  --border: #E7E5E4;
+  --border-solid: #E7E5E4;
+  --hover: #F4F4F5;
+  --selected: rgba(24, 24, 27, 0.06);
+  --border-soft: #F0EFED;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  --tag-pdf-bg: #FEF2F2;   --tag-pdf-color: #991B1B;
+  --tag-epub-bg: #ECFDF5;  --tag-epub-color: #065F46;
+  --tag-md-bg: #FEF3C7;    --tag-md-color: #92400E;
+  --tag-mind-bg: #EDE9FE;  --tag-mind-color: #5B21B6;
+  --tag-txt-bg: #F4F4F5;   --tag-txt-color: #71717A;
+  --tag-hand-bg: #FEF3C7;  --tag-hand-color: #92400E;
+  --tag-img-bg: #FEF3C7;   --tag-img-color: #92400E;
+  --tag-html-bg: #ECFDF5;  --tag-html-color: #065F46;
+  --tag-video-bg: #FCE7F3; --tag-video-color: #9D174D;
+
+  --font-display: "Inter", "Noto Sans SC", -apple-system, sans-serif;
+  --font-body: "Inter", "Noto Sans SC", -apple-system, sans-serif;
+  --font-latin: "Inter", serif;
+  --font-mono: "JetBrains Mono", "SF Mono", monospace;
+}
+
+/* Title bar overrides */
+:root[data-theme="minimal"] .title-bar {
+  background: var(--paper-deep);
+  height: 38px;
+}
+
+:root[data-theme="minimal"] .title-bar-tab {
+  font-family: var(--font-body);
+}
+
+:root[data-theme="minimal"] .title-bar-tab.active {
+  background: var(--bg);
+}
+
+:root[data-theme="minimal"] .title-bar-plugin-btn.active {
+  background: var(--ink);
+  color: #fff;
+  box-shadow: none;
+}
+
+:root[data-theme="minimal"] .textLayer ::selection {
+  background: rgba(24, 24, 27, 0.15);
+}

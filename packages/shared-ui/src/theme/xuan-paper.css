@@ -1,0 +1,63 @@
+/* ── Theme: Xuan Paper (default) ── */
+:root {
+  --paper: #F7F3EA;
+  --paper-deep: #EFE8D7;
+  --paper-edge: #E5DCC4;
+  --bg: #F7F3EA;
+  --surface: linear-gradient(180deg, #EFE8D7 0%, #E8DFC8 100%);
+  --surface-flat: #EFE8D7;
+  --surface-raised: rgba(255, 255, 255, 0.45);
+  --ink: #1C1A17;
+  --ink-soft: #3D3935;
+  --ink-mute: #6E6862;
+  --ink-faint: #9A938A;
+  --ink-ghost: #C4BCAD;
+  --text: #1C1A17;
+  --text-secondary: #3D3935;
+  --text-muted: #9A938A;
+  --vermilion: #A8392C;
+  --vermilion-d: #8C2A1F;
+  --seal: #B73E2A;
+  --celadon: #6B8E7F;
+  --indigo: #3E5266;
+  --gold: #A87C3E;
+  --accent: #A8392C;
+  --accent-soft: rgba(168, 57, 44, 0.08);
+  --accent-hover: rgba(168, 57, 44, 0.12);
+  --border: rgba(28, 26, 23, 0.08);
+  --border-solid: #E5DCC4;
+  --hover: rgba(28, 26, 23, 0.03);
+  --selected: rgba(168, 57, 44, 0.08);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --sidebar-width: 240px;
+  --transition: 0.15s ease;
+
+  /* Typography */
+  --font-display: "Noto Serif SC", "Songti SC", "STSong", serif;
+  --font-body: "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
+  --font-latin: "Cormorant Garamond", "Noto Serif SC", serif;
+  --font-mono: "JetBrains Mono", "SF Mono", monospace;
+}
+
+/* Tag colors (xuan-paper + notebook shared default) */
+:root:not([data-theme="minimal"]) {
+  --tag-pdf-bg: #F8E1DC;   --tag-pdf-color: #9E3527;
+  --tag-epub-bg: #DDECDC;  --tag-epub-color: #3F6B49;
+  --tag-md-bg: #E8E0CB;    --tag-md-color: #7A6432;
+  --tag-mind-bg: #EAE3F5;  --tag-mind-color: #5E458F;
+  --tag-txt-bg: #edeef0;   --tag-txt-color: #737a84;
+  --tag-hand-bg: #f4ede4;  --tag-hand-color: #a07842;
+  --tag-img-bg: #f3efe3;   --tag-img-color: #9a8035;
+  --tag-html-bg: #e4f0f1;  --tag-html-color: #3a7f86;
+  --tag-video-bg: #f3e8ef; --tag-video-color: #a35882;
+}
+
+/* Title bar */
+.title-bar {
+  background: linear-gradient(180deg, #EFE8D7 0%, #E8E0CC 100%);
+}
