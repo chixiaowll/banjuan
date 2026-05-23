@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { PanelLeft, Minus, Plus, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Search, PanelRight, Highlighter, Square, Pen, Eraser, Clock, Eye, EyeOff, Sun } from 'lucide-react'
+import { PanelLeft, Minus, Plus, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Search, PanelRight, Highlighter, Square, Pen, Eraser, Clock, Eye, EyeOff, Sun, Monitor } from 'lucide-react'
 import { usePdfViewer, ANNOTATION_COLORS, type AnnotationTool } from './PdfViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
-import { useEyeProtection } from './useEyeProtection.js'
+import { useEyeProtection, useEinkMode } from './useEyeProtection.js'
 import { useT } from '../../i18n/index.js'
 
 const TOOL_IDS: Array<{ id: AnnotationTool; icon: React.ReactNode; key: string }> = [
@@ -21,6 +21,7 @@ export default function PdfToolbar({ docId, metadata }: Props) {
   const t = useT()
   const ctx = usePdfViewer()
   const { eyeProtection, toggleEyeProtection } = useEyeProtection()
+  const { einkMode, toggleEinkMode } = useEinkMode()
   const { formatted: readingTime } = useReadingTimer(docId, metadata)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [pageInput, setPageInput] = useState('')
@@ -189,6 +190,13 @@ export default function PdfToolbar({ docId, metadata }: Props) {
           title={t('pdf.eyeProtection' as any)}
         >
           <Sun size={16} />
+        </button>
+        <button
+          style={einkMode ? { ...btnStyle, color: '#718096' } : btnStyle}
+          onClick={toggleEinkMode}
+          title={t('pdf.einkMode' as any)}
+        >
+          <Monitor size={16} />
         </button>
       </div>
 

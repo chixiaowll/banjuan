@@ -300,7 +300,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary }
                 />
               )}
               {tab.type === 'tag-manager' && (
-                <TagManagerView />
+                <TagManagerView libraryName={libraryName} onBack={() => closeTab(tab.id)} />
               )}
             </div>
           ))}

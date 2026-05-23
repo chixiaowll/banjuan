@@ -232,6 +232,7 @@ const en = {
   'settings.appTheme': 'App Theme',
   'settings.noteTheme': 'Note Theme',
   'pdf.eyeProtection': 'Eye Protection',
+  'pdf.einkMode': 'E-Ink Mode',
   'pdf.hideAnnotations': 'Hide Annotations',
   'pdf.showAnnotations': 'Show Annotations',
 

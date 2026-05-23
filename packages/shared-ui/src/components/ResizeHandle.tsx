@@ -1,26 +1,32 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useRef, useCallback, useSyncExternalStore } from 'react'
 
 export function useResizable(initialWidth: number, minWidth: number, maxWidth: number, side: 'left' | 'right') {
-  const [width, setWidth] = useState(initialWidth)
-  const dragging = useRef(false)
-  const startX = useRef(0)
-  const startWidth = useRef(0)
+  const widthRef = useRef(initialWidth)
+  const listeners = useRef(new Set<() => void>())
+  const subscribe = useCallback((cb: () => void) => { listeners.current.add(cb); return () => { listeners.current.delete(cb) } }, [])
+  const getSnapshot = useCallback(() => widthRef.current, [])
+  const width = useSyncExternalStore(subscribe, getSnapshot)
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
-    dragging.current = true
-    startX.current = e.clientX
-    startWidth.current = width
+    const startX = e.clientX
+    const startW = widthRef.current
+    let rafId = 0
 
     const onPointerMove = (ev: PointerEvent) => {
-      if (!dragging.current) return
-      const delta = side === 'left' ? ev.clientX - startX.current : startX.current - ev.clientX
-      const newWidth = Math.min(maxWidth, Math.max(minWidth, startWidth.current + delta))
-      setWidth(newWidth)
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        const delta = side === 'left' ? ev.clientX - startX : startX - ev.clientX
+        const next = Math.min(maxWidth, Math.max(minWidth, startW + delta))
+        if (next !== widthRef.current) {
+          widthRef.current = next
+          listeners.current.forEach(cb => cb())
+        }
+      })
     }
 
     const onPointerUp = () => {
-      dragging.current = false
+      cancelAnimationFrame(rafId)
       document.removeEventListener('pointermove', onPointerMove)
       document.removeEventListener('pointerup', onPointerUp)
       document.body.style.cursor = ''
@@ -31,22 +37,22 @@ export function useResizable(initialWidth: number, minWidth: number, maxWidth: n
     document.addEventListener('pointerup', onPointerUp)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
-  }, [width, minWidth, maxWidth, side])
+  }, [minWidth, maxWidth, side])
 
   return { width, onPointerDown }
 }
 
 export function ResizeHandle({ onPointerDown }: { onPointerDown: (e: React.PointerEvent) => void }) {
-  const [hovered, setHovered] = useState(false)
+  const hoverRef = useRef<HTMLDivElement>(null)
   return (
     <div
+      ref={hoverRef}
       onPointerDown={onPointerDown}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => setHovered(false)}
+      onPointerEnter={() => { if (hoverRef.current) hoverRef.current.style.background = 'var(--accent)' }}
+      onPointerLeave={() => { if (hoverRef.current) hoverRef.current.style.background = 'var(--border)' }}
       style={{
         width: 1, flexShrink: 0, cursor: 'col-resize',
-        background: hovered ? 'var(--accent)' : 'var(--border)',
-        transition: 'background 0.15s',
+        background: 'var(--border)',
         position: 'relative',
       }}
     >

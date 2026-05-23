@@ -71,6 +71,9 @@ export function createCapacitorAPI(): BanjuanAPI {
       },
       async open(path) {
         library = await Library.open(path, createDeps(path))
+        await library.syncWithDisk()
+        try { await library.notes.syncDisk() } catch {}
+        try { await library.tags.syncFromFiles() } catch {}
         const indexSvc = library.createIndexService()
         await indexSvc.rebuildFull()
       },

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useMarkdownViewer } from './MarkdownViewerContext.js'
-import { useEyeProtection, EYE_PROTECTION_TINT } from './useEyeProtection.js'
+import { useEyeProtection, EYE_PROTECTION_TINT, useEinkMode, EINK_FILTER } from './useEyeProtection.js'
 import MarkdownInkOverlay from './MarkdownInkOverlay.js'
 import MarkdownInkLassoTool from './MarkdownInkLassoTool.js'
 import MarkdownInkToolbar from './MarkdownInkToolbar.js'
@@ -124,6 +124,7 @@ function applyHighlightMarks(container: HTMLElement, annotations: AnnotationData
 export default function MarkdownContentArea({ content, docId, annotations, onHighlightCreated, onNoteCreated, onAnnotationClick, onHeadingsChange, onInkCreated, onClearAllInk, scrollContainerRef }: Props) {
   const ctx = useMarkdownViewer()
   const { eyeProtection } = useEyeProtection()
+  const { einkMode } = useEinkMode()
   const visibleAnnotations = ctx.annotationsVisible ? annotations : []
   const containerRef = useRef<HTMLDivElement>(null)
   const undoRef = useRef<(() => void) | null>(null)
@@ -263,6 +264,7 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
   return (
     <div style={{ flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' }}>
     {eyeProtection && <div style={{ position: 'absolute', inset: 0, background: EYE_PROTECTION_TINT, pointerEvents: 'none', zIndex: 10 }} />}
+    {einkMode && <div style={{ position: 'absolute', inset: 0, backdropFilter: EINK_FILTER, WebkitBackdropFilter: EINK_FILTER, pointerEvents: 'none', zIndex: 10 }} />}
     <div ref={(el) => {
       (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el
       if (scrollContainerRef) (scrollContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el

@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Search, Check, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, Check, X, ChevronRight } from 'lucide-react'
 import ColorPicker from '../components/tags/ColorPicker.js'
-import { useT } from '../i18n/index.js'
+import { useT, useI18n } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
+import { useThemeLayout } from '../theme/index.js'
 
 interface TagWithCount {
   id: string
@@ -11,9 +12,16 @@ interface TagWithCount {
   count: number
 }
 
-export default function TagManagerView() {
+interface Props {
+  libraryName: string
+  onBack: () => void
+}
+
+export default function TagManagerView({ libraryName, onBack }: Props) {
   const api = useBanjuanAPI()
   const t = useT()
+  const { locale } = useI18n()
+  const layout = useThemeLayout()
   const [tags, setTags] = useState<TagWithCount[]>([])
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'count'>('count')
@@ -63,15 +71,35 @@ export default function TagManagerView() {
     await loadTags()
   }
 
+  const cw = { maxWidth: layout.contentMaxWidth || undefined, margin: layout.centeredContent ? '0 auto' : undefined, width: '100%' } as const
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      {/* Header */}
-      <div style={{
-        padding: '12px 20px', borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
-      }}>
-        <span style={{ fontWeight: 600, fontSize: 15 }}>{t('tags.manager')}</span>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+    <div style={{ flex: 1, overflow: 'auto', padding: layout.homePadding }}>
+      <div style={cw}>
+        {/* Page header */}
+        {layout.pageHeader.show && (
+          <>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 12, color: 'var(--ink-mute)', fontFamily: 'var(--font-mono)',
+              marginBottom: 24,
+            }}>
+              <span style={{ cursor: 'pointer' }} onClick={onBack}>{libraryName}</span>
+              <ChevronRight size={12} style={{ color: 'var(--ink-ghost)' }} />
+              <span style={{ color: 'var(--ink)' }}>{t('tags.manager')}</span>
+            </div>
+            <h1 style={{
+              fontSize: 30, fontWeight: 600, color: 'var(--ink)',
+              letterSpacing: '-0.02em', lineHeight: 1.2, margin: 0, marginBottom: 24,
+            }}>{t('tags.manager')}</h1>
+          </>
+        )}
+
+        {/* Toolbar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+          gap: 8, marginBottom: 16,
+        }}>
           <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
             <Search size={14} style={{ position: 'absolute', left: 6, color: 'var(--text-muted)' }} />
             <input
@@ -94,38 +122,36 @@ export default function TagManagerView() {
             <Plus size={14} />{t('tags.newTag')}
           </button>
         </div>
-      </div>
 
-      {/* Create form */}
-      {showCreate && (
-        <div style={{
-          padding: '8px 20px', borderBottom: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          <input
-            autoFocus
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setShowCreate(false) }}
-            placeholder={t('tags.name')}
-            style={{
-              fontSize: 12, padding: '4px 8px', flex: 1,
-              border: '1px solid var(--border)', borderRadius: 4,
-              background: 'var(--surface)', color: 'var(--text)', outline: 'none',
-            }}
-          />
-          <button onClick={handleCreate} style={{ fontSize: 11, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <Check size={14} />{t('common.confirm')}
-          </button>
-          <button onClick={() => { setShowCreate(false); setNewName('') }}
-            style={{ fontSize: 11, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <X size={14} />{t('common.cancel')}
-          </button>
-        </div>
-      )}
+        {/* Create form */}
+        {showCreate && (
+          <div style={{
+            marginBottom: 12, borderBottom: '1px solid var(--border)', paddingBottom: 12,
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setShowCreate(false) }}
+              placeholder={t('tags.name')}
+              style={{
+                fontSize: 12, padding: '4px 8px', flex: 1,
+                border: '1px solid var(--border)', borderRadius: 4,
+                background: 'var(--surface)', color: 'var(--text)', outline: 'none',
+              }}
+            />
+            <button onClick={handleCreate} style={{ fontSize: 11, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Check size={14} />{t('common.confirm')}
+            </button>
+            <button onClick={() => { setShowCreate(false); setNewName('') }}
+              style={{ fontSize: 11, padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <X size={14} />{t('common.cancel')}
+            </button>
+          </div>
+        )}
 
-      {/* Table */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 80px' }}>
+        {/* Table */}
         <div style={{
           display: 'grid', gridTemplateColumns: '1fr 60px 60px 80px',
           padding: '10px 0', borderBottom: '1px solid var(--border)',

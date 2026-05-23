@@ -1,63 +1,60 @@
-/* ── Theme: Xuan Paper (default) ── */
+/* ── Base theme tokens (default = notebook) ── */
 :root {
-  --paper: #F7F3EA;
-  --paper-deep: #EFE8D7;
-  --paper-edge: #E5DCC4;
-  --bg: #F7F3EA;
-  --surface: linear-gradient(180deg, #EFE8D7 0%, #E8DFC8 100%);
-  --surface-flat: #EFE8D7;
-  --surface-raised: rgba(255, 255, 255, 0.45);
-  --ink: #1C1A17;
-  --ink-soft: #3D3935;
-  --ink-mute: #6E6862;
-  --ink-faint: #9A938A;
-  --ink-ghost: #C4BCAD;
-  --text: #1C1A17;
-  --text-secondary: #3D3935;
-  --text-muted: #9A938A;
-  --vermilion: #A8392C;
-  --vermilion-d: #8C2A1F;
-  --seal: #B73E2A;
+  --paper: #FEFCF7;
+  --paper-deep: #F3EEE5;
+  --paper-edge: #F0EBE0;
+  --bg: #F3EEE5;
+  --surface: #F5EFE0;
+  --surface-flat: #F3EEE5;
+  --surface-raised: #FEFCF7;
+  --ink: #2A2722;
+  --ink-soft: #5C564E;
+  --ink-mute: #8A8377;
+  --ink-faint: #B8B0A0;
+  --ink-ghost: #D8D0BE;
+  --text: #2A2722;
+  --text-secondary: #5C564E;
+  --text-muted: #B8B0A0;
+  --vermilion: #E8825D;
+  --vermilion-d: #D06A45;
+  --seal: #E8825D;
   --celadon: #6B8E7F;
-  --indigo: #3E5266;
-  --gold: #A87C3E;
-  --accent: #A8392C;
-  --accent-soft: rgba(168, 57, 44, 0.08);
-  --accent-hover: rgba(168, 57, 44, 0.12);
-  --border: rgba(28, 26, 23, 0.08);
-  --border-solid: #E5DCC4;
-  --hover: rgba(28, 26, 23, 0.03);
-  --selected: rgba(168, 57, 44, 0.08);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --indigo: #4A90E2;
+  --gold: #E8A838;
+  --accent: #E8825D;
+  --accent-soft: rgba(232, 130, 93, 0.10);
+  --accent-hover: rgba(232, 130, 93, 0.15);
+  --border: rgba(42, 39, 34, 0.08);
+  --border-solid: #E8E0D0;
+  --hover: rgba(232, 130, 93, 0.06);
+  --selected: rgba(232, 130, 93, 0.10);
+  --shadow-sm: 0 1px 3px rgba(60, 40, 20, 0.06), 0 1px 2px rgba(60, 40, 20, 0.04);
+  --shadow-md: 0 4px 12px rgba(60, 40, 20, 0.08), 0 2px 4px rgba(60, 40, 20, 0.04);
+  --shadow-lg: 0 12px 24px rgba(60, 40, 20, 0.10), 0 4px 8px rgba(60, 40, 20, 0.06);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
   --sidebar-width: 240px;
   --transition: 0.15s ease;
 
   /* Typography */
-  --font-display: "Noto Serif SC", "Songti SC", "STSong", serif;
-  --font-body: "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
-  --font-latin: "Cormorant Garamond", "Noto Serif SC", serif;
+  --font-display: "Inter", "Noto Sans SC", -apple-system, sans-serif;
+  --font-body: "Inter", "Noto Sans SC", -apple-system, sans-serif;
+  --font-cjk: "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
+  --font-latin: "Inter", sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", monospace;
+  --font-hand: "Caveat", "Kalam", cursive;
 }
 
-/* Tag colors (xuan-paper + notebook shared default) */
+/* Tag colors (notebook shared default) */
 :root:not([data-theme="minimal"]) {
-  --tag-pdf-bg: #F8E1DC;   --tag-pdf-color: #9E3527;
-  --tag-epub-bg: #DDECDC;  --tag-epub-color: #3F6B49;
-  --tag-md-bg: #E8E0CB;    --tag-md-color: #7A6432;
-  --tag-mind-bg: #EAE3F5;  --tag-mind-color: #5E458F;
-  --tag-txt-bg: #edeef0;   --tag-txt-color: #737a84;
-  --tag-hand-bg: #f4ede4;  --tag-hand-color: #a07842;
-  --tag-img-bg: #f3efe3;   --tag-img-color: #9a8035;
-  --tag-html-bg: #e4f0f1;  --tag-html-color: #3a7f86;
-  --tag-video-bg: #f3e8ef; --tag-video-color: #a35882;
-}
-
-/* Title bar */
-.title-bar {
-  background: linear-gradient(180deg, #EFE8D7 0%, #E8E0CC 100%);
+  --tag-pdf-bg: #F2E2DC;   --tag-pdf-color: #8B5C4A;
+  --tag-epub-bg: #DCEAD6;  --tag-epub-color: #4E7A48;
+  --tag-md-bg: #EAE4D4;    --tag-md-color: #7A6C4F;
+  --tag-mind-bg: #E6E0F0;  --tag-mind-color: #6B5A8A;
+  --tag-txt-bg: #E8E6E2;   --tag-txt-color: #7A7670;
+  --tag-hand-bg: #EAE4D4;  --tag-hand-color: #7A6C4F;
+  --tag-img-bg: #E0E8D6;   --tag-img-color: #5E7048;
+  --tag-html-bg: #D6E6E6;  --tag-html-color: #4A7274;
+  --tag-video-bg: #EAE0E4; --tag-video-color: #7A5468;
 }

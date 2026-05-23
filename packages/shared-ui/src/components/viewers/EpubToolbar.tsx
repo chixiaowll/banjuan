@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, ChevronDown, Search, PanelRight, Clock, Pen, Eraser, Highlighter, Square, Eye, EyeOff, Sun } from 'lucide-react'
+import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, ChevronDown, Search, PanelRight, Clock, Pen, Eraser, Highlighter, Square, Eye, EyeOff, Sun, Monitor } from 'lucide-react'
 import { useEpubViewer, ANNOTATION_COLORS } from './EpubViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
-import { useEyeProtection } from './useEyeProtection.js'
+import { useEyeProtection, useEinkMode } from './useEyeProtection.js'
 import { useT } from '../../i18n/index.js'
 
 interface Props {
@@ -21,6 +21,7 @@ export default function EpubToolbar({ docId, metadata }: Props) {
   const t = useT()
   const ctx = useEpubViewer()
   const { eyeProtection, toggleEyeProtection } = useEyeProtection()
+  const { einkMode, toggleEinkMode } = useEinkMode()
   const { formatted: readingTime } = useReadingTimer(docId, metadata)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const colorRef = useRef<HTMLDivElement>(null)
@@ -156,6 +157,13 @@ export default function EpubToolbar({ docId, metadata }: Props) {
           title={t('pdf.eyeProtection' as any)}
         >
           <Sun size={16} />
+        </button>
+        <button
+          style={einkMode ? { ...btnStyle, color: '#718096' } : btnStyle}
+          onClick={toggleEinkMode}
+          title={t('pdf.einkMode' as any)}
+        >
+          <Monitor size={16} />
         </button>
       </div>
 

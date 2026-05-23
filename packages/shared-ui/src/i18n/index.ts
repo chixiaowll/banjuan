@@ -1,11 +1,16 @@
 import React, { createContext, useContext, useState, useCallback } from 'react'
 import zh from './zh.js'
 import en from './en.js'
+import ja from './ja.js'
+import ko from './ko.js'
+import fr from './fr.js'
+import de from './de.js'
+import es from './es.js'
 
-export type Locale = 'zh' | 'en'
+export type Locale = 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es'
 type Messages = Record<keyof typeof zh, string>
 
-const locales: Record<Locale, Messages> = { zh, en }
+const locales: Record<Locale, Messages> = { zh, en, ja: ja as Messages, ko: ko as Messages, fr: fr as Messages, de: de as Messages, es: es as Messages }
 
 interface I18nContextValue {
   locale: Locale
@@ -20,10 +25,15 @@ const STORAGE_KEY = 'banjuan-locale'
 function getInitialLocale(): Locale {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored === 'zh' || stored === 'en') return stored
+    if (stored && stored in locales) return stored as Locale
   } catch {}
   const lang = navigator.language
   if (lang.startsWith('zh')) return 'zh'
+  if (lang.startsWith('ja')) return 'ja'
+  if (lang.startsWith('ko')) return 'ko'
+  if (lang.startsWith('fr')) return 'fr'
+  if (lang.startsWith('de')) return 'de'
+  if (lang.startsWith('es')) return 'es'
   return 'en'
 }
 
