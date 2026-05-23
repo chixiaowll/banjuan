@@ -130,8 +130,9 @@ function MindmapSidePanelAutoOpen({ setRightSidebarOpen }: { setRightSidebarOpen
   return null
 }
 
-function MindmapRightSidebar({ noteId, onOpenNote, rightPanel }: {
+function MindmapRightSidebar({ noteId, docId, onOpenNote, rightPanel }: {
   noteId: string
+  docId: string | null
   onOpenNote: (note: NoteInfo) => void
   rightPanel: { width: number; onPointerDown: (e: React.PointerEvent) => void }
 }) {
@@ -173,7 +174,7 @@ function MindmapRightSidebar({ noteId, onOpenNote, rightPanel }: {
         <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80 }}>
           {rightTab === 'properties' && <MindmapPanels />}
           {rightTab === 'backlinks' && (
-            <BacklinksPanel noteId={noteId} docId={null} onOpenNote={onOpenNote} onOpenMindmap={onOpenNote} />
+            <BacklinksPanel noteId={noteId} docId={docId} onOpenNote={onOpenNote} onOpenMindmap={onOpenNote} />
           )}
         </div>
       </div>
@@ -514,7 +515,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
       {/* Right Sidebar */}
       {rightSidebarOpen && (
         isMindmap ? (
-          <MindmapRightSidebar noteId={note.id} onOpenNote={onOpenNote} rightPanel={rightPanel} />
+          <MindmapRightSidebar noteId={note.id} docId={docId} onOpenNote={onOpenNote} rightPanel={rightPanel} />
         ) : (
           <>
             <ResizeHandle onPointerDown={rightPanel.onPointerDown} />

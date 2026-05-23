@@ -31,6 +31,7 @@ interface PdfViewerContextValue {
   pdfDoc: pdfjsLib.PDFDocumentProxy | null
   numPages: number
   rawPageSize: { w: number; h: number } | null
+  rawPageSizes: Array<{ w: number; h: number }>
   pageSizes: Array<{ w: number; h: number }>
   setPageSizes: React.Dispatch<React.SetStateAction<Array<{ w: number; h: number }>>>
   pageInfoMap: Map<number, PageInfo>
@@ -90,10 +91,11 @@ interface ProviderProps {
   numPages: number
   initialPageSizes: Array<{ w: number; h: number }>
   rawPageSize: { w: number; h: number } | null
+  rawPageSizes: Array<{ w: number; h: number }>
   children: React.ReactNode
 }
 
-export function PdfViewerProvider({ pdfDoc, numPages, initialPageSizes, rawPageSize, children }: ProviderProps) {
+export function PdfViewerProvider({ pdfDoc, numPages, initialPageSizes, rawPageSize, rawPageSizes, children }: ProviderProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [pageSizes, setPageSizes] = useState(initialPageSizes)
   useEffect(() => {
@@ -150,7 +152,7 @@ export function PdfViewerProvider({ pdfDoc, numPages, initialPageSizes, rawPageS
   }, [searchMatches.length])
 
   const value = useMemo<PdfViewerContextValue>(() => ({
-    pdfDoc, numPages, rawPageSize, pageSizes, setPageSizes, pageInfoMap,
+    pdfDoc, numPages, rawPageSize, rawPageSizes, pageSizes, setPageSizes, pageInfoMap,
     currentPage, setCurrentPage, scrollToPage,
     zoom, setZoom, resetZoom,
     leftSidebarOpen, leftSidebarTab, setLeftSidebarOpen, setLeftSidebarTab,
@@ -161,7 +163,7 @@ export function PdfViewerProvider({ pdfDoc, numPages, initialPageSizes, rawPageS
     nextMatch, prevMatch,
     scrollRef,
   }), [
-    pdfDoc, numPages, rawPageSize, pageSizes, pageInfoMap,
+    pdfDoc, numPages, rawPageSize, rawPageSizes, pageSizes, pageInfoMap,
     currentPage, scrollToPage,
     zoom, resetZoom,
     leftSidebarOpen, leftSidebarTab,

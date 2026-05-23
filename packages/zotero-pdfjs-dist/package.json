@@ -8,11 +8,15 @@
   "exports": {
     ".": "./build/pdf.mjs",
     "./build/pdf.worker.mjs": "./build/pdf.worker.mjs",
-    "./web/viewer.css": "./web/viewer.css"
+    "./web/viewer.css": "./web/viewer.css",
+    "./bcmaps/*": "./bcmaps/*",
+    "./standard_fonts/*": "./standard_fonts/*"
   },
   "files": [
     "build",
-    "web"
+    "web",
+    "bcmaps",
+    "standard_fonts"
   ],
   "license": "Apache-2.0"
 }

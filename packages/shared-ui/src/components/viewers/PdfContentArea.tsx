@@ -77,7 +77,7 @@ function getVisibleRange(
 export default function PdfContentArea({ annotations, docId, onTextSelect, onHighlightClick, onAnnotationContextMenu, onAnnotationCreated, onAnnotationDelete, onAnnotationUpdate, onPageSizesComputed }: Props) {
   const t = useT()
   const ctx = usePdfViewer()
-  const { pdfDoc, rawPageSize, pageSizes, zoom, scrollRef, setCurrentPage, setPageSizes,
+  const { pdfDoc, rawPageSize, rawPageSizes, pageSizes, zoom, scrollRef, setCurrentPage, setPageSizes,
           numPages, searchMatches, currentMatchIndex, pageInfoMap,
           activeTool, activeColor } = ctx
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null)
@@ -101,17 +101,19 @@ export default function PdfContentArea({ annotations, docId, onTextSelect, onHig
     return () => obs.disconnect()
   }, [scrollRef])
 
-  // Compute page sizes from container width + raw page size + zoom,
+  // Compute page sizes from container width + raw page sizes + zoom,
   // and preserve scroll position across size changes.
   const prevSizesRef = useRef(pageSizes)
   useEffect(() => {
-    if (!rawPageSize || containerWidth <= 0 || numPages <= 0) return
+    if (rawPageSizes.length === 0 || containerWidth <= 0 || numPages <= 0) return
     const availableWidth = containerWidth - SCROLLBAR_WIDTH - CONTENT_PADDING
-    const baseScale = availableWidth / rawPageSize.w
+    const refW = rawPageSizes[0].w
+    const baseScale = availableWidth / refW
     const scale = baseScale * zoom
-    const w = rawPageSize.w * scale
-    const h = rawPageSize.h * scale
-    const newSizes = Array.from({ length: numPages }, () => ({ w, h }))
+    const newSizes = rawPageSizes.map(raw => ({
+      w: raw.w * scale,
+      h: raw.h * scale,
+    }))
 
     // Capture current position before sizes change
     const el = scrollRef.current
@@ -146,13 +148,13 @@ export default function PdfContentArea({ annotations, docId, onTextSelect, onHig
         el!.scrollTo({ top: newTop, behavior: 'instant' as ScrollBehavior })
       })
     }
-  }, [rawPageSize, containerWidth, zoom, numPages, scrollRef, setPageSizes, onPageSizesComputed])
+  }, [rawPageSizes, containerWidth, zoom, numPages, scrollRef, setPageSizes, onPageSizesComputed])
 
   const pdfScale = useMemo(() => {
-    if (!rawPageSize || containerWidth <= 0) return zoom * pdfjsLib.PixelsPerInch.PDF_TO_CSS_UNITS
+    if (rawPageSizes.length === 0 || containerWidth <= 0) return zoom * pdfjsLib.PixelsPerInch.PDF_TO_CSS_UNITS
     const availableWidth = containerWidth - SCROLLBAR_WIDTH - CONTENT_PADDING
-    return (availableWidth / rawPageSize.w) * zoom
-  }, [rawPageSize, containerWidth, zoom])
+    return (availableWidth / rawPageSizes[0].w) * zoom
+  }, [rawPageSizes, containerWidth, zoom])
 
   const pageOffsets = useMemo(() => computePageOffsets(pageSizes), [pageSizes])
   const totalHeight = useMemo(() => {
