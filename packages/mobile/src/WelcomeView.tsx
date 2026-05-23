@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useBanjuanAPI, PoetryCard } from '@banjuan/shared-ui'
 import { listLibraries, getLibrariesRoot, type LibraryEntry } from './capacitor-api.js'
 
@@ -50,9 +50,15 @@ export function WelcomeView({ onOpen }: Props) {
     }
   }
 
+  const windowWidth = useSyncExternalStore(
+    (cb) => { window.addEventListener('resize', cb); return () => window.removeEventListener('resize', cb) },
+    () => window.innerWidth,
+  )
+  const isWide = windowWidth >= 768
+
   const containerStyle: React.CSSProperties = {
-    padding: '60px 24px env(safe-area-inset-bottom)',
-    maxWidth: 480,
+    padding: isWide ? '60px 48px env(safe-area-inset-bottom)' : '60px 24px env(safe-area-inset-bottom)',
+    maxWidth: isWide ? 720 : 480,
     margin: '0 auto',
     fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
   }

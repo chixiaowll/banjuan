@@ -686,15 +686,38 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
     const dayOfYear = Math.floor((now.getTime() - new Date(yearNo, 0, 0).getTime()) / 86400000)
     const dailyQuote = dailyQuotes[dayOfYear % dailyQuotes.length]
 
+    const BASE_W = 960
+    const BASE_H = 260
+
+    const scaleRef = useRef<HTMLDivElement>(null)
+    const [scale, setScale] = useState(1)
+    useEffect(() => {
+      const el = scaleRef.current?.parentElement
+      if (!el) return
+      const obs = new ResizeObserver(entries => {
+        const w = entries[0]?.contentRect.width ?? 0
+        if (w > 0) setScale(w / BASE_W)
+      })
+      obs.observe(el)
+      return () => obs.disconnect()
+    }, [])
+
     return (
+      <div style={{ width: '100%', height: BASE_H * scale, position: 'relative', overflow: 'hidden' }}>
       <div
-        style={{ display: 'grid', gridTemplateColumns: '2fr 3fr', gap: 18, position: 'relative' }}
+        ref={scaleRef}
+        style={{
+          display: 'flex', gap: 18, position: 'absolute', top: 0, left: 0,
+          width: BASE_W, height: BASE_H,
+          transform: `scale(${scale})`, transformOrigin: 'top left',
+        }}
       >
         {/* ── Torn calendar date card ── */}
         <div style={{
           background: '#fff', borderRadius: 14, position: 'relative', overflow: 'hidden',
           boxShadow: '0 4px 12px rgba(60,40,20,0.08), 0 2px 4px rgba(60,40,20,0.04)',
           display: 'flex', flexDirection: 'column',
+          width: 310, flexShrink: 0,
         }}>
           {/* Orange header with binding holes + month label */}
           <div style={{
@@ -763,6 +786,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
           style={{
           background: '#fff', borderRadius: 14, padding: '26px 30px', position: 'relative', overflow: 'hidden',
           boxShadow: '0 4px 12px rgba(60,40,20,0.08), 0 2px 4px rgba(60,40,20,0.04)',
+          flex: 1, minWidth: 0,
           backgroundImage: Array.from({ length: 8 }, (_, i) => {
             const y = 28 + i * 34
             return `linear-gradient(180deg, transparent 0%, transparent ${y}px, rgba(74,144,226,0.08) ${y}px, rgba(74,144,226,0.08) ${y + 1}px, transparent ${y + 1}px)`
@@ -845,6 +869,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             ⌐ {isEn ? 'poetic' : (flowPoem?.mood ?? '诗意')} ☂
           </div>
         </div>
+      </div>
       </div>
     )
   }

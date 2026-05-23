@@ -112,6 +112,7 @@ export default function PdfPage({
   const pageInfoRef = useRef<PageInfo | null>(null)
   const viewportRef = useRef<pdfjsLib.PageViewport | null>(null)
   const renderedScaleRef = useRef<number>(0)
+  const [pageRotation, setPageRotation] = useState(0)
 
   const [ready, setReady] = useState(false)
 
@@ -166,7 +167,8 @@ export default function PdfPage({
       const page = await pdfDoc.getPage(pageNum)
       if (cancelled) return
 
-      const viewport = page.getViewport({ scale })
+      setPageRotation(page.rotate)
+      const viewport = page.getViewport({ scale, rotation: 0 })
       viewportRef.current = viewport
 
       const canvas = canvasRef.current
@@ -229,7 +231,6 @@ export default function PdfPage({
       pageInfoRef.current = { width: vbW, height: vbH, chars }
       onPageReady?.(pageNum, pageInfoRef.current)
 
-      // Mask canvas text by line.
       if (ctx && chars.length > 0) {
         type Line = { x1: number; y1: number; x2: number; y2: number }
         const lines: Line[] = []
@@ -389,16 +390,20 @@ export default function PdfPage({
         margin: '0 auto',
         background: 'var(--surface-raised)',
         filter: einkMode ? EINK_FILTER : undefined,
+        overflow: 'hidden',
       }}
     >
-      <>
+      <div style={{
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: `translate(-50%, -50%) rotate(${pageRotation}deg)`,
+      }}>
+      <div style={{ position: 'relative' }}>
           <canvas
             ref={canvasRef}
             style={{
               display: 'block',
-              position: 'absolute',
-              top: 0,
-              left: 0,
               visibility: ready ? 'visible' : 'hidden',
             }}
           />
@@ -407,7 +412,8 @@ export default function PdfPage({
             className="textLayer"
             style={{ visibility: ready ? 'visible' : 'hidden' }}
           />
-      </>
+      </div>
+      </div>
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 3 }}>
         <HighlightLayer
           highlights={highlights}

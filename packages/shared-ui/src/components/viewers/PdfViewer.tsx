@@ -24,6 +24,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
+const baseUrl = typeof window !== 'undefined' && window.location.protocol === 'file:'
+  ? new URL('.', window.location.href).href
+  : '/'
+const cMapUrl = `${baseUrl}bcmaps/`
+const standardFontDataUrl = `${baseUrl}standard_fonts/`
+
 ;(globalThis as any).FontInspector = {
   enabled: true,
   fontAdded: () => {},
@@ -428,6 +434,7 @@ export default function PdfViewer(props: Props) {
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null)
   const [numPages, setNumPages] = useState(0)
   const [rawPageSize, setRawPageSize] = useState<{ w: number; h: number } | null>(null)
+  const [rawPageSizes, setRawPageSizes] = useState<Array<{ w: number; h: number }>>([])
   const [pageSizes, setPageSizesLocal] = useState<Array<{ w: number; h: number }>>([])
 
   useEffect(() => {
@@ -441,16 +448,26 @@ export default function PdfViewer(props: Props) {
         if (cancelled) return
 
         const data = new Uint8Array(fileData)
-        const doc = await pdfjsLib.getDocument({ data }).promise
+        const doc = await pdfjsLib.getDocument({
+          data,
+          cMapUrl,
+          cMapPacked: true,
+          standardFontDataUrl,
+        }).promise
         if (cancelled) return
 
         setNumPages(doc.numPages)
         setPdfDoc(doc)
 
-        const firstPage = await doc.getPage(1)
-        if (cancelled) return
-        const vp = firstPage.getViewport({ scale: 1 })
-        setRawPageSize({ w: vp.width, h: vp.height })
+        const sizes: Array<{ w: number; h: number }> = []
+        for (let i = 1; i <= doc.numPages; i++) {
+          const p = await doc.getPage(i)
+          if (cancelled) return
+          const vp = p.getViewport({ scale: 1 })
+          sizes.push({ w: vp.width, h: vp.height })
+        }
+        setRawPageSize(sizes[0])
+        setRawPageSizes(sizes)
       } catch (err) {
         console.error('[PdfViewer] failed to load PDF:', err)
       }
@@ -460,7 +477,7 @@ export default function PdfViewer(props: Props) {
   }, [props.fileData, props.docPath])
 
   return (
-    <PdfViewerProvider pdfDoc={pdfDoc} numPages={numPages} initialPageSizes={pageSizes} rawPageSize={rawPageSize}>
+    <PdfViewerProvider pdfDoc={pdfDoc} numPages={numPages} initialPageSizes={pageSizes} rawPageSize={rawPageSize} rawPageSizes={rawPageSizes}>
       <PdfViewerInner {...props} onPageSizesComputed={setPageSizesLocal} />
     </PdfViewerProvider>
   )

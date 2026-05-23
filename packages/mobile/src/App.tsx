@@ -5,6 +5,7 @@ import { createCapacitorAPI } from './capacitor-api.js'
 import { WelcomeView } from './WelcomeView.js'
 
 import '@mantine/core/styles.css'
+import '../../shared-ui/src/global.css'
 
 const api = createCapacitorAPI()
 
