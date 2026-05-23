@@ -232,6 +232,7 @@ const zh = {
   'settings.appTheme': '应用主题',
   'settings.noteTheme': '笔记主题',
   'pdf.eyeProtection': '护眼模式',
+  'pdf.einkMode': '水墨屏模式',
   'pdf.hideAnnotations': '隐藏标注',
   'pdf.showAnnotations': '显示标注',
 

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
-import { X } from 'lucide-react'
+import { X, Library, FileText, StickyNote, Tag, Puzzle } from 'lucide-react'
 import { useTheme } from '../theme/index.js'
 
 export interface Tab {
@@ -171,16 +171,20 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
             }}
           >
             <span className="title-bar-tab-icon">
-              {tab.type === 'library' && isNotebook ? (
+              {tab.type === 'library' ? (
                 <span style={{
                   width: 18, height: 18, borderRadius: 4,
-                  background: '#E07856', color: '#fff',
+                  background: isNotebook ? '#E07856' : 'var(--ink)', color: '#fff',
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   fontFamily: 'var(--font-serif, "Noto Serif SC", serif)',
                   fontSize: 11, fontWeight: 600,
-                  boxShadow: '0 1px 3px rgba(224,120,86,.3)',
+                  boxShadow: isNotebook ? '0 1px 3px rgba(224,120,86,.3)' : 'none',
                 }}>藏</span>
-              ) : tab.type === 'library' ? '📚' : tab.type === 'document' ? '📄' : tab.type === 'tag-manager' ? '🏷' : tab.type === 'plugin' ? '🧩' : '📝'}
+              ) : isNotebook ? (
+                tab.type === 'document' ? '📄' : tab.type === 'tag-manager' ? '🏷' : tab.type === 'plugin' ? '🧩' : '📝'
+              ) : (
+                tab.type === 'document' ? <FileText size={14} /> : tab.type === 'tag-manager' ? <Tag size={14} /> : tab.type === 'plugin' ? <Puzzle size={14} /> : <StickyNote size={14} />
+              )}
             </span>
             <span className="title-bar-tab-title">{tab.title}</span>
             {tab.closable && (

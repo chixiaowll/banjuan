@@ -94,6 +94,7 @@ export async function initLibraryForApi(path: string, name?: string): Promise<Li
     await Library.migrateNotes(path, deps.fs)
     await lib.syncWithDisk()
     try { await lib.notes.syncDisk() } catch {}
+    try { await lib.tags.syncFromFiles() } catch {}
   } else {
     await lib.scanAndImport()
   }
@@ -114,6 +115,7 @@ export async function openLibraryForApi(path: string): Promise<Library> {
   await Library.migrateNotes(path, deps.fs)
   await lib.syncWithDisk()
   try { await lib.notes.syncDisk() } catch {}
+  try { await lib.tags.syncFromFiles() } catch {}
   installBundledPlugins(lib.rootPath)
   await lib.plugins.loadAll()
   const indexService = lib.createIndexService()
@@ -149,6 +151,7 @@ export function registerIpcHandlers() {
     await Library.migrateNotes(path, deps.fs)
     const syncResult = await lib.syncWithDisk()
     try { await lib.notes.syncDisk() } catch { /* non-critical */ }
+    try { await lib.tags.syncFromFiles() } catch {}
     lib.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
     installBundledPlugins(lib.rootPath)
     await lib.plugins.loadAll()

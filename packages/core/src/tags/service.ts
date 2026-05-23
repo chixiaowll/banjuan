@@ -4,7 +4,7 @@ import { v4 as uuid } from 'uuid'
 import type { Tag, TagTarget, DocumentFileData } from '../types.js'
 import type { EventBus } from '../events/bus.js'
 import { JsonStore } from '../storage/json-store.js'
-import { parseFrontmatter, serializeFrontmatter } from '../storage/frontmatter.js'
+
 
 const TAG_PALETTE = [
   '#4a7ab5', '#7b6ba8', '#a07842', '#3d8a66',
@@ -59,21 +59,12 @@ export class TagService {
         data.updatedAt = new Date().toISOString()
         await this.docStore.write(data)
       }
-    } else if (targetType === 'note') {
-      const row = this.db.queryOne<{ path: string }>('SELECT path FROM notes WHERE id = ?', [targetId])
-      if (row) {
-        const filePath = join(this.rootPath, '.banjuan', 'notes', row.path)
-        if (await this.fs.exists(filePath)) {
-          const raw = await this.fs.readTextFile(filePath)
-          const { data, content } = parseFrontmatter(raw)
-          const existingTags = (data.tags as string[]) ?? []
-          data.tags = [...new Set([...existingTags, ...tagNames])]
-          data.updatedAt = new Date().toISOString()
-          await this.fs.writeTextFile(filePath, serializeFrontmatter(data, content))
-        }
-      }
-    } else if (targetType === 'mindmap') {
-      const row = this.db.queryOne<{ path: string }>('SELECT path FROM notes WHERE id = ? AND type = ?', [targetId, 'mindmap'])
+    } else if (targetType === 'note' || targetType === 'mindmap') {
+      const queryCondition = targetType === 'mindmap'
+        ? 'SELECT path FROM notes WHERE id = ? AND type = ?'
+        : 'SELECT path FROM notes WHERE id = ?'
+      const queryParams = targetType === 'mindmap' ? [targetId, 'mindmap'] : [targetId]
+      const row = this.db.queryOne<{ path: string }>(queryCondition, queryParams)
       if (row) {
         const filePath = join(this.rootPath, '.banjuan', 'notes', row.path)
         if (await this.fs.exists(filePath)) {
@@ -113,20 +104,12 @@ export class TagService {
         data.updatedAt = new Date().toISOString()
         await this.docStore.write(data)
       }
-    } else if (targetType === 'note') {
-      const row = this.db.queryOne<{ path: string }>('SELECT path FROM notes WHERE id = ?', [targetId])
-      if (row) {
-        const filePath = join(this.rootPath, '.banjuan', 'notes', row.path)
-        if (await this.fs.exists(filePath)) {
-          const raw = await this.fs.readTextFile(filePath)
-          const { data, content } = parseFrontmatter(raw)
-          data.tags = ((data.tags as string[]) ?? []).filter((t: string) => t !== tagName)
-          data.updatedAt = new Date().toISOString()
-          await this.fs.writeTextFile(filePath, serializeFrontmatter(data, content))
-        }
-      }
-    } else if (targetType === 'mindmap') {
-      const row = this.db.queryOne<{ path: string }>('SELECT path FROM notes WHERE id = ? AND type = ?', [targetId, 'mindmap'])
+    } else if (targetType === 'note' || targetType === 'mindmap') {
+      const queryCondition = targetType === 'mindmap'
+        ? 'SELECT path FROM notes WHERE id = ? AND type = ?'
+        : 'SELECT path FROM notes WHERE id = ?'
+      const queryParams = targetType === 'mindmap' ? [targetId, 'mindmap'] : [targetId]
+      const row = this.db.queryOne<{ path: string }>(queryCondition, queryParams)
       if (row) {
         const filePath = join(this.rootPath, '.banjuan', 'notes', row.path)
         if (await this.fs.exists(filePath)) {
@@ -193,35 +176,21 @@ export class TagService {
       }
     }
 
-    // Remove from note files (frontmatter)
-    const noteRows = this.db.query<{ path: string }>("SELECT path FROM notes WHERE type != 'mindmap'")
+    // Remove from note/mindmap files (JSON)
+    const noteRows = this.db.query<{ path: string }>('SELECT path FROM notes')
     for (const { path } of noteRows) {
       const filePath = join(this.rootPath, '.banjuan', 'notes', path)
       if (await this.fs.exists(filePath)) {
-        const raw = await this.fs.readTextFile(filePath)
-        const { data, content } = parseFrontmatter(raw)
-        const noteTags = (data.tags as string[]) ?? []
-        if (noteTags.includes(tag.name)) {
-          data.tags = noteTags.filter(t => t !== tag.name)
-          data.updatedAt = new Date().toISOString()
-          await this.fs.writeTextFile(filePath, serializeFrontmatter(data, content))
-        }
-      }
-    }
-
-    // Remove from mindmap files (JSON)
-    const mindmapRows = this.db.query<{ path: string }>("SELECT path FROM notes WHERE type = 'mindmap'")
-    for (const { path } of mindmapRows) {
-      const filePath = join(this.rootPath, '.banjuan', 'notes', path)
-      if (await this.fs.exists(filePath)) {
-        const raw = await this.fs.readTextFile(filePath)
-        const fileData = JSON.parse(raw)
-        const mmTags: string[] = fileData.tags ?? []
-        if (mmTags.includes(tag.name)) {
-          fileData.tags = mmTags.filter(t => t !== tag.name)
-          fileData.updatedAt = new Date().toISOString()
-          await this.fs.writeTextFile(filePath, JSON.stringify(fileData, null, 2))
-        }
+        try {
+          const raw = await this.fs.readTextFile(filePath)
+          const fileData = JSON.parse(raw)
+          const noteTags: string[] = fileData.tags ?? []
+          if (noteTags.includes(tag.name)) {
+            fileData.tags = noteTags.filter(t => t !== tag.name)
+            fileData.updatedAt = new Date().toISOString()
+            await this.fs.writeTextFile(filePath, JSON.stringify(fileData, null, 2))
+          }
+        } catch {}
       }
     }
   }
@@ -252,35 +221,21 @@ export class TagService {
       }
     }
 
-    // Update note files (frontmatter)
-    const noteRows = this.db.query<{ path: string }>("SELECT path FROM notes WHERE type != 'mindmap'")
+    // Update note/mindmap files (JSON)
+    const noteRows = this.db.query<{ path: string }>('SELECT path FROM notes')
     for (const { path } of noteRows) {
       const filePath = join(this.rootPath, '.banjuan', 'notes', path)
       if (await this.fs.exists(filePath)) {
-        const raw = await this.fs.readTextFile(filePath)
-        const { data, content } = parseFrontmatter(raw)
-        const noteTags = (data.tags as string[]) ?? []
-        if (noteTags.includes(oldName)) {
-          data.tags = noteTags.map(t => (t === oldName ? newName : t))
-          data.updatedAt = new Date().toISOString()
-          await this.fs.writeTextFile(filePath, serializeFrontmatter(data, content))
-        }
-      }
-    }
-
-    // Update mindmap files (JSON)
-    const mindmapRows = this.db.query<{ path: string }>("SELECT path FROM notes WHERE type = 'mindmap'")
-    for (const { path } of mindmapRows) {
-      const filePath = join(this.rootPath, '.banjuan', 'notes', path)
-      if (await this.fs.exists(filePath)) {
-        const raw = await this.fs.readTextFile(filePath)
-        const fileData = JSON.parse(raw)
-        const mmTags: string[] = fileData.tags ?? []
-        if (mmTags.includes(oldName)) {
-          fileData.tags = mmTags.map(t => (t === oldName ? newName : t))
-          fileData.updatedAt = new Date().toISOString()
-          await this.fs.writeTextFile(filePath, JSON.stringify(fileData, null, 2))
-        }
+        try {
+          const raw = await this.fs.readTextFile(filePath)
+          const fileData = JSON.parse(raw)
+          const noteTags: string[] = fileData.tags ?? []
+          if (noteTags.includes(oldName)) {
+            fileData.tags = noteTags.map(t => (t === oldName ? newName : t))
+            fileData.updatedAt = new Date().toISOString()
+            await this.fs.writeTextFile(filePath, JSON.stringify(fileData, null, 2))
+          }
+        } catch {}
       }
     }
   }
@@ -294,6 +249,76 @@ export class TagService {
     const entry = tags.find(t => t.id === tagId)
     if (entry) entry.color = color
     await this.writeTagsFile(tags)
+  }
+
+  async syncFromFiles(): Promise<void> {
+    const tags = await this.readTagsFile()
+    for (const t of tags) {
+      this.db.run('INSERT OR IGNORE INTO tags (id, name, color) VALUES (?, ?, ?)', [t.id, t.name, t.color])
+    }
+
+    const tagIdByName = new Map<string, string>()
+    for (const t of this.db.query<{ id: string; name: string }>('SELECT id, name FROM tags')) {
+      tagIdByName.set(t.name, t.id)
+    }
+
+    const docDataDir = join(this.rootPath, '.banjuan', 'data', 'documents')
+    if (await this.fs.exists(docDataDir)) {
+      const entries = await this.fs.readdirWithTypes(docDataDir)
+      for (const entry of entries) {
+        if (!entry.isDirectory && entry.name.endsWith('.json')) {
+          try {
+            const raw = JSON.parse(await this.fs.readTextFile(join(docDataDir, entry.name)))
+            const docId = raw.id as string
+            const docTags = (raw.tags as string[]) ?? []
+            for (const name of docTags) {
+              const tagId = tagIdByName.get(name)
+              if (tagId) {
+                this.db.run('INSERT OR IGNORE INTO doc_tags (doc_id, tag_id) VALUES (?, ?)', [docId, tagId])
+              }
+            }
+          } catch {}
+        }
+      }
+    }
+
+    const notesDir = join(this.rootPath, '.banjuan', 'notes')
+    if (await this.fs.exists(notesDir)) {
+      const scanNotes = async (dir: string) => {
+        const entries = await this.fs.readdirWithTypes(dir)
+        for (const entry of entries) {
+          if (entry.isDirectory) {
+            await scanNotes(join(dir, entry.name))
+          } else if (entry.name.endsWith('.json')) {
+            try {
+              const raw = await this.fs.readTextFile(join(dir, entry.name))
+              const parsed = JSON.parse(raw)
+              const meta = parsed.meta
+              if (!meta?.id) continue
+              const noteId = meta.id as string
+              const noteType = (meta.type as string) ?? 'markdown'
+              const noteTags: string[] = parsed.tags ?? []
+              if (noteType === 'mindmap') {
+                for (const name of noteTags) {
+                  const tagId = tagIdByName.get(name)
+                  if (tagId) {
+                    this.db.run('INSERT OR IGNORE INTO mindmap_tags (mindmap_id, tag_id) VALUES (?, ?)', [noteId, tagId])
+                  }
+                }
+              } else {
+                for (const name of noteTags) {
+                  const tagId = tagIdByName.get(name)
+                  if (tagId) {
+                    this.db.run('INSERT OR IGNORE INTO note_tags (note_id, tag_id) VALUES (?, ?)', [noteId, tagId])
+                  }
+                }
+              }
+            } catch {}
+          }
+        }
+      }
+      await scanNotes(notesDir)
+    }
   }
 
   async listWithCounts(): Promise<Array<Tag & { count: number }>> {

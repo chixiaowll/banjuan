@@ -35,15 +35,15 @@
   --radius-md: 12px;
   --radius-lg: 16px;
 
-  --tag-pdf-bg: #FDDEDE;   --tag-pdf-color: #C0392B;
-  --tag-epub-bg: #D5F5E3;  --tag-epub-color: #27AE60;
-  --tag-md-bg: #FEF3C7;    --tag-md-color: #D4A017;
-  --tag-mind-bg: #E8DAEF;  --tag-mind-color: #8E44AD;
-  --tag-txt-bg: #EAECEE;   --tag-txt-color: #7F8C8D;
-  --tag-hand-bg: #FEF3C7;  --tag-hand-color: #D4A017;
-  --tag-img-bg: #FEF3C7;   --tag-img-color: #D4A017;
-  --tag-html-bg: #D5F5E3;  --tag-html-color: #27AE60;
-  --tag-video-bg: #FADBD8; --tag-video-color: #E74C3C;
+  --tag-pdf-bg: #F2E2DC;   --tag-pdf-color: #8B5C4A;
+  --tag-epub-bg: #DCEAD6;  --tag-epub-color: #4E7A48;
+  --tag-md-bg: #EAE4D4;    --tag-md-color: #7A6C4F;
+  --tag-mind-bg: #E6E0F0;  --tag-mind-color: #6B5A8A;
+  --tag-txt-bg: #E8E6E2;   --tag-txt-color: #7A7670;
+  --tag-hand-bg: #EAE4D4;  --tag-hand-color: #7A6C4F;
+  --tag-img-bg: #E0E8D6;   --tag-img-color: #5E7048;
+  --tag-html-bg: #D6E6E6;  --tag-html-color: #4A7274;
+  --tag-video-bg: #EAE0E4; --tag-video-color: #7A5468;
 
   --accent-bg: rgba(232, 130, 93, 0.08);
 

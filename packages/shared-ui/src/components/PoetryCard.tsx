@@ -13,7 +13,7 @@ interface Poem {
 }
 
 interface PoetryCardProps {
-  locale?: 'zh' | 'en'
+  locale?: string
 }
 
 const EN_FONT = '"Georgia", "Times New Roman", serif'

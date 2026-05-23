@@ -33,15 +33,15 @@
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
 
-  --tag-pdf-bg: #FEF2F2;   --tag-pdf-color: #991B1B;
-  --tag-epub-bg: #ECFDF5;  --tag-epub-color: #065F46;
-  --tag-md-bg: #FEF3C7;    --tag-md-color: #92400E;
-  --tag-mind-bg: #EDE9FE;  --tag-mind-color: #5B21B6;
-  --tag-txt-bg: #F4F4F5;   --tag-txt-color: #71717A;
-  --tag-hand-bg: #FEF3C7;  --tag-hand-color: #92400E;
-  --tag-img-bg: #FEF3C7;   --tag-img-color: #92400E;
-  --tag-html-bg: #ECFDF5;  --tag-html-color: #065F46;
-  --tag-video-bg: #FCE7F3; --tag-video-color: #9D174D;
+  --tag-pdf-bg: #F5EDED;   --tag-pdf-color: #8C5E56;
+  --tag-epub-bg: #E8F2EC;  --tag-epub-color: #4A7A5C;
+  --tag-md-bg: #F0ECE0;    --tag-md-color: #7A6C4F;
+  --tag-mind-bg: #EEEBF5;  --tag-mind-color: #6B5A8A;
+  --tag-txt-bg: #F0F0F0;   --tag-txt-color: #7A7A7A;
+  --tag-hand-bg: #F0ECE0;  --tag-hand-color: #7A6C4F;
+  --tag-img-bg: #E8EDE4;   --tag-img-color: #5E7048;
+  --tag-html-bg: #E4EEEE;  --tag-html-color: #4A7274;
+  --tag-video-bg: #F0E8EC; --tag-video-color: #7A5468;
 
   --font-display: "Inter", "Noto Sans SC", -apple-system, sans-serif;
   --font-body: "Inter", "Noto Sans SC", -apple-system, sans-serif;
@@ -52,15 +52,37 @@
 /* Title bar overrides */
 :root[data-theme="minimal"] .title-bar {
   background: var(--paper-deep);
-  height: 38px;
+  height: 40px;
+  border-bottom-color: var(--border);
+}
+
+:root[data-theme="minimal"] .title-bar-tabs {
+  padding: 0 4px;
+  gap: 4px;
+  align-items: center;
 }
 
 :root[data-theme="minimal"] .title-bar-tab {
   font-family: var(--font-body);
+  font-size: 13px;
+  border-radius: 6px;
+  color: var(--ink-mute);
+  top: 0;
+  height: 28px;
+  padding: 0 14px;
+}
+
+:root[data-theme="minimal"] .title-bar-tab:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--ink-soft);
 }
 
 :root[data-theme="minimal"] .title-bar-tab.active {
-  background: var(--bg);
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 :root[data-theme="minimal"] .title-bar-plugin-btn.active {
@@ -72,3 +94,6 @@
 :root[data-theme="minimal"] .textLayer ::selection {
   background: rgba(24, 24, 27, 0.15);
 }
+
+:root[data-theme="minimal"] .nb-doc-row:hover .nb-time-rel { opacity: 0 !important; }
+:root[data-theme="minimal"] .nb-doc-row:hover .nb-time-abs { opacity: 1 !important; }

@@ -8,7 +8,7 @@ import InkTool from './InkTool.js'
 import InkLassoTool from './InkLassoTool.js'
 import EraserTool from './EraserTool.js'
 import { useBanjuanAPI } from '../../api.js'
-import { useEyeProtection, EYE_PROTECTION_TINT } from './useEyeProtection.js'
+import { useEyeProtection, EYE_PROTECTION_TINT, useEinkMode, EINK_FILTER } from './useEyeProtection.js'
 
 export interface TextSelectInfo {
   page: number
@@ -105,6 +105,7 @@ export default function PdfPage({
 }: PdfPageProps) {
   const api = useBanjuanAPI()
   const { eyeProtection } = useEyeProtection()
+  const { einkMode } = useEinkMode()
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const textLayerRef = useRef<HTMLDivElement>(null)
@@ -387,6 +388,7 @@ export default function PdfPage({
         height: baseSize.h,
         margin: '0 auto',
         background: 'var(--surface-raised)',
+        filter: einkMode ? EINK_FILTER : undefined,
       }}
     >
       <>

@@ -44,7 +44,7 @@ interface Props {
   onSwitchLibrary?: () => void
 }
 
-type SidebarSection = 'home' | 'documents' | 'notes' | 'sync' | 'plugins' | 'settings' | 'tags'
+type SidebarSection = 'home' | 'documents' | 'notes' | 'sync' | 'plugins' | 'settings' | 'tags' | 'tag-results'
 
 interface DirNode {
   name: string
@@ -229,20 +229,20 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
           onContextMenu?.(e, node.path)
         }}
         style={{
-          height: isNb ? 'auto' : 30,
-          padding: isNb ? '6px 10px 6px' : undefined,
-          paddingLeft: isNb ? (10 + depth * 18) : (12 + depth * 16),
+          height: 'auto',
+          padding: isNb ? '6px 10px 6px' : '5px 10px',
+          paddingLeft: isNb ? (10 + depth * 18) : (14 + depth * 18),
           paddingRight: 12,
-          marginLeft: isNb ? 0 : 8,
-          marginRight: isNb ? 0 : 8,
-          marginBottom: isNb ? 1 : 0,
-          fontSize: isNb ? 13 : 14,
+          marginLeft: 0,
+          marginRight: 0,
+          marginBottom: 1,
+          fontSize: 13,
           cursor: 'pointer',
           background: isSelected ? (isNb ? 'rgba(255,255,255,.6)' : 'var(--accent-soft)') : 'transparent',
           display: 'flex',
           alignItems: 'center',
-          gap: isNb ? 10 : 7,
-          borderRadius: isNb ? 7 : 'var(--radius-sm)',
+          gap: isNb ? 10 : 8,
+          borderRadius: isNb ? 7 : 8,
           transition: 'all 0.12s ease',
         }}
         onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = isNb ? 'rgba(255,255,255,.6)' : 'var(--hover)' }}
@@ -314,7 +314,9 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [selectedItemTags, setSelectedItemTags] = useState<Tag[]>([])
   const [docStatuses, setDocStatuses] = useState<Record<string, string>>({})
   const [downloadProgress, setDownloadProgress] = useState<Record<string, { loaded: number; total: number } | null>>({})
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQueryMap, setSearchQueryMap] = useState<Record<string, string>>({})
+  const searchQuery = searchQueryMap[selectedSection] ?? ''
+  const setSearchQuery = useCallback((q: string) => setSearchQueryMap(m => ({ ...m, [selectedSection]: q })), [selectedSection])
   const [sortKey, setSortKey] = useState<'type' | 'title' | 'createdAt' | 'updatedAt' | null>(null)
   const [sortAsc, setSortAsc] = useState(true)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
@@ -337,6 +339,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [tagSearch, setTagSearch] = useState('')
   const [showAllTags, setShowAllTags] = useState(false)
   const [tagFilteredItems, setTagFilteredItems] = useState<any[] | null>(null)
+  const [tagFilteredDocs, setTagFilteredDocs] = useState<any[]>([])
+  const [tagFilteredNotes, setTagFilteredNotes] = useState<any[]>([])
   const [pluginViews, setPluginViews] = useState<Array<{ viewType: string; pluginId: string; displayText: string; icon?: string; singleton?: boolean }>>([])
   const pluginIconCache = useRef<Map<string, string>>(new Map())
   const [recentAnnotations, setRecentAnnotations] = useState<Array<{ id: string; docId: string; type: string; selectedText: string | null; content: string | null; color: string; page: number | null; createdAt: string; docTitle?: string }>>([])
@@ -461,15 +465,19 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   useEffect(() => {
     if (!selectedTag) {
       setTagFilteredItems(null)
+      setTagFilteredDocs([])
+      setTagFilteredNotes([])
       return
     }
     const tagName = tagsWithCounts.find(t => t.id === selectedTag)?.name
-    if (!tagName) { setTagFilteredItems(null); return }
+    if (!tagName) { setTagFilteredItems(null); setTagFilteredDocs([]); setTagFilteredNotes([]); return }
     const load = async () => {
       const [docs, noteList] = await Promise.all([
         api.documents.list({ tag: tagName }),
         api.notes.list({ tag: tagName }),
       ])
+      setTagFilteredDocs(docs)
+      setTagFilteredNotes(noteList)
       setTagFilteredItems([...docs, ...noteList])
     }
     load()
@@ -754,54 +762,22 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
       {/* Left Sidebar */}
       <div style={sidebarStyle}>
         {/* Header */}
-        {isNotebook ? (
+        {isModern && !sidebarCollapsed ? (
           <div style={{
-            display: 'flex', alignItems: 'center', gap: sidebarCollapsed ? 0 : 10,
-            padding: sidebarCollapsed ? '10px 4px' : '6px 8px 14px',
-            margin: sidebarCollapsed ? 0 : '0 0 14px',
-            borderBottom: sidebarCollapsed ? 'none' : '1px solid var(--border)',
-            justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-          }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: '#E07856', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: 'var(--font-serif, "Noto Serif SC", serif)',
-              fontSize: 15, fontWeight: 600, flexShrink: 0,
-              boxShadow: '0 2px 6px rgba(224,120,86,.35)',
-              cursor: sidebarCollapsed ? 'pointer' : 'default',
-            }} onClick={() => { if (sidebarCollapsed) setSidebarCollapsed(false) }}>{t('library.sealChar')}</div>
-            {!sidebarCollapsed && <>
-              <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{libraryName}</div>
-              <div
-                onClick={() => setSidebarCollapsed(v => !v)}
-                style={{
-                  width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', borderRadius: 'var(--radius-sm)', color: 'var(--ink-mute)',
-                  transition: 'background 0.15s ease', flexShrink: 0,
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.6)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <PanelLeftClose size={16} />
-              </div>
-            </>}
-          </div>
-        ) : isMinimal && !sidebarCollapsed ? (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
+            display: 'flex', alignItems: 'center', gap: 10,
             padding: '6px 8px 14px',
-            margin: '18px 12px 0',
+            margin: '0 0 14px',
             borderBottom: '1px solid var(--border)',
           }}>
             <div style={{
-              width: 24, height: 24, borderRadius: 5,
-              background: 'var(--ink)', color: '#fff',
+              width: 32, height: 32, borderRadius: 8,
+              background: isNotebook ? '#E07856' : 'var(--ink)', color: '#fff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: 'var(--font-display)',
-              fontSize: 13, fontWeight: 600, flexShrink: 0,
+              fontFamily: 'var(--font-serif, "Noto Serif SC", serif)',
+              fontSize: 15, fontWeight: 600, flexShrink: 0,
+              boxShadow: isNotebook ? '0 2px 6px rgba(224,120,86,.35)' : 'none',
             }}>{t('library.sealChar')}</div>
-            <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{libraryName}</div>
+            <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{libraryName}</div>
             <div
               onClick={() => setSidebarCollapsed(v => !v)}
               style={{
@@ -809,11 +785,26 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 cursor: 'pointer', borderRadius: 'var(--radius-sm)', color: 'var(--ink-mute)',
                 transition: 'background 0.15s ease', flexShrink: 0,
               }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+              onMouseEnter={e => e.currentTarget.style.background = isNotebook ? 'rgba(255,255,255,.6)' : 'var(--hover)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
               <PanelLeftClose size={16} />
             </div>
+          </div>
+        ) : isModern && sidebarCollapsed ? (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '10px 4px',
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: isNotebook ? '#E07856' : 'var(--ink)', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'var(--font-serif, "Noto Serif SC", serif)',
+              fontSize: 15, fontWeight: 600, flexShrink: 0,
+              boxShadow: isNotebook ? '0 2px 6px rgba(224,120,86,.35)' : 'none',
+              cursor: 'pointer',
+            }} onClick={() => setSidebarCollapsed(false)}>{t('library.sealChar')}</div>
           </div>
         ) : (
           <div style={{
@@ -860,15 +851,6 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             {!sidebarCollapsed && (t('library.home') ?? 'Home')}
           </div>
 
-          {/* Group title: 资料库 (minimal/notebook) */}
-          {isMinimal && !sidebarCollapsed && (
-            <div style={{
-              padding: isNotebook ? '14px 10px 8px' : '14px 8px 6px', margin: sb.treeIndent ? 0 : '0 8px',
-              fontSize: 11, fontWeight: 600, color: 'var(--ink-mute)',
-              letterSpacing: '0.04em', textTransform: 'uppercase',
-            }}>{locale === 'zh' ? '资料库' : 'LIBRARY'}</div>
-          )}
-
           {/* Documents */}
           <div
             style={sidebarItemStyle(selectedSection === 'documents' && selectedDir === null && !selectedTag)}
@@ -882,6 +864,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             {!sidebarCollapsed && <><span style={{ flex: 1 }}>{t('library.documents')}</span>
               {sb.showBadge && <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, padding: '1px 7px', borderRadius: 9, minWidth: 22, textAlign: 'center', background: selectedSection === 'documents' && selectedDir === null && !selectedTag ? 'rgba(255,255,255,.22)' : 'rgba(0,0,0,.04)', color: selectedSection === 'documents' && selectedDir === null && !selectedTag ? '#fff' : 'var(--ink-mute)' }}>{documents.length}</span>}
               {isMinimal && <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)', fontWeight: 400 }}>{documents.length}</span>}
+              {isMinimal && dirTree.length > 0 && <span style={{ color: 'var(--text-muted)', flexShrink: 0, marginLeft: 4 }}>{docSectionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>}
               {!isModern && dirTree.length > 0 && <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{docSectionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>}
             </>}
           </div>
@@ -913,6 +896,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             {!sidebarCollapsed && <><span style={{ flex: 1 }}>{t('library.notes')}</span>
               {sb.showBadge && <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 500, padding: '1px 7px', borderRadius: 9, minWidth: 22, textAlign: 'center', background: selectedSection === 'notes' && selectedNoteDir === null && !selectedTag ? 'rgba(255,255,255,.22)' : 'rgba(0,0,0,.04)', color: selectedSection === 'notes' && selectedNoteDir === null && !selectedTag ? '#fff' : 'var(--ink-mute)' }}>{notes.length}</span>}
               {isMinimal && <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)', fontWeight: 400 }}>{notes.length}</span>}
+              {isMinimal && noteDirTree.length > 0 && <span style={{ color: 'var(--text-muted)', flexShrink: 0, marginLeft: 4 }}>{noteSectionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>}
               {!isModern && noteDirTree.length > 0 && <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{noteSectionExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>}
             </>}
           </div>
@@ -1020,7 +1004,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                     {visible.map((tag) => (
                       <span
                         key={tag.id}
-                        onClick={() => setSelectedTag(selectedTag === tag.id ? null : tag.id)}
+                        onClick={() => { const next = selectedTag === tag.id ? null : tag.id; setSelectedTag(next); if (next) setSelectedSection('tag-results'); else setSelectedSection('home') }}
                         style={{
                           fontSize: 11, padding: '2px 6px', borderRadius: 9999, cursor: 'pointer',
                           background: selectedTag === tag.id ? (tag.color || 'var(--accent)') : 'var(--hover)',
@@ -1211,14 +1195,11 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
             {/* Poetry / Quote section */}
             {layout.home.showDailyPick && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>
                   <span style={{ fontSize: 18 }}>📅</span>
                   {locale === 'zh' ? '今日卷' : 'Daily Pick'}
                 </div>
-                <span style={{ fontSize: 13, color: '#4A90E2', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>
-                  {locale === 'zh' ? '历史卷' : 'History'}<ChevronRight size={11} />
-                </span>
               </div>
             )}
             <div style={{ marginBottom: layout.home.poetryMarginBottom, paddingBottom: layout.home.poetryPaddingBottom, borderBottom: layout.home.poetryBorderBottom }}>
@@ -1846,7 +1827,129 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             </div>
           </div>
         ) : selectedSection === 'tags' ? (
-          <TagManagerView />
+          <TagManagerView libraryName={libraryName} onBack={() => handleSectionChange('home')} />
+        ) : selectedSection === 'tag-results' ? (
+          <div style={{ flex: 1, overflow: 'auto', padding: layout.homePadding }}>
+            <div style={{ maxWidth: layout.contentMaxWidth || undefined, margin: layout.centeredContent ? '0 auto' : undefined }}>
+              {/* Back + tag header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ cursor: 'pointer', fontSize: 13, color: 'var(--ink-mute)' }} onClick={() => { setSelectedTag(null); handleSectionChange('home') }}>&larr; {locale === 'zh' ? '返回' : 'Back'}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
+                <Tag size={20} style={{ color: tagsWithCounts.find(t => t.id === selectedTag)?.color || 'var(--ink-soft)' }} />
+                <h1 style={{ fontSize: 24, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>
+                  {tagsWithCounts.find(t => t.id === selectedTag)?.name || ''}
+                </h1>
+                <span style={{ fontSize: 13, color: 'var(--ink-mute)', background: 'var(--hover)', padding: '2px 10px', borderRadius: 11 }}>
+                  {tagFilteredDocs.length + tagFilteredNotes.length} {locale === 'zh' ? '项' : 'items'}
+                </span>
+              </div>
+
+              {/* Documents section */}
+              {tagFilteredDocs.length > 0 && (
+                <div style={{ marginBottom: 32 }}>
+                  <div
+                    onClick={() => setDocSectionExpanded(v => !v)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 12, userSelect: 'none' }}
+                  >
+                    {docSectionExpanded ? <ChevronDown size={16} style={{ color: 'var(--ink-mute)' }} /> : <ChevronRight size={16} style={{ color: 'var(--ink-mute)' }} />}
+                    <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-soft)' }}>
+                      {locale === 'zh' ? '文档' : 'Documents'}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>({tagFilteredDocs.length})</span>
+                  </div>
+                  {docSectionExpanded && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {tagFilteredDocs.map(doc => {
+                        const pill = TYPE_PILLS[doc.type]
+                        const extLabel = doc.type === 'other' || (doc.type === 'txt' && doc.path && !doc.path.endsWith('.txt'))
+                          ? (doc.path?.split('.').pop()?.toUpperCase() || (pill?.label ?? doc.type))
+                          : (pill?.label ?? doc.type)
+                        return (
+                          <div
+                            key={doc.id}
+                            onClick={() => onOpenDoc(doc)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 12,
+                              padding: '10px 14px', borderRadius: 8,
+                              cursor: 'pointer', transition: 'background 0.15s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover)' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                          >
+                            {pill && (
+                              <span style={{
+                                fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
+                                padding: '2px 7px', borderRadius: 4,
+                                background: pill.bg, color: pill.color,
+                              }}>{extLabel}</span>
+                            )}
+                            <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</span>
+                            {doc.authors?.[0] && <span style={{ fontSize: 12, color: 'var(--ink-mute)', flexShrink: 0 }}>{doc.authors[0]}</span>}
+                            <span style={{ fontSize: 11, color: 'var(--ink-faint)', flexShrink: 0 }}>{formatDate(doc.updatedAt || doc.createdAt, locale)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Notes section */}
+              {tagFilteredNotes.length > 0 && (
+                <div style={{ marginBottom: 32 }}>
+                  <div
+                    onClick={() => setNoteSectionExpanded(v => !v)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 12, userSelect: 'none' }}
+                  >
+                    {noteSectionExpanded ? <ChevronDown size={16} style={{ color: 'var(--ink-mute)' }} /> : <ChevronRight size={16} style={{ color: 'var(--ink-mute)' }} />}
+                    <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-soft)' }}>
+                      {locale === 'zh' ? '笔记' : 'Notes'}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>({tagFilteredNotes.length})</span>
+                  </div>
+                  {noteSectionExpanded && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {tagFilteredNotes.map(note => {
+                        const pill = TYPE_PILLS[note.type]
+                        return (
+                          <div
+                            key={note.id}
+                            onClick={() => { if (note.type === 'mindmap') onOpenMindmap(note); else onOpenNote(note) }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 12,
+                              padding: '10px 14px', borderRadius: 8,
+                              cursor: 'pointer', transition: 'background 0.15s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover)' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                          >
+                            {pill && (
+                              <span style={{
+                                fontSize: 10, fontWeight: 600, letterSpacing: '0.04em',
+                                padding: '2px 7px', borderRadius: 4,
+                                background: pill.bg, color: pill.color,
+                              }}>{pill.label}</span>
+                            )}
+                            <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{note.title}</span>
+                            <span style={{ fontSize: 11, color: 'var(--ink-faint)', flexShrink: 0 }}>{formatDate(note.updatedAt || note.createdAt, locale)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Empty state */}
+              {tagFilteredDocs.length === 0 && tagFilteredNotes.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--ink-mute)' }}>
+                  <Tag size={32} style={{ opacity: 0.3, marginBottom: 12 }} />
+                  <div style={{ fontSize: 14 }}>{locale === 'zh' ? '该标签下暂无内容' : 'No items with this tag'}</div>
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
           <>
             {/* Page header */}
@@ -2891,6 +2994,11 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
         >
           <option value="zh">中文</option>
           <option value="en">English</option>
+          <option value="ja">日本語</option>
+          <option value="ko">한국어</option>
+          <option value="fr">Français</option>
+          <option value="de">Deutsch</option>
+          <option value="es">Español</option>
         </select>
       </div>
 

@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, PanelRight, Clock, ChevronDown, PenTool, Eye, EyeOff, Sun } from 'lucide-react'
+import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, PanelRight, Clock, ChevronDown, PenTool, Eye, EyeOff, Sun, Monitor } from 'lucide-react'
 import { useMarkdownViewer, ANNOTATION_COLORS } from './MarkdownViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
-import { useEyeProtection } from './useEyeProtection.js'
+import { useEyeProtection, useEinkMode } from './useEyeProtection.js'
 
 interface Props {
   docId: string
@@ -12,6 +12,7 @@ interface Props {
 export default function MarkdownToolbar({ docId, metadata }: Props) {
   const ctx = useMarkdownViewer()
   const { eyeProtection, toggleEyeProtection } = useEyeProtection()
+  const { einkMode, toggleEinkMode } = useEinkMode()
   const { formatted: readingTime } = useReadingTimer(docId, metadata)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const colorRef = useRef<HTMLDivElement>(null)
@@ -140,6 +141,13 @@ export default function MarkdownToolbar({ docId, metadata }: Props) {
           title="Eye Protection"
         >
           <Sun size={16} />
+        </button>
+        <button
+          style={einkMode ? { ...btnStyle, color: '#718096' } : btnStyle}
+          onClick={toggleEinkMode}
+          title="E-Ink Mode"
+        >
+          <Monitor size={16} />
         </button>
       </div>
 
