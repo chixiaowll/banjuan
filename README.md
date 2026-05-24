@@ -112,16 +112,15 @@
 
 - 导入和管理 PDF、EPUB、Markdown、TXT、HTML、图片、视频等多种格式
 - 标签系统（支持颜色）、文件夹组织
-- 全文搜索
-- Chrome 扩展一键收藏网页
+- Chrome 扩展收藏网页（右键菜单保存选中内容）
 - 不支持的文件类型自动调用系统默认应用打开
 
 ### Reading & Annotation
 
-- **PDF 阅读器** — 双页/单页模式、目录导航、页面缩略图
+- **PDF 阅读器** — 目录导航、页面缩略图
 - **EPUB 阅读器** — 章节导航、字体大小调整
 - **Markdown 阅读器** — 基于 BlockNote 的美观渲染、章节大纲
-- **标注工具** — 文本高亮（6 色）、区域选择、文字批注
+- **标注工具** — 文本高亮（7 色）、区域选择、文字批注
 - **手写标注** — 压感墨迹绘制、橡皮擦、套索选择移动、按章节分组
 - **阅读计时** — 自动记录每篇文档的阅读时长
 
@@ -132,14 +131,9 @@
 - **思维导图** — 基于 React Flow 的节点编辑、自动布局、浮动主题、边界框、概要、关系连线
 - 笔记与文档关联、双向链接（`[[]]` / `![[]]`）、反向引用面板
 
-### Knowledge Graph
-
-- D3.js 力导向知识图谱，可视化笔记之间的引用关系
-- 点击节点快速跳转
-
 ### AI Integration
 
-- **Claude 插件** — AI 助手直接访问书房中的文档和笔记
+- **插件系统** — 可扩展的插件框架，支持命令注册、事件监听、RPC 调用
 - **CLI** — 对 LLM 友好的命令行接口，可在 Claude Code 等工具中直接调用
 
 ### Sync
@@ -173,7 +167,7 @@ Node.js >= 20
 pnpm
 
 # 克隆
-git clone https://github.com/anthropics/banjuan.git
+git clone https://github.com/chixiaowll/banjuan.git
 cd banjuan
 
 # 安装依赖
@@ -195,25 +189,34 @@ pnpm dev
 ### 命令
 
 ```bash
-# 查看连接状态
-banjuan status
+# 书房管理
+banjuan status                       # 查看连接状态
+banjuan init <path> --name "书房"     # 创建新书房
+banjuan open <path>                  # 打开书房
+banjuan close                        # 关闭书房
+banjuan list                         # 列出已打开的书房
+banjuan use <path>                   # 切换活跃书房
+banjuan history                      # 书房历史
 
 # 笔记
 banjuan note list                    # 列出所有笔记
-banjuan note list --type mindmap     # 只列出脑图类型的笔记
 banjuan note list --doc <doc-id>     # 列出关联某文档的笔记
 banjuan note show <id>               # 查看笔记内容
-banjuan note create "读书笔记"        # 创建笔记
-banjuan note update <id> --title "新标题"  # 更新笔记
+banjuan note create <title>          # 创建笔记
+banjuan note update <id> --title "新标题"  # 更新笔记标题
+banjuan note update <id> --content "内容"  # 更新笔记内容
+banjuan note move <id> <folder>      # 移动笔记到文件夹
+banjuan note delete <id>             # 删除笔记
 
 # 文档
 banjuan doc list                     # 列出所有文档
+banjuan doc import <file>            # 导入文档
 banjuan doc info <id>                # 查看文档详情
 banjuan doc delete <id>              # 删除文档
 
 # 搜索
 banjuan search "关键词"               # 全文搜索
-banjuan search "关键词" --type note   # 限定搜索笔记
+banjuan search "关键词" --type note   # 限定搜索类型（document/note/annotation）
 
 # 标注
 banjuan ann list <doc-id>            # 列出文档的标注
@@ -222,11 +225,19 @@ banjuan ann list <doc-id> --page 5   # 按页码筛选
 # 思维导图
 banjuan mindmap list                 # 列出所有脑图
 banjuan mindmap show <id>            # 查看脑图结构（树形输出）
-banjuan mindmap create "项目规划"     # 创建脑图
+banjuan mindmap create <title>       # 创建脑图
+banjuan mindmap add-node <id> <title> --parent <node-id>  # 添加节点
+banjuan mindmap update-node <node-id> --title "新标题"     # 更新节点
+banjuan mindmap remove-node <node-id>                     # 删除节点
 
 # 标签
 banjuan tag list                     # 列出所有标签
 banjuan tag assign <id> note "重要"   # 给笔记添加标签
+banjuan tag unassign <id> note "重要" # 移除标签
+
+# 文件夹
+banjuan folder list --type notes     # 列出笔记文件夹
+banjuan folder create <name> --type notes  # 创建文件夹
 ```
 
 所有列表命令支持 `--json` 参数输出 JSON 格式，便于脚本和 AI 工具集成。
@@ -301,7 +312,6 @@ cd packages/mobile && npx cap sync ios && npx cap open ios
 | EPUB | epub.js |
 | Handwriting | perfect-freehand + Canvas API |
 | Mindmap | React Flow (@xyflow/react) |
-| Graph | D3.js |
 | Sync | WebDAV |
 
 ## Architecture
@@ -349,7 +359,7 @@ cd packages/mobile && npx cap sync ios && npx cap open ios
 
 ## i18n
 
-支持中文和英文界面，在设置中切换。欢迎贡献其他语言的翻译。
+支持中文、English、日本語、한국어、Français、Deutsch、Español 七种语言，在设置中切换。欢迎贡献其他语言的翻译。
 
 翻译文件位于 `packages/shared-ui/src/i18n/`。
 
