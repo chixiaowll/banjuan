@@ -160,11 +160,9 @@ export function layoutMindmap(
     const tree = buildTree(nodes, visible, options.nodeSizes, fr.id)
     if (tree) {
       assignPositions(tree, 0, 0)
-      const offsetX = fr.data.positionX ?? 300
-      const offsetY = fr.data.positionY ?? -200
-      const dx = rootRenderedPos.x + offsetX - tree.x
-      const dy = rootRenderedPos.y + offsetY - tree.y
-      shiftTree(tree, dx, dy)
+      const absX = fr.data.positionX ?? (rootRenderedPos.x + 300)
+      const absY = fr.data.positionY ?? (rootRenderedPos.y - 200)
+      shiftTree(tree, absX - tree.x, absY - tree.y)
       collectPositions(tree, posMap)
     }
   }

@@ -11,7 +11,9 @@
 
 <p align="center">
   <a href="#features">Features</a> ·
+  <a href="#screenshots">Screenshots</a> ·
   <a href="#installation">Installation</a> ·
+  <a href="#cli">CLI</a> ·
   <a href="#development">Development</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#contributing">Contributing</a>
@@ -20,6 +22,82 @@
 ---
 
 半卷是一个开源的跨平台学习研究工具，将文献管理（Zotero）、阅读标注（MarginNote）、Markdown 笔记（Obsidian）和手写笔记（GoodNotes）整合到一个应用中。所有数据存储在本地，通过 WebDAV 实现多设备同步。
+
+## Screenshots
+
+### Welcome & Home
+
+<p align="center">
+  <img src="images/欢迎页1.jpeg" width="720" alt="Welcome page">
+</p>
+<p align="center"><em>欢迎页 — 每日一诗、农历日期、最近打开的书房</em></p>
+
+<p align="center">
+  <img src="images/首页1.jpeg" width="720" alt="Home page">
+</p>
+<p align="center"><em>书房首页 — 文档统计、今日卷、最近阅读文档</em></p>
+
+### Document Library
+
+<p align="center">
+  <img src="images/列表页1.jpeg" width="720" alt="Document list">
+</p>
+<p align="center"><em>文档管理 — 文件夹树、类型筛选、搜索、排序</em></p>
+
+### PDF Reading & Annotation
+
+<p align="center">
+  <img src="images/PDF 阅读 + 标注（支持划线、高亮、手写）+笔记（支持markdown、脑图、手写笔记）.jpeg" width="720" alt="PDF reading and annotation">
+</p>
+<p align="center"><em>PDF 阅读 — 手写标注 + 笔记面板（支持 Markdown、脑图、手写笔记）</em></p>
+
+### Notes
+
+<p align="center">
+  <img src="images/笔记页.jpeg" width="720" alt="Notes list">
+</p>
+<p align="center"><em>笔记列表 — 按文件夹组织、按类型筛选</em></p>
+
+<p align="center">
+  <img src="images/markdown 笔记.jpeg" width="720" alt="Markdown note">
+</p>
+<p align="center"><em>Markdown 笔记 — 大纲导航、关联引用、富文本编辑</em></p>
+
+### Mind Map
+
+<p align="center">
+  <img src="images/脑图笔记.jpeg" width="720" alt="Mind map with embedded notes">
+</p>
+<p align="center"><em>思维导图 — 嵌入笔记内容、双向链接引用面板</em></p>
+
+<p align="center">
+  <img src="images/脑图笔记2.jpeg" width="720" alt="Mind map with floating nodes">
+</p>
+<p align="center"><em>思维导图 — 浮动节点、边界框、概要括号、关系连线</em></p>
+
+### Handwriting
+
+<p align="center">
+  <img src="images/手写笔记测试.jpeg" width="720" alt="Handwriting note">
+</p>
+<p align="center"><em>手写笔记 — 多页面、压感墨迹、多种画笔和颜色</em></p>
+
+### AI Integration
+
+<p align="center">
+  <img src="images/Claude 插件.jpeg" width="720" alt="Claude AI plugin">
+</p>
+<p align="center"><em>Claude 插件 — AI 助手直接访问书房内容</em></p>
+
+<p align="center">
+  <img src="images/命令行功能.jpeg" width="720" alt="CLI commands">
+</p>
+<p align="center"><em>CLI — 完整的命令行工具，管理书房、文档、笔记、标签等</em></p>
+
+<p align="center">
+  <img src="images/使用大模型写入笔记.jpeg" width="720" alt="CLI with AI tools">
+</p>
+<p align="center"><em>CLI + AI 工具 — 通过命令行批量操作笔记，与 LLM 无缝集成</em></p>
 
 ## Features
 
@@ -44,13 +122,18 @@
 
 - **Markdown 笔记** — 基于 BlockNote 的富文本编辑器，支持代码高亮、Mermaid 图表
 - **手写笔记** — 多种纸张模板（空白、横线、方格、点阵、Cornell）
-- **思维导图** — 基于 React Flow 的节点编辑、自动布局、浮动主题
-- 笔记与文档关联、双向链接、反向引用面板
+- **思维导图** — 基于 React Flow 的节点编辑、自动布局、浮动主题、边界框、概要、关系连线
+- 笔记与文档关联、双向链接（`[[]]` / `![[]]`）、反向引用面板
 
 ### Knowledge Graph
 
 - D3.js 力导向知识图谱，可视化笔记之间的引用关系
 - 点击节点快速跳转
+
+### AI Integration
+
+- **Claude 插件** — AI 助手直接访问书房中的文档和笔记
+- **CLI** — 对 LLM 友好的命令行接口，可在 Claude Code 等工具中直接调用
 
 ### Sync
 
@@ -152,8 +235,8 @@ banjuan search "机器学习" --json
 # 读取笔记详情
 banjuan note show <id> --json
 
-# 创建新笔记
-banjuan note create "会议纪要"
+# 批量写入笔记内容
+banjuan note update <id> --content "$(cat notes.md)"
 ```
 
 ## Development

@@ -58,6 +58,9 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
       hasInitialLayoutRef.current = true
       setTimeout(() => fitView({ duration: 300, padding: 0.2, maxZoom: 1 }), 50)
     }
+    if (sizeVersion > 0) {
+      storeApi.getState().persist()
+    }
   }, [structuralFingerprint, layout, sizeVersion])
 
   const onNodesChange: OnNodesChange = useCallback((changes) => {
@@ -267,15 +270,19 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
         const dx = node.position.x - origPos.x
         const dy = node.position.y - origPos.y
         storeApi.getState().updateNodeData(node.id, { positionX: prevX + dx, positionY: prevY + dy })
+        const { rfNodes: currentNodes } = storeApi.getState()
+        for (const n of currentNodes) {
+          if (n.data.floating && !n.data.parentId) {
+            storeApi.getState().updateNodeData(n.id, {
+              positionX: n.position.x, positionY: n.position.y,
+            })
+          }
+        }
       }
     }
 
     if (isFloatingRoot) {
-      const { rfNodes: currentNodes } = storeApi.getState()
-      const rootNode = currentNodes.find(n => !n.data.parentId && !n.data.floating)
-      const rootX = rootNode?.position.x ?? 0
-      const rootY = rootNode?.position.y ?? 0
-      storeApi.getState().updateNodeData(node.id, { positionX: node.position.x - rootX, positionY: node.position.y - rootY })
+      storeApi.getState().updateNodeData(node.id, { positionX: node.position.x, positionY: node.position.y })
     }
 
     dragStartRef.current = null
