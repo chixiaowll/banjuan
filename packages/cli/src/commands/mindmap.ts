@@ -4,23 +4,23 @@ import { readFileSync } from 'node:fs'
 import { apiGet, apiPost, apiPut, apiDelete } from '../lib.js'
 import { outputJson, outputTable, outputItem } from '../output.js'
 
-export const mindmapCmd = new Command('mindmap').description('脑图管理')
+export const mindmapCmd = new Command('mindmap').description('mindmap management')
 
 mindmapCmd
   .command('create')
-  .description('创建脑图')
-  .argument('<title>', '脑图标题')
-  .option('--doc <doc-id>', '关联文档 ID')
+  .description('create a mindmap')
+  .argument('<title>', 'mindmap title')
+  .option('--doc <doc-id>', 'linked document ID')
   .action(async (title: string, opts: { doc?: string }) => {
     const mm = await apiPost('/api/mindmaps', { title, docId: opts.doc })
-    console.log(chalk.green(`✓ 已创建脑图：${mm.title} (${mm.id})`))
+    console.log(chalk.green(`✓ Created mindmap: ${mm.title} (${mm.id})`))
   })
 
 mindmapCmd
   .command('list')
-  .description('列出脑图')
-  .option('--doc <doc-id>', '按关联文档筛选')
-  .option('--json', 'JSON 输出')
+  .description('list mindmaps')
+  .option('--doc <doc-id>', 'filter by linked document')
+  .option('--json', 'JSON output')
   .action(async (opts: { doc?: string; json?: boolean }) => {
     const params = new URLSearchParams()
     if (opts.doc) params.set('docId', opts.doc)
@@ -29,13 +29,13 @@ mindmapCmd
     if (opts.json) {
       outputJson(maps)
     } else {
-      if (maps.length === 0) { console.log('暂无脑图'); return }
+      if (maps.length === 0) { console.log('No mindmaps'); return }
       outputTable(
-        ['ID', '标题', '布局', '关联文档', '创建时间'],
+        ['ID', 'Title', 'Layout', 'Document', 'Created'],
         maps.map((m: any) => [
           m.id, m.title, m.layout ?? '-',
           m.docId ?? '-',
-          new Date(m.createdAt).toLocaleDateString('zh-CN'),
+          new Date(m.createdAt).toLocaleDateString(),
         ]),
       )
     }
@@ -43,9 +43,9 @@ mindmapCmd
 
 mindmapCmd
   .command('show')
-  .description('查看脑图结构')
-  .argument('<id>', '脑图 ID')
-  .option('--json', 'JSON 输出')
+  .description('show mindmap structure')
+  .argument('<id>', 'mindmap ID')
+  .option('--json', 'JSON output')
   .action(async (id: string, opts: { json?: boolean }) => {
     const mm = await apiGet(`/api/mindmaps/${encodeURIComponent(id)}`)
     if (opts.json) {
@@ -53,10 +53,10 @@ mindmapCmd
     } else {
       outputItem([
         ['ID', mm.id],
-        ['标题', mm.title],
-        ['布局', mm.layout ?? '-'],
-        ['节点数', (mm.nodes?.length ?? 0).toString()],
-        ['连线数', (mm.edges?.length ?? 0).toString()],
+        ['Title', mm.title],
+        ['Layout', mm.layout ?? '-'],
+        ['Nodes', (mm.nodes?.length ?? 0).toString()],
+        ['Edges', (mm.edges?.length ?? 0).toString()],
       ])
       if (mm.nodes?.length > 0) {
         console.log('')
@@ -67,70 +67,70 @@ mindmapCmd
 
 mindmapCmd
   .command('add-node')
-  .description('添加节点')
-  .argument('<mindmap-id>', '脑图 ID')
-  .argument('<title>', '节点标题')
-  .option('--parent <node-id>', '父节点 ID（不指定则为根节点子节点）')
-  .option('--color <color>', '节点颜色')
-  .option('--shape <shape>', '节点形状')
-  .option('--content <content>', '节点内容')
+  .description('add a node')
+  .argument('<mindmap-id>', 'mindmap ID')
+  .argument('<title>', 'node title')
+  .option('--parent <node-id>', 'parent node ID (defaults to root)')
+  .option('--color <color>', 'node color')
+  .option('--shape <shape>', 'node shape')
+  .option('--content <content>', 'node content')
   .action(async (mindmapId: string, title: string, opts: { parent?: string; color?: string; shape?: string; content?: string }) => {
     const node = await apiPost(`/api/mindmaps/${encodeURIComponent(mindmapId)}/nodes`, {
       title, parentId: opts.parent, color: opts.color, shape: opts.shape, content: opts.content,
     })
-    console.log(chalk.green(`✓ 已添加节点：${node.title} (${node.id})`))
+    console.log(chalk.green(`✓ Added node: ${node.title} (${node.id})`))
   })
 
 mindmapCmd
   .command('update-node')
-  .description('更新节点')
-  .argument('<node-id>', '节点 ID')
-  .option('--title <title>', '新标题')
-  .option('--color <color>', '新颜色')
-  .option('--content <content>', '新内容')
+  .description('update a node')
+  .argument('<node-id>', 'node ID')
+  .option('--title <title>', 'new title')
+  .option('--color <color>', 'new color')
+  .option('--content <content>', 'new content')
   .action(async (nodeId: string, opts: { title?: string; color?: string; content?: string }) => {
     const node = await apiPut(`/api/mindmaps/nodes/${encodeURIComponent(nodeId)}`, opts)
-    console.log(chalk.green(`✓ 已更新节点：${node.title}`))
+    console.log(chalk.green(`✓ Updated node: ${node.title}`))
   })
 
 mindmapCmd
   .command('remove-node')
-  .description('删除节点')
-  .argument('<node-id>', '节点 ID')
+  .description('remove a node')
+  .argument('<node-id>', 'node ID')
   .action(async (nodeId: string) => {
     await apiDelete(`/api/mindmaps/nodes/${encodeURIComponent(nodeId)}`)
-    console.log(chalk.green('✓ 已删除节点'))
+    console.log(chalk.green('✓ Node removed'))
   })
 
 mindmapCmd
   .command('add-edge')
-  .description('添加连线')
-  .argument('<mindmap-id>', '脑图 ID')
-  .requiredOption('--from <node-id>', '源节点 ID')
-  .requiredOption('--to <node-id>', '目标节点 ID')
-  .option('--label <label>', '连线标签')
+  .description('add an edge')
+  .argument('<mindmap-id>', 'mindmap ID')
+  .requiredOption('--from <node-id>', 'source node ID')
+  .requiredOption('--to <node-id>', 'target node ID')
+  .option('--label <label>', 'edge label')
   .action(async (mindmapId: string, opts: { from: string; to: string; label?: string }) => {
     const edge = await apiPost(`/api/mindmaps/${encodeURIComponent(mindmapId)}/edges`, {
       sourceId: opts.from, targetId: opts.to, label: opts.label,
     })
-    console.log(chalk.green(`✓ 已添加连线 (${edge.id})`))
+    console.log(chalk.green(`✓ Added edge (${edge.id})`))
   })
 
 mindmapCmd
   .command('remove-edge')
-  .description('删除连线')
-  .argument('<edge-id>', '连线 ID')
+  .description('remove an edge')
+  .argument('<edge-id>', 'edge ID')
   .action(async (edgeId: string) => {
     await apiDelete(`/api/mindmaps/edges/${encodeURIComponent(edgeId)}`)
-    console.log(chalk.green('✓ 已删除连线'))
+    console.log(chalk.green('✓ Edge removed'))
   })
 
 mindmapCmd
   .command('import')
-  .description('从 JSON 批量导入节点（可从 stdin 读取）')
-  .argument('<mindmap-id>', '脑图 ID')
-  .option('--file <path>', 'JSON 文件路径')
-  .option('--json <data>', 'JSON 字符串')
+  .description('bulk import nodes from JSON (can read from stdin)')
+  .argument('<mindmap-id>', 'mindmap ID')
+  .option('--file <path>', 'JSON file path')
+  .option('--json <data>', 'JSON string')
   .action(async (mindmapId: string, opts: { file?: string; json?: string }) => {
     let data: any
     if (opts.file) {
@@ -143,7 +143,7 @@ mindmapCmd
       data = JSON.parse(Buffer.concat(chunks).toString('utf-8'))
     }
     const result = await apiPost(`/api/mindmaps/${encodeURIComponent(mindmapId)}/import`, data)
-    console.log(chalk.green(`✓ 已导入：${result.nodeCount} 个节点，${result.edgeCount} 条连线`))
+    console.log(chalk.green(`✓ Imported: ${result.nodeCount} nodes, ${result.edgeCount} edges`))
   })
 
 function printTree(nodes: any[], parentId: string | null, prefix: string): void {

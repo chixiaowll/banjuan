@@ -335,6 +335,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [expandedNoteDirs, setExpandedNoteDirs] = useState<Set<string>>(new Set())
   const [docSectionExpanded, setDocSectionExpanded] = useState(true)
   const [noteSectionExpanded, setNoteSectionExpanded] = useState(true)
+  const [tagDocSectionExpanded, setTagDocSectionExpanded] = useState(true)
+  const [tagNoteSectionExpanded, setTagNoteSectionExpanded] = useState(true)
   const [tagsWithCounts, setTagsWithCounts] = useState<Array<{ id: string; name: string; color: string | null; count: number }>>([])
   const [tagSearch, setTagSearch] = useState('')
   const [showAllTags, setShowAllTags] = useState(false)
@@ -1831,10 +1833,6 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         ) : selectedSection === 'tag-results' ? (
           <div style={{ flex: 1, overflow: 'auto', padding: layout.homePadding }}>
             <div style={{ maxWidth: layout.contentMaxWidth || undefined, margin: layout.centeredContent ? '0 auto' : undefined }}>
-              {/* Back + tag header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ cursor: 'pointer', fontSize: 13, color: 'var(--ink-mute)' }} onClick={() => { setSelectedTag(null); handleSectionChange('home') }}>&larr; {locale === 'zh' ? '返回' : 'Back'}</span>
-              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
                 <Tag size={20} style={{ color: tagsWithCounts.find(t => t.id === selectedTag)?.color || 'var(--ink-soft)' }} />
                 <h1 style={{ fontSize: 24, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>
@@ -1849,16 +1847,16 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               {tagFilteredDocs.length > 0 && (
                 <div style={{ marginBottom: 32 }}>
                   <div
-                    onClick={() => setDocSectionExpanded(v => !v)}
+                    onClick={() => setTagDocSectionExpanded(v => !v)}
                     style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 12, userSelect: 'none' }}
                   >
-                    {docSectionExpanded ? <ChevronDown size={16} style={{ color: 'var(--ink-mute)' }} /> : <ChevronRight size={16} style={{ color: 'var(--ink-mute)' }} />}
+                    {tagDocSectionExpanded ? <ChevronDown size={16} style={{ color: 'var(--ink-mute)' }} /> : <ChevronRight size={16} style={{ color: 'var(--ink-mute)' }} />}
                     <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-soft)' }}>
                       {locale === 'zh' ? '文档' : 'Documents'}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>({tagFilteredDocs.length})</span>
                   </div>
-                  {docSectionExpanded && (
+                  {tagDocSectionExpanded && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {tagFilteredDocs.map(doc => {
                         const pill = TYPE_PILLS[doc.type]
@@ -1899,16 +1897,16 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               {tagFilteredNotes.length > 0 && (
                 <div style={{ marginBottom: 32 }}>
                   <div
-                    onClick={() => setNoteSectionExpanded(v => !v)}
+                    onClick={() => setTagNoteSectionExpanded(v => !v)}
                     style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 12, userSelect: 'none' }}
                   >
-                    {noteSectionExpanded ? <ChevronDown size={16} style={{ color: 'var(--ink-mute)' }} /> : <ChevronRight size={16} style={{ color: 'var(--ink-mute)' }} />}
+                    {tagNoteSectionExpanded ? <ChevronDown size={16} style={{ color: 'var(--ink-mute)' }} /> : <ChevronRight size={16} style={{ color: 'var(--ink-mute)' }} />}
                     <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-soft)' }}>
                       {locale === 'zh' ? '笔记' : 'Notes'}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>({tagFilteredNotes.length})</span>
                   </div>
-                  {noteSectionExpanded && (
+                  {tagNoteSectionExpanded && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {tagFilteredNotes.map(note => {
                         const pill = TYPE_PILLS[note.type]

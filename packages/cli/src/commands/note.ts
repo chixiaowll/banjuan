@@ -3,27 +3,27 @@ import chalk from 'chalk'
 import { apiGet, apiPost, apiPut, apiDelete } from '../lib.js'
 import { outputJson, outputTable, outputItem } from '../output.js'
 
-export const noteCmd = new Command('note').description('笔记管理')
+export const noteCmd = new Command('note').description('note management')
 
 noteCmd
   .command('create')
-  .description('创建笔记')
-  .argument('<title>', '笔记标题')
-  .option('--doc <doc-id>', '关联文档 ID')
-  .option('--folder <folder>', '所属目录路径')
+  .description('create a note')
+  .argument('<title>', 'note title')
+  .option('--doc <doc-id>', 'linked document ID')
+  .option('--folder <folder>', 'folder path')
   .action(async (title: string, opts: { doc?: string; folder?: string }) => {
     const note = await apiPost('/api/notes', { title, docId: opts.doc, folder: opts.folder })
-    console.log(chalk.green(`✓ 已创建笔记：${note.title} (${note.id})`))
+    console.log(chalk.green(`✓ Created note: ${note.title} (${note.id})`))
   })
 
 noteCmd
   .command('list')
-  .description('列出笔记')
-  .option('--doc <doc-id>', '按关联文档筛选')
-  .option('--type <type>', '按类型筛选')
-  .option('--tag <tag>', '按标签筛选')
-  .option('--folder <folder>', '按目录路径筛选')
-  .option('--json', 'JSON 输出')
+  .description('list notes')
+  .option('--doc <doc-id>', 'filter by linked document')
+  .option('--type <type>', 'filter by type')
+  .option('--tag <tag>', 'filter by tag')
+  .option('--folder <folder>', 'filter by folder')
+  .option('--json', 'JSON output')
   .action(async (opts: { doc?: string; type?: string; tag?: string; folder?: string; json?: boolean }) => {
     const params = new URLSearchParams()
     if (opts.doc) params.set('docId', opts.doc)
@@ -35,16 +35,16 @@ noteCmd
     if (opts.json) {
       outputJson(notes)
     } else {
-      if (notes.length === 0) { console.log('暂无笔记'); return }
+      if (notes.length === 0) { console.log('No notes'); return }
       outputTable(
-        ['ID', '标题', '类型', '目录', '关联文档', '创建时间'],
+        ['ID', 'Title', 'Type', 'Folder', 'Document', 'Created'],
         notes.map((n: any) => {
           const parts = (n.path ?? '').split('/')
           const folder = parts.length > 1 ? parts.slice(0, -1).join('/') : '-'
           return [
             n.id, n.title, n.type ?? 'markdown',
             folder, n.docId ?? '-',
-            new Date(n.createdAt).toLocaleDateString('zh-CN'),
+            new Date(n.createdAt).toLocaleDateString(),
           ]
         }),
       )
@@ -53,25 +53,25 @@ noteCmd
 
 noteCmd
   .command('refresh')
-  .description('从磁盘同步笔记到数据库')
+  .description('sync notes from disk to database')
   .action(async () => {
     await apiPost('/api/notes/refresh')
-    console.log(chalk.green('✓ 笔记同步完成'))
+    console.log(chalk.green('✓ Notes synced'))
   })
 
 noteCmd
   .command('show')
-  .description('显示笔记内容')
-  .argument('<id>', '笔记 ID')
+  .description('show note content')
+  .argument('<id>', 'note ID')
   .action(async (id: string) => {
     const note = await apiGet(`/api/notes/${encodeURIComponent(id)}?format=markdown`)
     outputItem([
       ['ID', note.id],
-      ['标题', note.title],
-      ['类型', note.type ?? 'markdown'],
-      ['目录', note.folderId ?? '-'],
-      ['关联文档', note.docId ?? '-'],
-      ['创建', new Date(note.createdAt).toLocaleString('zh-CN')],
+      ['Title', note.title],
+      ['Type', note.type ?? 'markdown'],
+      ['Folder', note.folderId ?? '-'],
+      ['Document', note.docId ?? '-'],
+      ['Created', new Date(note.createdAt).toLocaleString()],
     ])
     if (note.content) {
       console.log('\n' + note.content)
@@ -80,33 +80,33 @@ noteCmd
 
 noteCmd
   .command('delete')
-  .description('删除笔记')
-  .argument('<id>', '笔记 ID')
+  .description('delete a note')
+  .argument('<id>', 'note ID')
   .action(async (id: string) => {
     await apiDelete(`/api/notes/${encodeURIComponent(id)}`)
-    console.log(chalk.green('✓ 已删除笔记'))
+    console.log(chalk.green('✓ Note deleted'))
   })
 
 noteCmd
   .command('update')
-  .description('更新笔记')
-  .argument('<id>', '笔记 ID')
-  .option('--title <title>', '新标题')
-  .option('--content <content>', '新内容（markdown 文本）')
+  .description('update a note')
+  .argument('<id>', 'note ID')
+  .option('--title <title>', 'new title')
+  .option('--content <content>', 'new content (markdown)')
   .action(async (id: string, opts: { title?: string; content?: string }) => {
     const body: Record<string, string> = {}
     if (opts.title) body.title = opts.title
     if (opts.content) body.content = opts.content
     const note = await apiPut(`/api/notes/${encodeURIComponent(id)}`, body)
-    console.log(chalk.green(`✓ 已更新笔记：${note.title}`))
+    console.log(chalk.green(`✓ Updated note: ${note.title}`))
   })
 
 noteCmd
   .command('move')
-  .description('移动笔记到指定目录')
-  .argument('<id>', '笔记 ID')
-  .argument('[folder]', '目标目录路径（不指定则移到根目录）')
+  .description('move a note to a folder')
+  .argument('<id>', 'note ID')
+  .argument('[folder]', 'target folder path (moves to root if omitted)')
   .action(async (id: string, folder?: string) => {
     const note = await apiPost(`/api/notes/${encodeURIComponent(id)}/move`, { folder: folder ?? null })
-    console.log(chalk.green(`✓ 已移动笔记：${note.title}`))
+    console.log(chalk.green(`✓ Moved note: ${note.title}`))
   })
