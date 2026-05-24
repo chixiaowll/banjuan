@@ -177,6 +177,13 @@ export function registerIpcHandlers() {
     writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf-8')
   })
 
+  ipcMain.handle('library:rename', async (event, name: string) => {
+    const lib = getLib(event)
+    await lib.setName(name)
+    recordLibraryOpen(lib.rootPath, name)
+    return { name }
+  })
+
   ipcMain.handle('dialog:openDirectory', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     if (result.canceled) return null

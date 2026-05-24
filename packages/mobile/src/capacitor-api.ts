@@ -83,6 +83,11 @@ export function createCapacitorAPI(): BanjuanAPI {
       async isOpen() {
         return library !== null
       },
+      async rename(name: string) {
+        const lib = getLib()
+        await lib.setName(name)
+        return { name }
+      },
     },
 
     dialog: {

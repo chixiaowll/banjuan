@@ -16,9 +16,10 @@ interface Props {
   libraryPath: string
   libraryName: string
   onSwitchLibrary?: () => void
+  onLibraryRenamed?: (name: string) => void
 }
 
-export default function TabManager({ libraryPath, libraryName, onSwitchLibrary }: Props) {
+export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, onLibraryRenamed }: Props) {
   const api = useBanjuanAPI()
   const t = useT()
   const [isNarrow, setIsNarrow] = useState(false)
@@ -283,6 +284,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary }
                   onOpenTagManager={openTagManager}
                   onOpenPluginView={togglePluginPanel}
                   onSwitchLibrary={onSwitchLibrary}
+                  onLibraryRenamed={(name) => { setTabs(prev => prev.map(t => t.id === LIBRARY_TAB_ID ? { ...t, title: name } : t)); onLibraryRenamed?.(name) }}
                 />
               )}
               {tab.type === 'document' && tabData.get(tab.id) && (

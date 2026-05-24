@@ -62,6 +62,7 @@ export default function App() {
               libraryPath={library.path}
               libraryName={library.name}
               onSwitchLibrary={() => setLibrary(null)}
+              onLibraryRenamed={(name) => setLibrary(prev => prev ? { ...prev, name } : prev)}
             />}
         <NoteRenderService />
       </I18nProvider>
