@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="README-en.md">English</a> ·
   <a href="#features">Features</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#installation">Installation</a> ·
