@@ -80,7 +80,7 @@ function MindmapCenterContent({ noteId, onToggleLeftSidebar, onToggleRightSideba
         onToggleLeftSidebar={onToggleLeftSidebar}
         onToggleRightSidebar={onToggleRightSidebar}
       />
-      <div style={{ flex: 1, position: 'relative' }} onContextMenu={handleContextMenu}>
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }} onContextMenu={handleContextMenu}>
         <MindmapCanvas />
         <MindmapFloatingToolbar />
         {searchOpen && <MindmapSearch onClose={() => setSearchOpen(false)} />}

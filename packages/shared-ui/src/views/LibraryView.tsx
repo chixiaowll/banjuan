@@ -42,6 +42,7 @@ interface Props {
   onOpenTagManager?: () => void
   onOpenPluginView?: (pluginId: string, viewType: string) => void
   onSwitchLibrary?: () => void
+  onLibraryRenamed?: (name: string) => void
 }
 
 type SidebarSection = 'home' | 'documents' | 'notes' | 'sync' | 'plugins' | 'settings' | 'tags' | 'tag-results'
@@ -294,7 +295,7 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
   )
 }
 
-export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNote, onOpenMindmap, onOpenPluginView, onSwitchLibrary }: Props) {
+export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNote, onOpenMindmap, onOpenPluginView, onSwitchLibrary, onLibraryRenamed }: Props) {
   const api = useBanjuanAPI()
   const { t, locale, setLocale } = useI18n()
   const { theme: appTheme } = useTheme()
@@ -329,7 +330,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [folderInputValue, setFolderInputValue] = useState('')
   const [showRenameInput, setShowRenameInput] = useState(false)
   const [renameInputValue, setRenameInputValue] = useState('')
-  const [renameTarget, setRenameTarget] = useState<{ type: 'dir' | 'note'; dirPath?: string; noteId?: string } | null>(null)
+  const [renameTarget, setRenameTarget] = useState<{ type: 'dir' | 'note' | 'library'; dirPath?: string; noteId?: string } | null>(null)
   const [noteDirs, setNoteDirs] = useState<string[]>([])
   const [selectedNoteDir, setSelectedNoteDir] = useState<string | null>(null)
   const [expandedNoteDirs, setExpandedNoteDirs] = useState<Set<string>>(new Set())
@@ -538,6 +539,9 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     } else if (renameTarget.type === 'note' && renameTarget.noteId) {
       await api.notes.update(renameTarget.noteId, { title: name })
       await loadNotes()
+    } else if (renameTarget.type === 'library') {
+      await api.library.rename?.(name)
+      onLibraryRenamed?.(name)
     }
     setRenameTarget(null)
   }
@@ -779,7 +783,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               fontSize: 15, fontWeight: 600, flexShrink: 0,
               boxShadow: isNotebook ? '0 2px 6px rgba(224,120,86,.35)' : 'none',
             }}>{t('library.sealChar')}</div>
-            <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{libraryName}</div>
+            <div
+              style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}
+              onDoubleClick={() => { setRenameTarget({ type: 'library' }); setRenameInputValue(libraryName); setShowRenameInput(true) }}
+            >{libraryName}</div>
             <div
               onClick={() => setSidebarCollapsed(v => !v)}
               style={{
@@ -816,12 +823,15 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             gap: 8, flexShrink: 0,
           }}>
             {!sidebarCollapsed && (
-              <span style={{
-                fontSize: 15, fontWeight: 600, color: 'var(--text-muted)',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                letterSpacing: '0.02em',
-                textTransform: 'uppercase',
-              }}>
+              <span
+                style={{
+                  fontSize: 15, fontWeight: 600, color: 'var(--text-muted)',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  letterSpacing: '0.02em',
+                  textTransform: 'uppercase', cursor: 'default',
+                }}
+                onDoubleClick={() => { setRenameTarget({ type: 'library' }); setRenameInputValue(libraryName); setShowRenameInput(true) }}
+              >
                 {libraryName}
               </span>
             )}
@@ -1105,8 +1115,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 {layout.home.showSealChar && <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
                   <h1 style={{
                     fontFamily: layout.home.titleFont, fontWeight: layout.home.titleFontWeight, fontSize: layout.home.titleFontSize,
-                    color: 'var(--ink)', letterSpacing: layout.home.titleLetterSpacing, lineHeight: 1, margin: 0,
-                  }}>
+                    color: 'var(--ink)', letterSpacing: layout.home.titleLetterSpacing, lineHeight: 1, margin: 0, cursor: 'default',
+                  }} onDoubleClick={() => { setRenameTarget({ type: 'library' }); setRenameInputValue(libraryName); setShowRenameInput(true) }}>
                     {libraryName}
                   </h1>
                   <span style={{
@@ -1122,8 +1132,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 {!layout.home.showSealChar && <h1 style={{
                   fontSize: layout.home.titleFontSize, fontWeight: layout.home.titleFontWeight, color: 'var(--ink)',
                   letterSpacing: layout.home.titleLetterSpacing, lineHeight: 1.2, margin: 0,
-                  display: 'inline-flex', alignItems: 'center', gap: 14,
-                }}>{libraryName}
+                  display: 'inline-flex', alignItems: 'center', gap: 14, cursor: 'default',
+                }} onDoubleClick={() => { setRenameTarget({ type: 'library' }); setRenameInputValue(libraryName); setShowRenameInput(true) }}>{libraryName}
                   {layout.home.showSyncBadge && <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5,
                     padding: '3px 10px', borderRadius: 12,

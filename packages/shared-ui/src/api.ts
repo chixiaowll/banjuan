@@ -46,6 +46,7 @@ export interface BanjuanAPI {
     isOpen(): Promise<boolean>
     getHistory?(): Promise<Array<{ path: string; name: string; lastOpened: string }>>
     removeHistory?(path: string): Promise<void>
+    rename?(name: string): Promise<{ name: string }>
   }
 
   dialog: {

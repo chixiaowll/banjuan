@@ -18,7 +18,7 @@ export function App() {
       <I18nProvider>
         <BanjuanAPIProvider value={api}>
           {library
-            ? <TabManager libraryPath={library.path} libraryName={library.name} onSwitchLibrary={() => setLibrary(null)} />
+            ? <TabManager libraryPath={library.path} libraryName={library.name} onSwitchLibrary={() => setLibrary(null)} onLibraryRenamed={(name) => setLibrary(prev => prev ? { ...prev, name } : prev)} />
             : <WelcomeView onOpen={(path, name) => setLibrary({ path, name })} />
           }
         </BanjuanAPIProvider>

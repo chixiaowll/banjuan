@@ -10,7 +10,7 @@ export default function ViewportOverlay({ children }: { children: React.ReactNod
       style={{
         position: 'absolute',
         inset: 0,
-        overflow: 'visible',
+        overflow: 'hidden',
         pointerEvents: 'none',
         zIndex: 5,
       }}

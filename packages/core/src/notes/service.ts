@@ -41,6 +41,7 @@ export class NoteService {
     const knownPaths = new Set(
       (this.db.query<{ path: string }>('SELECT path FROM notes')).map(r => r.path)
     )
+    const pendingLinks: Array<{ noteId: string; rawText: string }> = []
     const scan = async (dir: string, prefix: string) => {
       const entries = await this.fs.readdirWithTypes(dir)
       for (const entry of entries) {
@@ -62,26 +63,34 @@ export class NoteService {
               if (noteType === 'mindmap' && raw.nodes) {
                 this.importMindmapNodesFromFile(m.id, raw.nodes, raw.edges ?? [])
               }
-              this.syncLinksFromFile(m.id, rawText)
+              pendingLinks.push({ noteId: m.id, rawText })
             } catch { /* skip malformed files */ }
           }
         }
       }
     }
     await scan(this.notesDir, '')
+    for (const { noteId, rawText } of pendingLinks) {
+      this.syncLinksFromFile(noteId, rawText)
+    }
   }
 
   private syncLinksFromFile(noteId: string, rawJson: string): void {
     if (!this.linkService) return
     const seen = new Set<string>()
     const links: Array<{ targetId: string; context: string }> = []
-    const re = /"noteId"\s*:\s*"([a-f0-9-]{36})"/g
-    let match: RegExpExecArray | null
-    while ((match = re.exec(rawJson)) !== null) {
-      const targetId = match[1]
-      if (targetId !== noteId && !seen.has(targetId)) {
-        seen.add(targetId)
-        links.push({ targetId, context: '' })
+    const patterns = [
+      /"noteId"\s*:\s*"([a-f0-9-]{36})"/g,
+      /\\"noteId\\"\s*:\s*\\"([a-f0-9-]{36})\\"/g,
+    ]
+    for (const re of patterns) {
+      let match: RegExpExecArray | null
+      while ((match = re.exec(rawJson)) !== null) {
+        const targetId = match[1]
+        if (targetId !== noteId && !seen.has(targetId)) {
+          seen.add(targetId)
+          links.push({ targetId, context: '' })
+        }
       }
     }
     if (links.length > 0) {

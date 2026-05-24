@@ -231,13 +231,21 @@ export function MindmapFloatingToolbar() {
 
       <button onClick={() => addBoundary(selectedNodeIds)} title="Add Boundary (select 2+ nodes)"
         disabled={selectedNodeIds.length < 2}
-        style={{ ...btnStyle, opacity: selectedNodeIds.length < 2 ? 0.3 : 1 }}>
-        <Square size={15} />
+        style={{
+          ...btnStyle,
+          opacity: selectedNodeIds.length < 2 ? 0.3 : 1,
+          color: selectedNodeIds.length >= 2 ? '#5e81ac' : undefined,
+        }}>
+        <Square size={15} strokeWidth={2} />
       </button>
       <button onClick={() => addSummary(selectedNodeIds)} title="Add Summary (select 2+ nodes)"
         disabled={selectedNodeIds.length < 2}
-        style={{ ...btnStyle, opacity: selectedNodeIds.length < 2 ? 0.3 : 1 }}>
-        <Braces size={15} />
+        style={{
+          ...btnStyle,
+          opacity: selectedNodeIds.length < 2 ? 0.3 : 1,
+          color: selectedNodeIds.length >= 2 ? '#5e81ac' : undefined,
+        }}>
+        <Braces size={15} strokeWidth={2} />
       </button>
 
       <div style={{ width: 1, height: 20, background: 'var(--border, #e0e0e0)', flexShrink: 0 }} />

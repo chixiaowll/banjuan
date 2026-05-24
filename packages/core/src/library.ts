@@ -135,6 +135,13 @@ export class Library {
     return config.name
   }
 
+  async setName(name: string): Promise<void> {
+    const configPath = join(this.rootPath, '.banjuan', 'config.json')
+    const config = await this.getConfig()
+    config.name = name
+    await this.fs.writeTextFile(configPath, JSON.stringify(config, null, 2))
+  }
+
   async getSyncConfig(): Promise<SyncConfig | null> {
     const syncPath = join(this.rootPath, '.banjuan', 'sync.json')
     if (!(await this.fs.exists(syncPath))) return null

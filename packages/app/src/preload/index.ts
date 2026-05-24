@@ -9,6 +9,7 @@ const api = {
     isOpen: () => ipcRenderer.invoke('library:isOpen'),
     getHistory: () => ipcRenderer.invoke('library:getHistory'),
     removeHistory: (path: string) => ipcRenderer.invoke('library:removeHistory', path),
+    rename: (name: string) => ipcRenderer.invoke('library:rename', name),
   },
   dialog: {
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
