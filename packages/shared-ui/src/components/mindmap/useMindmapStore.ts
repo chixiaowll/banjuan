@@ -252,12 +252,23 @@ export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
       const rfEdges = apiEdgesToRfEdges(rfNodes, apiEdges)
       const mmLayout = mm.typeMeta?.layout ?? (mm as any).layout ?? 'mindmap'
       const mmTheme = mm.typeMeta?.theme ?? (mm as any).theme ?? 'classic'
+      const savedSizes = mm.typeMeta?.nodeSizes as Record<string, { w: number; h: number }> | undefined
+      const initSizes = new Map<string, { width: number; height: number }>()
+      if (savedSizes) {
+        for (const [id, s] of Object.entries(savedSizes)) {
+          initSizes.set(id, { width: s.w, height: s.h })
+        }
+      }
       const layoutResult = layoutMindmap(rfNodes, rfEdges, {
         layout: mmLayout,
-        nodeSizes: new Map(),
+        nodeSizes: initSizes,
         summaries: summariesData,
       })
-      useNodeSizeStore.getState().reset()
+      const sizeStore = useNodeSizeStore.getState()
+      sizeStore.reset()
+      for (const [id, s] of initSizes) {
+        sizeStore.setNodeSize(id, s.width, s.height)
+      }
       set({
         mindmapId,
         mindmapTitle: mm.title,
@@ -348,23 +359,26 @@ export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
     addFloatingNode: async () => {
       const { mindmapId, rfNodes } = get()
       if (!mindmapId) return null
+      const rootNode = rfNodes.find(n => !n.data.parentId && !n.data.floating)
+      const absX = (rootNode?.position.x ?? 0) + 200
+      const absY = (rootNode?.position.y ?? 0) - 200
       const node = await api.mindmaps.addNode(mindmapId, {
         title: 'Floating Topic',
         floating: true,
-        positionX: 200,
-        positionY: -200,
+        positionX: absX,
+        positionY: absY,
       })
       const newRfNode: Node<MindmapNodeData> = {
         id: node.id,
         type: 'default',
-        position: { x: node.positionX ?? 200, y: node.positionY ?? -200 },
+        position: { x: node.positionX ?? absX, y: node.positionY ?? absY },
         draggable: true,
         data: {
           id: node.id, mindmapId, parentId: null,
           title: node.title, content: null,
           hyperlink: null, imageUrl: null,
           color: null, notes: null, shape: null, styleOverrides: null,
-          positionX: node.positionX ?? 200, positionY: node.positionY ?? -200,
+          positionX: node.positionX ?? absX, positionY: node.positionY ?? absY,
           sortOrder: node.sortOrder, collapsed: false, floating: true,
           depth: 0,
         },
@@ -628,7 +642,12 @@ export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
       persistTimer = setTimeout(async () => {
         const { mindmapId, mindmapTitle, layout, theme } = get()
         if (!mindmapId) return
-        await api.notes.update(mindmapId, { title: mindmapTitle, typeMeta: { layout, theme } })
+        const sizes = useNodeSizeStore.getState().sizes
+        const nodeSizes: Record<string, { w: number; h: number }> = {}
+        for (const [id, s] of sizes) {
+          nodeSizes[id] = { w: s.width, h: s.height }
+        }
+        await api.notes.update(mindmapId, { title: mindmapTitle, typeMeta: { layout, theme, nodeSizes } })
       }, 500)
     },
   }))
