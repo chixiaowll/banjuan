@@ -75,6 +75,13 @@
 </p>
 <p align="center"><em>思维导图 — 浮动节点、边界框、概要括号、关系连线</em></p>
 
+### Video Playback
+
+<p align="center">
+  <img src="images/视频播放（截取关键帧、关键帧跳转、加笔记）.jpeg" width="720" alt="Video playback with keyframes and notes">
+</p>
+<p align="center"><em>视频播放 — 截取关键帧、关键帧跳转、添加笔记</em></p>
+
 ### Handwriting
 
 <p align="center">
