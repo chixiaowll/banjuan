@@ -482,13 +482,6 @@ const POEMS_FLOW: FlowPoem[] = [
   { title: '春日', author: '朱熹', tag: '宋', mood: '欣悦', lines: ['胜日寻芳泗水滨，无边光景一时新。', '等闲识得东风面，万紫千红总是春。'], dimStart: 7 },
 ]
 
-function getDailyPoem(poems: Poem[]): Poem {
-  const now = new Date()
-  const start = new Date(now.getFullYear(), 0, 0)
-  const dayOfYear = Math.floor((now.getTime() - start.getTime()) / 86400000)
-  return poems[dayOfYear % poems.length]
-}
-
 const arrowBtnStyle: React.CSSProperties = {
   position: 'absolute', top: '50%', transform: 'translateY(-50%)',
   width: 28, height: 28, borderRadius: '50%',
@@ -506,7 +499,11 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
   const isEn = locale === 'en'
   const poems = isEn ? EN_POEMS : POEMS
 
-  const [index, setIndex] = useState(0)
+  const [index, setIndex] = useState(() => {
+    const now = new Date()
+    const hoursSinceEpoch = Math.floor(now.getTime() / 3600000)
+    return hoursSinceEpoch % poems.length
+  })
   const [fading, setFading] = useState(false)
   const [hovered, setHovered] = useState(false)
   const dragRef = useRef<{ startX: number; startY: number; locked: boolean } | null>(null)
