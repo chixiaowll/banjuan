@@ -246,7 +246,7 @@ export default function PdfPage({
             el.style.transform = `${restTransform ? restTransform + ' ' : ''}scaleX(${charRatio})`
             const widthAfterCharScale = getLocalWidth(el)
             if (widthAfterCharScale > 0) {
-              const spaceDiff = (expectedWidth - widthAfterCharScale) / (spaceCount * charRatio)
+              const spaceDiff = (expectedWidth / charRatio - widthAfterCharScale) / spaceCount
               el.style.wordSpacing = `${spaceDiff}px`
             }
           } else {
@@ -260,7 +260,7 @@ export default function PdfPage({
         }
 
         for (const el of textLayerEl.querySelectorAll('span, br')) {
-          ;(el as HTMLElement).style.color = 'rgba(255, 0, 0, 0.3)'
+          ;(el as HTMLElement).style.color = 'transparent'
         }
       }
 
