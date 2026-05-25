@@ -6039,7 +6039,7 @@ class FontFaceObject {
     this._inspectFont = inspectFont;
   }
   createNativeFontFace() {
-    if (!this.data || this.disableFontFace) {
+    if (!this.data) {
       return null;
     }
     let nativeFontFace;
@@ -6058,7 +6058,7 @@ class FontFaceObject {
     return nativeFontFace;
   }
   createFontFaceRule() {
-    if (!this.data || this.disableFontFace) {
+    if (!this.data) {
       return null;
     }
     const url = `url(data:${this.mimetype};base64,${toBase64Util(this.data)});`;

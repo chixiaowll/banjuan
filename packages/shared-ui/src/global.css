@@ -170,6 +170,9 @@ select {
   transform-origin: 0% 0%;
   user-select: text;
   -webkit-user-select: text;
+  font-kerning: none;
+  font-variant-ligatures: none;
+  text-rendering: geometricPrecision;
 }
 
 .textLayer ::selection {
