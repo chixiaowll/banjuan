@@ -192,14 +192,75 @@ export default function PdfPage({
         textLayerEl.innerHTML = ''
         textLayerEl.style.setProperty('--total-scale-factor', String(scale))
         textLayerEl.style.setProperty('--scale-factor', String(scale))
+        const patchedContent = {
+          ...textContent,
+          styles: Object.fromEntries(
+            Object.entries(textContent.styles as Record<string, any>).map(
+              ([name, style]) => [name, { ...style, fontFamily: `"${name}", ${style.fontFamily || 'serif'}` }]
+            )
+          ),
+        }
         const textLayer = new pdfjsLib.TextLayer({
-          textContentSource: textContent,
+          textContentSource: patchedContent,
           container: textLayerEl,
           viewport,
         })
         await textLayer.render()
+
+        const textItems = (patchedContent.items as any[]).filter((it: any) => it.str !== undefined && it.str !== '')
+        const allSpans = textLayerEl.querySelectorAll('span[role="presentation"]')
+        const getLocalWidth = (el: HTMLElement) => parseFloat(getComputedStyle(el).width) || el.offsetWidth
+
+
+        // Pass 1: calculate pure character width ratio from space-free spans
+        const measurements: Array<{ el: HTMLElement, expectedWidth: number, restTransform: string, originalTransform: string }> = []
+        let charRatioSum = 0, charRatioCount = 0
+        for (let i = 0; i < allSpans.length && i < textItems.length; i++) {
+          const el = allSpans[i] as HTMLElement
+          const item = textItems[i]
+          const canvasWidth = item.width || 0
+          if (canvasWidth <= 0) { measurements.push({ el, expectedWidth: 0, restTransform: '', originalTransform: '' }); continue }
+          const expectedWidth = canvasWidth * scale
+          const currentTransform = el.style.transform || ''
+          if (!currentTransform.includes('scaleX(')) { measurements.push({ el, expectedWidth: 0, restTransform: '', originalTransform: '' }); continue }
+          const restTransform = currentTransform.replace(/scaleX\([^)]+\)\s*/, '').trim()
+          el.style.transform = restTransform || 'none'
+          const naturalWidth = getLocalWidth(el)
+          const text = el.textContent || ''
+          if (naturalWidth > 0 && !text.includes(' ')) {
+            charRatioSum += expectedWidth / naturalWidth
+            charRatioCount++
+          }
+          measurements.push({ el, expectedWidth, restTransform, originalTransform: currentTransform })
+        }
+        const charRatio = charRatioCount > 0 ? charRatioSum / charRatioCount : 1.0
+
+        // Pass 2: apply scaleX for characters + word-spacing for spaces
+        for (let i = 0; i < measurements.length && i < textItems.length; i++) {
+          const { el, expectedWidth, restTransform, originalTransform } = measurements[i]
+          if (expectedWidth <= 0) continue
+          const text = el.textContent || ''
+          const spaceCount = (text.match(/ /g) || []).length
+
+          if (spaceCount > 0) {
+            el.style.transform = `${restTransform ? restTransform + ' ' : ''}scaleX(${charRatio})`
+            const widthAfterCharScale = getLocalWidth(el)
+            if (widthAfterCharScale > 0) {
+              const spaceDiff = (expectedWidth - widthAfterCharScale) / (spaceCount * charRatio)
+              el.style.wordSpacing = `${spaceDiff}px`
+            }
+          } else {
+            const naturalWidth = getLocalWidth(el)
+            if (naturalWidth > 0) {
+              el.style.transform = `${restTransform ? restTransform + ' ' : ''}scaleX(${expectedWidth / naturalWidth})`
+            } else {
+              el.style.transform = originalTransform
+            }
+          }
+        }
+
         for (const el of textLayerEl.querySelectorAll('span, br')) {
-          ;(el as HTMLElement).style.color = 'transparent'
+          ;(el as HTMLElement).style.color = 'rgba(255, 0, 0, 0.3)'
         }
       }
 
