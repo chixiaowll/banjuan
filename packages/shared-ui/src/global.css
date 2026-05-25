@@ -163,7 +163,7 @@ select {
 }
 
 .textLayer :is(span, br) {
-  color: #000;
+  color: transparent;
   position: absolute;
   white-space: pre;
   cursor: text;

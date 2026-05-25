@@ -180,14 +180,8 @@ export default function PdfPage({
         canvas.style.width = viewport.width + 'px'
         canvas.style.height = viewport.height + 'px'
         ctx = canvas.getContext('2d')!
-        const origFillText = ctx.fillText.bind(ctx)
-        const origStrokeText = ctx.strokeText.bind(ctx)
-        ctx.fillText = () => {}
-        ctx.strokeText = () => {}
         const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] as [number, number, number, number, number, number] : undefined
         await page.render({ canvasContext: ctx, viewport, transform }).promise.catch(() => {})
-        ctx.fillText = origFillText
-        ctx.strokeText = origStrokeText
       }
       if (cancelled) return
 
@@ -204,17 +198,8 @@ export default function PdfPage({
           viewport,
         })
         await textLayer.render()
-        const textDivs = (textLayer as any).textDivs as HTMLElement[] | undefined
-        if (textDivs) {
-          const items = textContent.items as any[]
-          for (let i = 0; i < textDivs.length && i < items.length; i++) {
-            const span = textDivs[i]
-            const fontName = items[i]?.fontName
-            if (span && fontName) {
-              const existing = span.style.fontFamily || 'serif'
-              span.style.fontFamily = `"${fontName}", ${existing}`
-            }
-          }
+        for (const el of textLayerEl.querySelectorAll('span, br')) {
+          ;(el as HTMLElement).style.color = 'transparent'
         }
       }
 
@@ -230,46 +215,6 @@ export default function PdfPage({
       const [, , vbW, vbH] = (page as any).view as [number, number, number, number]
       pageInfoRef.current = { width: vbW, height: vbH, chars }
       onPageReady?.(pageNum, pageInfoRef.current)
-
-      if (ctx && chars.length > 0) {
-        type Line = { x1: number; y1: number; x2: number; y2: number }
-        const lines: Line[] = []
-        let cur: Line | null = null
-        for (const ch of chars) {
-          const [a, b, c, d] = ch.rect
-          const x1 = Math.min(a, c), x2 = Math.max(a, c)
-          const y1 = Math.min(b, d), y2 = Math.max(b, d)
-          if (!cur) { cur = { x1, y1, x2, y2 }; continue }
-          const curMid = (cur.y1 + cur.y2) / 2
-          const charMid = (y1 + y2) / 2
-          const tol = (cur.y2 - cur.y1) * 0.6
-          if (Math.abs(curMid - charMid) <= tol) {
-            cur.x1 = Math.min(cur.x1, x1)
-            cur.x2 = Math.max(cur.x2, x2)
-            cur.y1 = Math.min(cur.y1, y1)
-            cur.y2 = Math.max(cur.y2, y2)
-          } else {
-            lines.push(cur)
-            cur = { x1, y1, x2, y2 }
-          }
-        }
-        if (cur) lines.push(cur)
-
-        ctx.save()
-        ctx.fillStyle = '#ffffff'
-        for (const ln of lines) {
-          const [a, b] = viewport.convertToViewportPoint(ln.x1, ln.y1)
-          const [c, d] = viewport.convertToViewportPoint(ln.x2, ln.y2)
-          const left = Math.min(a, c) * dpr
-          const top = Math.min(b, d) * dpr
-          const w = Math.abs(c - a) * dpr
-          const h = Math.abs(d - b) * dpr
-          const padY = h * 0.3
-          const padX = 1
-          ctx.fillRect(left - padX, top - padY, w + padX * 2, h + padY * 2)
-        }
-        ctx.restore()
-      }
 
       if (!cancelled) {
         renderedScaleRef.current = scale

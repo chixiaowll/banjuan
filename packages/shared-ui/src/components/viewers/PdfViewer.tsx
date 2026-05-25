@@ -30,11 +30,6 @@ const baseUrl = typeof window !== 'undefined' && window.location.protocol === 'f
 const cMapUrl = `${baseUrl}bcmaps/`
 const standardFontDataUrl = `${baseUrl}standard_fonts/`
 
-;(globalThis as any).FontInspector = {
-  enabled: true,
-  fontAdded: () => {},
-}
-
 interface DocInfo {
   id: string
   title: string
@@ -453,6 +448,8 @@ export default function PdfViewer(props: Props) {
           cMapUrl,
           cMapPacked: true,
           standardFontDataUrl,
+          disableFontFace: true,
+          useSystemFonts: false,
         }).promise
         if (cancelled) return
 
