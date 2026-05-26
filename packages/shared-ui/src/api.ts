@@ -63,6 +63,9 @@ export interface BanjuanAPI {
     createDir(dirPath: string): Promise<void>
     move(id: string, destDir: string): Promise<Document | null>
     listDirs(): Promise<string[]>
+    deleteDir?(dirPath: string): Promise<void>
+    importFiles?(filePaths: string[], destDir?: string): Promise<Array<{ title: string; success: boolean; error?: string }>>
+    importFilesDialog?(destDir?: string): Promise<Array<{ title: string; success: boolean; error?: string }> | null>
     update(id: string, updates: DocumentUpdateInput): Promise<Document>
     getFilePath(relativePath: string): Promise<string>
     readContent(relativePath: string): Promise<string>
@@ -103,6 +106,9 @@ export interface BanjuanAPI {
     listDirs(): Promise<string[]>
     createDir(dirPath: string): Promise<void>
     renameDir(oldPath: string, newPath: string): Promise<void>
+    deleteDir?(dirPath: string): Promise<void>
+    importMarkdown?(filePaths: string[], targetFolder: string | null): Promise<Array<{ title: string; success: boolean; error?: string }>>
+    importMarkdownDialog?(targetFolder: string | null): Promise<Array<{ title: string; success: boolean; error?: string }> | null>
     onNavigateLink(callback: (noteId: string) => void): () => void
   }
 
@@ -200,6 +206,7 @@ export interface BanjuanAPI {
   }
 
   /** Optional -- not available on all platforms */
+  getPathForFile?(file: File): string
   clipboard?: {
     readFiles(): Promise<Array<{ path: string; name: string }>>
     readFileBuffer(filePath: string): Promise<ArrayBuffer>

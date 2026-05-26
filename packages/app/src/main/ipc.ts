@@ -1,5 +1,5 @@
 import { ipcMain, dialog, clipboard, shell, BrowserWindow, app } from 'electron'
-import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync } from 'node:fs'
+import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, basename, dirname } from 'node:path'
 import { execSync } from 'node:child_process'
@@ -247,6 +247,27 @@ export function registerIpcHandlers() {
     return getLib(event).documents.listDirs()
   })
 
+  ipcMain.handle('documents:deleteDir', async (event, dirPath: string) => {
+    return getLib(event).documents.deleteDir(dirPath)
+  })
+
+  ipcMain.handle('documents:importFiles', async (event, filePaths: string[], destDir?: string) => {
+    const library = getLib(event)
+    return importDocumentFiles(library, filePaths, destDir ?? null)
+  })
+
+  ipcMain.handle('documents:importFilesDialog', async (event, destDir?: string) => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile', 'openDirectory', 'multiSelections'],
+      filters: [
+        { name: 'All Supported', extensions: ['pdf', 'epub', 'txt', 'md', 'markdown', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'mp4', 'mov', 'webm', 'html', 'htm', 'sh', 'bash', 'zsh', 'yaml', 'yml', 'json', 'xml', 'csv', 'tsv', 'log', 'conf', 'cfg', 'ini', 'toml', 'env', 'py', 'js', 'ts', 'jsx', 'tsx', 'css', 'scss', 'less', 'sql', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'swift', 'kt', 'r', 'tex', 'bib', 'rst'] },
+      ],
+    })
+    if (result.canceled) return null
+    const library = getLib(event)
+    return importDocumentFiles(library, result.filePaths, destDir ?? null)
+  })
+
   ipcMain.handle('documents:update', async (event, id: string, updates: {
     title?: string; authors?: string[]; metadata?: Record<string, unknown>
   }) => {
@@ -391,6 +412,136 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('notes:renameDir', async (event, oldPath: string, newPath: string) => {
     return getLib(event).notes.renameDir(oldPath, newPath)
+  })
+
+  ipcMain.handle('notes:deleteDir', async (event, dirPath: string) => {
+    return getLib(event).notes.deleteDir(dirPath)
+  })
+
+  const importMarkdownFiles = async (lib: Library, filePaths: string[], targetFolder: string | null) => {
+    const results: Array<{ title: string; success: boolean; error?: string }> = []
+
+    const importFile = async (filePath: string, folder: string | null) => {
+      const baseName = basename(filePath, '.md')
+      const content = readFileSync(filePath, 'utf-8')
+      let title = baseName
+      for (let attempt = 0; attempt < 100; attempt++) {
+        try {
+          await lib.notes.create({ title, type: 'markdown', content, folder: folder ?? undefined })
+          results.push({ title, success: true })
+          return
+        } catch (err: any) {
+          if (err?.message === 'DUPLICATE_TITLE') {
+            title = `${baseName} (${attempt + 2})`
+            continue
+          }
+          results.push({ title, success: false, error: err?.message })
+          return
+        }
+      }
+      results.push({ title, success: false, error: 'TOO_MANY_DUPLICATES' })
+    }
+
+    const importDir = async (dirPath: string, folder: string | null) => {
+      const dirName = basename(dirPath)
+      const subFolder = folder ? `${folder}/${dirName}` : dirName
+      await lib.notes.createDir(subFolder)
+      const entries = readdirSync(dirPath, { withFileTypes: true })
+      for (const entry of entries) {
+        const fullPath = join(dirPath, entry.name)
+        if (entry.isDirectory()) {
+          await importDir(fullPath, subFolder)
+        } else if (entry.name.endsWith('.md') && !entry.name.startsWith('.')) {
+          await importFile(fullPath, subFolder)
+        }
+      }
+    }
+
+    for (const filePath of filePaths) {
+      try {
+        const stat = statSync(filePath)
+        if (stat.isDirectory()) {
+          await importDir(filePath, targetFolder)
+        } else if (filePath.endsWith('.md')) {
+          await importFile(filePath, targetFolder)
+        } else {
+          results.push({ title: basename(filePath), success: false, error: 'NOT_MARKDOWN' })
+        }
+      } catch (err: any) {
+        results.push({ title: basename(filePath), success: false, error: err?.message })
+      }
+    }
+    return results
+  }
+
+  const importDocumentFiles = async (lib: Library, filePaths: string[], destDir: string | null) => {
+    const results: Array<{ title: string; success: boolean; error?: string }> = []
+    const targetDir = destDir ? join(lib.rootPath, destDir) : lib.rootPath
+    mkdirSync(targetDir, { recursive: true })
+
+    const importFile = async (srcPath: string, dir: string) => {
+      const fileName = basename(srcPath)
+      let destName = fileName
+      const ext = fileName.includes('.') ? '.' + fileName.split('.').pop() : ''
+      const stem = ext ? fileName.slice(0, -ext.length) : fileName
+      let destPath = join(dir, destName)
+      let counter = 2
+      while (existsSync(destPath)) {
+        destName = `${stem} (${counter})${ext}`
+        destPath = join(dir, destName)
+        counter++
+      }
+      try {
+        if (srcPath !== destPath) copyFileSync(srcPath, destPath)
+        await lib.documents.import(destPath)
+        results.push({ title: destName, success: true })
+      } catch (err: any) {
+        results.push({ title: destName, success: false, error: err?.message })
+      }
+    }
+
+    const importDir = async (dirPath: string, parentDir: string) => {
+      const dirName = basename(dirPath)
+      const subDir = join(parentDir, dirName)
+      mkdirSync(subDir, { recursive: true })
+      const entries = readdirSync(dirPath, { withFileTypes: true })
+      for (const entry of entries) {
+        const fullPath = join(dirPath, entry.name)
+        if (entry.isDirectory() && !entry.name.startsWith('.')) {
+          await importDir(fullPath, subDir)
+        } else if (entry.isFile() && !entry.name.startsWith('.')) {
+          await importFile(fullPath, subDir)
+        }
+      }
+    }
+
+    for (const filePath of filePaths) {
+      try {
+        const stat = statSync(filePath)
+        if (stat.isDirectory()) {
+          await importDir(filePath, targetDir)
+        } else {
+          await importFile(filePath, targetDir)
+        }
+      } catch (err: any) {
+        results.push({ title: basename(filePath), success: false, error: err?.message })
+      }
+    }
+    return results
+  }
+
+  ipcMain.handle('notes:importMarkdownDialog', async (event, targetFolder: string | null) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const result = await dialog.showOpenDialog(win!, {
+      properties: ['openFile', 'openDirectory', 'multiSelections'],
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return importMarkdownFiles(getLib(event), result.filePaths, targetFolder)
+  })
+
+  ipcMain.handle('notes:importMarkdown', async (event, filePaths: string[], targetFolder: string | null) => {
+    return importMarkdownFiles(getLib(event), filePaths, targetFolder)
   })
 
   ipcMain.handle('folders:create', async (event, input: { name: string; parentId?: string }) => {

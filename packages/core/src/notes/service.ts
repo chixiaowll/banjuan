@@ -120,6 +120,19 @@ export class NoteService {
     await this.fs.mkdir(join(this.notesDir, dirPath), { recursive: true })
   }
 
+  async deleteDir(dirPath: string): Promise<void> {
+    const fullPath = join(this.notesDir, dirPath)
+    if (!(await this.fs.exists(fullPath))) return
+    const prefix = dirPath + '/'
+    const notes = this.db.query<{ id: string }>('SELECT id FROM notes WHERE path LIKE ?', [prefix + '%'])
+    for (const note of notes) {
+      await this.delete(note.id)
+    }
+    if (await this.fs.exists(fullPath)) {
+      await this.fs.rmdir(fullPath, { recursive: true })
+    }
+  }
+
   async renameDir(oldPath: string, newPath: string): Promise<void> {
     const oldFull = join(this.notesDir, oldPath)
     const newFull = join(this.notesDir, newPath)

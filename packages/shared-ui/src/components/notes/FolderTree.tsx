@@ -512,10 +512,11 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
   }, [])
 
   const handleDragOver = useCallback((e: React.DragEvent, node: TreeNode) => {
-    if (!dragNoteRef.current) return
     if (node.type !== 'dir') return
+    const hasFiles = e.dataTransfer.types.includes('Files')
+    if (!dragNoteRef.current && !hasFiles) return
     e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+    e.dataTransfer.dropEffect = hasFiles ? 'copy' : 'move'
     setDropTargetPath(node.path)
   }, [])
 
@@ -526,11 +527,35 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
   const handleDrop = useCallback(async (e: React.DragEvent, node: TreeNode) => {
     e.preventDefault()
     setDropTargetPath(null)
-    const note = dragNoteRef.current
-    dragNoteRef.current = null
-    if (!note || node.type !== 'dir') return
+    if (node.type !== 'dir') return
 
     const targetFolder = node.path === '__root' ? null : node.path
+
+    // External file drop from Finder
+    if (e.dataTransfer.files.length > 0 && !dragNoteRef.current) {
+      if (!api.getPathForFile) return
+      const paths: string[] = []
+      for (const file of Array.from(e.dataTransfer.files)) {
+        const p = api.getPathForFile(file)
+        if (p) paths.push(p)
+      }
+      if (paths.length > 0 && api.notes.importMarkdown) {
+        const results = await api.notes.importMarkdown(paths, targetFolder)
+        const failed = results.filter(r => !r.success && r.error !== 'NOT_MARKDOWN')
+        if (failed.length > 0) {
+          alert(failed.map(r => `${r.title}: ${r.error}`).join('\n'))
+        }
+        await load()
+        notifyChanged()
+      }
+      return
+    }
+
+    // Internal note move
+    const note = dragNoteRef.current
+    dragNoteRef.current = null
+    if (!note) return
+
     const noteFolder = note.path.includes('/') ? note.path.substring(0, note.path.lastIndexOf('/')) : null
     if (targetFolder === noteFolder) return
 
@@ -551,6 +576,8 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
     setConfirmDelete(null)
     if (node.type === 'file' && node.note) {
       await api.notes.delete(node.note.id)
+    } else if (node.type === 'dir' && node.path !== '__root' && api.notes.deleteDir) {
+      await api.notes.deleteDir(node.path)
     }
     await load()
     notifyChanged()

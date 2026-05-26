@@ -369,6 +369,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       try {
         const blocks = await (editor as any).tryParseMarkdownToBlocks(rawMarkdown)
         editor.replaceBlocks(editor.document, blocks)
+        onHeadingsChange?.(extractHeadings(editor.document))
       } catch {}
     })()
   }, [editor, rawMarkdown])
@@ -611,7 +612,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
           document.dispatchEvent(new Event('doc-links-synced'))
         })
       }
-      onHeadingsChange?.(extractHeadings(parsedContent))
+      onHeadingsChange?.(extractHeadings(editor.document))
     }
   }, [noteId, parsedContent])
 
