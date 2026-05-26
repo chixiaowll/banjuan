@@ -70,8 +70,11 @@ function buildDirTree(docs: Document[], extraDirs?: string[]): DirNode[] {
     const parts = doc.path.split('/')
     if (parts.length <= 1) continue
     addPath(parts.slice(0, -1))
-    const topDir = parts[0]
-    dirCounts[topDir] = (dirCounts[topDir] || 0) + 1
+    let pathSoFar = ''
+    for (let i = 0; i < parts.length - 1; i++) {
+      pathSoFar = pathSoFar ? pathSoFar + '/' + parts[i] : parts[i]
+      dirCounts[pathSoFar] = (dirCounts[pathSoFar] || 0) + 1
+    }
   }
   if (extraDirs) {
     for (const dir of extraDirs) {
@@ -87,7 +90,7 @@ function buildDirTree(docs: Document[], extraDirs?: string[]): DirNode[] {
         name: k,
         path: obj[k].__path,
         children: toNodes(obj[k]),
-        count: dirCounts[k],
+        count: dirCounts[obj[k].__path],
       }))
   }
   return toNodes(root)
@@ -264,7 +267,7 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 400, color: isNb ? 'var(--ink-soft, #5C564E)' : (isSelected ? 'var(--accent)' : (textColor || 'var(--text-secondary)')) }}>
           {node.name}
         </span>
-        {isNb && node.count != null && (
+        {node.count != null && node.count > 0 && (
           <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono, monospace)' }}>{node.count}</span>
         )}
         {!isNb && hasChildren && (
@@ -365,6 +368,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
   const noteDirTree = useMemo(() => {
     const root: Record<string, any> = {}
+    const dirCounts: Record<string, number> = {}
     for (const dir of noteDirs) {
       const parts = dir.split('/')
       let current = root
@@ -375,14 +379,23 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         current = current[part]
       }
     }
+    for (const note of notes) {
+      const parts = note.path.split('/')
+      if (parts.length <= 1) continue
+      let pathSoFar = ''
+      for (let i = 0; i < parts.length - 1; i++) {
+        pathSoFar = pathSoFar ? pathSoFar + '/' + parts[i] : parts[i]
+        dirCounts[pathSoFar] = (dirCounts[pathSoFar] || 0) + 1
+      }
+    }
     function toNodes(obj: Record<string, any>): DirNode[] {
       return Object.keys(obj)
         .filter(k => k !== '__path')
         .sort((a, b) => a.localeCompare(b, 'zh-CN'))
-        .map(k => ({ name: k, path: obj[k].__path, children: toNodes(obj[k]) }))
+        .map(k => ({ name: k, path: obj[k].__path, children: toNodes(obj[k]), count: dirCounts[obj[k].__path] }))
     }
     return toNodes(root)
-  }, [noteDirs])
+  }, [noteDirs, notes])
 
   const toggleDir = useCallback((path: string) => {
     setExpandedDirs(prev => {
