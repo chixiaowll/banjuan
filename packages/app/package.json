@@ -5,11 +5,12 @@
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "clean": "rm -rf dist",
+    "build": "rm -rf dist && vite build",
     "start": "electron dist/main/index.js",
     "bundle-cli": "node scripts/bundle-cli.mjs",
-    "pack": "vite build && node scripts/bundle-cli.mjs && electron-builder --dir",
-    "dist": "vite build && node scripts/bundle-cli.mjs && electron-builder",
+    "pack": "rm -rf dist && vite build && node scripts/bundle-cli.mjs && electron-builder --dir",
+    "dist": "rm -rf dist && vite build && node scripts/bundle-cli.mjs && electron-builder",
     "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
