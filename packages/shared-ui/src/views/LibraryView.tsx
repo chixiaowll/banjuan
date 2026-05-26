@@ -327,9 +327,9 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [docDirs, setDocDirs] = useState<string[]>([])
   const [showDocFolderInput, setShowDocFolderInput] = useState(false)
   const [showFolderInput, setShowFolderInput] = useState(false)
-  const [folderInputValue, setFolderInputValue] = useState('')
   const [showRenameInput, setShowRenameInput] = useState(false)
   const [renameInputValue, setRenameInputValue] = useState('')
+  const renameInputElRef = useRef<HTMLInputElement>(null)
   const [renameTarget, setRenameTarget] = useState<{ type: 'dir' | 'note' | 'library'; dirPath?: string; noteId?: string } | null>(null)
   const [noteDirs, setNoteDirs] = useState<string[]>([])
   const [selectedNoteDir, setSelectedNoteDir] = useState<string | null>(null)
@@ -339,6 +339,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [tagDocSectionExpanded, setTagDocSectionExpanded] = useState(true)
   const [tagNoteSectionExpanded, setTagNoteSectionExpanded] = useState(true)
   const [tagsWithCounts, setTagsWithCounts] = useState<Array<{ id: string; name: string; color: string | null; count: number }>>([])
+  const [noteDragOver, setNoteDragOver] = useState(false)
+  const composingRef = useRef(false)
   const [tagSearch, setTagSearch] = useState('')
   const [showAllTags, setShowAllTags] = useState(false)
   const [tagFilteredItems, setTagFilteredItems] = useState<any[] | null>(null)
@@ -493,12 +495,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
   const handleCreateFolder = () => {
     setContextMenu(null)
-    setFolderInputValue('')
     setShowFolderInput(true)
   }
 
-  const handleFolderInputConfirm = async () => {
-    const name = folderInputValue.trim()
+  const handleFolderInputConfirm = async (name: string) => {
     setShowFolderInput(false)
     if (!name) return
     const dirPath = selectedNoteDir ? `${selectedNoteDir}/${name}` : name
@@ -524,7 +524,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   }
 
   const handleRenameConfirm = async () => {
-    const name = renameInputValue.trim()
+    const name = (renameInputElRef.current?.value ?? renameInputValue).trim()
     setShowRenameInput(false)
     if (!name || !renameTarget) return
     if (renameTarget.type === 'dir' && renameTarget.dirPath) {
@@ -580,8 +580,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     setContextMenu({ x: e.clientX, y: e.clientY, type: 'noteItem', noteId, noteTitle })
   }
 
-  const handleDocFolderInputConfirm = async () => {
-    const name = folderInputValue.trim()
+  const handleDocFolderInputConfirm = async (name: string) => {
     setShowDocFolderInput(false)
     if (!name) return
     const dirPath = selectedDir ? `${selectedDir}/${name}` : name
@@ -1155,7 +1154,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               </div>
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 <button
-                  onClick={async () => { await api.documents.import(); await loadDocuments() }}
+                  onClick={async () => { if (api.documents.importFilesDialog) { await api.documents.importFilesDialog() } else { await api.documents.import() }; await loadDocuments() }}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                     height: layout.home.buttonHeight,
@@ -1998,7 +1997,14 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                         }}
                       ><RefreshCw size={14} />{locale === 'zh' ? '刷新' : 'Refresh'}</button>
                       <button
-                        onClick={async () => { await api.documents.import(selectedDir || undefined); await loadDocuments() }}
+                        onClick={async () => {
+                          if (api.documents.importFilesDialog) {
+                            await api.documents.importFilesDialog(selectedDir || undefined)
+                          } else {
+                            await api.documents.import(selectedDir || undefined)
+                          }
+                          await loadDocuments()
+                        }}
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: 6,
                           height: 32, padding: '0 12px', borderRadius: 9,
@@ -2019,6 +2025,26 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           background: 'var(--surface-raised)', cursor: 'pointer',
                         }}
                       ><RefreshCw size={14} />{locale === 'zh' ? '刷新' : 'Refresh'}</button>
+                      <button
+                        onClick={async () => {
+                          if (!api.notes.importMarkdownDialog) return
+                          const results = await api.notes.importMarkdownDialog(selectedNoteDir)
+                          if (!results) return
+                          const failed = results.filter((r: any) => !r.success && r.error !== 'NOT_MARKDOWN')
+                          if (failed.length > 0) {
+                            alert(failed.map((r: any) => `${r.title}: ${r.error}`).join('\n'))
+                          }
+                          await loadNotes()
+                          await loadNoteDirs()
+                        }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          height: 32, padding: '0 12px', borderRadius: 9,
+                          fontSize: 13, fontWeight: 500,
+                          color: 'var(--ink-soft)', border: '1px solid var(--border-solid)',
+                          background: 'var(--surface-raised)', cursor: 'pointer',
+                        }}
+                      ><Upload size={14} />{locale === 'zh' ? '导入' : 'Import'}</button>
                       <button
                         onClick={() => setShowNotePicker(true)}
                         style={{
@@ -2156,7 +2182,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                     })()}
                     {layout.toolbar.showSectionButtons && (
                       <>
-                        <button onClick={async () => { await api.documents.import(selectedDir || undefined); await loadDocuments() }} title={t('common.import')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><Plus size={18} /></button>
+                        <button onClick={async () => { if (api.documents.importFilesDialog) { await api.documents.importFilesDialog(selectedDir || undefined) } else { await api.documents.import(selectedDir || undefined) }; await loadDocuments() }} title={t('common.import')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><Plus size={18} /></button>
                         <button onClick={async () => { await api.documents.refresh(); await loadDocuments() }} title={t('library.refresh')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}><RefreshCw size={16} /></button>
                       </>
                     )}
@@ -2254,7 +2280,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                     >
                       <RefreshCw size={13} />
                     </div>
-                    <button onClick={async () => { await api.documents.import(selectedDir || undefined); await loadDocuments() }} style={{
+                    <button onClick={async () => { if (api.documents.importFilesDialog) { await api.documents.importFilesDialog(selectedDir || undefined) } else { await api.documents.import(selectedDir || undefined) }; await loadDocuments() }} style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6, height: 30,
                     padding: '0 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
                     background: '#4A90E2', color: '#fff', border: 'none',
@@ -2297,11 +2323,52 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
             {/* List */}
             <div
-              style={{ flex: 1, overflow: 'auto', minHeight: 0 }}
+              style={{
+                flex: 1, overflow: 'auto', minHeight: 0,
+                ...(noteDragOver ? { outline: '2px dashed var(--accent, #4A90E2)', outlineOffset: -4, background: 'rgba(74,144,226,0.04)', borderRadius: 8 } : {}),
+              }}
               onClick={(e) => { if (e.target === e.currentTarget) { setSelectedItemId(null); setSelectedItemDetail(null); setSelectedItemTags([]) } }}
               onContextMenu={(e) => {
                 if (e.target === e.currentTarget && selectedSection === 'documents') {
                   handleSidebarContextMenu(e, 'documents')
+                }
+              }}
+              onDragOver={(e) => {
+                if (selectedSection !== 'notes' && selectedSection !== 'documents') return
+                if (!e.dataTransfer.types.includes('Files')) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'copy'
+                setNoteDragOver(true)
+              }}
+              onDragLeave={(e) => {
+                if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                setNoteDragOver(false)
+              }}
+              onDrop={async (e) => {
+                e.preventDefault()
+                setNoteDragOver(false)
+                if (!e.dataTransfer.files.length || !api.getPathForFile) return
+                const paths: string[] = []
+                for (const file of Array.from(e.dataTransfer.files)) {
+                  const p = api.getPathForFile(file)
+                  if (p) paths.push(p)
+                }
+                if (paths.length === 0) return
+                if (selectedSection === 'notes' && api.notes.importMarkdown) {
+                  const results = await api.notes.importMarkdown(paths, selectedNoteDir)
+                  const failed = results.filter((r: any) => !r.success && r.error !== 'NOT_MARKDOWN')
+                  if (failed.length > 0) {
+                    alert(failed.map((r: any) => `${r.title}: ${r.error}`).join('\n'))
+                  }
+                  await loadNotes()
+                  await loadNoteDirs()
+                } else if (selectedSection === 'documents' && api.documents.importFiles) {
+                  const results = await api.documents.importFiles(paths, selectedDir || undefined)
+                  const failed = results.filter((r: any) => !r.success)
+                  if (failed.length > 0) {
+                    alert(failed.map((r: any) => `${r.title}: ${r.error}`).join('\n'))
+                  }
+                  await loadDocuments()
                 }
               }}
             >
@@ -2745,32 +2812,31 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             background: 'var(--surface, #fff)', borderRadius: 10, padding: 24, width: 340,
             boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
           }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>{t('library.newFolder')}</h3>
-            <input
-              autoFocus
-              type="text"
-              placeholder={t('library.newFolder')}
-              value={folderInputValue}
-              onChange={e => setFolderInputValue(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleFolderInputConfirm() }}
-              style={{
-                width: '100%', fontSize: 14, padding: '8px 12px',
-                border: '1px solid var(--border)', borderRadius: 6, boxSizing: 'border-box',
-                background: 'var(--bg, #fff)', color: 'var(--text, #000)',
-              }}
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowFolderInput(false)} style={{ fontSize: 13, padding: '6px 16px' }}>{t('common.cancel')}</button>
-              <button
-                onClick={handleFolderInputConfirm}
-                disabled={!folderInputValue.trim()}
+            <form onSubmit={e => { e.preventDefault(); const v = new FormData(e.currentTarget).get('name') as string; handleFolderInputConfirm(v?.trim() || '') }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>{t('library.newFolder')}</h3>
+              <input
+                autoFocus
+                name="name"
+                type="text"
+                placeholder={t('library.newFolder')}
                 style={{
-                  fontSize: 13, padding: '6px 16px',
-                  background: folderInputValue.trim() ? 'var(--accent, #5e81ac)' : '#ccc',
-                  color: '#fff', border: 'none', borderRadius: 6, cursor: folderInputValue.trim() ? 'pointer' : 'default',
+                  width: '100%', fontSize: 14, padding: '8px 12px',
+                  border: '1px solid var(--border)', borderRadius: 6, boxSizing: 'border-box',
+                  background: 'var(--bg, #fff)', color: 'var(--text, #000)',
                 }}
-              >{t('welcome.create')}</button>
-            </div>
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setShowFolderInput(false)} style={{ fontSize: 13, padding: '6px 16px' }}>{t('common.cancel')}</button>
+                <button
+                  type="submit"
+                  style={{
+                    fontSize: 13, padding: '6px 16px',
+                    background: 'var(--accent, #5e81ac)',
+                    color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer',
+                  }}
+                >{t('welcome.create')}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -2783,32 +2849,31 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             background: 'var(--surface, #fff)', borderRadius: 10, padding: 24, width: 340,
             boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
           }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>{t('library.newFolder')}</h3>
-            <input
-              autoFocus
-              type="text"
-              placeholder={t('library.newFolder')}
-              value={folderInputValue}
-              onChange={e => setFolderInputValue(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleDocFolderInputConfirm() }}
-              style={{
-                width: '100%', fontSize: 14, padding: '8px 12px',
-                border: '1px solid var(--border)', borderRadius: 6, boxSizing: 'border-box',
-                background: 'var(--bg, #fff)', color: 'var(--text, #000)',
-              }}
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowDocFolderInput(false)} style={{ fontSize: 13, padding: '6px 16px' }}>{t('common.cancel')}</button>
-              <button
-                onClick={handleDocFolderInputConfirm}
-                disabled={!folderInputValue.trim()}
+            <form onSubmit={e => { e.preventDefault(); const v = new FormData(e.currentTarget).get('name') as string; handleDocFolderInputConfirm(v?.trim() || '') }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>{t('library.newFolder')}</h3>
+              <input
+                autoFocus
+                name="name"
+                type="text"
+                placeholder={t('library.newFolder')}
                 style={{
-                  fontSize: 13, padding: '6px 16px',
-                  background: folderInputValue.trim() ? 'var(--accent, #5e81ac)' : '#ccc',
-                  color: '#fff', border: 'none', borderRadius: 6, cursor: folderInputValue.trim() ? 'pointer' : 'default',
+                  width: '100%', fontSize: 14, padding: '8px 12px',
+                  border: '1px solid var(--border)', borderRadius: 6, boxSizing: 'border-box',
+                  background: 'var(--bg, #fff)', color: 'var(--text, #000)',
                 }}
-              >{t('welcome.create')}</button>
-            </div>
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setShowDocFolderInput(false)} style={{ fontSize: 13, padding: '6px 16px' }}>{t('common.cancel')}</button>
+                <button
+                  type="submit"
+                  style={{
+                    fontSize: 13, padding: '6px 16px',
+                    background: 'var(--accent, #5e81ac)',
+                    color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer',
+                  }}
+                >{t('welcome.create')}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -2824,11 +2889,14 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
           }} onClick={e => e.stopPropagation()}>
             <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>{t('library.rename')}</h3>
             <input
+              ref={renameInputElRef}
               autoFocus
               type="text"
               value={renameInputValue}
               onChange={e => setRenameInputValue(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleRenameConfirm() }}
+              onCompositionStart={() => { composingRef.current = true }}
+              onCompositionEnd={() => { composingRef.current = false }}
+              onKeyDown={e => { if (e.key === 'Enter' && !composingRef.current) handleRenameConfirm() }}
               style={{
                 width: '100%', fontSize: 14, padding: '8px 12px',
                 border: '1px solid var(--border)', borderRadius: 6, boxSizing: 'border-box',
@@ -2903,20 +2971,40 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         }}>
           {(contextMenu.type === 'documents' || contextMenu.type === 'docDir') && (
             <>
-              <div onClick={async () => { setContextMenu(null); await api.documents.import(contextMenu.dirPath || selectedDir || undefined); await loadDocuments() }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
+              <div onClick={async () => {
+                setContextMenu(null)
+                const dest = contextMenu.dirPath || selectedDir || undefined
+                if (api.documents.importFilesDialog) {
+                  await api.documents.importFilesDialog(dest)
+                } else {
+                  await api.documents.import(dest)
+                }
+                await loadDocuments()
+              }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><Download size={14} />{t('common.import')}</div>
-              <div onClick={() => { setContextMenu(null); setFolderInputValue(''); setShowDocFolderInput(true) }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
+              <div onClick={() => { setContextMenu(null); setShowDocFolderInput(true) }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><FolderPlus size={14} />{t('library.newFolder')}</div>
-              {contextMenu.type === 'docDir' && contextMenu.dirPath && (
+              {contextMenu.type === 'docDir' && contextMenu.dirPath && (<>
                 <div onClick={handleRenameDir} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 ><Pencil size={14} />{t('library.rename')}</div>
-              )}
+                <div onClick={async () => {
+                  const dirPath = contextMenu.dirPath!
+                  setContextMenu(null)
+                  if (!confirm(locale === 'zh' ? `确定删除文件夹「${dirPath.split('/').pop()}」及其所有文档？` : `Delete folder "${dirPath.split('/').pop()}" and all documents inside?`)) return
+                  if (api.documents.deleteDir) await api.documents.deleteDir(dirPath)
+                  await loadDocuments()
+                  if (selectedDir === dirPath || selectedDir?.startsWith(dirPath + '/')) setSelectedDir(null)
+                }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6, color: '#f38ba8' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                ><Trash2 size={14} />{locale === 'zh' ? '删除' : 'Delete'}</div>
+              </>)}
             </>
           )}
           {(contextMenu.type === 'notes' || contextMenu.type === 'noteDir') && (
@@ -2925,16 +3013,41 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><FilePlus size={14} />{t('library.newNote')}</div>
+              {api.notes.importMarkdownDialog && <div onClick={async () => {
+                setContextMenu(null)
+                const results = await api.notes.importMarkdownDialog!(contextMenu.dirPath || selectedNoteDir)
+                if (results) {
+                  const failed = results.filter((r: any) => !r.success && r.error !== 'NOT_MARKDOWN')
+                  if (failed.length > 0) alert(failed.map((r: any) => `${r.title}: ${r.error}`).join('\n'))
+                }
+                await loadNotes()
+                await loadNoteDirs()
+              }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              ><Download size={14} />{t('common.import')}</div>}
               <div onClick={handleCreateFolder} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><FolderPlus size={14} />{t('library.newFolder')}</div>
-              {contextMenu.type === 'noteDir' && contextMenu.dirPath && (
+              {contextMenu.type === 'noteDir' && contextMenu.dirPath && (<>
                 <div onClick={handleRenameDir} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 ><Pencil size={14} />{t('library.rename')}</div>
-              )}
+                <div onClick={async () => {
+                  const dirPath = contextMenu.dirPath!
+                  setContextMenu(null)
+                  if (!confirm(locale === 'zh' ? `确定删除文件夹「${dirPath.split('/').pop()}」及其所有笔记？` : `Delete folder "${dirPath.split('/').pop()}" and all notes inside?`)) return
+                  if (api.notes.deleteDir) await api.notes.deleteDir(dirPath)
+                  await loadNotes()
+                  await loadNoteDirs()
+                  if (selectedNoteDir === dirPath || selectedNoteDir?.startsWith(dirPath + '/')) setSelectedNoteDir(null)
+                }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6, color: '#f38ba8' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                ><Trash2 size={14} />{locale === 'zh' ? '删除' : 'Delete'}</div>
+              </>)}
             </>
           )}
           {contextMenu.type === 'docItem' && (

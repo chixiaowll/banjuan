@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 const api = {
   library: {
@@ -24,6 +24,9 @@ const api = {
     createDir: (dirPath: string) => ipcRenderer.invoke('documents:createDir', dirPath),
     move: (id: string, destDir: string) => ipcRenderer.invoke('documents:move', id, destDir),
     listDirs: () => ipcRenderer.invoke('documents:listDirs'),
+    deleteDir: (dirPath: string) => ipcRenderer.invoke('documents:deleteDir', dirPath),
+    importFiles: (filePaths: string[], destDir?: string) => ipcRenderer.invoke('documents:importFiles', filePaths, destDir),
+    importFilesDialog: (destDir?: string) => ipcRenderer.invoke('documents:importFilesDialog', destDir),
     update: (id: string, updates: { title?: string; authors?: string[]; metadata?: Record<string, unknown> }) =>
       ipcRenderer.invoke('documents:update', id, updates),
     getFilePath: (relativePath: string) => ipcRenderer.invoke('documents:getFilePath', relativePath),
@@ -76,6 +79,9 @@ const api = {
     listDirs: () => ipcRenderer.invoke('notes:listDirs'),
     createDir: (dirPath: string) => ipcRenderer.invoke('notes:createDir', dirPath),
     renameDir: (oldPath: string, newPath: string) => ipcRenderer.invoke('notes:renameDir', oldPath, newPath),
+    deleteDir: (dirPath: string) => ipcRenderer.invoke('notes:deleteDir', dirPath),
+    importMarkdown: (filePaths: string[], targetFolder: string | null) => ipcRenderer.invoke('notes:importMarkdown', filePaths, targetFolder),
+    importMarkdownDialog: (targetFolder: string | null) => ipcRenderer.invoke('notes:importMarkdownDialog', targetFolder),
     onNavigateLink: (callback: (noteId: string) => void) => {
       const handler = (_event: any, noteId: string) => callback(noteId)
       ipcRenderer.on('navigate-note-link', handler)
@@ -209,6 +215,7 @@ const api = {
     readFiles: () => ipcRenderer.invoke('clipboard:readFiles') as Promise<Array<{ path: string; name: string }>>,
     readFileBuffer: (filePath: string) => ipcRenderer.invoke('clipboard:readFileBuffer', filePath) as Promise<ArrayBuffer>,
   },
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
   search: {
     query: (query: string, options?: { type?: string; limit?: number }) =>
       ipcRenderer.invoke('search:query', query, options),

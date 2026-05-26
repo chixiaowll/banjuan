@@ -187,12 +187,19 @@ export class DocumentService {
       const dir = dirname(row.path)
       if (dir && dir !== '.') dirs.add(dir)
     }
-    try {
-      const entries = await this.fs.readdirWithTypes(this.rootPath)
-      for (const e of entries) {
-        if (e.isDirectory && !e.name.startsWith('.')) dirs.add(e.name)
-      }
-    } catch {}
+    const scan = async (dir: string, prefix: string) => {
+      try {
+        const entries = await this.fs.readdirWithTypes(dir)
+        for (const e of entries) {
+          if (e.isDirectory && !e.name.startsWith('.')) {
+            const rel = prefix ? `${prefix}/${e.name}` : e.name
+            dirs.add(rel)
+            await scan(join(dir, e.name), rel)
+          }
+        }
+      } catch {}
+    }
+    await scan(this.rootPath, '')
     return Array.from(dirs).sort()
   }
 
@@ -209,6 +216,19 @@ export class DocumentService {
     this.search.removeById(id)
     this.db.run('DELETE FROM documents WHERE id = ?', [id])
     this.events.emit('document:deleted', { id })
+  }
+
+  async deleteDir(dirPath: string): Promise<void> {
+    const rows = this.db.query<{ id: string; path: string }>(
+      'SELECT id, path FROM documents WHERE path LIKE ?', [dirPath + '/%'],
+    )
+    for (const row of rows) {
+      await this.delete(row.id)
+    }
+    const absDir = join(this.rootPath, dirPath)
+    if (await this.fs.exists(absDir)) {
+      await this.fs.rmdir(absDir, { recursive: true })
+    }
   }
 
   async markRead(id: string): Promise<void> {
