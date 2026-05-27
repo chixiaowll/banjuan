@@ -1,7 +1,7 @@
 import { ipcMain, dialog, clipboard, shell, BrowserWindow, app } from 'electron'
 import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join, basename, dirname } from 'node:path'
+import { join, basename, dirname, parse as parsePath } from 'node:path'
 import { execSync } from 'node:child_process'
 import { tmpdir, homedir } from 'node:os'
 import { Library, type MindmapNodeCreateInput, type MindmapNode, type PlatformDeps } from '@banjuan/core'
@@ -33,6 +33,14 @@ function installBundledPlugins(libraryRoot: string): void {
       copyFileSync(join(srcDir, file), join(destDir, file))
     }
   }
+}
+
+function uniquePath(filePath: string): string {
+  if (!existsSync(filePath)) return filePath
+  const { dir, name, ext } = parsePath(filePath)
+  let i = 1
+  while (existsSync(join(dir, `${name} (${i})${ext}`))) i++
+  return join(dir, `${name} (${i})${ext}`)
 }
 
 const HISTORY_FILE = join(homedir(), '.banjuan', 'library-history.json')
@@ -882,13 +890,17 @@ export function registerIpcHandlers() {
 
     if (input.outputPath) {
       mkdirSync(input.outputPath, { recursive: true })
-      writeFileSync(join(input.outputPath, `${safeTitle}.md`), input.markdown, 'utf-8')
+      const mdPath = uniquePath(join(input.outputPath, `${safeTitle}.md`))
+      writeFileSync(mdPath, input.markdown, 'utf-8')
       if (input.attachments.length > 0) {
         const attDir = join(input.outputPath, 'attachments')
         mkdirSync(attDir, { recursive: true })
         for (const relPath of input.attachments) {
           const srcPath = lib.attachments.getFullPath(relPath)
-          if (existsSync(srcPath)) copyFileSync(srcPath, join(attDir, basename(srcPath)))
+          if (existsSync(srcPath)) {
+            const dest = uniquePath(join(attDir, basename(srcPath)))
+            copyFileSync(srcPath, dest)
+          }
         }
       }
       if (input.files && input.files.length > 0) {
@@ -896,7 +908,7 @@ export function registerIpcHandlers() {
         mkdirSync(imgDir, { recursive: true })
         for (const f of input.files) {
           const match = f.dataUrl.match(/^data:[^;]+;base64,(.+)$/)
-          if (match) writeFileSync(join(imgDir, f.name), Buffer.from(match[1], 'base64'))
+          if (match) writeFileSync(uniquePath(join(imgDir, f.name)), Buffer.from(match[1], 'base64'))
         }
       }
       return input.outputPath
@@ -986,7 +998,7 @@ ${contentHtml}
 
       if (input.outputPath) {
         mkdirSync(input.outputPath, { recursive: true })
-        writeFileSync(join(input.outputPath, `${safeTitle}.pdf`), pdfBuffer)
+        writeFileSync(uniquePath(join(input.outputPath, `${safeTitle}.pdf`)), pdfBuffer)
         return input.outputPath
       }
 
