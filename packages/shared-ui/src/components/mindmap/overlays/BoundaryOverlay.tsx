@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { Node } from '@xyflow/react'
 import { useMindmapStore, type MindmapNodeData } from '../useMindmapStore.js'
+import { useNodeSizeStore } from '../useNodeSizeStore.js'
 
 const PADDING = 24
 const BORDER_RADIUS = 12
@@ -19,13 +20,14 @@ function collectDescendantIds(nodeId: string, allNodes: Node<MindmapNodeData>[])
 
 export default function BoundaryOverlay() {
   const { boundaries, rfNodes, updateBoundary, removeBoundary } = useMindmapStore()
+  const nodeSizes = useNodeSizeStore(s => s.sizes)
 
   if (boundaries.length === 0) return null
 
   return (
     <>
       {boundaries.map(b => (
-        <BoundaryBox key={b.id} boundary={b} rfNodes={rfNodes}
+        <BoundaryBox key={b.id} boundary={b} rfNodes={rfNodes} nodeSizes={nodeSizes}
           onUpdateLabel={(label) => updateBoundary(b.id, { label })}
           onRemove={() => removeBoundary(b.id)}
         />
@@ -34,9 +36,10 @@ export default function BoundaryOverlay() {
   )
 }
 
-function BoundaryBox({ boundary, rfNodes, onUpdateLabel, onRemove }: {
+function BoundaryBox({ boundary, rfNodes, nodeSizes, onUpdateLabel, onRemove }: {
   boundary: { id: string; nodeIds: string[]; label: string; color: string | null }
   rfNodes: Node<MindmapNodeData>[]
+  nodeSizes: Map<string, { width: number; height: number }>
   onUpdateLabel: (label: string) => void
   onRemove: () => void
 }) {
@@ -62,8 +65,9 @@ function BoundaryBox({ boundary, rfNodes, onUpdateLabel, onRemove }: {
 
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   for (const n of matchedNodes) {
-    const w = n.width ?? n.measured?.width ?? 160
-    const h = n.height ?? n.measured?.height ?? 40
+    const ns = nodeSizes.get(n.id)
+    const w = ns?.width ?? n.measured?.width ?? n.width ?? 160
+    const h = ns?.height ?? n.measured?.height ?? n.height ?? 40
     if (n.position.x < minX) minX = n.position.x
     if (n.position.y < minY) minY = n.position.y
     if (n.position.x + w > maxX) maxX = n.position.x + w

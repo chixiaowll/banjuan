@@ -1,9 +1,12 @@
 import React, { useState, useCallback, useRef } from 'react'
-import { PanelLeft, PanelRight, Undo2, Redo2, Plus, Trash2, FileDown, Image, FileCode, FileJson, GripVertical, GitBranchPlus, Ungroup, Link2, Square, Braces } from 'lucide-react'
+import { PanelLeft, PanelRight, Undo2, Redo2, Trash2, FileDown, Image, FileCode, FileJson, FileText, FileImage, GripVertical, GitBranchPlus, Ungroup, Link2, Square, Braces } from 'lucide-react'
 import { useMindmapStore } from './useMindmapStore.js'
 import { THEMES } from './themes.js'
 import { toPng, toSvg } from 'html-to-image'
+import { getNodesBounds, getViewportForBounds } from '@xyflow/react'
 import { useT } from '../../i18n/index.js'
+import { useBanjuanAPI } from '../../api.js'
+import { renderMindmapTreeMd, renderMindmapTreeHtml } from '../../utils/noteExport.js'
 
 interface TitleBarProps {
   onToggleLeftSidebar?: () => void
@@ -12,14 +15,13 @@ interface TitleBarProps {
 
 export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: TitleBarProps) {
   const t = useT()
-  const { mindmapTitle, layout, theme, setTitle, setLayout, setTheme, rfNodes, rfEdges } = useMindmapStore()
+  const api = useBanjuanAPI()
+  const { mindmapTitle, layout, theme, setTitle, setLayout, setTheme, rfNodes, rfEdges, boundaries, summaries } = useMindmapStore()
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
 
-  const handleExport = useCallback(async (format: 'png' | 'svg' | 'json') => {
+  const handleExport = useCallback(async (format: 'png' | 'svg' | 'json' | 'pdf' | 'markdown') => {
     setExportMenuOpen(false)
-    const el = document.querySelector('.mindmap-canvas') as HTMLElement
-    if (!el && format !== 'json') return
 
     if (format === 'json') {
       const data = JSON.stringify({ nodes: rfNodes.map(n => n.data), edges: rfEdges }, null, 2)
@@ -33,22 +35,85 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
       return
     }
 
+    if (format === 'markdown') {
+      if (!api.export) return
+      const nodes = rfNodes.map(n => n.data)
+      const md = renderMindmapTreeMd(mindmapTitle || 'Mindmap', nodes)
+      await api.export.markdown({ title: mindmapTitle || 'mindmap', markdown: md, attachments: [] })
+      return
+    }
+
+    if (format === 'pdf') {
+      if (!api.export) return
+      const nodes = rfNodes.map(n => n.data)
+      const html = renderMindmapTreeHtml(mindmapTitle || 'Mindmap', nodes)
+      await api.export.pdf({ title: mindmapTitle || 'mindmap', html, attachments: [] })
+      return
+    }
+
+    const canvasEl = document.querySelector('.mindmap-canvas') as HTMLElement
+    if (!canvasEl || rfNodes.length === 0) return
+
+    const rfViewport = canvasEl.querySelector('.react-flow__viewport') as HTMLElement
+    if (!rfViewport) return
+
+    const nodeBounds = getNodesBounds(rfNodes)
+    let minX = nodeBounds.x, minY = nodeBounds.y
+    let maxX = nodeBounds.x + nodeBounds.width, maxY = nodeBounds.y + nodeBounds.height
+
+    const BOUNDARY_PAD = 24
+    for (const b of boundaries) {
+      const bNodes = rfNodes.filter(n => b.nodeIds.includes(n.id))
+      for (const n of bNodes) {
+        const w = n.measured?.width ?? n.width ?? 160
+        const h = n.measured?.height ?? n.height ?? 40
+        minX = Math.min(minX, n.position.x - BOUNDARY_PAD)
+        minY = Math.min(minY, n.position.y - BOUNDARY_PAD)
+        maxX = Math.max(maxX, n.position.x + w + BOUNDARY_PAD)
+        maxY = Math.max(maxY, n.position.y + h + BOUNDARY_PAD)
+      }
+    }
+
+    const BRACE_W = 20, SUMMARY_GAP = 16
+    for (const s of summaries) {
+      const sNode = rfNodes.find(n => n.id === s.summaryNodeId)
+      if (sNode) {
+        const sw = sNode.measured?.width ?? sNode.width ?? 160
+        const sh = sNode.measured?.height ?? sNode.height ?? 40
+        maxX = Math.max(maxX, sNode.position.x + sw)
+        maxY = Math.max(maxY, sNode.position.y + sh)
+      }
+      const sNodes = rfNodes.filter(n => s.nodeIds.includes(n.id))
+      for (const n of sNodes) {
+        const w = n.measured?.width ?? n.width ?? 160
+        maxX = Math.max(maxX, n.position.x + w + SUMMARY_GAP + BRACE_W)
+      }
+    }
+
+    const bounds = { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+    const margin = 40
+    const imgWidth = Math.ceil(bounds.width + margin * 2)
+    const imgHeight = Math.ceil(bounds.height + margin * 2)
+    const vp = getViewportForBounds(bounds, imgWidth, imgHeight, 0.5, 2, `${margin}px`)
+
     const exporter = format === 'png' ? toPng : toSvg
-    const dataUrl = await exporter(el, {
+
+    const dataUrl = await exporter(rfViewport, {
       backgroundColor: format === 'png' ? '#ffffff' : undefined,
-      pixelRatio: 2,
-      filter: (node: HTMLElement) => {
-        if (!(node instanceof HTMLElement)) return true
-        const cls = node.className ?? ''
-        if (typeof cls === 'string' && (cls.includes('react-flow__minimap') || cls.includes('react-flow__controls'))) return false
-        return true
+      width: imgWidth,
+      height: imgHeight,
+      pixelRatio: format === 'png' ? 3 : 1,
+      style: {
+        width: `${imgWidth}px`,
+        height: `${imgHeight}px`,
+        transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`,
       },
     })
     const a = document.createElement('a')
     a.href = dataUrl
     a.download = `${mindmapTitle || 'mindmap'}.${format}`
     a.click()
-  }, [rfNodes, rfEdges, mindmapTitle])
+  }, [rfNodes, rfEdges, mindmapTitle, api, boundaries, summaries])
 
   const iconBtnStyle: React.CSSProperties = {
     background: 'none', border: 'none', fontSize: 14, cursor: 'pointer',
@@ -110,12 +175,12 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
           <>
             <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setExportMenuOpen(false)} />
             <div style={dropdownStyle}>
-              {([['png', Image], ['svg', FileCode], ['json', FileJson]] as const).map(([fmt, Icon]) => (
-                <button key={fmt} onClick={() => handleExport(fmt)}
+              {([['pdf', FileImage, 'PDF'], ['markdown', FileText, 'Markdown'], ['png', Image, 'PNG'], ['svg', FileCode, 'SVG'], ['json', FileJson, 'JSON']] as const).map(([fmt, Icon, label]) => (
+                <button key={fmt} onClick={() => handleExport(fmt as any)}
                   style={dropdownItemStyle}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--hover, #f5f5f5)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                  <Icon size={13} />{fmt.toUpperCase()}
+                  <Icon size={13} />{label}
                 </button>
               ))}
             </div>
@@ -196,6 +261,7 @@ export function MindmapFloatingToolbar() {
   return (
     <div
       ref={barRef}
+      data-floating-toolbar
       style={{
         ...floatStyle,
         display: 'flex', alignItems: 'center', gap: 2,

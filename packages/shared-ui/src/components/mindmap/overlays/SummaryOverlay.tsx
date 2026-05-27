@@ -1,5 +1,6 @@
 import React from 'react'
 import { useMindmapStore, type MindmapNodeData } from '../useMindmapStore.js'
+import { useNodeSizeStore } from '../useNodeSizeStore.js'
 import type { Node } from '@xyflow/react'
 
 const BRACE_WIDTH = 20
@@ -18,22 +19,24 @@ function collectDescendantIds(nodeId: string, allNodes: Node<MindmapNodeData>[])
 
 export default function SummaryOverlay() {
   const { summaries, rfNodes, removeSummary } = useMindmapStore()
+  const nodeSizes = useNodeSizeStore(s => s.sizes)
 
   if (summaries.length === 0) return null
 
   return (
     <>
       {summaries.map(s => (
-        <SummaryBrace key={s.id} summary={s} rfNodes={rfNodes}
+        <SummaryBrace key={s.id} summary={s} rfNodes={rfNodes} nodeSizes={nodeSizes}
           onRemove={() => removeSummary(s.id)} />
       ))}
     </>
   )
 }
 
-function SummaryBrace({ summary, rfNodes, onRemove }: {
+function SummaryBrace({ summary, rfNodes, nodeSizes, onRemove }: {
   summary: { id: string; nodeIds: string[]; summaryNodeId: string }
   rfNodes: Node<MindmapNodeData>[]
+  nodeSizes: Map<string, { width: number; height: number }>
   onRemove: () => void
 }) {
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number } | null>(null)
@@ -52,8 +55,9 @@ function SummaryBrace({ summary, rfNodes, onRemove }: {
 
   let minY = Infinity, maxY = -Infinity, maxX = -Infinity
   for (const n of matchedNodes) {
-    const w = n.width ?? n.measured?.width ?? 160
-    const h = n.height ?? n.measured?.height ?? 40
+    const ns = nodeSizes.get(n.id)
+    const w = ns?.width ?? n.measured?.width ?? n.width ?? 160
+    const h = ns?.height ?? n.measured?.height ?? n.height ?? 40
     if (n.position.y < minY) minY = n.position.y
     if (n.position.y + h > maxY) maxY = n.position.y + h
     if (n.position.x + w > maxX) maxX = n.position.x + w
@@ -65,8 +69,9 @@ function SummaryBrace({ summary, rfNodes, onRemove }: {
   const midY = braceTop + braceHeight / 2
 
   if (summaryNode) {
-    const snW = summaryNode.width ?? summaryNode.measured?.width ?? 160
-    const snH = summaryNode.height ?? summaryNode.measured?.height ?? 40
+    const sns = nodeSizes.get(summary.summaryNodeId)
+    const snW = sns?.width ?? summaryNode.measured?.width ?? summaryNode.width ?? 160
+    const snH = sns?.height ?? summaryNode.measured?.height ?? summaryNode.height ?? 40
     const targetX = braceX + BRACE_WIDTH + GAP
     const targetY = midY - snH / 2
     if (Math.abs(summaryNode.position.x - targetX) > 1 || Math.abs(summaryNode.position.y - targetY) > 1) {
