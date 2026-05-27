@@ -82,6 +82,7 @@ const api = {
     deleteDir: (dirPath: string) => ipcRenderer.invoke('notes:deleteDir', dirPath),
     importMarkdown: (filePaths: string[], targetFolder: string | null) => ipcRenderer.invoke('notes:importMarkdown', filePaths, targetFolder),
     importMarkdownDialog: (targetFolder: string | null) => ipcRenderer.invoke('notes:importMarkdownDialog', targetFolder),
+    exportDir: (entries: Array<{ title: string; content: string; attachments: string[]; subPath: string }>, format: 'markdown' | 'pdf', folderName: string) => ipcRenderer.invoke('notes:exportDir', entries, format, folderName),
     onNavigateLink: (callback: (noteId: string) => void) => {
       const handler = (_event: any, noteId: string) => callback(noteId)
       ipcRenderer.on('navigate-note-link', handler)
@@ -101,6 +102,7 @@ const api = {
     getPath: (relativePath: string) => ipcRenderer.invoke('attachments:getPath', relativePath),
     delete: (relativePath: string) => ipcRenderer.invoke('attachments:delete', relativePath),
     open: (relativePath: string) => ipcRenderer.invoke('attachments:open', relativePath),
+    readBuffer: (relativePath: string) => ipcRenderer.invoke('attachments:readBuffer', relativePath) as Promise<ArrayBuffer | null>,
   },
   noteLinks: {
     getBacklinks: (noteId: string) => ipcRenderer.invoke('noteLinks:getBacklinks', noteId),
@@ -206,10 +208,14 @@ const api = {
     getDocStatus: (docId: string) => ipcRenderer.invoke('sync:getDocStatus', docId),
   },
   export: {
-    markdown: (input: { title: string; markdown: string; attachments: string[] }) =>
+    markdown: (input: { title: string; markdown: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }) =>
       ipcRenderer.invoke('export:markdown', input) as Promise<string | null>,
-    pdf: (input: { title: string; html: string; attachments: string[] }) =>
+    pdf: (input: { title: string; html: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }) =>
       ipcRenderer.invoke('export:pdf', input) as Promise<string | null>,
+  },
+  capture: {
+    area: (rect: { x: number; y: number; width: number; height: number }) =>
+      ipcRenderer.invoke('capture:area', rect) as Promise<string | null>,
   },
   clipboard: {
     readFiles: () => ipcRenderer.invoke('clipboard:readFiles') as Promise<Array<{ path: string; name: string }>>,

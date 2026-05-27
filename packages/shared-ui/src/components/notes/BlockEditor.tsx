@@ -11,31 +11,18 @@ import { NoteLink } from './blocks/NoteLink.js'
 import { DocumentLink } from './blocks/DocumentLink.js'
 import { FileEmbed } from './blocks/FileEmbed.js'
 import { MermaidBlock } from './blocks/MermaidBlock.js'
-import { renderAllStrokes } from '../handwriting/renderStrokes.js'
 import '@blocknote/mantine/style.css'
 import './BlockEditor.css'
 import { useBanjuanAPI } from '../../api.js'
 import type { BanjuanAPI } from '../../api.js'
+import {
+  exportBlocksToMarkdown, exportBlocksToHTML,
+  extractExportAttachmentPaths,
+  screenshotMindmapEmbed, screenshotHandwritingEmbed,
+  renderMindmapTreeMd, renderMindmapTreeHtml,
+} from '../../utils/noteExport.js'
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'])
-const ATTACHMENT_PREFIX = 'banjuan-attachment://'
-
-function extractAttachmentPaths(blocks: any[]): Set<string> {
-  const paths = new Set<string>()
-  const walk = (node: any) => {
-    if (!node) return
-    if (node.type === 'image' && typeof node.props?.url === 'string' && node.props.url.startsWith(ATTACHMENT_PREFIX)) {
-      paths.add(node.props.url.slice(ATTACHMENT_PREFIX.length))
-    }
-    if (node.type === 'fileEmbed' && node.props?.src) {
-      paths.add(node.props.src)
-    }
-    if (Array.isArray(node.content)) node.content.forEach(walk)
-    if (Array.isArray(node.children)) node.children.forEach(walk)
-  }
-  blocks.forEach(walk)
-  return paths
-}
 
 const supportedLanguages = {
   text: { name: 'Plain Text', aliases: ['plaintext', 'txt'] },
@@ -75,7 +62,7 @@ const codeBlock = createCodeBlockSpec({
   createHighlighter: () => import('shiki').then(m => m.createHighlighter({ themes: ['github-light', 'github-dark'], langs: Object.keys(supportedLanguages) })),
 })
 
-const schema = BlockNoteSchema.create({
+export const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
     codeBlock,
@@ -98,7 +85,7 @@ interface NoteItem {
 }
 
 export interface BlockEditorHandle {
-  exportMarkdown: () => Promise<string>
+  exportMarkdown: () => Promise<{ markdown: string; files: Array<{ name: string; dataUrl: string }> }>
   exportHTML: () => Promise<string>
   getAttachmentPaths: () => string[]
 }
@@ -178,94 +165,6 @@ function getMermaidSlashItem(editor: any) {
       })
     },
     aliases: ['mermaid', 'diagram', 'flowchart', 'chart'],
-  }
-}
-
-function buildMindmapTree(nodes: any[]): { root: any | null; childrenMap: Map<string, any[]> } {
-  const childrenMap = new Map<string, any[]>()
-  let root: any = null
-  for (const n of nodes) {
-    if (!n.parentId) root = n
-    else {
-      const siblings = childrenMap.get(n.parentId) ?? []
-      siblings.push(n)
-      childrenMap.set(n.parentId, siblings)
-    }
-  }
-  for (const children of childrenMap.values()) {
-    children.sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-  }
-  return { root, childrenMap }
-}
-
-function renderMindmapTreeMd(title: string, nodes: any[]): string {
-  const { root, childrenMap } = buildMindmapTree(nodes)
-  if (!root) return `> 🧠 **${title}**`
-  const lines = [`🧠 **${title}**`, '']
-  const walk = (nodeId: string, depth: number) => {
-    const children = childrenMap.get(nodeId) ?? []
-    for (const child of children) {
-      lines.push(`${'  '.repeat(depth)}- ${child.title || 'Untitled'}`)
-      walk(child.id, depth + 1)
-    }
-  }
-  lines.push(`- ${root.title || title}`)
-  walk(root.id, 1)
-  return lines.join('\n')
-}
-
-function renderMindmapTreeHtml(title: string, nodes: any[]): string {
-  const { root, childrenMap } = buildMindmapTree(nodes)
-  if (!root) return `<blockquote><p>🧠 <strong>${title}</strong></p></blockquote>`
-  const renderList = (nodeId: string): string => {
-    const children = childrenMap.get(nodeId) ?? []
-    if (children.length === 0) return ''
-    const items = children.map(c =>
-      `<li>${c.title || 'Untitled'}${renderList(c.id)}</li>`
-    ).join('')
-    return `<ul>${items}</ul>`
-  }
-  return `<div class="mindmap-export"><p>🧠 <strong>${title}</strong></p><ul><li>${root.title || title}${renderList(root.id)}</li></ul></div>`
-}
-
-async function screenshotMindmapEmbed(noteId: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    const timeout = setTimeout(() => resolve(null), 5000)
-    const detail = {
-      noteId,
-      resolve: (result: string | null) => {
-        clearTimeout(timeout)
-        resolve(result)
-      },
-    }
-    document.dispatchEvent(new CustomEvent('mindmap-screenshot-request', { detail }))
-  })
-}
-
-async function screenshotHandwritingEmbed(api: BanjuanAPI, noteId: string, pageIndex?: number): Promise<string | null> {
-  try {
-    const note = await api.notes.get(noteId)
-    if (!note || note.type !== 'handwriting') return null
-    const parsed = JSON.parse(note.content)
-    const pages = parsed.pages ?? []
-    if (pages.length === 0) return null
-    const pi = pageIndex != null && pageIndex >= 0 && pageIndex < pages.length ? pageIndex : 0
-    const page = pages[pi]
-    const typeMeta = note.typeMeta ?? {}
-    const pageSize = (typeMeta as any).pageSize ?? { width: 1024, height: 768 }
-    const dpr = 2
-    const canvas = document.createElement('canvas')
-    canvas.width = pageSize.width * dpr
-    canvas.height = pageSize.height * dpr
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return null
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.scale(dpr, dpr)
-    renderAllStrokes(ctx, page.snapshot?.strokes ?? [], pageSize.width, pageSize.height)
-    return canvas.toDataURL('image/png')
-  } catch {
-    return null
   }
 }
 
@@ -375,173 +274,9 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   }, [editor, rawMarkdown])
 
   useImperativeHandle(ref, () => ({
-    exportMarkdown: async () => {
-      const blocks = editor.document as any[]
-      const segments: string[] = []
-      let stdBatch: any[] = []
-
-      const flushStd = async () => {
-        if (stdBatch.length === 0) return
-        try {
-          let md = await editor.blocksToMarkdownLossy(stdBatch)
-          md = md.replace(/!\[[^\]]*\]\(banjuan-attachment:\/\/attachments\/[^/]+\/([^\s)]+)\)/g,
-            (_match, fileName) => `[${decodeURIComponent(fileName)}](attachments/${fileName})`)
-          md = md.replace(/banjuan-attachment:\/\/attachments\/[^/]+\/([^\s)]+)/g, 'attachments/$1')
-          segments.push(md)
-        } catch { /* skip */ }
-        stdBatch = []
-      }
-
-      for (const block of blocks) {
-        const p = block.props || {}
-        if (block.type === 'mermaidBlock' && p.code) {
-          await flushStd()
-          segments.push(`\`\`\`mermaid\n${p.code}\n\`\`\``)
-        } else if (block.type === 'noteEmbed') {
-          await flushStd()
-          const noteTitle = p.noteTitle || 'Untitled'
-          if (p.noteId) {
-            try {
-              const note = await api.notes.get(p.noteId)
-              if (note?.type === 'mindmap') {
-                const imgDataUrl = await screenshotMindmapEmbed(p.noteId)
-                if (imgDataUrl) {
-                  segments.push(`🧠 **${noteTitle}**\n\n![${noteTitle}](${imgDataUrl})`)
-                } else {
-                  const nodes = await api.mindmaps.getNodes(p.noteId)
-                  segments.push(renderMindmapTreeMd(noteTitle, nodes))
-                }
-              } else if (note?.type === 'handwriting') {
-                const pi = p.pageIndex !== '' && p.pageIndex != null ? parseInt(p.pageIndex, 10) : undefined
-                const imgDataUrl = await screenshotHandwritingEmbed(api, p.noteId, pi)
-                if (imgDataUrl) {
-                  segments.push(`✏️ **${noteTitle}**\n\n![${noteTitle}](${imgDataUrl})`)
-                } else {
-                  segments.push(`> ✏️ **${noteTitle}**`)
-                }
-              } else {
-                segments.push(`> 📝 **${noteTitle}**`)
-              }
-            } catch {
-              segments.push(`> 📝 **${noteTitle}**`)
-            }
-          } else {
-            segments.push(`> 📝 **${noteTitle}**`)
-          }
-        } else if (block.type === 'documentEmbed') {
-          await flushStd()
-          const parts = [`📄 **${p.docTitle || 'Document'}**`]
-          if (p.authors) parts.push(p.authors)
-          if (p.pageCount > 0) parts.push(`${p.pageCount} pages`)
-          segments.push(`> ${parts.join(' · ')}`)
-        } else if (block.type === 'annotationEmbed') {
-          await flushStd()
-          const lines = [`> 📄 ${p.docTitle || 'Document'}${p.page ? ` p.${p.page}` : ''}`]
-          if (p.quote) lines.push(`> "${p.quote}"`)
-          if (p.comment) lines.push(`> ${p.comment}`)
-          segments.push(lines.join('\n'))
-        } else if (block.type === 'fileEmbed' && p.src) {
-          await flushStd()
-          const fileName = p.fileName || p.src.split('/').pop() || 'attachment'
-          const safeName = p.src.split('/').pop() || fileName
-          segments.push(`[${fileName}](attachments/${safeName})`)
-        } else {
-          stdBatch.push(block)
-        }
-      }
-      await flushStd()
-      return segments.join('\n\n')
-    },
-    exportHTML: async () => {
-      const blocks = editor.document as any[]
-      const segments: string[] = []
-      let stdBatch: any[] = []
-
-      const flushStd = async () => {
-        if (stdBatch.length === 0) return
-        try {
-          segments.push(await editor.blocksToHTMLLossy(stdBatch))
-        } catch { /* skip */ }
-        stdBatch = []
-      }
-
-      for (const block of blocks) {
-        const p = block.props || {}
-        if (block.type === 'mermaidBlock' && p.code) {
-          await flushStd()
-          try {
-            const mermaid = (await import('mermaid')).default
-            mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: (p.theme as any) || 'neutral' })
-            const id = `mermaid-export-${Date.now()}-${Math.random().toString(36).slice(2)}`
-            const w = p.renderWidth || 500
-            const tempDiv = document.createElement('div')
-            tempDiv.style.width = `${w}px`
-            tempDiv.style.position = 'absolute'
-            tempDiv.style.left = '-9999px'
-            document.body.appendChild(tempDiv)
-            const { svg } = await mermaid.render(id, p.code, tempDiv)
-            document.body.removeChild(tempDiv)
-            segments.push(`<div class="mermaid-diagram">${svg}</div>`)
-          } catch {
-            segments.push(`<pre><code class="language-mermaid">${p.code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`)
-          }
-        } else if (block.type === 'noteEmbed') {
-          await flushStd()
-          const noteTitle = p.noteTitle || 'Untitled'
-          if (p.noteId) {
-            try {
-              const note = await api.notes.get(p.noteId)
-              if (note?.type === 'mindmap') {
-                const imgDataUrl = await screenshotMindmapEmbed(p.noteId)
-                if (imgDataUrl) {
-                  segments.push(`<div class="mindmap-export"><p>🧠 <strong>${noteTitle}</strong></p><img src="${imgDataUrl}" style="max-width:100%" /></div>`)
-                } else {
-                  const nodes = await api.mindmaps.getNodes(p.noteId)
-                  segments.push(renderMindmapTreeHtml(noteTitle, nodes))
-                }
-              } else if (note?.type === 'handwriting') {
-                const pi = p.pageIndex !== '' && p.pageIndex != null ? parseInt(p.pageIndex, 10) : undefined
-                const imgDataUrl = await screenshotHandwritingEmbed(api, p.noteId, pi)
-                if (imgDataUrl) {
-                  segments.push(`<div class="handwriting-export"><p>✏️ <strong>${noteTitle}</strong></p><img src="${imgDataUrl}" style="max-width:100%" /></div>`)
-                } else {
-                  segments.push(`<blockquote><p>✏️ <strong>${noteTitle}</strong></p></blockquote>`)
-                }
-              } else {
-                segments.push(`<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`)
-              }
-            } catch {
-              segments.push(`<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`)
-            }
-          } else {
-            segments.push(`<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`)
-          }
-        } else if (block.type === 'documentEmbed') {
-          await flushStd()
-          const parts = [`📄 <strong>${p.docTitle || 'Document'}</strong>`]
-          if (p.authors) parts.push(p.authors)
-          if (p.pageCount > 0) parts.push(`${p.pageCount} pages`)
-          segments.push(`<blockquote><p>${parts.join(' · ')}</p></blockquote>`)
-        } else if (block.type === 'annotationEmbed') {
-          await flushStd()
-          let inner = `<p>📄 ${p.docTitle || 'Document'}${p.page ? ` p.${p.page}` : ''}</p>`
-          if (p.quote) inner += `<p><em>"${p.quote}"</em></p>`
-          if (p.comment) inner += `<p>${p.comment}</p>`
-          segments.push(`<blockquote>${inner}</blockquote>`)
-        } else if (block.type === 'fileEmbed' && p.src) {
-          await flushStd()
-          const fileName = p.fileName || p.src.split('/').pop() || 'attachment'
-          segments.push(`<p>📎 <strong>${fileName}</strong></p>`)
-        } else {
-          stdBatch.push(block)
-        }
-      }
-      await flushStd()
-      return segments.join('\n')
-    },
-    getAttachmentPaths: () => {
-      return [...extractAttachmentPaths(editor.document)]
-    },
+    exportMarkdown: () => exportBlocksToMarkdown(editor, editor.document as any[], api),
+    exportHTML: () => exportBlocksToHTML(editor, editor.document as any[], api),
+    getAttachmentPaths: () => extractExportAttachmentPaths(editor.document as any[]),
   }), [editor])
 
   const handleUploadFileRef = useRef(handleUploadFile)
@@ -601,7 +336,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
 
   useEffect(() => {
     if (parsedContent) {
-      prevAttachmentsRef.current = extractAttachmentPaths(parsedContent)
+      prevAttachmentsRef.current = new Set(extractExportAttachmentPaths(parsedContent))
       if (noteId && !skipLinkSync) {
         const links = extractNoteLinks(parsedContent)
         api.noteLinks.sync(noteId, links).then(() => {
@@ -628,7 +363,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       const docLinks = extractDocumentLinks(blocks)
       api.docLinks.sync(noteId, docLinks)
     }
-    const currentAttachments = extractAttachmentPaths(blocks)
+    const currentAttachments = new Set(extractExportAttachmentPaths(blocks))
     for (const path of prevAttachmentsRef.current) {
       if (!currentAttachments.has(path)) {
         api.attachments.delete(path)

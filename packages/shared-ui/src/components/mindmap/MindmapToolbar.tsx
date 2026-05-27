@@ -6,7 +6,8 @@ import { toPng, toSvg } from 'html-to-image'
 import { getNodesBounds, getViewportForBounds } from '@xyflow/react'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
-import { renderMindmapTreeMd, renderMindmapTreeHtml } from '../../utils/noteExport.js'
+import { renderMindmapTreeMd } from '../../utils/noteExport.js'
+import { exportToDirectory } from '../../utils/exportToDirectory.js'
 
 interface TitleBarProps {
   onToggleLeftSidebar?: () => void
@@ -16,7 +17,7 @@ interface TitleBarProps {
 export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: TitleBarProps) {
   const t = useT()
   const api = useBanjuanAPI()
-  const { mindmapTitle, layout, theme, setTitle, setLayout, setTheme, rfNodes, rfEdges, boundaries, summaries } = useMindmapStore()
+  const { mindmapId, mindmapTitle, layout, theme, setTitle, setLayout, setTheme, rfNodes, rfEdges, boundaries, summaries } = useMindmapStore()
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
 
@@ -37,17 +38,13 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
 
     if (format === 'markdown') {
       if (!api.export) return
-      const nodes = rfNodes.map(n => n.data)
-      const md = renderMindmapTreeMd(mindmapTitle || 'Mindmap', nodes)
-      await api.export.markdown({ title: mindmapTitle || 'mindmap', markdown: md, attachments: [] })
-      return
-    }
-
-    if (format === 'pdf') {
-      if (!api.export) return
-      const nodes = rfNodes.map(n => n.data)
-      const html = renderMindmapTreeHtml(mindmapTitle || 'Mindmap', nodes)
-      await api.export.pdf({ title: mindmapTitle || 'mindmap', html, attachments: [] })
+      exportToDirectory(api, [{
+        id: mindmapId || 'mindmap', title: mindmapTitle || 'mindmap',
+        generate: async () => {
+          const nodes = rfNodes.map(n => n.data)
+          return { markdown: renderMindmapTreeMd(mindmapTitle || 'Mindmap', nodes), attachments: [] }
+        },
+      }], 'markdown')
       return
     }
 
@@ -95,6 +92,27 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
     const imgWidth = Math.ceil(bounds.width + margin * 2)
     const imgHeight = Math.ceil(bounds.height + margin * 2)
     const vp = getViewportForBounds(bounds, imgWidth, imgHeight, 0.5, 2, `${margin}px`)
+
+    if (format === 'pdf') {
+      if (!api.export) return
+      const capturedRfViewport = rfViewport
+      const capturedImgW = imgWidth, capturedImgH = imgHeight, capturedVp = vp
+      exportToDirectory(api, [{
+        id: mindmapId || 'mindmap', title: mindmapTitle || 'mindmap',
+        generate: async () => {
+          const dataUrl = await toPng(capturedRfViewport, {
+            backgroundColor: '#ffffff',
+            width: capturedImgW, height: capturedImgH, pixelRatio: 3,
+            style: {
+              width: `${capturedImgW}px`, height: `${capturedImgH}px`,
+              transform: `translate(${capturedVp.x}px, ${capturedVp.y}px) scale(${capturedVp.zoom})`,
+            },
+          })
+          return { html: `<div class="mindmap-export"><img src="${dataUrl}" style="max-width:100%" /></div>`, attachments: [] }
+        },
+      }], 'pdf')
+      return
+    }
 
     const exporter = format === 'png' ? toPng : toSvg
 

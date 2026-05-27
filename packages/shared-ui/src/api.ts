@@ -109,6 +109,7 @@ export interface BanjuanAPI {
     deleteDir?(dirPath: string): Promise<void>
     importMarkdown?(filePaths: string[], targetFolder: string | null): Promise<Array<{ title: string; success: boolean; error?: string }>>
     importMarkdownDialog?(targetFolder: string | null): Promise<Array<{ title: string; success: boolean; error?: string }> | null>
+    exportDir?(entries: Array<{ title: string; content: string; attachments: string[]; subPath: string }>, format: 'markdown' | 'pdf', folderName: string): Promise<string | null>
     onNavigateLink(callback: (noteId: string) => void): () => void
   }
 
@@ -124,6 +125,7 @@ export interface BanjuanAPI {
     getPath(relativePath: string): Promise<string>
     delete(relativePath: string): Promise<void>
     open(relativePath: string): Promise<void>
+    readBuffer?(relativePath: string): Promise<ArrayBuffer | null>
   }
 
   noteLinks: {
@@ -201,8 +203,13 @@ export interface BanjuanAPI {
 
   /** Optional -- not available on all platforms */
   export?: {
-    markdown(input: { title: string; markdown: string; attachments: string[] }): Promise<string | null>
-    pdf(input: { title: string; html: string; attachments: string[] }): Promise<string | null>
+    markdown(input: { title: string; markdown: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }): Promise<string | null>
+    pdf(input: { title: string; html: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }): Promise<string | null>
+  }
+
+  /** Optional -- Electron-only native screen capture */
+  capture?: {
+    area(rect: { x: number; y: number; width: number; height: number }): Promise<string | null>
   }
 
   /** Optional -- not available on all platforms */

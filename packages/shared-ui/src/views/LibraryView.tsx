@@ -14,6 +14,11 @@ import type { Locale } from '../i18n/index.js'
 import { useTheme, useThemeLayout, APP_THEMES } from '../theme/index.js'
 import type { AppTheme } from '../theme/index.js'
 import { useBanjuanAPI } from '../api.js'
+import { BlockNoteEditor } from '@blocknote/core'
+import { schema as blockNoteSchema } from '../components/notes/BlockEditor.js'
+import { exportBlocksToMarkdown, exportBlocksToHTML, extractExportAttachmentPaths, exportMindmapToMarkdown, exportMindmapToHTML, exportHandwritingToFiles, exportHandwritingToHTML } from '../utils/noteExport.js'
+import { renderMindmapToImage } from '../components/MindmapExportService.js'
+import { exportToDirectory, type ExportEntry } from '../utils/exportToDirectory.js'
 
 interface Document {
   id: string
@@ -343,6 +348,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [tagNoteSectionExpanded, setTagNoteSectionExpanded] = useState(true)
   const [tagsWithCounts, setTagsWithCounts] = useState<Array<{ id: string; name: string; color: string | null; count: number }>>([])
   const [noteDragOver, setNoteDragOver] = useState(false)
+  const [exportDirPath, setExportDirPath] = useState<string | null>(null)
+  const [showExportDialog, setShowExportDialog] = useState(false)
   const composingRef = useRef(false)
   const [tagSearch, setTagSearch] = useState('')
   const [showAllTags, setShowAllTags] = useState(false)
@@ -2932,6 +2939,88 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         </div>
       )}
 
+      {showExportDialog && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }} onClick={() => setShowExportDialog(false)}>
+          <div style={{
+            background: 'var(--surface, #fff)', borderRadius: 10, padding: 24, width: 300,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>{locale === 'zh' ? '导出笔记' : 'Export Notes'}</h3>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-muted)' }}>
+              {locale === 'zh' ? '选择导出格式，将逐个导出到目录' : 'Choose format, files will be exported one by one'}
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {(['markdown', 'pdf'] as const).map(fmt => (
+                <button key={fmt} onClick={async () => {
+                  setShowExportDialog(false)
+                  await new Promise(r => requestAnimationFrame(r))
+
+                  const allNotes = exportDirPath ? await api.notes.list({ folder: exportDirPath } as any) : await api.notes.list()
+                  if (allNotes.length === 0) return
+
+                  const editor = BlockNoteEditor.create({ schema: blockNoteSchema } as any)
+
+                  const entries: ExportEntry[] = allNotes.map((note: any) => {
+                    const notePath = note.path?.split('/') ?? []
+                    const subPath = notePath.length > 1
+                      ? (exportDirPath ? notePath.slice(0, -1).join('/').slice(exportDirPath.length + 1) : notePath.slice(0, -1).join('/'))
+                      : ''
+                    const safeTitle = note.title.replace(/[/\\:*?"<>|]/g, '_')
+                    return {
+                      id: note.id, title: note.title, subPath,
+                      generate: async () => {
+                        if (note.type === 'mindmap') {
+                          const dataUrl = await renderMindmapToImage(note.id)
+                          if (dataUrl) {
+                            const imgName = `${safeTitle}.png`
+                            return fmt === 'markdown'
+                              ? { markdown: `![${note.title}](images/${imgName})`, attachments: [], files: [{ name: imgName, dataUrl }] }
+                              : { html: `<div class="mindmap-export"><img src="${dataUrl}" style="max-width:100%" /></div>`, attachments: [] }
+                          }
+                          return fmt === 'markdown'
+                            ? { markdown: await exportMindmapToMarkdown(api, note.id, note.title), attachments: [] }
+                            : { html: await exportMindmapToHTML(api, note.id, note.title), attachments: [] }
+                        }
+                        if (note.type === 'handwriting') {
+                          if (fmt === 'markdown') {
+                            const result = await exportHandwritingToFiles(api, note.id, note.title)
+                            return result
+                          }
+                          return { html: await exportHandwritingToHTML(api, note.id, note.title), attachments: [] }
+                        }
+                        const full = await api.notes.get(note.id)
+                        if (!full) throw new Error('Note not found')
+                        const blocks = JSON.parse(full.content)
+                        if (fmt === 'markdown') {
+                          const result = await exportBlocksToMarkdown(editor, blocks, api)
+                          const attachments = extractExportAttachmentPaths(blocks)
+                          return { markdown: result.markdown, attachments, files: result.files }
+                        }
+                        const html = await exportBlocksToHTML(editor, blocks, api)
+                        const attachments = extractExportAttachmentPaths(blocks)
+                        return { html, attachments }
+                      },
+                    }
+                  })
+
+                  exportToDirectory(api, entries, fmt)
+                }} style={{
+                  flex: 1, padding: '10px 0', fontSize: 13, fontWeight: 500, borderRadius: 8,
+                  background: fmt === 'markdown' ? 'var(--accent, #5e81ac)' : '#e07856',
+                  color: '#fff', border: 'none', cursor: 'pointer',
+                }}>{fmt === 'markdown' ? 'Markdown' : 'PDF'}</button>
+              ))}
+            </div>
+            <div style={{ marginTop: 12, textAlign: 'center' }}>
+              <button onClick={() => setShowExportDialog(false)} style={{ fontSize: 13, padding: '6px 16px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>{t('common.cancel')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {moveDocDialog && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }}
           onClick={() => setMoveDocDialog(null)}
@@ -3039,6 +3128,14 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><Download size={14} />{t('common.import')}</div>}
+              {api.export?.markdown && <div onClick={() => {
+                setExportDirPath(contextMenu.dirPath || selectedNoteDir)
+                setContextMenu(null)
+                setShowExportDialog(true)
+              }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              ><FolderOutput size={14} />{locale === 'zh' ? '导出' : 'Export'}</div>}
               <div onClick={handleCreateFolder} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -3101,6 +3198,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
           )}
         </div>
       )}
+
     </div>
   )
 }
