@@ -603,6 +603,12 @@ export function registerIpcHandlers() {
     return shell.openPath(fullPath)
   })
 
+  ipcMain.handle('attachments:readBuffer', async (event, relativePath: string) => {
+    const fullPath = getLib(event).attachments.getFullPath(relativePath)
+    if (!existsSync(fullPath)) return null
+    return readFileSync(fullPath).buffer
+  })
+
   ipcMain.handle('templates:list', async (event) => {
     return getLib(event).templates.list()
   })
@@ -870,9 +876,31 @@ export function registerIpcHandlers() {
     return readFile(filePath)
   })
 
-  ipcMain.handle('export:markdown', async (event, input: { title: string; markdown: string; attachments: string[] }) => {
+  ipcMain.handle('export:markdown', async (event, input: { title: string; markdown: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }) => {
     const lib = getLib(event)
     const safeTitle = input.title.replace(/[/\\:*?"<>|]/g, '_')
+
+    if (input.outputPath) {
+      mkdirSync(input.outputPath, { recursive: true })
+      writeFileSync(join(input.outputPath, `${safeTitle}.md`), input.markdown, 'utf-8')
+      if (input.attachments.length > 0) {
+        const attDir = join(input.outputPath, 'attachments')
+        mkdirSync(attDir, { recursive: true })
+        for (const relPath of input.attachments) {
+          const srcPath = lib.attachments.getFullPath(relPath)
+          if (existsSync(srcPath)) copyFileSync(srcPath, join(attDir, basename(srcPath)))
+        }
+      }
+      if (input.files && input.files.length > 0) {
+        const imgDir = join(input.outputPath, 'images')
+        mkdirSync(imgDir, { recursive: true })
+        for (const f of input.files) {
+          const match = f.dataUrl.match(/^data:[^;]+;base64,(.+)$/)
+          if (match) writeFileSync(join(imgDir, f.name), Buffer.from(match[1], 'base64'))
+        }
+      }
+      return input.outputPath
+    }
 
     if (input.attachments.length === 0) {
       const result = await dialog.showSaveDialog({
@@ -908,18 +936,9 @@ export function registerIpcHandlers() {
     return result.filePath
   })
 
-  ipcMain.handle('export:pdf', async (event, input: { title: string; html: string; attachments: string[] }) => {
+  ipcMain.handle('export:pdf', async (event, input: { title: string; html: string; attachments: string[]; outputPath?: string }) => {
     const lib = getLib(event)
     const safeTitle = input.title.replace(/[/\\:*?"<>|]/g, '_')
-    const hasAttachments = input.attachments.length > 0
-
-    const result = await dialog.showSaveDialog({
-      defaultPath: hasAttachments ? `${safeTitle}.zip` : `${safeTitle}.pdf`,
-      filters: hasAttachments
-        ? [{ name: 'ZIP Archive', extensions: ['zip'] }]
-        : [{ name: 'PDF', extensions: ['pdf'] }],
-    })
-    if (result.canceled || !result.filePath) return null
 
     const rootPath = getLibraryRootPath()
     let contentHtml = input.html
@@ -965,9 +984,27 @@ ${contentHtml}
         pageSize: 'A4',
       })
 
+      if (input.outputPath) {
+        mkdirSync(input.outputPath, { recursive: true })
+        writeFileSync(join(input.outputPath, `${safeTitle}.pdf`), pdfBuffer)
+        return input.outputPath
+      }
+
+      const hasAttachments = input.attachments.length > 0
       if (!hasAttachments) {
+        const result = await dialog.showSaveDialog({
+          defaultPath: `${safeTitle}.pdf`,
+          filters: [{ name: 'PDF', extensions: ['pdf'] }],
+        })
+        if (result.canceled || !result.filePath) return null
         writeFileSync(result.filePath, pdfBuffer)
+        return result.filePath
       } else {
+        const result = await dialog.showSaveDialog({
+          defaultPath: `${safeTitle}.zip`,
+          filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
+        })
+        if (result.canceled || !result.filePath) return null
         const tmpDir = join(tmpdir(), `banjuan-export-${Date.now()}`)
         const contentDir = join(tmpDir, safeTitle)
         const attDir = join(contentDir, 'attachments')
@@ -981,12 +1018,70 @@ ${contentHtml}
         }
         execSync(`cd "${tmpDir}" && zip -r "${result.filePath}" "${safeTitle}"`)
         execSync(`rm -rf "${tmpDir}"`)
+        return result.filePath
       }
-      return result.filePath
     } finally {
       hiddenWin.close()
       try { if (existsSync(tmpHtmlPath)) unlinkSync(tmpHtmlPath) } catch { /* ignore */ }
     }
+  })
+
+  ipcMain.handle('notes:exportDir', async (event, entries: Array<{ title: string; content: string; attachments: string[]; subPath: string }>, format: 'markdown' | 'pdf', folderName: string) => {
+    const lib = getLib(event)
+    if (entries.length === 0) return null
+
+    const safeFolderName = folderName.replace(/[/\\:*?"<>|]/g, '_')
+
+    const result = await dialog.showSaveDialog({
+      defaultPath: `${safeFolderName}.zip`,
+      filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
+    })
+    if (result.canceled || !result.filePath) return null
+
+    const tmpDir = join(tmpdir(), `banjuan-export-${Date.now()}`)
+    const contentDir = join(tmpDir, safeFolderName)
+    mkdirSync(contentDir, { recursive: true })
+
+    for (const entry of entries) {
+      const safeTitle = entry.title.replace(/[/\\:*?"<>|]/g, '_')
+      const outputDir = entry.subPath ? join(contentDir, entry.subPath) : contentDir
+      mkdirSync(outputDir, { recursive: true })
+
+      if (format === 'markdown') {
+        writeFileSync(join(outputDir, `${safeTitle}.md`), entry.content, 'utf-8')
+        if (entry.attachments.length > 0) {
+          const attDir = join(outputDir, 'attachments')
+          mkdirSync(attDir, { recursive: true })
+          for (const relPath of entry.attachments) {
+            const srcPath = lib.attachments.getFullPath(relPath)
+            if (existsSync(srcPath)) copyFileSync(srcPath, join(attDir, basename(srcPath)))
+          }
+        }
+      } else {
+        const fullHtml = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; line-height: 1.6; }
+h1, h2, h3 { margin-top: 1.5em; } pre { background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; }
+code { background: #f0f0f0; padding: 2px 4px; border-radius: 3px; } blockquote { border-left: 3px solid #ddd; margin-left: 0; padding-left: 16px; color: #666; }
+img { max-width: 100%; } table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+.mermaid-diagram svg { max-width: 100%; } .mindmap-export ul { margin: 0.3em 0; } .handwriting-export img { max-width: 100%; }
+</style></head><body><h1>${entry.title.replace(/</g, '&lt;')}</h1>${entry.content}</body></html>`
+        const hiddenWin = new BrowserWindow({ show: false, width: 800, height: 600, webPreferences: { offscreen: true } })
+        try {
+          const tmpHtml = join(tmpdir(), `banjuan-pdf-${Date.now()}.html`)
+          writeFileSync(tmpHtml, fullHtml, 'utf-8')
+          await hiddenWin.loadFile(tmpHtml)
+          await new Promise(r => setTimeout(r, 500))
+          const pdfBuffer = await hiddenWin.webContents.printToPDF({ printBackground: true, margins: { marginType: 'default' }, pageSize: 'A4' })
+          writeFileSync(join(outputDir, `${safeTitle}.pdf`), pdfBuffer)
+          try { unlinkSync(tmpHtml) } catch {}
+        } finally { hiddenWin.close() }
+      }
+    }
+
+    execSync(`cd "${tmpDir}" && zip -r "${result.filePath}" "${safeFolderName}"`)
+    execSync(`rm -rf "${tmpDir}"`)
+    return result.filePath
   })
 
   ipcMain.handle('search:query', async (event, query: string, options?: { type?: string; limit?: number }) => {
@@ -996,6 +1091,18 @@ ${contentHtml}
   ipcMain.handle('index:rebuild', async (event) => {
     const indexService = getLib(event).createIndexService()
     await indexService.rebuildFull()
+  })
+
+  ipcMain.handle('capture:area', async (event, rect: { x: number; y: number; width: number; height: number }) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return null
+    const image = await win.webContents.capturePage({
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    })
+    return image.toDataURL()
   })
 
   setLibraryGetter(() => {

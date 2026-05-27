@@ -18,6 +18,7 @@ import HandwritingCenterContent from '../components/handwriting/HandwritingCente
 import PageListPanel from '../components/handwriting/PageListPanel.js'
 import { createHandwritingStore, HandwritingStoreContext } from '../components/handwriting/useHandwritingStore.js'
 import { FileDown, FileText, FileImage, Eye, Pencil, PanelLeft, PanelRight, Minus, Plus } from 'lucide-react'
+import { exportToDirectory } from '../utils/exportToDirectory.js'
 import TagInput from '../components/tags/TagInput.js'
 import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
 import { useT } from '../i18n/index.js'
@@ -442,10 +443,15 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
                   <button
                     onClick={async () => {
                       setExportMenuOpen(false)
-                      if (!editorRef.current) return
-                      const markdown = await editorRef.current.exportMarkdown()
-                      const attachments = editorRef.current.getAttachmentPaths()
-                      await api.export!.markdown({ title, markdown, attachments })
+                      if (!editorRef.current || !api.export) return
+                      const editor = editorRef.current
+                      exportToDirectory(api, [{
+                        id: note.id, title,
+                        generate: async () => {
+                          const result = await editor.exportMarkdown()
+                          return { markdown: result.markdown, attachments: editor.getAttachmentPaths(), files: result.files }
+                        },
+                      }], 'markdown')
                     }}
                     style={{
                       display: 'flex', width: '100%', padding: '8px 16px', border: 'none',
@@ -460,10 +466,15 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
                   <button
                     onClick={async () => {
                       setExportMenuOpen(false)
-                      if (!editorRef.current) return
-                      const html = await editorRef.current.exportHTML()
-                      const attachments = editorRef.current.getAttachmentPaths()
-                      await api.export!.pdf({ title, html, attachments })
+                      if (!editorRef.current || !api.export) return
+                      const editor = editorRef.current
+                      exportToDirectory(api, [{
+                        id: note.id, title,
+                        generate: async () => ({
+                          html: await editor.exportHTML(),
+                          attachments: editor.getAttachmentPaths(),
+                        }),
+                      }], 'pdf')
                     }}
                     style={{
                       display: 'flex', width: '100%', padding: '8px 16px', border: 'none',

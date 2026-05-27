@@ -8,6 +8,8 @@ import TagManagerView from '../views/TagManagerView.js'
 import PluginViewHost from '../views/PluginViewHost.js'
 import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
+import ExportPanel from './ExportPanel.js'
+import MindmapExportService from './MindmapExportService.js'
 import '../styles/mobile.css'
 
 const LIBRARY_TAB_ID = 'library'
@@ -317,6 +319,8 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
           </div>
         )}
       </div>
+      <ExportPanel />
+      <MindmapExportService />
     </div>
   )
 }

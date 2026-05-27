@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { PanelLeft, PanelRight, ArrowLeft, FileDown, FileImage } from 'lucide-react'
+import { PanelLeft, PanelRight, ArrowLeft, FileDown, FileImage, FileText } from 'lucide-react'
+import { exportToDirectory } from '../../utils/exportToDirectory.js'
 import HandwritingEditor from './HandwritingEditor.js'
 import { useHandwritingStore } from './useHandwritingStore.js'
-import { generateThumbnailDataUrl } from './renderStrokes.js'
+import { generateThumbnailDataUrl, renderAllStrokes } from './renderStrokes.js'
 import { useT } from '../../i18n/index.js'
+import { useBanjuanAPI } from '../../api.js'
 
 interface Props {
   noteId: string
@@ -15,6 +17,7 @@ interface Props {
 
 export default function HandwritingCenterContent({ noteId, title, onBack, onToggleLeftSidebar, onToggleRightSidebar }: Props) {
   const t = useT()
+  const api = useBanjuanAPI()
   const pages = useHandwritingStore(s => s.pages)
   const currentPageIndex = useHandwritingStore(s => s.currentPageIndex)
   const pageSize = useHandwritingStore(s => s.pageSize)
@@ -24,6 +27,57 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
   const updateThumbnail = useHandwritingStore(s => s.updateThumbnail)
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
+
+  const renderPageToDataUrl = useCallback((pageData: any, format: 'png' | 'jpeg' = 'png') => {
+    const dpr = 2
+    const canvas = document.createElement('canvas')
+    canvas.width = pageSize.width * dpr
+    canvas.height = pageSize.height * dpr
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.scale(dpr, dpr)
+    renderAllStrokes(ctx, pageData.snapshot?.strokes ?? [], pageSize.width, pageSize.height)
+    return canvas.toDataURL(`image/${format}`)
+  }, [pageSize])
+
+  const handleExport = useCallback(async (format: 'pdf' | 'png' | 'markdown') => {
+    setExportMenuOpen(false)
+    if (format === 'png') {
+      const dataUrl = renderPageToDataUrl(pages[currentPageIndex])
+      if (!dataUrl) return
+      const a = document.createElement('a')
+      a.href = dataUrl
+      a.download = `${title || 'handwriting'}.png`
+      a.click()
+      return
+    }
+    if (format === 'markdown') {
+      if (!api.export) return
+      exportToDirectory(api, [{
+        id: noteId, title,
+        generate: async () => {
+          const imgs = pages.map(p => renderPageToDataUrl(p)).filter(Boolean) as string[]
+          const md = imgs.map((url, i) => `![${title}${imgs.length > 1 ? ` - ${i + 1}` : ''}](${url})`).join('\n\n')
+          return { markdown: md, attachments: [] }
+        },
+      }], 'markdown')
+      return
+    }
+    if (format === 'pdf') {
+      if (!api.export) return
+      exportToDirectory(api, [{
+        id: noteId, title,
+        generate: async () => {
+          const imgs = pages.map(p => renderPageToDataUrl(p)).filter(Boolean) as string[]
+          const html = imgs.map(url => `<div style="page-break-after:always;text-align:center"><img src="${url}" style="max-width:100%;max-height:100vh" /></div>`).join('\n')
+          return { html, attachments: [] }
+        },
+      }], 'pdf')
+      return
+    }
+  }, [pages, currentPageIndex, pageSize, title, api, renderPageToDataUrl])
   const thumbsInitRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -100,30 +154,20 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
               borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
               zIndex: 100, minWidth: 160, padding: '4px 0',
             }}>
-              <button
-                onClick={() => setExportMenuOpen(false)}
-                style={{
-                  display: 'flex', width: '100%', padding: '8px 16px', border: 'none',
-                  background: 'none', textAlign: 'left', fontSize: 13, cursor: 'pointer', color: 'var(--text)',
-                  alignItems: 'center', gap: 6,
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                <FileImage size={14} />{t('handwriting.exportPdf')}
-              </button>
-              <button
-                onClick={() => setExportMenuOpen(false)}
-                style={{
-                  display: 'flex', width: '100%', padding: '8px 16px', border: 'none',
-                  background: 'none', textAlign: 'left', fontSize: 13, cursor: 'pointer', color: 'var(--text)',
-                  alignItems: 'center', gap: 6,
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
-                <FileImage size={14} />{t('handwriting.exportPng')}
-              </button>
+              {([['pdf', FileImage, t('handwriting.exportPdf')], ['markdown', FileText, t('handwriting.exportMarkdown')], ['png', FileImage, t('handwriting.exportPng')]] as const).map(([fmt, Icon, label]) => (
+                <button key={fmt}
+                  onClick={() => handleExport(fmt as any)}
+                  style={{
+                    display: 'flex', width: '100%', padding: '8px 16px', border: 'none',
+                    background: 'none', textAlign: 'left', fontSize: 13, cursor: 'pointer', color: 'var(--text)',
+                    alignItems: 'center', gap: 6,
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  <Icon size={14} />{label}
+                </button>
+              ))}
             </div>
           )}
         </div>
