@@ -1,124 +1,69 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { ReactFlowProvider, useReactFlow, useNodesInitialized, getNodesBounds, getViewportForBounds } from '@xyflow/react'
-import { toPng } from 'html-to-image'
-import MindmapCanvas from './mindmap/MindmapCanvas.js'
-import { MindmapStoreContext, createMindmapStore } from './mindmap/useMindmapStore.js'
-import type { MindmapStoreApi } from './mindmap/useMindmapStore.js'
-import { useBanjuanAPI } from '../api.js'
+import { screenshotViewport } from './mindmap/screenshotMindmap.js'
+import type { Node } from '@xyflow/react'
 
 type RenderRequest = {
   noteId: string
   resolve: (dataUrl: string | null) => void
 }
 
-let pendingRequest: RenderRequest | null = null
-let notifyService: (() => void) | null = null
+const pendingQueue: RenderRequest[] = []
 
 export function renderMindmapToImage(noteId: string): Promise<string | null> {
   return new Promise(resolve => {
-    pendingRequest = { noteId, resolve }
-    notifyService?.()
+    const timeout = setTimeout(() => resolve(null), 60000)
+    pendingQueue.push({
+      noteId,
+      resolve: (result) => { clearTimeout(timeout); resolve(result) },
+    })
+    document.dispatchEvent(new CustomEvent('mindmap-export-request'))
   })
 }
 
-function MindmapExportInner({ noteId, store, onDone }: {
-  noteId: string
-  store: MindmapStoreApi
-  onDone: (dataUrl: string | null) => void
-}) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const { fitView, getNodes } = useReactFlow()
-  const nodesInitialized = useNodesInitialized()
-  const capturedRef = useRef(false)
-  const [ready, setReady] = useState(false)
+export function _dequeueMindmapExport(): RenderRequest | undefined {
+  return pendingQueue.shift()
+}
 
-  useEffect(() => {
-    capturedRef.current = false
-    store.getState().init(noteId).then(() => setReady(true))
-  }, [noteId, store])
+function readNodesFromDom(container: HTMLElement): Node[] {
+  const nodeEls = container.querySelectorAll('.react-flow__node')
+  const nodes: Node[] = []
+  nodeEls.forEach(el => {
+    const htmlEl = el as HTMLElement
+    const id = htmlEl.getAttribute('data-id') || ''
+    const style = htmlEl.style
+    const transform = style.transform || ''
+    const match = transform.match(/translate\(([^,]+)px,\s*([^)]+)px\)/)
+    if (!match) return
+    const x = parseFloat(match[1])
+    const y = parseFloat(match[2])
+    const rect = htmlEl.getBoundingClientRect()
+    nodes.push({
+      id,
+      position: { x, y },
+      data: {},
+      measured: { width: htmlEl.offsetWidth || rect.width, height: htmlEl.offsetHeight || rect.height },
+    } as Node)
+  })
+  return nodes
+}
 
-  useEffect(() => {
-    if (!nodesInitialized || capturedRef.current || !ready) return
-    const nodes = getNodes()
-    if (nodes.length === 0) return
-    capturedRef.current = true
+export async function captureMindmapFromTabPanel(tabPanelEl: HTMLElement): Promise<string | null> {
+  const canvas = tabPanelEl.querySelector('.mindmap-canvas') as HTMLElement | null
+  if (!canvas) return null
+  const rfViewport = canvas.querySelector('.react-flow__viewport') as HTMLElement | null
+  if (!rfViewport) return null
 
-    setTimeout(async () => {
-      try {
-        fitView({ duration: 0, padding: 0.02 })
-        await new Promise(r => setTimeout(r, 200))
+  const nodes = readNodesFromDom(canvas)
+  if (nodes.length === 0) return null
 
-        const container = containerRef.current
-        const rfViewport = container?.querySelector('.react-flow__viewport') as HTMLElement | null
-        if (!rfViewport || nodes.length === 0) { onDone(null); return }
+  const ctx = { nodes, boundaries: [], summaries: [] }
 
-        const bounds = getNodesBounds(nodes)
-        const margin = 40
-        const imgWidth = Math.ceil(bounds.width + margin * 2)
-        const imgHeight = Math.ceil(bounds.height + margin * 2)
-        const vp = getViewportForBounds(bounds, imgWidth, imgHeight, 0.5, 2, `${margin}px`)
-
-        const dataUrl = await toPng(rfViewport, {
-          backgroundColor: '#ffffff',
-          width: imgWidth,
-          height: imgHeight,
-          pixelRatio: 2,
-          style: {
-            width: `${imgWidth}px`,
-            height: `${imgHeight}px`,
-            transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`,
-          },
-        })
-        onDone(dataUrl)
-      } catch {
-        onDone(null)
-      }
-    }, 100)
-  }, [nodesInitialized, ready, getNodes, fitView, onDone])
-
-  if (!ready) return <div ref={containerRef} />
-
-  return (
-    <div ref={containerRef} style={{ width: 1200, height: 800 }}>
-      <MindmapCanvas readonly />
-    </div>
-  )
+  try {
+    return await screenshotViewport(rfViewport, ctx, { pixelRatio: 2 })
+  } catch {
+    return null
+  }
 }
 
 export default function MindmapExportService() {
-  const api = useBanjuanAPI()
-  const [request, setRequest] = useState<RenderRequest | null>(null)
-  const store = useMemo(() => createMindmapStore(api), [api])
-
-  useEffect(() => {
-    notifyService = () => {
-      if (pendingRequest) {
-        setRequest(pendingRequest)
-        pendingRequest = null
-      }
-    }
-    return () => { notifyService = null }
-  }, [])
-
-  const handleDone = useCallback((dataUrl: string | null) => {
-    request?.resolve(dataUrl)
-    setRequest(null)
-  }, [request])
-
-  return (
-    <div style={{ position: 'fixed', left: -9999, top: -9999, width: 1200, height: 800, overflow: 'hidden' }}>
-      {request && (
-        <MindmapStoreContext.Provider value={store}>
-          <ReactFlowProvider>
-            <MindmapExportInner
-              key={request.noteId}
-              noteId={request.noteId}
-              store={store}
-              onDone={handleDone}
-            />
-          </ReactFlowProvider>
-        </MindmapStoreContext.Provider>
-      )}
-    </div>
-  )
+  return null
 }
