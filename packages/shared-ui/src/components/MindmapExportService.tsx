@@ -58,7 +58,7 @@ export async function captureMindmapFromTabPanel(tabPanelEl: HTMLElement): Promi
   const ctx = { nodes, boundaries: [], summaries: [] }
 
   try {
-    return await screenshotViewport(rfViewport, ctx, { pixelRatio: 2 })
+    return await screenshotViewport(rfViewport, ctx, { pixelRatio: 3 })
   } catch {
     return null
   }
