@@ -18,7 +18,7 @@ import HandwritingCenterContent from '../components/handwriting/HandwritingCente
 import PageListPanel from '../components/handwriting/PageListPanel.js'
 import { createHandwritingStore, HandwritingStoreContext } from '../components/handwriting/useHandwritingStore.js'
 import { FileDown, FileText, FileImage, Eye, Pencil, PanelLeft, PanelRight, Minus, Plus } from 'lucide-react'
-import { exportToDirectory } from '../utils/exportToDirectory.js'
+import { exportToDirectory, exportSingleNote } from '../utils/exportToDirectory.js'
 import TagInput from '../components/tags/TagInput.js'
 import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
 import { useT } from '../i18n/index.js'
@@ -444,6 +444,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
                     onClick={async () => {
                       setExportMenuOpen(false)
                       if (!editorRef.current || !api.export) return
+                      if (await exportSingleNote(api, { id: note.id, title }, 'markdown')) return
                       const editor = editorRef.current
                       exportToDirectory(api, [{
                         id: note.id, title,
@@ -467,6 +468,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
                     onClick={async () => {
                       setExportMenuOpen(false)
                       if (!editorRef.current || !api.export) return
+                      if (await exportSingleNote(api, { id: note.id, title }, 'pdf')) return
                       const editor = editorRef.current
                       exportToDirectory(api, [{
                         id: note.id, title,

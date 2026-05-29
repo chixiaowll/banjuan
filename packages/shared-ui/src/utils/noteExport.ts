@@ -1,5 +1,6 @@
 import type { BanjuanAPI } from '../api.js'
-import { renderAllStrokes } from '../components/handwriting/renderStrokes.js'
+import { renderStroke } from '../components/handwriting/renderStrokes.js'
+import { renderMindmapToImage } from '../components/MindmapExportService.js'
 
 const ATTACHMENT_PREFIX = 'banjuan-attachment://'
 
@@ -81,6 +82,56 @@ export async function screenshotMindmapEmbed(noteId: string): Promise<string | n
   })
 }
 
+/**
+ * Decode an image data URL to something canvas can draw. Uses createImageBitmap
+ * (decodes immediately, independent of window visibility) so it works in the
+ * hidden background export window, where an <img>'s onload/decode may stall.
+ */
+function dataUrlToBlob(dataUrl: string): Blob {
+  const comma = dataUrl.indexOf(',')
+  const meta = dataUrl.slice(5, comma)
+  const mime = meta.split(';')[0] || 'image/png'
+  const b64 = dataUrl.slice(comma + 1)
+  const bin = atob(b64)
+  const arr = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+  return new Blob([arr], { type: mime })
+}
+
+async function decodeImage(dataUrl: string): Promise<CanvasImageSource> {
+  // Manual base64 -> Blob -> bitmap: decodes immediately and headlessly,
+  // avoiding both fetch/CSP issues and the hidden window's stalled <img> decode.
+  try {
+    return await createImageBitmap(dataUrlToBlob(dataUrl))
+  } catch {
+    const el = new Image()
+    el.src = dataUrl
+    try { await el.decode() } catch { await new Promise<void>((res, rej) => { el.onload = () => res(); el.onerror = rej }) }
+    return el
+  }
+}
+
+/** Draw a handwriting page's imported images (background), then its strokes on top — matching the live editor's render order. */
+async function drawHandwritingPage(ctx: CanvasRenderingContext2D, page: any, pageSize: { width: number; height: number }) {
+  const images: any[] = page?.snapshot?.images ?? []
+  for (const img of images) {
+    if (!img?.dataUrl) continue
+    try {
+      const drawable = await decodeImage(img.dataUrl)
+      ctx.save()
+      ctx.translate(img.x + img.width / 2, img.y + img.height / 2)
+      ctx.rotate(img.rotation ?? 0)
+      ctx.drawImage(drawable, -img.width / 2, -img.height / 2, img.width, img.height)
+      ctx.restore()
+    } catch { /* skip unloadable image */ }
+  }
+  // Draw strokes on top WITHOUT clearing — renderAllStrokes() starts with
+  // clearRect, which would wipe the images we just drew.
+  for (const stroke of (page?.snapshot?.strokes ?? [])) {
+    renderStroke(ctx, stroke)
+  }
+}
+
 export async function screenshotHandwritingEmbed(api: BanjuanAPI, noteId: string, pageIndex?: number): Promise<string | null> {
   try {
     const note = await api.notes.get(noteId)
@@ -101,14 +152,14 @@ export async function screenshotHandwritingEmbed(api: BanjuanAPI, noteId: string
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.scale(dpr, dpr)
-    renderAllStrokes(ctx, page.snapshot?.strokes ?? [], pageSize.width, pageSize.height)
+    await drawHandwritingPage(ctx, page, pageSize)
     return canvas.toDataURL('image/png')
   } catch {
     return null
   }
 }
 
-function renderHandwritingPages(note: any): string[] {
+async function renderHandwritingPages(note: any): Promise<string[]> {
   const parsed = JSON.parse(note.content)
   const pages = parsed.pages ?? []
   if (pages.length === 0) return []
@@ -125,7 +176,7 @@ function renderHandwritingPages(note: any): string[] {
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.scale(dpr, dpr)
-    renderAllStrokes(ctx, page.snapshot?.strokes ?? [], pageSize.width, pageSize.height)
+    await drawHandwritingPage(ctx, page, pageSize)
     dataUrls.push(canvas.toDataURL('image/png'))
   }
   return dataUrls
@@ -148,7 +199,7 @@ export async function exportMindmapToHTML(api: BanjuanAPI, noteId: string, title
 export async function exportHandwritingToMarkdown(api: BanjuanAPI, noteId: string, title: string): Promise<string> {
   const note = await api.notes.get(noteId)
   if (!note) return ''
-  const dataUrls = renderHandwritingPages(note)
+  const dataUrls = await renderHandwritingPages(note)
   if (dataUrls.length === 0) return `> ✏️ **${title}**`
   return dataUrls.map((url, i) =>
     `![${title}${dataUrls.length > 1 ? ` - ${i + 1}` : ''}](${url})`
@@ -159,7 +210,7 @@ export async function exportHandwritingToFiles(api: BanjuanAPI, noteId: string, 
   const safeTitle = title.replace(/[/\\:*?"<>|]/g, '_')
   const note = await api.notes.get(noteId)
   if (!note) return { markdown: `> ✏️ **${title}**`, attachments: [], files: [] }
-  const dataUrls = renderHandwritingPages(note)
+  const dataUrls = await renderHandwritingPages(note)
   if (dataUrls.length === 0) return { markdown: `> ✏️ **${title}**`, attachments: [], files: [] }
   const files = dataUrls.map((dataUrl, i) => ({
     name: dataUrls.length > 1 ? `${safeTitle}-${i + 1}.png` : `${safeTitle}.png`,
@@ -174,7 +225,7 @@ export async function exportHandwritingToFiles(api: BanjuanAPI, noteId: string, 
 export async function exportHandwritingToHTML(api: BanjuanAPI, noteId: string, title: string): Promise<string> {
   const note = await api.notes.get(noteId)
   if (!note) return ''
-  const dataUrls = renderHandwritingPages(note)
+  const dataUrls = await renderHandwritingPages(note)
   if (dataUrls.length === 0) return `<blockquote><p>✏️ <strong>${title}</strong></p></blockquote>`
   return dataUrls.map(url =>
     `<div class="handwriting-export"><img src="${url}" style="max-width:100%" /></div>`
@@ -216,7 +267,7 @@ export async function exportBlocksToMarkdown(editor: any, blocks: any[], api: Ba
         try {
           const note = await api.notes.get(p.noteId)
           if (note?.type === 'mindmap') {
-            const imgDataUrl = await screenshotMindmapEmbed(p.noteId)
+            const imgDataUrl = await renderMindmapToImage(p.noteId)
             if (imgDataUrl) {
               const imgName = `${safeNoteTitle}-${++imgCounter}.png`
               files.push({ name: imgName, dataUrl: imgDataUrl })
@@ -309,7 +360,7 @@ export async function exportBlocksToHTML(editor: any, blocks: any[], api: Banjua
         try {
           const note = await api.notes.get(p.noteId)
           if (note?.type === 'mindmap') {
-            const imgDataUrl = await screenshotMindmapEmbed(p.noteId)
+            const imgDataUrl = await renderMindmapToImage(p.noteId)
             if (imgDataUrl) {
               segments.push(`<div class="mindmap-export"><p>🧠 <strong>${noteTitle}</strong></p><img src="${imgDataUrl}" style="max-width:100%" /></div>`)
             } else {

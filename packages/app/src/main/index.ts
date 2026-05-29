@@ -1,5 +1,6 @@
 import { app, protocol, net, Menu } from 'electron'
 import { registerIpcHandlers, getLibraryRootPath } from './ipc.js'
+import { registerExportWindowHandlers } from './export-window.js'
 import { startApiServer, stopApiServer } from './api-server.js'
 import { installCli } from './install-cli.js'
 import { createWindow, getWindowCount } from './windows.js'
@@ -9,6 +10,12 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'local-file', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
   { scheme: 'banjuan-attachment', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
 ])
+
+// Keep the hidden background export window's renderer running at full speed so
+// its sequential, one-item-at-a-time export loop never stalls and then bursts.
+app.commandLine.appendSwitch('disable-background-timer-throttling')
+app.commandLine.appendSwitch('disable-renderer-backgrounding')
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
 
 app.whenReady().then(() => {
   protocol.handle('local-file', (request) => {
@@ -23,6 +30,7 @@ app.whenReady().then(() => {
     return net.fetch(`file://${fullPath}`)
   })
   registerIpcHandlers()
+  registerExportWindowHandlers()
   startApiServer().catch(console.error)
   installCli().catch(console.error)
 

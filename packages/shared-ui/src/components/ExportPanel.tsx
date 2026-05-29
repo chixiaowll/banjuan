@@ -18,7 +18,7 @@ const STATUS_LABEL: Record<ExportItemStatus, string> = {
 
 export default function ExportPanel() {
   const { items, outputDir, format, isRunning, panelVisible, panelMinimized,
-    minimizePanel, restorePanel, closePanel, clearDone } = useExportManagerStore()
+    minimizePanel, restorePanel, dismiss, clearDone } = useExportManagerStore()
 
   if (!panelVisible) return null
 
@@ -47,6 +47,15 @@ export default function ExportPanel() {
           <div style={{ width: `${progress * 100}%`, height: '100%', background: '#4A90D9', borderRadius: 2, transition: 'width 0.3s' }} />
         </div>
         <ChevronUp size={14} />
+        {!isRunning && (
+          <button
+            onClick={(e) => { e.stopPropagation(); dismiss() }}
+            title="关闭"
+            style={{ ...headerBtnStyle, marginLeft: 2 }}
+          >
+            <X size={13} />
+          </button>
+        )}
       </div>
     )
   }
@@ -68,14 +77,16 @@ export default function ExportPanel() {
         }}>
           <FolderOpen size={15} style={{ color: 'var(--text-muted)' }} />
           <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>
-            导出 {format === 'pdf' ? 'PDF' : 'Markdown'}
+            导出 {format === 'markdown' ? 'Markdown' : format.toUpperCase()}
           </span>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
             {doneCount}/{total}
             {errorCount > 0 && <span style={{ color: '#e74c3c' }}> ({errorCount} 失败)</span>}
           </span>
-          <button onClick={minimizePanel} title="最小化" style={headerBtnStyle}><Minus size={14} /></button>
-          <button onClick={closePanel} title="关闭" style={headerBtnStyle}><X size={14} /></button>
+          <button onClick={minimizePanel} title="收起" style={headerBtnStyle}><Minus size={14} /></button>
+          {!isRunning && (
+            <button onClick={dismiss} title="关闭" style={headerBtnStyle}><X size={14} /></button>
+          )}
         </div>
 
         {/* Progress bar */}

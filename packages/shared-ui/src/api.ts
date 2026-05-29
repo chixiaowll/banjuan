@@ -37,6 +37,35 @@ import type {
 // BanjuanAPI – platform-agnostic interface mirroring the Electron preload API
 // ---------------------------------------------------------------------------
 
+export type ExportFormat = 'markdown' | 'pdf' | 'png' | 'svg' | 'json'
+
+/** A batch-export job handed to the background export window. */
+export interface BatchExportJob {
+  /** Unique per dispatch — namespaces progress so concurrent runs don't collide. */
+  runId: string
+  format: ExportFormat
+  /** Absolute output directory chosen by the user in the visible window. */
+  outputDir: string
+  /**
+   * What to export — exactly one of:
+   *  - `folder`: every note under this path prefix (null = whole library)
+   *  - `noteIds`: an explicit list (single note or selection)
+   */
+  folder?: string | null
+  noteIds?: string[]
+  /** Optional per-note context: handwriting page to export (else all pages). */
+  pageIndex?: number
+}
+
+/** Per-note progress reported by the background export window. */
+export interface BatchExportProgress {
+  /** The job's runId — combined with `id` to address the right panel item. */
+  runId: string
+  id: string
+  status: 'exporting' | 'done' | 'error'
+  error?: string
+}
+
 export interface BanjuanAPI {
   library: {
     check(path: string): Promise<LibraryConfig | null>
@@ -205,6 +234,30 @@ export interface BanjuanAPI {
   export?: {
     markdown(input: { title: string; markdown: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }): Promise<string | null>
     pdf(input: { title: string; html: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }): Promise<string | null>
+    /** Write a single raw file (image/data) directly into `outputPath`. */
+    writeFile(input: { outputPath: string; fileName: string; dataUrl?: string; text?: string }): Promise<string | null>
+  }
+
+  /**
+   * Optional -- Electron-only. Runs batch export in a hidden background window
+   * (separate renderer process) so heavy mindmap rendering never blocks the
+   * visible window. When absent, callers fall back to in-window export.
+   */
+  batchExport?: {
+    /** (visible window) Dispatch a job to the background export window. */
+    run(job: BatchExportJob): Promise<void>
+    /** (visible window) Subscribe to per-note progress; returns an unsubscribe fn. */
+    onProgress(cb: (msg: BatchExportProgress) => void): () => void
+    /** (visible window) Subscribe to run completion; returns an unsubscribe fn. */
+    onDone(cb: () => void): () => void
+    /** (worker window) Signal the worker app has mounted and is ready for jobs. */
+    workerReady(): void
+    /** (worker window) Receive a job from the visible window; returns an unsubscribe fn. */
+    workerOnJob(cb: (job: BatchExportJob) => void): () => void
+    /** (worker window) Report per-note progress back to the visible window. */
+    workerProgress(msg: BatchExportProgress): void
+    /** (worker window) Report run completion back to the visible window. */
+    workerDone(): void
   }
 
   /** Optional -- Electron-only native screen capture */

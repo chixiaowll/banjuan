@@ -20,6 +20,7 @@ export { default as PluginViewHost } from './views/PluginViewHost.js'
 // Top-level components
 export { default as TabManager } from './components/TabManager.js'
 export { default as NoteRenderService } from './components/NoteRenderService.js'
+export { default as ExportWorkerApp } from './components/ExportWorkerApp.js'
 export { default as TitleBar } from './components/TitleBar.js'
 export { ResizeHandle, useResizable } from './components/ResizeHandle.js'
 export { PoetryCard } from './components/PoetryCard.js'

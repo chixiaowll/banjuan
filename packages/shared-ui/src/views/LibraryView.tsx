@@ -16,9 +16,9 @@ import type { AppTheme } from '../theme/index.js'
 import { useBanjuanAPI } from '../api.js'
 import { BlockNoteEditor } from '@blocknote/core'
 import { schema as blockNoteSchema } from '../components/notes/BlockEditor.js'
-import { exportBlocksToMarkdown, exportBlocksToHTML, extractExportAttachmentPaths, exportMindmapToMarkdown, exportMindmapToHTML, exportHandwritingToFiles, exportHandwritingToHTML } from '../utils/noteExport.js'
-import { renderMindmapToImage } from '../components/MindmapExportService.js'
-import { exportToDirectory, type ExportEntry } from '../utils/exportToDirectory.js'
+import { exportToDirectory, newRunId } from '../utils/exportToDirectory.js'
+import { listExportNotes, buildExportEntries } from '../utils/exportEntries.js'
+import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 
 interface Document {
   id: string
@@ -323,9 +323,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [selectedItemTags, setSelectedItemTags] = useState<Tag[]>([])
   const [docStatuses, setDocStatuses] = useState<Record<string, string>>({})
   const [downloadProgress, setDownloadProgress] = useState<Record<string, { loaded: number; total: number } | null>>({})
+  // Filter state (free-text search + the MD/MIND/HAND type pills) is remembered
+  // per folder, not globally — see filterScope below. The type filter matches
+  // actual item.type, kept separate from search so a "mindmap" title doesn't
+  // match the MIND pill.
   const [searchQueryMap, setSearchQueryMap] = useState<Record<string, string>>({})
-  const searchQuery = searchQueryMap[selectedSection] ?? ''
-  const setSearchQuery = useCallback((q: string) => setSearchQueryMap(m => ({ ...m, [selectedSection]: q })), [selectedSection])
+  const [typeFilterMap, setTypeFilterMap] = useState<Record<string, string>>({})
   const [sortKey, setSortKey] = useState<'type' | 'title' | 'createdAt' | 'updatedAt' | null>(null)
   const [sortAsc, setSortAsc] = useState(true)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
@@ -341,6 +344,15 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [renameTarget, setRenameTarget] = useState<{ type: 'dir' | 'note' | 'library'; dirPath?: string; noteId?: string } | null>(null)
   const [noteDirs, setNoteDirs] = useState<string[]>([])
   const [selectedNoteDir, setSelectedNoteDir] = useState<string | null>(null)
+
+  // Filters are scoped to the current section + folder, so each folder keeps its
+  // own search/type selection. A folder not visited before defaults to "全部"
+  // (empty), and switching folders never carries the previous folder's filter.
+  const filterScope = `${selectedSection}:${selectedSection === 'documents' ? (selectedDir ?? '') : (selectedNoteDir ?? '')}`
+  const searchQuery = searchQueryMap[filterScope] ?? ''
+  const setSearchQuery = useCallback((q: string) => setSearchQueryMap(m => ({ ...m, [filterScope]: q })), [filterScope])
+  const typeFilter = typeFilterMap[filterScope] ?? ''
+  const setTypeFilter = useCallback((tp: string) => setTypeFilterMap(m => ({ ...m, [filterScope]: tp })), [filterScope])
   const [expandedNoteDirs, setExpandedNoteDirs] = useState<Set<string>>(new Set())
   const [docSectionExpanded, setDocSectionExpanded] = useState(true)
   const [noteSectionExpanded, setNoteSectionExpanded] = useState(true)
@@ -693,6 +705,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
     if (selectedTag && tagFilteredItems) {
       items = tagFilteredItems
+    }
+
+    if (typeFilter) {
+      items = items.filter((item: any) => item.type === typeFilter)
     }
 
     if (searchQuery) {
@@ -2112,22 +2128,22 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           background: '#fff', border: '1px solid var(--paper-edge)',
                           borderRadius: 9, padding: 3, boxShadow: '0 1px 3px rgba(60,40,20,.06)',
                         }}>
-                          <button onClick={() => setSearchQuery('')} style={{
+                          <button onClick={() => setTypeFilter('')} style={{
                             display: 'inline-flex', alignItems: 'center', gap: 5,
                             height: 24, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                            background: !searchQuery ? '#4A90E2' : 'transparent',
-                            color: !searchQuery ? '#fff' : 'var(--ink-soft)',
+                            background: !typeFilter ? '#4A90E2' : 'transparent',
+                            color: !typeFilter ? '#fff' : 'var(--ink-soft)',
                             border: 'none', cursor: 'pointer',
-                            boxShadow: !searchQuery ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
+                            boxShadow: !typeFilter ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
                           }}>
                             {locale === 'zh' ? '全部' : 'All'}
                             <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, opacity: 0.7, fontWeight: 400 }}>{baseItems.length}</span>
                           </button>
                           {types.map(tp => {
                             const pill = TYPE_PILLS[tp]
-                            const isActive = searchQuery === tp
+                            const isActive = typeFilter === tp
                             return (
-                              <button key={tp} onClick={() => setSearchQuery(isActive ? '' : tp)} style={{
+                              <button key={tp} onClick={() => setTypeFilter(isActive ? '' : tp)} style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 5,
                                 height: 24, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
                                 background: isActive ? '#4A90E2' : 'transparent',
@@ -2168,22 +2184,22 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           background: '#fff', border: '1px solid var(--paper-edge)',
                           borderRadius: 9, padding: 3, boxShadow: '0 1px 3px rgba(60,40,20,.06)',
                         }}>
-                          <button onClick={() => setSearchQuery('')} style={{
+                          <button onClick={() => setTypeFilter('')} style={{
                             display: 'inline-flex', alignItems: 'center', gap: 5,
                             height: 24, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                            background: !searchQuery ? '#4A90E2' : 'transparent',
-                            color: !searchQuery ? '#fff' : 'var(--ink-soft)',
+                            background: !typeFilter ? '#4A90E2' : 'transparent',
+                            color: !typeFilter ? '#fff' : 'var(--ink-soft)',
                             border: 'none', cursor: 'pointer',
-                            boxShadow: !searchQuery ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
+                            boxShadow: !typeFilter ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
                           }}>
                             {locale === 'zh' ? '全部' : 'All'}
                             <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, opacity: 0.7, fontWeight: 400 }}>{baseItems.length}</span>
                           </button>
                           {types.map(tp => {
                             const pill = TYPE_PILLS[tp]
-                            const isActive = searchQuery === tp
+                            const isActive = typeFilter === tp
                             return (
-                              <button key={tp} onClick={() => setSearchQuery(isActive ? '' : tp)} style={{
+                              <button key={tp} onClick={() => setTypeFilter(isActive ? '' : tp)} style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 5,
                                 height: 24, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
                                 background: isActive ? '#4A90E2' : 'transparent',
@@ -2958,54 +2974,29 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   setShowExportDialog(false)
                   await new Promise(r => requestAnimationFrame(r))
 
-                  const allNotes = exportDirPath ? await api.notes.list({ folder: exportDirPath } as any) : await api.notes.list()
-                  if (allNotes.length === 0) return
+                  const folder = exportDirPath ?? null
 
+                  // Preferred path: hand the run to the background export window so
+                  // heavy mindmap rendering never blocks this window.
+                  if (api.batchExport) {
+                    const dir = await api.dialog.openDirectory()
+                    if (!dir) return
+                    const notes = await listExportNotes(api, folder)
+                    if (notes.length === 0) return
+                    const runId = newRunId()
+                    useExportManagerStore.getState().startExport(
+                      notes.map(({ note, subPath }) => ({ id: `${runId}/${note.id}`, noteId: note.id, title: note.title, subPath })),
+                      dir, fmt,
+                    )
+                    await api.batchExport.run({ runId, format: fmt, outputDir: dir, folder })
+                    return
+                  }
+
+                  // Fallback: run in-window (platforms without a background window).
+                  const notes = await listExportNotes(api, folder)
+                  if (notes.length === 0) return
                   const editor = BlockNoteEditor.create({ schema: blockNoteSchema } as any)
-
-                  const entries: ExportEntry[] = allNotes.map((note: any) => {
-                    const notePath = note.path?.split('/') ?? []
-                    const subPath = notePath.length > 1
-                      ? (exportDirPath ? notePath.slice(0, -1).join('/').slice(exportDirPath.length + 1) : notePath.slice(0, -1).join('/'))
-                      : ''
-                    const safeTitle = note.title.replace(/[/\\:*?"<>|]/g, '_')
-                    return {
-                      id: note.id, title: note.title, subPath,
-                      generate: async () => {
-                        if (note.type === 'mindmap') {
-                          const dataUrl = await renderMindmapToImage(note.id)
-                          if (dataUrl) {
-                            const imgName = `${safeTitle}.png`
-                            return fmt === 'markdown'
-                              ? { markdown: `![${note.title}](images/${imgName})`, attachments: [], files: [{ name: imgName, dataUrl }] }
-                              : { html: `<div class="mindmap-export"><img src="${dataUrl}" style="max-width:100%" /></div>`, attachments: [] }
-                          }
-                          return fmt === 'markdown'
-                            ? { markdown: await exportMindmapToMarkdown(api, note.id, note.title), attachments: [] }
-                            : { html: await exportMindmapToHTML(api, note.id, note.title), attachments: [] }
-                        }
-                        if (note.type === 'handwriting') {
-                          if (fmt === 'markdown') {
-                            const result = await exportHandwritingToFiles(api, note.id, note.title)
-                            return result
-                          }
-                          return { html: await exportHandwritingToHTML(api, note.id, note.title), attachments: [] }
-                        }
-                        const full = await api.notes.get(note.id)
-                        if (!full) throw new Error('Note not found')
-                        const blocks = JSON.parse(full.content)
-                        if (fmt === 'markdown') {
-                          const result = await exportBlocksToMarkdown(editor, blocks, api)
-                          const attachments = extractExportAttachmentPaths(blocks)
-                          return { markdown: result.markdown, attachments, files: result.files }
-                        }
-                        const html = await exportBlocksToHTML(editor, blocks, api)
-                        const attachments = extractExportAttachmentPaths(blocks)
-                        return { html, attachments }
-                      },
-                    }
-                  })
-
+                  const entries = buildExportEntries(api, notes, fmt, editor)
                   exportToDirectory(api, entries, fmt)
                 }} style={{
                   flex: 1, padding: '10px 0', fontSize: 13, fontWeight: 500, borderRadius: 8,

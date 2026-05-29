@@ -212,6 +212,33 @@ const api = {
       ipcRenderer.invoke('export:markdown', input) as Promise<string | null>,
     pdf: (input: { title: string; html: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }) =>
       ipcRenderer.invoke('export:pdf', input) as Promise<string | null>,
+    writeFile: (input: { outputPath: string; fileName: string; dataUrl?: string; text?: string }) =>
+      ipcRenderer.invoke('export:writeFile', input) as Promise<string | null>,
+  },
+  batchExport: {
+    // visible window -> background export window
+    run: (job: { runId: string; format: 'markdown' | 'pdf' | 'png' | 'svg' | 'json'; outputDir: string; folder?: string | null; noteIds?: string[]; pageIndex?: number }) =>
+      ipcRenderer.invoke('batch-export:run', job) as Promise<void>,
+    onProgress: (cb: (msg: { runId: string; id: string; status: 'exporting' | 'done' | 'error'; error?: string }) => void) => {
+      const listener = (_e: any, msg: any) => cb(msg)
+      ipcRenderer.on('batch-export:progress', listener)
+      return () => ipcRenderer.removeListener('batch-export:progress', listener)
+    },
+    onDone: (cb: () => void) => {
+      const listener = () => cb()
+      ipcRenderer.on('batch-export:done', listener)
+      return () => ipcRenderer.removeListener('batch-export:done', listener)
+    },
+    // background export window -> visible window
+    workerReady: () => ipcRenderer.send('batch-export:worker-ready'),
+    workerOnJob: (cb: (job: { runId: string; format: 'markdown' | 'pdf' | 'png' | 'svg' | 'json'; outputDir: string; folder?: string | null; noteIds?: string[]; pageIndex?: number }) => void) => {
+      const listener = (_e: any, job: any) => cb(job)
+      ipcRenderer.on('batch-export:job', listener)
+      return () => ipcRenderer.removeListener('batch-export:job', listener)
+    },
+    workerProgress: (msg: { runId: string; id: string; status: 'exporting' | 'done' | 'error'; error?: string }) =>
+      ipcRenderer.send('batch-export:progress', msg),
+    workerDone: () => ipcRenderer.send('batch-export:done'),
   },
   capture: {
     area: (rect: { x: number; y: number; width: number; height: number }) =>

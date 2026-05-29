@@ -106,6 +106,7 @@ const zh = {
   'handwriting.tool.shape': '形状',
   'handwriting.tool.lasso': '套索',
   'handwriting.exportPdf': '导出 PDF',
+  'handwriting.exportMarkdown': '导出 Markdown',
   'handwriting.exportPng': '导出 PNG',
   'handwriting.exportAllPng': '导出全部页面 (ZIP)',
   'handwriting.clearPage': '清空页面',

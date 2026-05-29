@@ -106,6 +106,7 @@ const en = {
   'handwriting.tool.shape': 'Shape',
   'handwriting.tool.lasso': 'Lasso',
   'handwriting.exportPdf': 'Export PDF',
+  'handwriting.exportMarkdown': 'Export Markdown',
   'handwriting.exportPng': 'Export PNG',
   'handwriting.exportAllPng': 'Export All Pages (ZIP)',
   'handwriting.clearPage': 'Clear Page',
