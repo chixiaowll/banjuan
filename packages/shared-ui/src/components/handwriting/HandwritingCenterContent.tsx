@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { PanelLeft, PanelRight, ArrowLeft, FileDown, FileImage, FileText } from 'lucide-react'
-import { exportToDirectory } from '../../utils/exportToDirectory.js'
+import { exportToDirectory, exportSingleNote } from '../../utils/exportToDirectory.js'
 import HandwritingEditor from './HandwritingEditor.js'
 import { useHandwritingStore } from './useHandwritingStore.js'
 import { generateThumbnailDataUrl, renderAllStrokes } from './renderStrokes.js'
@@ -44,6 +44,11 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
 
   const handleExport = useCallback(async (format: 'pdf' | 'png' | 'markdown') => {
     setExportMenuOpen(false)
+
+    // Run in the background export window when available (png re-renders the
+    // current page from saved data via pageIndex).
+    if (await exportSingleNote(api, { id: noteId, title: title || 'handwriting' }, format, format === 'png' ? currentPageIndex : undefined)) return
+
     if (format === 'png') {
       const dataUrl = renderPageToDataUrl(pages[currentPageIndex])
       if (!dataUrl) return
@@ -77,7 +82,7 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
       }], 'pdf')
       return
     }
-  }, [pages, currentPageIndex, pageSize, title, api, renderPageToDataUrl])
+  }, [pages, currentPageIndex, pageSize, title, noteId, api, renderPageToDataUrl])
   const thumbsInitRef = useRef<string | null>(null)
 
   useEffect(() => {

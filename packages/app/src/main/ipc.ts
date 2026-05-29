@@ -948,6 +948,30 @@ export function registerIpcHandlers() {
     return result.filePath
   })
 
+  // Write a single raw file (image / svg / json) directly into outputPath.
+  // Used by the background export window for png/svg/json single-note exports.
+  ipcMain.handle('export:writeFile', async (_event, input: { outputPath: string; fileName: string; dataUrl?: string; text?: string }) => {
+    const safeName = input.fileName.replace(/[/\\:*?"<>|]/g, '_')
+    mkdirSync(input.outputPath, { recursive: true })
+    const target = uniquePath(join(input.outputPath, safeName))
+    if (input.text != null) {
+      writeFileSync(target, input.text, 'utf-8')
+    } else if (input.dataUrl) {
+      const comma = input.dataUrl.indexOf(',')
+      if (comma === -1) return null
+      const meta = input.dataUrl.slice(5, comma) // strip leading 'data:'
+      const payload = input.dataUrl.slice(comma + 1)
+      if (meta.includes('base64')) {
+        writeFileSync(target, Buffer.from(payload, 'base64'))
+      } else {
+        writeFileSync(target, decodeURIComponent(payload), 'utf-8')
+      }
+    } else {
+      return null
+    }
+    return target
+  })
+
   ipcMain.handle('export:pdf', async (event, input: { title: string; html: string; attachments: string[]; outputPath?: string }) => {
     const lib = getLib(event)
     const safeTitle = input.title.replace(/[/\\:*?"<>|]/g, '_')

@@ -300,7 +300,7 @@ export default function HandwritingToolbar({
         >
           <ChevronLeft size={16} />
         </button>
-        <span style={{ fontSize: 12, color: '#8e8e93', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
+        <span style={{ fontSize: 12, color: '#8e8e93', fontVariantNumeric: 'tabular-nums', fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>
           {currentPageIndex + 1} / {pages.length}
         </span>
         <button

@@ -3,16 +3,18 @@ import type { Node } from '@xyflow/react'
 
 type RenderRequest = {
   noteId: string
+  format: 'png' | 'svg'
   resolve: (dataUrl: string | null) => void
 }
 
 const pendingQueue: RenderRequest[] = []
 
-export function renderMindmapToImage(noteId: string): Promise<string | null> {
+export function renderMindmapToImage(noteId: string, format: 'png' | 'svg' = 'png'): Promise<string | null> {
   return new Promise(resolve => {
     const timeout = setTimeout(() => resolve(null), 60000)
     pendingQueue.push({
       noteId,
+      format,
       resolve: (result) => { clearTimeout(timeout); resolve(result) },
     })
     document.dispatchEvent(new CustomEvent('mindmap-export-request'))
@@ -46,7 +48,7 @@ function readNodesFromDom(container: HTMLElement): Node[] {
   return nodes
 }
 
-export async function captureMindmapFromTabPanel(tabPanelEl: HTMLElement): Promise<string | null> {
+export async function captureMindmapFromTabPanel(tabPanelEl: HTMLElement, format: 'png' | 'svg' = 'png'): Promise<string | null> {
   const canvas = tabPanelEl.querySelector('.mindmap-canvas') as HTMLElement | null
   if (!canvas) return null
   const rfViewport = canvas.querySelector('.react-flow__viewport') as HTMLElement | null
@@ -58,7 +60,7 @@ export async function captureMindmapFromTabPanel(tabPanelEl: HTMLElement): Promi
   const ctx = { nodes, boundaries: [], summaries: [] }
 
   try {
-    return await screenshotViewport(rfViewport, ctx, { pixelRatio: 3 })
+    return await screenshotViewport(rfViewport, ctx, { pixelRatio: 3, format })
   } catch {
     return null
   }

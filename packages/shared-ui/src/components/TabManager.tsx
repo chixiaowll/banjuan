@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { ReactFlowProvider } from '@xyflow/react'
 import { Menu, X } from 'lucide-react'
 import TitleBar, { type Tab, type PluginViewInfo } from './TitleBar.js'
 import LibraryView from '../views/LibraryView.js'
@@ -7,12 +6,11 @@ import DocumentViewer from './viewers/DocumentViewer.js'
 import NoteView from '../views/NoteView.js'
 import TagManagerView from '../views/TagManagerView.js'
 import PluginViewHost from '../views/PluginViewHost.js'
-import MindmapCanvas from './mindmap/MindmapCanvas.js'
-import { MindmapStoreContext, createMindmapStore } from './mindmap/useMindmapStore.js'
 import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
 import ExportPanel from './ExportPanel.js'
-import { _dequeueMindmapExport, captureMindmapFromTabPanel } from './MindmapExportService.js'
+import MindmapExportHost from './MindmapExportHost.js'
+import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 import '../styles/mobile.css'
 
 const LIBRARY_TAB_ID = 'library'
@@ -143,66 +141,18 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     return () => document.removeEventListener('banjuan:open-document', handler)
   }, [openDocument])
 
-  const [exportMindmapId, setExportMindmapId] = useState<string | null>(null)
-  const exportPanelIdRef = useRef<string | null>(null)
-  const exportStoreRef = useRef<ReturnType<typeof createMindmapStore> | null>(null)
-  const exportBusyRef = useRef(false)
-  if (!exportStoreRef.current) exportStoreRef.current = createMindmapStore(api)
+  // Relay batch-export progress from the background export window into the
+  // local export-manager store so the progress panel updates live.
   useEffect(() => {
-    const handler = async () => {
-      const req = _dequeueMindmapExport()
-      if (!req || exportBusyRef.current) {
-        if (req) req.resolve(null)
-        return
-      }
-      exportBusyRef.current = true
-      try {
-        const panelId = `__export-mm-${req.noteId}`
-        exportPanelIdRef.current = panelId
-        const store = exportStoreRef.current!
-        await store.getState().init(req.noteId)
-        setExportMindmapId(req.noteId)
-
-        const pollForNodes = () => new Promise<HTMLElement | null>(resolve => {
-          let elapsed = 0
-          const iv = setInterval(() => {
-            elapsed += 200
-            const panel = document.querySelector(`[data-tab-panel="${panelId}"]`) as HTMLElement | null
-            if (panel) {
-              const nodeEls = panel.querySelectorAll('.react-flow__node')
-              if (nodeEls.length > 0) {
-                clearInterval(iv)
-                resolve(panel)
-                return
-              }
-            }
-            if (elapsed > 20000) { clearInterval(iv); resolve(null) }
-          }, 200)
-        })
-
-        const panel = await pollForNodes()
-        if (!panel) {
-          req.resolve(null)
-          setExportMindmapId(null)
-          exportPanelIdRef.current = null
-          return
-        }
-
-        await new Promise(r => setTimeout(r, 2000))
-
-        const dataUrl = await captureMindmapFromTabPanel(panel)
-        req.resolve(dataUrl)
-
-        setExportMindmapId(null)
-        exportPanelIdRef.current = null
-      } catch {
-        req.resolve(null)
-      } finally {
-        exportBusyRef.current = false
-      }
-    }
-    document.addEventListener('mindmap-export-request', handler)
-    return () => document.removeEventListener('mindmap-export-request', handler)
+    if (!api.batchExport) return
+    const store = useExportManagerStore.getState
+    const offProgress = api.batchExport.onProgress(({ runId, id, status, error }) => {
+      store().updateItem(`${runId}/${id}`, { status, error })
+    })
+    const offDone = api.batchExport.onDone(() => {
+      store().setRunning(false)
+    })
+    return () => { offProgress(); offDone() }
   }, [api])
 
   useEffect(() => {
@@ -372,24 +322,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
               )}
             </div>
           ))}
-          {exportMindmapId && exportPanelIdRef.current && exportStoreRef.current && (
-            <div
-              key={exportMindmapId}
-              data-tab-panel={exportPanelIdRef.current}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                clipPath: 'inset(100%)',
-                pointerEvents: 'none',
-              }}
-            >
-              <MindmapStoreContext.Provider value={exportStoreRef.current}>
-                <ReactFlowProvider>
-                  <MindmapCanvas readonly />
-                </ReactFlowProvider>
-              </MindmapStoreContext.Provider>
-            </div>
-          )}
+          <MindmapExportHost />
         </div>
         {sidePanel && (
           <div className="plugin-side-panel">

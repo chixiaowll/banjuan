@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService } from '@banjuan/shared-ui'
+import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService, ExportWorkerApp } from '@banjuan/shared-ui'
 import WelcomeView from './views/WelcomeView.js'
 import { electronAPI } from './electron-api.js'
 
@@ -8,7 +8,31 @@ interface LibraryInfo {
   name: string
 }
 
+/**
+ * The hidden background export window loads index.html with this hash. It runs
+ * only the export worker (no library picker, no main UI) — main maps the
+ * visible window's open library to this window before dispatching a job.
+ */
+const IS_EXPORT_WORKER = window.location.hash === '#export-worker'
+
+function ExportWorkerRoot() {
+  return (
+    <BanjuanAPIProvider value={electronAPI}>
+      <ThemeProvider>
+        <I18nProvider>
+          <ExportWorkerApp />
+        </I18nProvider>
+      </ThemeProvider>
+    </BanjuanAPIProvider>
+  )
+}
+
 export default function App() {
+  if (IS_EXPORT_WORKER) return <ExportWorkerRoot />
+  return <MainApp />
+}
+
+function MainApp() {
   const [library, setLibrary] = useState<LibraryInfo | null>(null)
   const [ready, setReady] = useState(false)
 

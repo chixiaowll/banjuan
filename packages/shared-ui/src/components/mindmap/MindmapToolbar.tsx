@@ -6,7 +6,7 @@ import { toPng, toSvg } from 'html-to-image'
 import { getNodesBounds, getViewportForBounds } from '@xyflow/react'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
-import { exportToDirectory } from '../../utils/exportToDirectory.js'
+import { exportToDirectory, exportSingleNote } from '../../utils/exportToDirectory.js'
 
 interface TitleBarProps {
   onToggleLeftSidebar?: () => void
@@ -34,6 +34,10 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
       URL.revokeObjectURL(url)
       return
     }
+
+    // Render-heavy formats run in the background export window (re-rendered from
+    // saved data) so they never block this window.
+    if (mindmapId && await exportSingleNote(api, { id: mindmapId, title: mindmapTitle || 'mindmap' }, format)) return
 
     const canvasEl = document.querySelector('.mindmap-canvas') as HTMLElement
     if (!canvasEl || rfNodes.length === 0) return
@@ -123,7 +127,7 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
     a.href = dataUrl
     a.download = `${mindmapTitle || 'mindmap'}.${format}`
     a.click()
-  }, [rfNodes, rfEdges, mindmapTitle, api, boundaries, summaries])
+  }, [rfNodes, rfEdges, mindmapTitle, mindmapId, api, boundaries, summaries])
 
   const iconBtnStyle: React.CSSProperties = {
     background: 'none', border: 'none', fontSize: 14, cursor: 'pointer',
