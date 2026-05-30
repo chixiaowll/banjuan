@@ -38,6 +38,41 @@ export default function SyncConfigPanel({ onClose }: Props) {
   const [progress, setProgress] = useState<SyncProgressState | null>(null)
   const startTimeRef = useRef(0)
 
+  const [hostStatus, setHostStatus] = useState<{ running: boolean; url: string | null; pin: string | null }>({ running: false, url: null, pin: null })
+  const [peerUrl, setPeerUrl] = useState('')
+  const [peerPin, setPeerPin] = useState('')
+  const [lanBusy, setLanBusy] = useState(false)
+  const [lanMsg, setLanMsg] = useState('')
+
+  const toggleHost = async () => {
+    setLanBusy(true)
+    try {
+      if (hostStatus.running) {
+        await api.lan.stopHost()
+        setHostStatus({ running: false, url: null, pin: null })
+      } else {
+        const s = await api.lan.startHost()
+        setHostStatus({ running: s.running, url: s.url, pin: s.pin })
+      }
+    } finally {
+      setLanBusy(false)
+    }
+  }
+
+  const connectPeer = async () => {
+    if (!peerUrl || !/^\d{6}$/.test(peerPin)) { setLanMsg('请输入对方地址和 6 位 PIN'); return }
+    setLanBusy(true)
+    setLanMsg('连接中…')
+    try {
+      const r = await api.lan.connectAndSync(peerUrl, peerPin, (p) => setLanMsg(`${p.phase} ${p.current}/${p.total} ${p.currentFile}`))
+      setLanMsg(`完成:↓${r.downloaded} ↑${r.uploaded} 删除 ${r.deletedLocal + r.deletedRemote}${r.errors.length ? `,错误 ${r.errors.length}` : ''}`)
+    } catch (e: any) {
+      setLanMsg(`失败:${e?.message ?? String(e)}`)
+    } finally {
+      setLanBusy(false)
+    }
+  }
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -242,6 +277,103 @@ export default function SyncConfigPanel({ onClose }: Props) {
             <RefreshCw size={14} className={syncing ? 'spin' : ''} />
             {syncing ? `${pct}%` : t('sync.syncNow')}
           </button>
+        </div>
+
+        <div style={{ paddingTop: 20, borderTop: '1px solid var(--paper-edge, var(--border-solid, #e5e5e7))' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 14px', color: 'var(--ink, #2A2722)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Wifi size={15} />局域网直连<span style={{ fontSize: 12, fontWeight: 400, color: 'var(--ink-mute, #8A8377)' }}>（同一 Wi-Fi）</span>
+          </h3>
+
+          {/* Host section */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
+            <div style={labelStyle}>开启共享（本机作为 host）</div>
+            <button
+              onClick={toggleHost}
+              disabled={lanBusy}
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '9px 16px', fontSize: 13, fontWeight: 500, borderRadius: 8,
+                background: hostStatus.running ? 'rgba(255,59,48,0.08)' : '#4A90E2',
+                color: hostStatus.running ? '#ff3b30' : '#fff',
+                border: hostStatus.running ? '1px solid rgba(255,59,48,0.25)' : 'none',
+                cursor: lanBusy ? 'not-allowed' : 'pointer',
+                opacity: lanBusy ? 0.6 : 1,
+                alignSelf: 'flex-start',
+                boxShadow: hostStatus.running ? 'none' : '0 2px 6px rgba(74,144,226,.3)',
+              }}
+            >
+              {hostStatus.running ? '停止共享' : '开启共享'}
+            </button>
+            {hostStatus.running && hostStatus.url && (
+              <div style={{
+                padding: '12px 14px', borderRadius: 8, fontSize: 13,
+                background: 'rgba(52,199,89,0.06)', border: '1px solid rgba(52,199,89,0.2)',
+                display: 'flex', flexDirection: 'column', gap: 6,
+              }}>
+                <div style={{ color: 'var(--ink-mute, #8A8377)' }}>在另一台设备填入地址：</div>
+                <code style={{
+                  fontSize: 13, padding: '4px 8px', borderRadius: 6,
+                  background: 'var(--surface-raised, #fff)', border: '1px solid var(--paper-edge, #e5e5e7)',
+                  userSelect: 'all', wordBreak: 'break-all',
+                }}>
+                  {hostStatus.url}
+                </code>
+                <div style={{ color: 'var(--ink-mute, #8A8377)', marginTop: 2 }}>配对 PIN：</div>
+                <strong style={{ fontSize: 24, letterSpacing: 6, color: 'var(--ink, #2A2722)', fontFamily: 'monospace' }}>
+                  {hostStatus.pin}
+                </strong>
+              </div>
+            )}
+          </div>
+
+          {/* Client section */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={labelStyle}>连接附近设备（本机作为 client）</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <input
+                style={{ ...inputStyle, flex: 1 }}
+                type="text"
+                placeholder="http://192.168.x.x:端口"
+                value={peerUrl}
+                onChange={(e) => setPeerUrl(e.target.value)}
+                disabled={lanBusy}
+              />
+              <input
+                style={{ ...inputStyle, width: 100, flex: 'none' }}
+                type="text"
+                inputMode="numeric"
+                placeholder="6 位 PIN"
+                value={peerPin}
+                onChange={(e) => setPeerPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                disabled={lanBusy}
+              />
+            </div>
+            <button
+              onClick={connectPeer}
+              disabled={lanBusy}
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '9px 16px', fontSize: 13, fontWeight: 500, borderRadius: 8,
+                background: 'var(--surface-raised, #fff)', color: 'var(--ink-soft, var(--text))',
+                border: '1px solid var(--paper-edge, var(--border))',
+                cursor: lanBusy ? 'not-allowed' : 'pointer',
+                opacity: lanBusy ? 0.6 : 1,
+                alignSelf: 'flex-start',
+              }}
+            >
+              <RefreshCw size={14} className={lanBusy ? 'spin' : ''} />
+              连接并同步
+            </button>
+            {lanMsg && (
+              <div style={{
+                fontSize: 13, padding: '10px 14px', borderRadius: 8,
+                color: lanMsg.startsWith('失败') ? '#ff3b30' : 'var(--ink-mute, #8A8377)',
+                background: lanMsg.startsWith('失败') ? 'rgba(255,59,48,0.06)' : 'rgba(0,0,0,0.03)',
+              }}>
+                {lanMsg}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
