@@ -78,8 +78,9 @@ export default function PluginViewHost({ pluginId, viewType }: Props) {
     const loadCss = async () => {
       const css = await api.plugins?.getCssSource(pluginId)
       if (!css) return
-      const existing = document.getElementById(`plugin-css-${pluginId}`)
-      if (existing) return
+      // Refresh existing styles too, so plugin CSS edits take effect on reload.
+      const existing = document.getElementById(`plugin-css-${pluginId}`) as HTMLStyleElement | null
+      if (existing) { existing.textContent = css; styleEl = existing; return }
       styleEl = document.createElement('style')
       styleEl.id = `plugin-css-${pluginId}`
       styleEl.textContent = css

@@ -252,7 +252,7 @@ const TOOLS = [
   },
   {
     name: 'read_document',
-    description: 'Read the extracted text of a PDF document, by page range. Returns { numPages, from, to, pages: [{page, text}] }. Only PDFs are supported. Max 25 pages per call — for long documents, paginate by calling again with a higher fromPage. Tip: read a few pages first to find the relevant section before reading more.',
+    description: 'Read the extracted text of a document. Returns { numPages, from, to, pages: [{page, text}], truncated }. Supports PDF (page = page), EPUB (page = chapter/spine index), and txt/md/html (single page). For PDF/EPUB, paginate long docs by calling again with a higher fromPage. Output is size-capped per call; `truncated` means there is more. Tip: read a few pages first to locate the relevant section.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -363,6 +363,34 @@ const TOOLS = [
         tagName: { type: 'string', description: 'Tag name to remove' },
       },
       required: ['targetId', 'targetType', 'tagName'],
+    },
+  },
+  // --- Deletion (destructive — confirm with the user first) ---
+  {
+    name: 'delete_note',
+    description: 'Permanently delete a note (also works for mindmap and handwriting notes). DESTRUCTIVE — only call after the user has explicitly confirmed.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', description: 'Note ID' } },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'delete_document',
+    description: 'Permanently delete a document from the library. DESTRUCTIVE — only call after the user has explicitly confirmed.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', description: 'Document ID' } },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'delete_tag',
+    description: 'Delete a tag (removes it from all items). DESTRUCTIVE — only call after the user has explicitly confirmed. Pass the tag id from list_tags.',
+    inputSchema: {
+      type: 'object',
+      properties: { tagId: { type: 'string', description: 'Tag ID (from list_tags)' } },
+      required: ['tagId'],
     },
   },
   // --- Folders & organization ---
@@ -502,6 +530,13 @@ async function handleToolCall(name, args) {
       return await apiPost('/api/tags/assign', { targetId: args.targetId, targetType: args.targetType, tags: args.tags })
     case 'unassign_tag':
       return await apiPost('/api/tags/unassign', { targetId: args.targetId, targetType: args.targetType, tagName: args.tagName })
+    // --- Deletion ---
+    case 'delete_note':
+      return await apiDelete(`/api/notes/${encodeURIComponent(args.id)}`)
+    case 'delete_document':
+      return await apiDelete(`/api/documents/${encodeURIComponent(args.id)}`)
+    case 'delete_tag':
+      return await apiDelete(`/api/tags/${encodeURIComponent(args.tagId)}`)
     // --- Folders & organization ---
     case 'list_note_folders':
       return await apiCall('/api/notes/dirs')

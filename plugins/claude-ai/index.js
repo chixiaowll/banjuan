@@ -215,6 +215,9 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
     if (!context || Object.keys(context).length === 0) return ''
     const lines = []
 
+    if (context.libraryName) {
+      lines.push(`Current workspace (library/书房): "${context.libraryName}"`)
+    }
     if (context.openDocuments?.length) {
       lines.push(`Open documents: ${context.openDocuments.map(d => `"${d.title}" (id: ${d.id}, ${d.type})`).join('; ')}`)
     }
@@ -272,7 +275,9 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
 
     const mcpConfigPath = this.buildMcpConfig()
     args.push('--mcp-config', mcpConfigPath)
-    args.push('--allowedTools', 'mcp__banjuan__*')
+    // Allow the library tools plus web research (search + fetch) so the
+    // assistant can look things up online and write them into notes.
+    args.push('--allowedTools', 'mcp__banjuan__* WebSearch WebFetch')
 
     if (this.sessionId) {
       args.push('--resume', this.sessionId)
@@ -285,10 +290,13 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
       '- list_notes / read_note: Browse and read the user\'s notes',
       '- create_note / update_note: Create new notes or edit existing ones',
       '- list_documents / get_document: Browse the document library',
+      '- read_document: Read the actual text of a document (PDF by page range; EPUB by chapter; txt/md/html in full).',
       '- get_annotations: Read highlights and annotations on documents',
       '- get_mindmap / create_mindmap / add_mindmap_node / update_mindmap_node / delete_mindmap_node: Build and edit mindmaps. Create one, then add child nodes (omit parentId to attach to the root).',
       '- list_tags / assign_tags / unassign_tag: Organize notes, mindmaps, and documents with tags.',
       '- list_note_folders / create_note_folder / move_note: Organize notes into folders.',
+      '- delete_note / delete_document / delete_tag: Delete items. These are DESTRUCTIVE — ALWAYS ask the user to confirm in the chat first, and only delete after they clearly say yes.',
+      'You also have WebSearch and WebFetch: use them to research topics online, then write findings into the user\'s notes when asked.',
       'Use these tools proactively when the user asks about their documents, notes, or wants you to create/edit/organize content.',
       'When creating notes, format content as BlockNote JSON blocks.',
       'Simple paragraph: [{"type":"paragraph","content":[{"type":"text","text":"Your text"}]}]',
@@ -317,7 +325,16 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
 
     let buffer = ''
     let lastText = ''
+    let lastThinking = ''
     let seenToolUseIds = new Set()
+    // Accumulate this turn's ordered items (assistant text / thinking / tool
+    // calls) so the full trace is persisted, not just the final text.
+    this.turnItems = []
+    const streamTurn = (role, delta) => {
+      const last = this.turnItems[this.turnItems.length - 1]
+      if (last && last.role === role && last._open) { last.content += delta }
+      else { this.turnItems.forEach(i => { i._open = false }); this.turnItems.push({ role, content: delta, _open: true }) }
+    }
 
     proc.stdout.on('data', (chunk) => {
       buffer += chunk.toString()
@@ -333,43 +350,46 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
           if (event.type === 'assistant' && event.message?.content) {
             const blocks = event.message.content
 
+            // Stream extended-thinking deltas (shown as the model's reasoning).
+            const thinks = blocks.filter(c => c.type === 'thinking').map(c => c.thinking || c.text || '').join('')
+            if (thinks.length > lastThinking.length) {
+              const d = thinks.slice(lastThinking.length)
+              this.sendToRenderer('chat:thinking', { text: d })
+              streamTurn('thinking', d)
+              lastThinking = thinks
+            }
+
             const texts = blocks.filter(c => c.type === 'text').map(c => c.text).join('')
             if (texts.length > lastText.length) {
               const delta = texts.slice(lastText.length)
               this.sendToRenderer('chat:delta', { text: delta })
+              streamTurn('assistant', delta)
               lastText = texts
             }
 
             for (const block of blocks) {
               if (block.type === 'tool_use' && !seenToolUseIds.has(block.id)) {
                 seenToolUseIds.add(block.id)
-                this.sendToRenderer('chat:tool_use', {
-                  id: block.id,
-                  name: block.name,
-                  input: block.input,
-                })
-              }
-              if (block.type === 'tool_result' && block.tool_use_id) {
-                this.sendToRenderer('chat:tool_result', {
-                  toolUseId: block.tool_use_id,
-                  content: typeof block.content === 'string' ? block.content : JSON.stringify(block.content),
-                  isError: block.is_error || false,
-                })
+                this.turnItems.forEach(i => { i._open = false })
+                this.turnItems.push({ role: 'tool', id: block.id, name: block.name, input: block.input, result: null, isError: false })
+                this.sendToRenderer('chat:tool_use', { id: block.id, name: block.name, input: block.input })
               }
             }
           }
 
-          if (event.type === 'tool' && event.message?.content) {
+          // Tool results arrive as `user` (or `tool`) messages with tool_result blocks.
+          if ((event.type === 'user' || event.type === 'tool') && event.message?.content) {
             for (const block of event.message.content) {
-              if (block.tool_use_id) {
-                this.sendToRenderer('chat:tool_result', {
-                  toolUseId: block.tool_use_id,
-                  content: typeof block.content === 'string' ? block.content : JSON.stringify(block.content),
-                  isError: block.is_error || false,
-                })
+              if (block.type === 'tool_result' && block.tool_use_id) {
+                const content = typeof block.content === 'string' ? block.content : JSON.stringify(block.content)
+                const isError = block.is_error || false
+                const ti = this.turnItems.find(x => x.role === 'tool' && x.id === block.tool_use_id)
+                if (ti) { ti.result = content; ti.isError = isError }
+                this.sendToRenderer('chat:tool_result', { toolUseId: block.tool_use_id, content, isError })
               }
             }
             lastText = ''
+            lastThinking = ''
           }
         } catch {}
       }
@@ -417,9 +437,21 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
 
     if (event.type === 'result') {
       const text = event.result || ''
-      if (text) {
+      // Persist the full ordered trace (text / thinking / tool calls) so it
+      // survives reload, not just the final answer.
+      const items = (this.turnItems || []).map(({ _open, ...rest }) => {
+        if (rest.role === 'tool' && typeof rest.result === 'string' && rest.result.length > 4000) {
+          rest.result = rest.result.slice(0, 4000) + '\n…(truncated)'
+        }
+        return rest
+      })
+      if (items.length > 0) {
+        if (text && !items.some(i => i.role === 'assistant')) items.push({ role: 'assistant', content: text })
+        this.messages.push(...items)
+      } else if (text) {
         this.messages.push({ role: 'assistant', content: text })
       }
+      this.turnItems = []
       this.saveCurrentSession().then(() => this.persist())
       this.sendToRenderer('chat:result', {
         text,
