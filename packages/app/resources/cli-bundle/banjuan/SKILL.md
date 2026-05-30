@@ -74,13 +74,26 @@ banjuan doc delete <id>
 ### Notes
 
 ```bash
-banjuan note create <title> [--doc <id>] [--folder <folder-id>]
+banjuan note create <title> [--doc <id>] [--folder <folder-id>] [--content "<md>" | --file <path>]
 banjuan note list [--doc <id>] [--type <type>] [--tag <tag>] [--folder <folder-id>] [--json]
 banjuan note show <id>
 banjuan note update <id> [--title "new"] [--content "markdown 文本"]
 banjuan note delete <id>
 banjuan note move <id> [folder-id]
 ```
+
+**Note content on create** — provide markdown three ways (precedence `--content` > `--file` > stdin):
+
+```bash
+banjuan note create "标题" --content "# Hello"      # inline markdown
+banjuan note create "标题" --file ./intro.md         # from a file (preferred)
+banjuan note create "标题" < ./intro.md              # from stdin
+```
+
+Local images referenced in the markdown (`![](img/x.png)`) are imported into the
+note automatically. **Prefer `--file`** when the markdown has images — paths
+resolve relative to the file (`--content`/stdin resolve relative to the current
+dir). Remote `http(s)://` images are left as-is.
 
 ### Annotations
 
