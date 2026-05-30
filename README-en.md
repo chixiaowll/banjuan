@@ -64,6 +64,11 @@ Banjuan is an open-source, cross-platform study and research tool that combines 
 </p>
 <p align="center"><em>Markdown note — outline navigation, linked references, rich text editing</em></p>
 
+<p align="center">
+  <img src="images/导出笔记.jpeg" width="720" alt="Batch export">
+</p>
+<p align="center"><em>Batch export — runs in a background process (never blocks browsing); the progress panel accumulates like a download list</em></p>
+
 ### Mind Map
 
 <p align="center">
@@ -93,9 +98,14 @@ Banjuan is an open-source, cross-platform study and research tool that combines 
 ### AI Integration
 
 <p align="center">
+  <img src="images/Claude 插件2.jpeg" width="720" alt="Claude assistant reading a PDF">
+</p>
+<p align="center"><em>Claude assistant — read and discuss a PDF in place, aware of the current page; reads document text by page/chapter</em></p>
+
+<p align="center">
   <img src="images/Claude 插件.jpeg" width="720" alt="Claude AI plugin">
 </p>
-<p align="center"><em>Claude plugin — AI assistant with direct access to library content</em></p>
+<p align="center"><em>Claude plugin — AI assistant with direct access to library content (search, notes, mindmaps, tags, ...)</em></p>
 
 <p align="center">
   <img src="images/命令行功能.jpeg" width="720" alt="CLI commands">
