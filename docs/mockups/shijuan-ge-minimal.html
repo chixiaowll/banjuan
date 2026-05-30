@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拾卷阁 · Minimal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Han+Serif+SC:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:           #FAFAF9;
+    --surface:      #FFFFFF;
+    --surface-2:    #F5F5F4;
+    --border:       #E7E5E4;
+    --border-soft:  #F0EFED;
+    --ink:          #18181B;
+    --ink-2:        #3F3F46;
+    --ink-3:        #71717A;
+    --ink-4:        #A1A1AA;
+    --ink-5:        #D4D4D8;
+    --accent:       #18181B;
+    --hover:        #F4F4F5;
+
+    /* 文档类型色——降饱和度 */
+    --tag-pdf-bg:   #FEF2F2;
+    --tag-pdf-tx:   #991B1B;
+    --tag-epub-bg:  #ECFDF5;
+    --tag-epub-tx:  #065F46;
+    --tag-md-bg:    #FEF3C7;
+    --tag-md-tx:    #92400E;
+    --tag-mind-bg:  #EDE9FE;
+    --tag-mind-tx:  #5B21B6;
+
+    --font-sans:    "Inter", "Noto Sans SC", -apple-system, sans-serif;
+    --font-cjk:     "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
+    --font-serif-cjk: "Source Han Serif SC", "Songti SC", serif;
+    --font-mono:    "JetBrains Mono", "SF Mono", monospace;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;}
+  html,body{background:#27272A;font-family:var(--font-sans);color:var(--ink);}
+
+  .stage{
+    min-height:100vh;padding:48px 24px 80px;
+    background:#27272A;
+  }
+  .stage-head{
+    max-width:1280px;margin:0 auto 24px;
+    display:flex;align-items:center;justify-content:space-between;
+    color:#71717A;font-family:var(--font-mono);font-size:11px;letter-spacing:.04em;
+  }
+  .stage-head .dot{display:inline-block;width:6px;height:6px;background:#10B981;border-radius:50%;margin-right:8px;vertical-align:middle;}
+
+  /* ========== 应用窗口 ========== */
+  .app{
+    max-width:1280px;margin:0 auto;
+    background:var(--bg);
+    border-radius:10px;overflow:hidden;
+    box-shadow:
+      0 50px 100px -20px rgba(0,0,0,.5),
+      0 25px 50px -25px rgba(0,0,0,.3);
+  }
+
+  /* 顶栏 */
+  .titlebar{
+    height:38px;display:flex;align-items:center;padding:0 14px;
+    background:var(--surface-2);
+    border-bottom:1px solid var(--border);
+  }
+  .traffic{display:flex;gap:8px;}
+  .traffic span{width:12px;height:12px;border-radius:50%;}
+  .traffic .r{background:#FB7185;}
+  .traffic .y{background:#FBBF24;}
+  .traffic .g{background:#34D399;}
+
+  .tb-search{
+    flex:1;display:flex;justify-content:center;
+  }
+  .tb-search-input{
+    width:380px;height:24px;background:var(--bg);
+    border:1px solid var(--border);border-radius:6px;
+    display:flex;align-items:center;gap:8px;padding:0 10px;
+    font-size:12px;color:var(--ink-4);
+  }
+  .tb-search-input svg{width:12px;height:12px;stroke-width:2;}
+  .tb-search-input .kbd{
+    margin-left:auto;font-family:var(--font-mono);font-size:10px;
+    background:var(--surface-2);padding:1px 5px;border-radius:3px;
+    border:1px solid var(--border);color:var(--ink-3);
+  }
+  .tb-right{display:flex;align-items:center;gap:10px;width:67px;justify-content:flex-end;}
+  .tb-icon-btn{
+    width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+    color:var(--ink-3);cursor:pointer;border-radius:4px;
+  }
+  .tb-icon-btn:hover{background:var(--hover);color:var(--ink);}
+  .tb-icon-btn svg{width:13px;height:13px;stroke-width:1.8;}
+
+  /* ========== 主体 ========== */
+  .body{display:grid;grid-template-columns:220px 1fr;min-height:840px;}
+
+  /* —— 侧栏 —— */
+  .sidebar{
+    background:var(--bg);
+    border-right:1px solid var(--border);
+    padding:18px 12px;
+    display:flex;flex-direction:column;gap:2px;
+  }
+
+  .sb-workspace{
+    display:flex;align-items:center;gap:8px;padding:6px 8px 14px;
+    border-bottom:1px solid var(--border);margin-bottom:14px;
+  }
+  .sb-ws-icon{
+    width:24px;height:24px;border-radius:5px;background:var(--ink);color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-serif-cjk);font-size:13px;font-weight:500;
+  }
+  .sb-ws-text{flex:1;min-width:0;}
+  .sb-ws-text .name{font-size:13px;font-weight:500;color:var(--ink);line-height:1.2;}
+  .sb-ws-text .sub{font-size:10px;color:var(--ink-4);font-family:var(--font-mono);margin-top:1px;}
+  .sb-ws-arrow{color:var(--ink-4);}
+  .sb-ws-arrow svg{width:11px;height:11px;stroke-width:2;}
+
+  .sb-group{margin-bottom:14px;}
+  .sb-group-title{
+    padding:4px 8px 6px;
+    font-size:10px;font-weight:500;color:var(--ink-4);
+    letter-spacing:.06em;text-transform:uppercase;
+  }
+  .sb-item{
+    display:flex;align-items:center;gap:8px;
+    padding:6px 8px;border-radius:5px;
+    font-size:13px;color:var(--ink-2);cursor:pointer;
+    font-family:var(--font-cjk);
+  }
+  .sb-item svg{width:14px;height:14px;stroke-width:1.7;color:var(--ink-3);flex-shrink:0;}
+  .sb-item:hover{background:var(--hover);}
+  .sb-item.active{background:var(--surface-2);color:var(--ink);font-weight:500;}
+  .sb-item.active svg{color:var(--ink);}
+  .sb-item .count{
+    margin-left:auto;font-family:var(--font-mono);font-size:10px;
+    color:var(--ink-4);font-weight:400;
+  }
+  .sb-item.active .count{color:var(--ink-3);}
+
+  .sb-spacer{flex:1;}
+
+  .sb-user{
+    display:flex;align-items:center;gap:8px;padding:8px;
+    border-top:1px solid var(--border);margin:0 -12px -18px;padding-left:20px;padding-right:20px;padding-top:14px;padding-bottom:14px;
+  }
+  .sb-user-avatar{
+    width:24px;height:24px;border-radius:50%;background:var(--ink);color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:500;
+  }
+  .sb-user-name{font-size:12px;color:var(--ink-2);flex:1;}
+  .sb-user-sub{font-size:10px;color:var(--ink-4);font-family:var(--font-mono);}
+
+  /* ========== 主区 ========== */
+  .main{padding:36px 48px 48px;overflow:hidden;}
+
+  /* breadcrumb */
+  .crumb{
+    display:flex;align-items:center;gap:6px;
+    font-size:12px;color:var(--ink-3);font-family:var(--font-mono);
+    margin-bottom:24px;
+  }
+  .crumb .sep{color:var(--ink-5);}
+  .crumb a{color:var(--ink-3);text-decoration:none;}
+  .crumb a:hover{color:var(--ink);}
+  .crumb .current{color:var(--ink);}
+
+  /* H1 */
+  .page-head{
+    display:flex;align-items:flex-start;justify-content:space-between;
+    margin-bottom:8px;
+  }
+  .page-title{
+    font-size:30px;font-weight:600;color:var(--ink);
+    letter-spacing:-.02em;line-height:1.2;
+  }
+  .page-actions{display:flex;gap:8px;align-items:center;}
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;
+    height:32px;padding:0 12px;border-radius:6px;
+    font-family:var(--font-cjk);font-size:13px;font-weight:500;
+    cursor:pointer;transition:all .15s;
+    border:1px solid var(--border);background:var(--surface);color:var(--ink-2);
+  }
+  .btn:hover{background:var(--hover);border-color:var(--ink-5);}
+  .btn svg{width:14px;height:14px;stroke-width:1.8;}
+  .btn-primary{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .btn-primary:hover{background:#000;}
+
+  .page-sub{
+    font-size:13px;color:var(--ink-3);margin-bottom:36px;
+    display:flex;align-items:center;gap:14px;
+  }
+  .page-sub .stat{display:flex;align-items:center;gap:4px;}
+  .page-sub .stat strong{color:var(--ink);font-weight:500;}
+  .page-sub .stat .sep{color:var(--ink-5);}
+
+  /* ========== 顶部一行：日期 + 节气 + 引述 ========== */
+  .top-row{
+    display:grid;grid-template-columns:240px 1fr;gap:24px;
+    margin-bottom:40px;
+    padding-bottom:32px;
+    border-bottom:1px solid var(--border);
+  }
+  .date-block{
+    display:flex;flex-direction:column;justify-content:center;
+  }
+  .date-day{
+    font-family:var(--font-mono);font-size:48px;font-weight:300;
+    color:var(--ink);line-height:1;letter-spacing:-.04em;
+  }
+  .date-day .month{font-size:20px;color:var(--ink-3);font-weight:400;margin-right:4px;}
+  .date-meta{
+    margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  }
+  .date-text{font-size:12px;color:var(--ink-3);font-family:var(--font-cjk);}
+  .term-pill{
+    display:inline-flex;align-items:center;gap:5px;
+    height:22px;padding:0 9px;border-radius:11px;
+    background:var(--surface-2);font-size:11px;color:var(--ink-2);font-weight:500;
+    font-family:var(--font-cjk);
+    border:1px solid var(--border);
+  }
+  .term-pill::before{
+    content:"";width:5px;height:5px;background:#10B981;border-radius:50%;
+  }
+
+  /* 引述 */
+  .quote-block{
+    padding-left:24px;border-left:2px solid var(--ink);
+    display:flex;flex-direction:column;justify-content:center;
+  }
+  .quote-text{
+    font-family:var(--font-serif-cjk);font-size:18px;font-weight:400;
+    color:var(--ink);line-height:1.7;letter-spacing:.02em;
+  }
+  .quote-text .em{color:var(--ink-3);}
+  .quote-meta{
+    margin-top:10px;font-size:12px;color:var(--ink-4);font-family:var(--font-cjk);
+  }
+  .quote-meta .author{color:var(--ink-2);font-weight:500;}
+  .quote-meta .dot{margin:0 6px;color:var(--ink-5);}
+  .quote-nav{display:flex;gap:6px;margin-top:14px;}
+  .qnav{
+    width:24px;height:24px;border:1px solid var(--border);border-radius:5px;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink-3);cursor:pointer;background:var(--surface);
+  }
+  .qnav:hover{border-color:var(--ink-4);color:var(--ink);}
+  .qnav svg{width:11px;height:11px;stroke-width:2;}
+  .qnav.refresh{margin-left:auto;}
+
+  /* ========== Section 标题 ========== */
+  .sec-head{
+    display:flex;align-items:baseline;justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .sec-title{
+    font-size:13px;font-weight:600;color:var(--ink);
+    letter-spacing:.01em;display:flex;align-items:center;gap:8px;
+  }
+  .sec-title .badge{
+    font-family:var(--font-mono);font-size:11px;font-weight:400;
+    color:var(--ink-4);
+  }
+  .sec-link{
+    font-size:12px;color:var(--ink-3);font-family:var(--font-cjk);
+    text-decoration:none;display:inline-flex;align-items:center;gap:3px;
+  }
+  .sec-link:hover{color:var(--ink);}
+  .sec-link svg{width:11px;height:11px;stroke-width:2;}
+
+  /* ========== 双栏：笔记 + 文档 ========== */
+  .two-col{
+    display:grid;grid-template-columns:1fr 1.4fr;gap:48px;margin-bottom:48px;
+  }
+
+  /* 笔记列表 */
+  .note-row{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 0;border-bottom:1px solid var(--border-soft);
+    cursor:pointer;
+  }
+  .note-row:hover{background:var(--surface-2);margin:0 -8px;padding:10px 8px;}
+  .note-row:hover{border-radius:5px;border-color:transparent;}
+  .note-row:last-child{border-bottom:none;}
+
+  .tag{
+    display:inline-flex;align-items:center;justify-content:center;
+    height:18px;min-width:38px;padding:0 6px;border-radius:3px;
+    font-family:var(--font-mono);font-size:10px;font-weight:500;
+    letter-spacing:.02em;flex-shrink:0;
+  }
+  .tag.pdf{background:var(--tag-pdf-bg);color:var(--tag-pdf-tx);}
+  .tag.epub{background:var(--tag-epub-bg);color:var(--tag-epub-tx);}
+  .tag.md{background:var(--tag-md-bg);color:var(--tag-md-tx);}
+  .tag.mind{background:var(--tag-mind-bg);color:var(--tag-mind-tx);}
+
+  .note-name{
+    flex:1;font-size:13px;color:var(--ink);font-family:var(--font-cjk);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-weight:400;
+  }
+  .note-author{
+    color:var(--ink-4);font-size:12px;flex-shrink:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;
+  }
+  .note-date{
+    font-family:var(--font-mono);font-size:11px;color:var(--ink-4);flex-shrink:0;width:64px;text-align:right;
+  }
+
+  .empty{
+    padding:32px 0;text-align:center;
+    color:var(--ink-4);font-size:12px;font-family:var(--font-cjk);
+  }
+  .empty a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--ink-5);padding-bottom:1px;cursor:pointer;}
+  .empty a:hover{border-color:var(--ink);}
+
+  /* ========== 批注 ========== */
+  .anno-section{margin-bottom:40px;}
+  .anno-grid{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:16px;
+  }
+  .anno-card{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:8px;padding:16px;
+    cursor:pointer;transition:all .15s;
+    display:flex;flex-direction:column;gap:10px;
+    min-height:140px;
+  }
+  .anno-card:hover{border-color:var(--ink-5);transform:translateY(-1px);}
+  .anno-head{display:flex;align-items:center;gap:8px;}
+  .anno-marker{width:3px;height:14px;background:var(--ink);border-radius:2px;}
+  .anno-marker.green{background:#10B981;}
+  .anno-marker.amber{background:#F59E0B;}
+  .anno-marker.blue{background:#3B82F6;}
+  .anno-label{
+    font-family:var(--font-mono);font-size:10px;color:var(--ink-4);
+    letter-spacing:.06em;text-transform:uppercase;
+  }
+  .anno-text{
+    font-family:var(--font-cjk);font-size:13px;color:var(--ink);line-height:1.55;
+    flex:1;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .anno-text em{font-style:italic;color:var(--ink-2);font-family:"Inter",serif;font-weight:400;}
+  .anno-foot{
+    display:flex;align-items:center;justify-content:space-between;
+    padding-top:10px;border-top:1px solid var(--border-soft);
+  }
+  .anno-src{
+    font-size:11px;color:var(--ink-3);font-family:var(--font-cjk);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;
+    min-width:0;
+  }
+  .anno-src strong{color:var(--ink-2);font-weight:500;}
+  .anno-loc{
+    font-family:var(--font-mono);font-size:10px;color:var(--ink-4);
+    margin-left:8px;flex-shrink:0;
+  }
+
+  /* ========== 状态栏 ========== */
+  .statusbar{
+    height:30px;border-top:1px solid var(--border);background:var(--surface-2);
+    padding:0 16px;display:flex;align-items:center;justify-content:space-between;
+    font-family:var(--font-mono);font-size:10px;color:var(--ink-3);
+  }
+  .statusbar .l,.statusbar .r{display:flex;align-items:center;gap:14px;}
+  .statusbar .l span,.statusbar .r span{display:inline-flex;align-items:center;gap:5px;}
+  .sb-dot{width:6px;height:6px;border-radius:50%;background:#10B981;}
+  .sb-term{
+    display:inline-flex;align-items:center;gap:5px;padding:2px 8px;
+    background:var(--ink);color:#fff;border-radius:4px;position:relative;cursor:pointer;
+  }
+  .sb-term svg{width:9px;height:9px;stroke-width:2;}
+  .sb-term .badge{
+    position:absolute;top:-3px;right:-3px;width:13px;height:13px;
+    background:#EF4444;color:#fff;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;
+  }
+
+  /* 设计稿底注 */
+  .caption{
+    max-width:1280px;margin:18px auto 0;
+    color:#71717A;font-family:var(--font-mono);font-size:10.5px;
+    display:flex;justify-content:space-between;
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="stage-head">
+      <div><span class="dot"></span>SHIJUAN-GE / MINIMAL VARIANT</div>
+      <div>v 3.0 · 2026.05.21</div>
+    </div>
+
+    <div class="app">
+      <!-- ============ 顶栏 ============ -->
+      <div class="titlebar">
+        <div class="traffic">
+          <span class="r"></span><span class="y"></span><span class="g"></span>
+        </div>
+        <div class="tb-search">
+          <div class="tb-search-input">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+            <span>搜索笔记、文档、批注……</span>
+            <span class="kbd">⌘ K</span>
+          </div>
+        </div>
+        <div class="tb-right">
+          <div class="tb-icon-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3a9 9 0 109 9"/><path d="M12 3v9l6 3"/></svg>
+          </div>
+          <div class="tb-icon-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 主体 ============ -->
+      <div class="body">
+        <!-- ===== 侧栏 ===== -->
+        <aside class="sidebar">
+          <div class="sb-workspace">
+            <div class="sb-ws-icon">阁</div>
+            <div class="sb-ws-text">
+              <div class="name">拾卷阁</div>
+              <div class="sub">chixiao · local</div>
+            </div>
+            <div class="sb-ws-arrow">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 9l5 5 5-5"/></svg>
+            </div>
+          </div>
+
+          <div class="sb-group">
+            <div class="sb-item active">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+              首页
+            </div>
+            <div class="sb-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              搜索
+            </div>
+            <div class="sb-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>
+              今日卷
+            </div>
+          </div>
+
+          <div class="sb-group">
+            <div class="sb-group-title">资料库</div>
+            <div class="sb-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h4v16H4zM10 4h4v16h-4zM16 5l3 .5L17 21l-3-.5z"/></svg>
+              全部文档 <span class="count">92</span>
+            </div>
+            <div class="sb-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20l4-1L19 8a2 2 0 00-3-3L5 16l-1 4z"/></svg>
+              笔记 <span class="count">1</span>
+            </div>
+            <div class="sb-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+              批注 <span class="count">37</span>
+            </div>
+            <div class="sb-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+              收藏 <span class="count">12</span>
+            </div>
+          </div>
+
+          <div class="sb-group">
+            <div class="sb-group-title">标签</div>
+            <div class="sb-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="6" r="2.5" fill="#EF4444" stroke="none"/></svg>
+              小说
+            </div>
+            <div class="sb-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="6" r="2.5" fill="#10B981" stroke="none"/></svg>
+              技术文档
+            </div>
+            <div class="sb-item">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="6" cy="6" r="2.5" fill="#F59E0B" stroke="none"/></svg>
+              诗词
+            </div>
+          </div>
+
+          <div class="sb-spacer"></div>
+
+          <div class="sb-user">
+            <div class="sb-user-avatar">C</div>
+            <div style="flex:1;min-width:0;">
+              <div class="sb-user-name">chixiao</div>
+              <div class="sb-user-sub">longbridge-inc.com</div>
+            </div>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--ink-4)"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </aside>
+
+        <!-- ===== 主区 ===== -->
+        <main class="main">
+          <div class="crumb">
+            <a>~</a><span class="sep">/</span>
+            <a>Documents</a><span class="sep">/</span>
+            <a>banjuan notes</a><span class="sep">/</span>
+            <span class="current">拾卷阁</span>
+          </div>
+
+          <div class="page-head">
+            <div class="page-title">拾卷阁</div>
+            <div class="page-actions">
+              <button class="btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v12M7 8l5-5 5 5M5 21h14"/></svg>
+                导入文档
+              </button>
+              <button class="btn btn-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+                新建笔记
+              </button>
+            </div>
+          </div>
+
+          <div class="page-sub">
+            <span class="stat"><strong>92</strong>&nbsp;文档</span>
+            <span class="sep">·</span>
+            <span class="stat"><strong>1</strong>&nbsp;笔记</span>
+            <span class="sep">·</span>
+            <span class="stat"><strong>37</strong>&nbsp;批注</span>
+            <span class="sep">·</span>
+            <span class="stat" style="color:var(--ink-4)">上次同步 2 分钟前</span>
+          </div>
+
+          <!-- ===== 顶部行：日期 + 引述 ===== -->
+          <div class="top-row">
+            <div class="date-block">
+              <div class="date-day"><span class="month">May</span>21</div>
+              <div class="date-meta">
+                <span class="date-text">周四 · 丙午年四月初五</span>
+              </div>
+              <div class="date-meta">
+                <span class="term-pill">小满</span>
+                <span style="font-size:11px;color:var(--ink-4);font-family:var(--font-cjk);">物至于此，小得盈满</span>
+              </div>
+            </div>
+
+            <div class="quote-block">
+              <div class="quote-text">
+                莫听穿林打叶声，何妨吟啸且徐行。<br>
+                竹杖芒鞋轻胜马，谁怕？<span class="em">一蓑烟雨任平生。</span>
+              </div>
+              <div class="quote-meta">
+                <span class="author">苏轼</span>
+                <span class="dot">·</span>
+                《定风波》
+                <span class="dot">·</span>
+                宋
+              </div>
+              <div class="quote-nav">
+                <div class="qnav">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 6l-6 6 6 6"/></svg>
+                </div>
+                <div class="qnav">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+                </div>
+                <div class="qnav refresh">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 1015-6l-3 3M3 4v5h5"/></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== 双栏：笔记 + 文档 ===== -->
+          <div class="two-col">
+            <!-- 笔记 -->
+            <section>
+              <div class="sec-head">
+                <div class="sec-title">最近笔记 <span class="badge">1</span></div>
+                <a class="sec-link">查看全部
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+                </a>
+              </div>
+              <div>
+                <div class="note-row">
+                  <span class="tag mind">MIND</span>
+                  <span class="note-name">东坡先生 · 人物年表与诗文索引</span>
+                  <span class="note-date">5月 20</span>
+                </div>
+                <div class="empty">
+                  暂无更多笔记 · <a>新建一则</a>
+                </div>
+              </div>
+            </section>
+
+            <!-- 文档 -->
+            <section>
+              <div class="sec-head">
+                <div class="sec-title">最近阅读 <span class="badge">92</span></div>
+                <a class="sec-link">查看全部
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+                </a>
+              </div>
+              <div>
+                <div class="note-row">
+                  <span class="tag pdf">PDF</span>
+                  <span class="note-name">1984</span>
+                  <span class="note-author">George Orwell</span>
+                  <span class="note-date">5月 21</span>
+                </div>
+                <div class="note-row">
+                  <span class="tag epub">EPUB</span>
+                  <span class="note-name">Harry Potter and the Chamber of Secrets</span>
+                  <span class="note-author">J. K. Rowling</span>
+                  <span class="note-date">5月 21</span>
+                </div>
+                <div class="note-row">
+                  <span class="tag md">MD</span>
+                  <span class="note-name">sync-architecture-design</span>
+                  <span class="note-author">2026-04-25</span>
+                  <span class="note-date">5月 21</span>
+                </div>
+                <div class="note-row">
+                  <span class="tag pdf">PDF</span>
+                  <span class="note-name">缠论（缠中说禅）</span>
+                  <span class="note-author">Z-Library</span>
+                  <span class="note-date">5月 20</span>
+                </div>
+                <div class="note-row">
+                  <span class="tag md">MD</span>
+                  <span class="note-name">banjuan-design</span>
+                  <span class="note-author">2026-04-25</span>
+                  <span class="note-date">5月 20</span>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- ===== 批注 ===== -->
+          <section class="anno-section">
+            <div class="sec-head">
+              <div class="sec-title">最近批注 <span class="badge">3 / 37</span></div>
+              <a class="sec-link">查看全部
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+              </a>
+            </div>
+            <div class="anno-grid">
+              <div class="anno-card">
+                <div class="anno-head">
+                  <span class="anno-marker"></span>
+                  <span class="anno-label">Highlight</span>
+                </div>
+                <div class="anno-text"><em>"Dursleys"</em></div>
+                <div class="anno-foot">
+                  <div class="anno-src"><strong>Harry Potter II</strong> · Rowling</div>
+                  <div class="anno-loc">EPUB · CH 01</div>
+                </div>
+              </div>
+
+              <div class="anno-card">
+                <div class="anno-head">
+                  <span class="anno-marker green"></span>
+                  <span class="anno-label">Note</span>
+                </div>
+                <div class="anno-text"><em>"Thousand"</em></div>
+                <div class="anno-foot">
+                  <div class="anno-src"><strong>Harry Potter II</strong> · Rowling</div>
+                  <div class="anno-loc">EPUB · CH 03</div>
+                </div>
+              </div>
+
+              <div class="anno-card">
+                <div class="anno-head">
+                  <span class="anno-marker blue"></span>
+                  <span class="anno-label">Highlight</span>
+                </div>
+                <div class="anno-text"><em>"the face of a man of about forty-five, with a heavy black moustache and rugged-ly handsome features…"</em></div>
+                <div class="anno-foot">
+                  <div class="anno-src"><strong>1984</strong> · Orwell</div>
+                  <div class="anno-loc">PDF · P. 04</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <!-- 状态栏 -->
+      <div class="statusbar">
+        <div class="l">
+          <span><span class="sb-dot"></span>已同步</span>
+          <span>UTF-8</span>
+          <span>~/Documents/banjuan notes/拾卷阁</span>
+        </div>
+        <div class="r">
+          <span>MD · EPUB · PDF</span>
+          <span>v 2.4.1</span>
+          <span class="sb-term">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 17l6-6-6-6M12 19h8"/></svg>
+            终端
+            <span class="badge">1</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <div>设计要点 · 12 栏栅格 · 大留白 · 单色 + 4 种语义色 · 等宽数字 · 衬线引述</div>
+      <div>1280 × auto · sketched in figma</div>
+    </div>
+  </div>
+</body>
+</html>

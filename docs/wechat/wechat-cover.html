@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>半卷闲书 — 公众号封面</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #e0e0e0; }
+  .cover {
+    width: 1068px;
+    height: 455px;
+    background: linear-gradient(135deg, #fdfcf8 0%, #f7f2e8 40%, #f0e8d8 100%);
+    position: relative;
+    overflow: hidden;
+    font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  }
+
+  /* 宣纸纹理 */
+  .cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(200,180,150,0.03) 2px, rgba(200,180,150,0.03) 4px),
+      repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(180,160,130,0.02) 3px, rgba(180,160,130,0.02) 6px);
+    pointer-events: none;
+  }
+
+  /* 左侧装饰竖线 */
+  .left-accent {
+    position: absolute;
+    left: 48px;
+    top: 40px;
+    bottom: 40px;
+    width: 4px;
+    background: #c0392b;
+    border-radius: 2px;
+  }
+  .left-accent::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(192,57,43,0.2);
+  }
+
+  /* 主标题区 */
+  .title-area {
+    position: absolute;
+    left: 80px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .main-title {
+    font-size: 72px;
+    font-weight: 900;
+    color: #1a1a1a;
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+  }
+  .subtitle {
+    font-size: 22px;
+    color: #888;
+    font-weight: 400;
+    letter-spacing: 0.05em;
+    margin-bottom: 24px;
+  }
+  .tagline {
+    font-size: 17px;
+    color: #c0392b;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.8;
+  }
+
+  /* 右侧竖排诗句 */
+  .poem-right {
+    position: absolute;
+    right: 60px;
+    top: 50%;
+    transform: translateY(-50%);
+    writing-mode: vertical-rl;
+    font-size: 28px;
+    color: rgba(74, 55, 40, 0.15);
+    letter-spacing: 0.3em;
+    line-height: 2;
+  }
+
+  /* 印章 */
+  .stamp {
+    position: absolute;
+    right: 180px;
+    bottom: 50px;
+    width: 68px;
+    height: 68px;
+    border: 3px solid #c0392b;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: rotate(-8deg);
+    opacity: 0.7;
+  }
+  .stamp span {
+    font-size: 24px;
+    color: #c0392b;
+    font-weight: 900;
+    writing-mode: vertical-rl;
+    letter-spacing: 0.1em;
+  }
+
+  /* 右侧 App 截图叠放 */
+  .screenshots {
+    position: absolute;
+    right: 220px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 380px;
+    height: 320px;
+  }
+  .screenshots .shot {
+    position: absolute;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+    border: 1px solid rgba(255,255,255,0.8);
+    object-fit: cover;
+  }
+  .shot-1 {
+    width: 240px;
+    height: 170px;
+    top: 10px;
+    left: 0;
+    transform: rotate(-3deg);
+    z-index: 1;
+  }
+  .shot-2 {
+    width: 220px;
+    height: 155px;
+    top: 80px;
+    left: 140px;
+    transform: rotate(2deg);
+    z-index: 2;
+  }
+  .shot-3 {
+    width: 200px;
+    height: 140px;
+    top: 160px;
+    left: 40px;
+    transform: rotate(-1deg);
+    z-index: 3;
+  }
+
+  /* 底部版本标 */
+  .version {
+    position: absolute;
+    left: 80px;
+    bottom: 40px;
+    font-size: 13px;
+    color: #bbb;
+    font-family: -apple-system, sans-serif;
+    letter-spacing: 0.05em;
+  }
+
+  /* 顶部装饰点 */
+  .dots {
+    position: absolute;
+    top: 40px;
+    right: 60px;
+    display: flex;
+    gap: 8px;
+  }
+  .dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(192,57,43,0.3);
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="left-accent"></div>
+
+  <div class="title-area">
+    <div class="main-title">半卷闲书</div>
+    <div class="subtitle">一个人 + Claude，31 天的开源书房</div>
+    <div class="tagline">
+      阅读 · 标注 · 笔记 · 脑图 · AI<br>
+      五个 App 的事，一个就够
+    </div>
+  </div>
+
+  <div class="screenshots">
+    <img class="shot shot-1" src="../../assets/images/首页1.jpeg" alt="">
+    <img class="shot shot-2" src="../../assets/images/PDF 阅读 + 标注（支持划线、高亮、手写）+笔记（支持markdown、脑图、手写笔记）.jpeg" alt="">
+    <img class="shot shot-3" src="../../assets/images/脑图笔记2.jpeg" alt="">
+  </div>
+
+  <div class="poem-right">半亩方塘一鉴开天光云影共徘徊</div>
+
+  <div class="stamp"><span>半卷</span></div>
+
+  <div class="version">v0.1.0 · macOS · Open Source</div>
+
+  <div class="dots">
+    <span></span><span></span><span></span>
+  </div>
+</div>
+
+</body>
+</html>

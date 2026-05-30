@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拾卷阁 · UI 优化</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600;700;900&family=Noto+Sans+SC:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* 宣纸调色：偏暖米白，墨色，朱砂，淡青 */
+    --paper:        #F7F3EA;
+    --paper-deep:   #EFE8D7;
+    --paper-edge:   #E5DCC4;
+    --ink:          #1C1A17;
+    --ink-soft:     #3D3935;
+    --ink-mute:     #6E6862;
+    --ink-faint:    #9A938A;
+    --ink-ghost:    #C4BCAD;
+    --vermilion:    #A8392C;          /* 朱砂红 */
+    --vermilion-d:  #8C2A1F;
+    --seal:         #B73E2A;          /* 印章红 */
+    --celadon:      #6B8E7F;          /* 青瓷绿 */
+    --indigo:       #3E5266;          /* 黛蓝 */
+    --gold:         #A87C3E;          /* 赭金 */
+    --line:         rgba(28,26,23,.08);
+    --line-strong:  rgba(28,26,23,.16);
+
+    --font-display: "Noto Serif SC", "Songti SC", "STSong", serif;
+    --font-body:    "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
+    --font-latin:   "Cormorant Garamond", "Noto Serif SC", serif;
+    --font-mono:    "JetBrains Mono", "SF Mono", monospace;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;}
+  html,body{background:#2A2724;font-family:var(--font-body);color:var(--ink);}
+
+  /* 整页舞台 */
+  .stage{
+    min-height:100vh;
+    padding:48px 24px 80px;
+    background:
+      radial-gradient(1200px 600px at 20% 0%, rgba(168,57,44,.05), transparent 60%),
+      radial-gradient(900px 500px at 100% 100%, rgba(62,82,102,.06), transparent 60%),
+      #2A2724;
+  }
+
+  .stage-head{
+    max-width:1280px;margin:0 auto 28px;
+    display:flex;align-items:baseline;justify-content:space-between;
+    color:#A89E8E;font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  }
+  .stage-head .dot{display:inline-block;width:6px;height:6px;background:var(--vermilion);border-radius:50%;margin-right:8px;vertical-align:middle;}
+
+  /* 应用窗口 */
+  .app{
+    max-width:1280px;margin:0 auto;
+    background:var(--paper);
+    border-radius:14px;overflow:hidden;
+    box-shadow:
+      0 60px 120px -30px rgba(0,0,0,.55),
+      0 24px 48px -20px rgba(0,0,0,.4),
+      0 0 0 1px rgba(255,255,255,.04);
+    position:relative;
+  }
+
+  /* 宣纸纹理 */
+  .app::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:
+      radial-gradient(circle at 25% 30%, rgba(168,124,62,.04) 0%, transparent 50%),
+      radial-gradient(circle at 75% 70%, rgba(168,124,62,.03) 0%, transparent 50%),
+      repeating-linear-gradient(0deg, rgba(28,26,23,.012) 0px, transparent 1px, transparent 3px),
+      repeating-linear-gradient(90deg, rgba(28,26,23,.012) 0px, transparent 1px, transparent 3px);
+    mix-blend-mode:multiply;
+    z-index:1;
+  }
+
+  /* ============ 顶栏 ============ */
+  .titlebar{
+    height:42px;display:flex;align-items:center;padding:0 16px;
+    background:linear-gradient(180deg, #EFE8D7 0%, #E8E0CC 100%);
+    border-bottom:1px solid var(--paper-edge);
+    position:relative;z-index:2;
+  }
+  .traffic{display:flex;gap:8px;}
+  .traffic span{width:12px;height:12px;border-radius:50%;display:block;}
+  .traffic .r{background:#ED6A5E;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15);}
+  .traffic .y{background:#F4BE4F;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15);}
+  .traffic .g{background:#61C554;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.15);}
+
+  .tabs{display:flex;margin-left:20px;gap:2px;}
+  .tab{
+    display:flex;align-items:center;gap:8px;
+    padding:6px 14px;border-radius:7px 7px 0 0;
+    background:var(--paper);
+    font-family:var(--font-display);font-size:13px;color:var(--ink-soft);
+    border:1px solid var(--paper-edge);border-bottom:none;
+    position:relative;top:4px;
+  }
+  .tab .stamp{
+    width:18px;height:18px;background:var(--seal);color:#FBE9D8;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-display);font-size:11px;font-weight:600;
+    border-radius:2px;letter-spacing:-1px;
+  }
+  .titlebar-r{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--ink-mute);font-family:var(--font-mono);font-size:11px;}
+  .ai-mark{
+    width:22px;height:22px;border-radius:50%;background:var(--vermilion);
+    display:flex;align-items:center;justify-content:center;
+    color:#FBE9D8;font-family:var(--font-display);font-size:12px;font-weight:600;
+  }
+
+  /* ============ 主体布局 ============ */
+  .body{display:grid;grid-template-columns:60px 1fr;position:relative;z-index:2;min-height:820px;}
+
+  /* —— 侧栏 —— */
+  .sidebar{
+    background:linear-gradient(180deg, #EFE8D7 0%, #E8DFC8 100%);
+    border-right:1px solid var(--paper-edge);
+    display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:6px;
+  }
+  .nav-item{
+    width:38px;height:38px;border-radius:9px;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink-mute);position:relative;cursor:pointer;
+    transition:all .2s;
+  }
+  .nav-item svg{width:18px;height:18px;stroke-width:1.6;}
+  .nav-item.active{
+    background:var(--paper);color:var(--vermilion);
+    box-shadow:0 1px 0 rgba(255,255,255,.7) inset, 0 1px 3px rgba(0,0,0,.04);
+  }
+  .nav-item.active::before{
+    content:"";position:absolute;left:-14px;top:50%;transform:translateY(-50%);
+    width:3px;height:18px;background:var(--vermilion);border-radius:0 2px 2px 0;
+  }
+  .nav-item:hover:not(.active){color:var(--ink);background:rgba(255,255,255,.4);}
+  .nav-spacer{flex:1;}
+  .nav-bottom{display:flex;flex-direction:column;gap:6px;}
+
+  /* —— 主内容 —— */
+  .main{padding:36px 56px 48px;position:relative;}
+
+  /* 顶部标题 */
+  .page-head{
+    display:flex;align-items:flex-end;justify-content:space-between;
+    padding-bottom:24px;margin-bottom:32px;
+    border-bottom:1px solid var(--line);
+    position:relative;
+  }
+  .page-head::after{
+    content:"";position:absolute;bottom:-1px;left:0;width:64px;height:1px;background:var(--vermilion);
+  }
+  .page-title{display:flex;align-items:baseline;gap:16px;}
+  .page-title h1{
+    font-family:var(--font-display);font-weight:900;font-size:34px;color:var(--ink);
+    letter-spacing:.04em;line-height:1;
+  }
+  .page-title .seal-sm{
+    width:26px;height:26px;background:var(--seal);color:#FBE9D8;
+    display:inline-flex;align-items:center;justify-content:center;
+    font-family:var(--font-display);font-size:14px;font-weight:600;
+    border-radius:3px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
+    transform:rotate(-2deg);
+  }
+  .page-path{
+    margin-top:8px;color:var(--ink-faint);font-family:var(--font-mono);font-size:11px;letter-spacing:.02em;
+  }
+  .page-path .slash{color:var(--ink-ghost);margin:0 2px;}
+
+  .page-actions{display:flex;gap:10px;}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:9px 18px;border-radius:6px;
+    font-family:var(--font-body);font-size:13px;font-weight:500;
+    cursor:pointer;transition:all .2s;
+    border:1px solid transparent;background:transparent;
+  }
+  .btn svg{width:14px;height:14px;stroke-width:1.8;}
+  .btn-ghost{color:var(--ink-soft);border-color:var(--line-strong);}
+  .btn-ghost:hover{background:rgba(28,26,23,.04);border-color:rgba(28,26,23,.24);}
+  .btn-primary{
+    background:var(--ink);color:var(--paper);
+    box-shadow:0 1px 2px rgba(0,0,0,.1);
+  }
+  .btn-primary:hover{background:#000;}
+
+  /* ============ 日卷诗词卡 ============ */
+  .daily{
+    background:linear-gradient(180deg, #FCFAF3 0%, #F4EDDB 100%);
+    border:1px solid var(--paper-edge);
+    border-radius:8px;padding:36px 48px;margin-bottom:36px;
+    position:relative;overflow:hidden;
+    min-height:280px;
+    display:flex;align-items:stretch;justify-content:space-between;
+  }
+  /* 卡片角落装饰 */
+  .daily::before,.daily::after{
+    content:"";position:absolute;width:36px;height:36px;
+    border:1px solid var(--vermilion);opacity:.5;
+  }
+  .daily::before{top:14px;left:14px;border-right:none;border-bottom:none;}
+  .daily::after{bottom:14px;right:14px;border-left:none;border-top:none;}
+
+  .daily-l{display:flex;flex-direction:column;justify-content:space-between;max-width:46%;}
+
+  .daily-date{
+    display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;
+  }
+  .date-greg{
+    font-family:var(--font-display);font-weight:500;color:var(--ink);font-size:20px;
+    letter-spacing:.02em;
+  }
+  .date-greg .num{font-family:var(--font-latin);font-weight:500;font-style:italic;font-size:24px;color:var(--vermilion);margin-right:2px;}
+  .date-divider{width:1px;height:14px;background:var(--ink-ghost);}
+  .date-lunar{font-family:var(--font-display);color:var(--ink-mute);font-size:15px;}
+  .solar-term{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:3px 12px;background:var(--celadon);color:#F4EDDB;
+    border-radius:3px;font-family:var(--font-display);font-size:12px;font-weight:500;
+    letter-spacing:.1em;
+  }
+  .solar-term::before{content:"";width:4px;height:4px;background:#F4EDDB;border-radius:50%;}
+
+  .daily-meta{margin-top:auto;}
+  .meta-label{
+    font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;color:var(--ink-faint);
+    text-transform:uppercase;margin-bottom:10px;
+  }
+  .author-block{display:flex;align-items:center;gap:14px;}
+  .author-vertical{
+    display:flex;flex-direction:column;
+    font-family:var(--font-display);font-size:18px;color:var(--ink-soft);
+    line-height:1.15;letter-spacing:.08em;font-weight:500;
+  }
+  .author-seal{
+    width:38px;height:38px;background:var(--seal);color:#FBE9D8;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-display);font-size:18px;font-weight:600;
+    border-radius:4px;
+    box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.18);
+    transform:rotate(-3deg);
+  }
+  .poem-title{
+    margin-top:14px;font-family:var(--font-display);color:var(--ink-mute);font-size:13px;letter-spacing:.1em;
+  }
+  .poem-title .work{color:var(--ink-soft);font-weight:500;}
+
+  /* 竖排诗词 */
+  .daily-r{display:flex;align-items:center;gap:18px;}
+  .nav-arrow{
+    width:32px;height:32px;border-radius:50%;
+    border:1px solid var(--line-strong);background:rgba(255,255,255,.4);
+    color:var(--ink-mute);display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:all .2s;
+  }
+  .nav-arrow:hover{background:#fff;color:var(--ink);}
+  .nav-arrow svg{width:14px;height:14px;stroke-width:1.6;}
+
+  .poem{
+    display:flex;flex-direction:row-reverse;gap:14px;
+    font-family:var(--font-display);font-weight:400;
+    font-size:22px;color:var(--ink);
+    line-height:1.5;letter-spacing:.05em;
+  }
+  .poem-col{
+    writing-mode:vertical-rl;text-orientation:upright;
+    padding:6px 4px;
+    position:relative;
+  }
+  .poem-col:first-child{color:var(--vermilion-d);}
+
+  /* ============ 内容区块 ============ */
+  .section-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px;}
+
+  .panel{
+    background:rgba(255,255,255,.45);
+    border:1px solid var(--line);
+    border-radius:6px;padding:22px 24px;
+  }
+  .panel-head{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line);
+  }
+  .panel-title{display:flex;align-items:center;gap:10px;}
+  .panel-title h3{
+    font-family:var(--font-display);font-weight:500;font-size:15px;color:var(--ink);
+    letter-spacing:.06em;
+  }
+  .panel-title .count{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-width:22px;height:18px;padding:0 6px;
+    background:var(--ink);color:var(--paper);
+    font-family:var(--font-mono);font-size:10px;font-weight:500;
+    border-radius:3px;letter-spacing:.04em;
+  }
+  .panel-more{
+    font-family:var(--font-mono);font-size:11px;color:var(--vermilion);
+    letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+    display:inline-flex;align-items:center;gap:4px;
+  }
+  .panel-more svg{width:10px;height:10px;stroke-width:2;}
+
+  /* —— 笔记列表 —— */
+  .note-list{display:flex;flex-direction:column;gap:2px;}
+  .note-item{
+    display:flex;align-items:center;gap:12px;
+    padding:12px 8px;border-radius:4px;cursor:pointer;
+    transition:all .15s;
+  }
+  .note-item:hover{background:rgba(255,255,255,.6);}
+  .note-type{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:42px;height:22px;border-radius:3px;
+    font-family:var(--font-mono);font-size:10px;font-weight:500;
+    letter-spacing:.08em;
+  }
+  .nt-mind{background:#EAE3F5;color:#5E458F;}
+  .nt-pdf{background:#F8E1DC;color:#9E3527;}
+  .nt-epub{background:#DDECDC;color:#3F6B49;}
+  .nt-md{background:#E8E0CB;color:#7A6432;}
+
+  .note-name{
+    flex:1;font-family:var(--font-display);font-size:14px;color:var(--ink-soft);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .note-name strong{font-weight:500;color:var(--ink);}
+  .note-meta{
+    font-family:var(--font-mono);font-size:10px;color:var(--ink-faint);
+    letter-spacing:.04em;
+  }
+  .note-empty{
+    padding:40px 20px;text-align:center;color:var(--ink-faint);font-family:var(--font-display);font-size:13px;
+  }
+  .note-empty .add{
+    display:inline-block;margin-top:10px;color:var(--vermilion);cursor:pointer;
+    border-bottom:1px dashed var(--vermilion);
+  }
+
+  /* ============ 批注 ============ */
+  .annotations{
+    background:rgba(255,255,255,.45);
+    border:1px solid var(--line);
+    border-radius:6px;padding:22px 24px;
+  }
+  .anno-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;}
+  .anno-item{
+    border-left:3px solid var(--vermilion);
+    padding:4px 0 4px 16px;
+    cursor:pointer;
+    transition:transform .2s;
+  }
+  .anno-item:hover{transform:translateX(2px);}
+  .anno-item.celadon{border-color:var(--celadon);}
+  .anno-item.indigo{border-color:var(--indigo);}
+  .anno-quote{
+    font-family:var(--font-display);font-size:14px;color:var(--ink);
+    font-weight:500;line-height:1.5;margin-bottom:8px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .anno-quote em{font-style:italic;color:var(--ink-soft);font-family:var(--font-latin);font-weight:400;}
+  .anno-src{
+    font-family:var(--font-display);font-size:11px;color:var(--ink-mute);
+    line-height:1.5;margin-bottom:4px;
+  }
+  .anno-src .work{color:var(--ink-soft);}
+  .anno-loc{font-family:var(--font-mono);font-size:10px;color:var(--ink-faint);letter-spacing:.08em;}
+
+  /* ============ 状态栏 ============ */
+  .statusbar{
+    border-top:1px solid var(--paper-edge);
+    background:linear-gradient(180deg, #EFE8D7 0%, #E5DCC4 100%);
+    padding:7px 20px;display:flex;align-items:center;justify-content:space-between;
+    font-family:var(--font-mono);font-size:10px;color:var(--ink-mute);letter-spacing:.06em;
+    position:relative;z-index:2;
+  }
+  .statusbar .l,.statusbar .r{display:flex;align-items:center;gap:18px;}
+  .statusbar .l span{display:inline-flex;align-items:center;gap:6px;}
+  .statusbar .dot{width:6px;height:6px;border-radius:50%;}
+  .statusbar .dot.ok{background:#5BAA68;}
+  .statusbar .term-btn{
+    display:inline-flex;align-items:center;gap:6px;padding:3px 10px;
+    background:var(--ink);color:var(--paper);border-radius:3px;
+    position:relative;
+  }
+  .statusbar .term-btn .badge{
+    position:absolute;top:-4px;right:-4px;width:14px;height:14px;
+    background:var(--vermilion);color:#fff;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-size:9px;
+  }
+
+  /* 设计稿说明小条 */
+  .caption{
+    max-width:1280px;margin:20px auto 0;
+    color:#7A716A;font-family:var(--font-mono);font-size:10.5px;letter-spacing:.08em;
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .caption .right{color:#A89E8E;}
+
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="stage-head">
+      <div><span class="dot"></span>SHIJUAN GE · REDESIGN PROPOSAL</div>
+      <div>v 2.0 / 2026.05.21</div>
+    </div>
+
+    <div class="app">
+      <!-- ============ 顶栏 ============ -->
+      <div class="titlebar">
+        <div class="traffic">
+          <span class="r"></span><span class="y"></span><span class="g"></span>
+        </div>
+        <div class="tabs">
+          <div class="tab">
+            <span class="stamp">阁</span>
+            <span>拾卷阁</span>
+          </div>
+        </div>
+        <div class="titlebar-r">
+          <span>⌘ K  搜索</span>
+          <div class="ai-mark">智</div>
+        </div>
+      </div>
+
+      <!-- ============ 主体 ============ -->
+      <div class="body">
+        <!-- 侧栏 -->
+        <aside class="sidebar">
+          <div class="nav-item active" title="首页">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 3l9 9M5 10v10h14V10"/></svg>
+          </div>
+          <div class="nav-item" title="书架">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h4v16H4zM10 4h4v16h-4zM16 5l3 .5L17 21l-3-.5z"/></svg>
+          </div>
+          <div class="nav-item" title="笔记">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20l4-1L19 8a2 2 0 00-3-3L5 16l-1 4z"/></svg>
+          </div>
+          <div class="nav-item" title="云端">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 18a4 4 0 010-8 5 5 0 0110-1 4 4 0 01-1 8H7z"/></svg>
+          </div>
+          <div class="nav-item" title="插件">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3v4a2 2 0 01-2 2H3v4h4a2 2 0 012 2v4h4v-4a2 2 0 012-2h4V9h-4a2 2 0 01-2-2V3z"/></svg>
+          </div>
+          <div class="nav-spacer"></div>
+          <div class="nav-bottom">
+            <div class="nav-item" title="标签">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12l9-9 9 9-9 9z"/><circle cx="9" cy="9" r="1.5"/></svg>
+            </div>
+            <div class="nav-item" title="设置">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19 12l2 2-2 2-2-1-1 2 1 2-2 2-2-2 1-2-2-1-2 1-2-2 1-2-2-1-2 2v-4l2-1-1-2 2-2 2 1 1-2-1-2 2-2 2 2-1 2 2 1 2-1 2 2-1 2 2 1z"/></svg>
+            </div>
+          </div>
+        </aside>
+
+        <!-- 主内容 -->
+        <main class="main">
+          <!-- 标题栏 -->
+          <div class="page-head">
+            <div>
+              <div class="page-title">
+                <h1>拾卷阁</h1>
+                <span class="seal-sm">藏</span>
+              </div>
+              <div class="page-path">
+                ~<span class="slash">/</span>Users<span class="slash">/</span>chixiao<span class="slash">/</span>Documents<span class="slash">/</span>banjuan&nbsp;notes<span class="slash">/</span><span style="color:var(--vermilion)">拾卷阁</span>
+              </div>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn-ghost">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+                导入文档
+              </button>
+              <button class="btn btn-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 21l4-1L18 9a2 2 0 00-3-3L4 17l-1 4z"/></svg>
+                新建笔记
+              </button>
+            </div>
+          </div>
+
+          <!-- 日卷 -->
+          <div class="daily">
+            <div class="daily-l">
+              <div>
+                <div class="daily-date">
+                  <span class="date-greg"><span class="num">5</span>月<span class="num">21</span>日 · 周四</span>
+                  <span class="date-divider"></span>
+                  <span class="date-lunar">丙午年 四月初五</span>
+                  <span class="solar-term">小满</span>
+                </div>
+                <div class="poem-title">
+                  今日卷 · <span class="work">《定风波·莫听穿林打叶声》</span>
+                </div>
+              </div>
+              <div class="daily-meta">
+                <div class="meta-label">— Author</div>
+                <div class="author-block">
+                  <div class="author-vertical">蘇<span>軾</span></div>
+                  <div class="author-seal">宋</div>
+                  <div style="font-family:var(--font-display);font-size:12px;color:var(--ink-faint);line-height:1.5;">
+                    1037 — 1101<br>
+                    <span style="color:var(--ink-mute)">字子瞻 · 号东坡居士</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="daily-r">
+              <div class="nav-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 6l-6 6 6 6"/></svg>
+              </div>
+              <div class="poem">
+                <div class="poem-col">莫聽穿林打葉聲</div>
+                <div class="poem-col">何妨吟嘯且徐行</div>
+                <div class="poem-col">竹杖芒鞋輕勝馬</div>
+                <div class="poem-col">誰怕</div>
+                <div class="poem-col">一蓑煙雨任平生</div>
+              </div>
+              <div class="nav-arrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- 双栏 -->
+          <div class="section-grid">
+            <!-- 最近更新笔记 -->
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title">
+                  <h3>最近更新笔记</h3>
+                  <span class="count">1</span>
+                </div>
+                <a class="panel-more">查看全部
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+                </a>
+              </div>
+              <div class="note-list">
+                <div class="note-item">
+                  <div class="note-type nt-mind">MIND</div>
+                  <div class="note-name"><strong>东坡先生</strong> · 人物年表与诗文索引</div>
+                  <div class="note-meta">2026.05.20</div>
+                </div>
+                <div class="note-empty">
+                  尚有余笺待书<br>
+                  <span class="add">+ 新建一则笔记</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 最近阅读文档 -->
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title">
+                  <h3>最近阅读文档</h3>
+                  <span class="count">92</span>
+                </div>
+                <a class="panel-more">查看全部
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+                </a>
+              </div>
+              <div class="note-list">
+                <div class="note-item">
+                  <div class="note-type nt-pdf">PDF</div>
+                  <div class="note-name"><strong>1984</strong> · George Orwell</div>
+                  <div class="note-meta">2026.05.21</div>
+                </div>
+                <div class="note-item">
+                  <div class="note-type nt-epub">EPUB</div>
+                  <div class="note-name"><strong>Harry Potter</strong> and the Chamber of Secrets</div>
+                  <div class="note-meta">2026.05.21</div>
+                </div>
+                <div class="note-item">
+                  <div class="note-type nt-md">MD</div>
+                  <div class="note-name">2026-04-25-<strong>sync-architecture-design</strong></div>
+                  <div class="note-meta">2026.05.21</div>
+                </div>
+                <div class="note-item">
+                  <div class="note-type nt-pdf">PDF</div>
+                  <div class="note-name"><strong>缠论</strong> (缠中说禅) · Z-Library</div>
+                  <div class="note-meta">2026.05.20</div>
+                </div>
+                <div class="note-item">
+                  <div class="note-type nt-md">MD</div>
+                  <div class="note-name">2026-04-25-<strong>banjuan-design</strong></div>
+                  <div class="note-meta">2026.05.20</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 批注 -->
+          <div class="annotations">
+            <div class="panel-head" style="margin-bottom:20px;">
+              <div class="panel-title">
+                <h3>最近批注</h3>
+                <span class="count">3</span>
+              </div>
+              <a class="panel-more">查看全部
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+              </a>
+            </div>
+            <div class="anno-grid">
+              <div class="anno-item">
+                <div class="anno-quote"><em>"Dursleys"</em></div>
+                <div class="anno-src"><span class="work">Harry Potter and the Chamber of Secrets</span><br>J. K. Rowling</div>
+                <div class="anno-loc">EPUB · CH 01</div>
+              </div>
+              <div class="anno-item celadon">
+                <div class="anno-quote"><em>"Thousand"</em></div>
+                <div class="anno-src"><span class="work">Harry Potter and the Chamber of Secrets</span><br>J. K. Rowling</div>
+                <div class="anno-loc">EPUB · CH 03</div>
+              </div>
+              <div class="anno-item indigo">
+                <div class="anno-quote"><em>"the face of a man of about forty-five, with a heavy black moustache and rugged-ly handsome features…"</em></div>
+                <div class="anno-src"><span class="work">1984</span> · George Orwell</div>
+                <div class="anno-loc">PDF · P. 04</div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <!-- ============ 状态栏 ============ -->
+      <div class="statusbar">
+        <div class="l">
+          <span><span class="dot ok"></span>本地同步 · 正常</span>
+          <span>92 文档</span>
+          <span>1 笔记</span>
+          <span>3 批注</span>
+        </div>
+        <div class="r">
+          <span>UTF-8</span>
+          <span>MD · EPUB · PDF</span>
+          <span class="term-btn">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-6-6M12 19h8"/></svg>
+            终端
+            <span class="badge">1</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="caption">
+      <div><span style="color:#C7BDA9">设计要点</span> &nbsp; 宣纸底色 · 朱砂点睛 · 宋体显字 · 等宽辅注 · 节气日历 · 文档色码</div>
+      <div class="right">designed with 拙朴 · 1280 × auto</div>
+    </div>
+  </div>
+</body>
+</html>
