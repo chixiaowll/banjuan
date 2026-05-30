@@ -899,8 +899,13 @@ export function registerIpcHandlers() {
     return lanHost ? lanHost.status() : { running: false, url: null, pin: null, port: null }
   })
 
+  app.on('before-quit', () => {
+    if (lanHost) { void lanHost.stop(); lanHost = null }
+  })
+
   // Client side: exchange PIN for token at the peer, then run a full bidirectional sync.
   ipcMain.handle('lan:connectAndSync', async (event, peerUrl: string, pin: string) => {
+    if (!/^https?:\/\//i.test(peerUrl)) throw new Error('PAIR_FAILED:invalid-url')
     const library = getLib(event)
     const base = peerUrl.replace(/\/$/, '')
 
