@@ -75,4 +75,18 @@ describe('lan-host-handler', () => {
       { method: 'GET', path: '/../../etc/passwd', headers: { authorization: basic('secrettoken') } }, ctx)
     expect(res.status).toBe(403)
   })
+
+  it('blocks paths containing a null byte (no unhandled rejection)', async () => {
+    const res = await handleDavRequest(
+      { method: 'GET', path: '/foo\x00bar', headers: { authorization: basic('secrettoken') } }, ctx)
+    expect(res.status).toBe(403)
+  })
+
+  it('PROPFIND Depth:0 returns only the target itself', async () => {
+    const res = await handleDavRequest(
+      { method: 'PROPFIND', path: '/', headers: { authorization: basic('secrettoken'), depth: '0' } }, ctx)
+    expect(res.status).toBe(207)
+    const xml = String(res.body)
+    expect(xml).not.toContain('book.pdf')   // children not listed at Depth:0
+  })
 })

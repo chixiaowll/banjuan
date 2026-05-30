@@ -5,7 +5,7 @@ import { parseBasicAuthPassword, verifyToken } from './lan-pairing.js'
 
 export interface DavRequest {
   method: string
-  path: string                          // URL pathname, already decoded, e.g. "/sub/file.pdf"
+  path: string                          // URL pathname, already percent-decoded, e.g. "/sub/file.pdf"
   headers: Record<string, string>       // lowercased keys
   query?: Record<string, string>
   body?: Uint8Array
@@ -33,11 +33,17 @@ function encodeHref(path: string): string {
   return path.split('/').map(seg => seg === '' ? '' : encodeURIComponent(seg)).join('/')
 }
 
-/** Resolve a request path to an absolute fs path, or null if it escapes rootPath. */
+/**
+ * Resolve an (already percent-decoded) request path to an absolute fs path,
+ * or null if it would escape rootPath or contains a null byte.
+ */
 function resolveSafe(rootPath: string, reqPath: string): string | null {
-  const rel = decodeURIComponent(reqPath).replace(/^\/+/, '')
+  const rel = reqPath.replace(/^\/+/, '')
+  if (rel.includes('\x00')) return null
   if (rel.split('/').some(seg => seg === '..')) return null
   const abs = rel === '' ? rootPath : join(rootPath, rel)
+  // Defense-in-depth: ensure the resolved path stays within rootPath.
+  if (abs !== rootPath && !abs.startsWith(rootPath + '/')) return null
   return abs
 }
 
@@ -46,6 +52,15 @@ function unauthorized(): DavResponse {
 }
 
 export async function handleDavRequest(req: DavRequest, ctx: DavContext): Promise<DavResponse> {
+  try {
+    return await routeDavRequest(req, ctx)
+  } catch {
+    // Never leak an unhandled rejection to the socket — fail closed with 500.
+    return { status: 500, headers: {}, body: 'Internal Error' }
+  }
+}
+
+async function routeDavRequest(req: DavRequest, ctx: DavContext): Promise<DavResponse> {
   const pairPath = ctx.pairPath ?? '/.banjuan-pair'
   const method = req.method.toUpperCase()
 
@@ -79,16 +94,19 @@ export async function handleDavRequest(req: DavRequest, ctx: DavContext): Promis
       return { status: 200, headers: { 'Content-Length': String(stat.size), 'Content-Type': 'application/octet-stream' }, body: data }
     }
     case 'PUT': {
+      // Deliberate RFC 4918 deviation: create missing parents (recursive) for sync robustness.
       await fs.mkdir(dirname(abs), { recursive: true })
       await fs.writeFile(abs, req.body ?? new Uint8Array())
       return { status: 201, headers: {} }
     }
     case 'DELETE': {
+      // Deliberate RFC 4918 deviation: idempotent — 204 even if the target is already gone.
       if (await fs.exists(abs)) await fs.remove(abs)
       return { status: 204, headers: {} }
     }
     case 'MKCOL': {
       if (await fs.exists(abs)) return { status: 405, headers: {}, body: 'Exists' }
+      // Deliberate RFC 4918 deviation: create missing parents (recursive) for sync robustness.
       await fs.mkdir(abs, { recursive: true })
       return { status: 201, headers: {} }
     }
@@ -108,17 +126,18 @@ async function propfind(reqPath: string, abs: string, depth: string, ctx: DavCon
   const basePath = reqPath.endsWith('/') ? reqPath : reqPath + '/'
   const responses: string[] = []
 
-  // Determine whether the target itself is a directory by listing its parent or trying readdir.
+  // readdirWithTypes throws on a file; that discriminates dir-vs-file in one call,
+  // and its result is reused below for the children listing.
   let selfIsDir = false
-  let selfMtime = 0
-  let selfSize = 0
+  let entries: Array<{ name: string; isDirectory: boolean }> = []
   try {
-    // readdirWithTypes throws on a file; use that to discriminate, then stat for metadata.
-    await fs.readdirWithTypes(abs)
+    entries = await fs.readdirWithTypes(abs)
     selfIsDir = true
   } catch {
     selfIsDir = false
   }
+  let selfMtime = 0
+  let selfSize = 0
   try {
     const st = await fs.stat(abs)
     selfMtime = st.mtime
@@ -130,8 +149,6 @@ async function propfind(reqPath: string, abs: string, depth: string, ctx: DavCon
 
   // Children (Depth: 1 only, and only for directories)
   if (selfIsDir && depth !== '0') {
-    let entries: Array<{ name: string; isDirectory: boolean }> = []
-    try { entries = await fs.readdirWithTypes(abs) } catch { entries = [] }
     for (const e of entries) {
       if (isExcluded(e.name, e.isDirectory)) continue
       const childAbs = join(abs, e.name)
@@ -151,6 +168,8 @@ async function propfind(reqPath: string, abs: string, depth: string, ctx: DavCon
 function entryXml(href: string, isDir: boolean, mtime: number, size: number): string {
   const lastmod = new Date(mtime || 0).toUTCString()
   const resourcetype = isDir ? '<d:collection/>' : ''
+  // getcontentlength is undefined for collections per RFC 4918 — omit it for directories.
+  const contentLength = isDir ? '' : `        <d:getcontentlength>${size}</d:getcontentlength>\n`
   return (
     `  <d:response>\n` +
     `    <d:href>${xmlEscape(encodeHref(href))}</d:href>\n` +
@@ -158,7 +177,7 @@ function entryXml(href: string, isDir: boolean, mtime: number, size: number): st
     `      <d:prop>\n` +
     `        <d:resourcetype>${resourcetype}</d:resourcetype>\n` +
     `        <d:getlastmodified>${lastmod}</d:getlastmodified>\n` +
-    `        <d:getcontentlength>${size}</d:getcontentlength>\n` +
+    contentLength +
     `      </d:prop>\n` +
     `      <d:status>HTTP/1.1 200 OK</d:status>\n` +
     `    </d:propstat>\n` +
