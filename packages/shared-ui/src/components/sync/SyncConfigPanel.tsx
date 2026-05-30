@@ -50,10 +50,14 @@ export default function SyncConfigPanel({ onClose }: Props) {
       if (hostStatus.running) {
         await api.lan.stopHost()
         setHostStatus({ running: false, url: null, pin: null })
+        setLanMsg('')
       } else {
         const s = await api.lan.startHost()
         setHostStatus({ running: s.running, url: s.url, pin: s.pin })
+        setLanMsg('')
       }
+    } catch (e: any) {
+      setLanMsg(`开启共享失败:${e?.message ?? String(e)}`)
     } finally {
       setLanBusy(false)
     }
