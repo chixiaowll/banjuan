@@ -210,6 +210,18 @@ const api = {
     stubUpload: (docId: string) => ipcRenderer.invoke('sync:stubUpload', docId),
     getDocStatus: (docId: string) => ipcRenderer.invoke('sync:getDocStatus', docId),
   },
+  lan: {
+    startHost: () => ipcRenderer.invoke('lan:startHost'),
+    stopHost: () => ipcRenderer.invoke('lan:stopHost'),
+    getHostStatus: () => ipcRenderer.invoke('lan:getHostStatus'),
+    connectAndSync: (peerUrl: string, pin: string, onProgress?: (p: any) => void) => {
+      const handler = onProgress ? (_e: any, p: any) => onProgress(p) : null
+      if (handler) ipcRenderer.on('sync:progress', handler)
+      return ipcRenderer.invoke('lan:connectAndSync', peerUrl, pin).finally(() => {
+        if (handler) ipcRenderer.removeListener('sync:progress', handler)
+      })
+    },
+  },
   export: {
     markdown: (input: { title: string; markdown: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }) =>
       ipcRenderer.invoke('export:markdown', input) as Promise<string | null>,
