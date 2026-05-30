@@ -64,6 +64,11 @@
 </p>
 <p align="center"><em>Markdown 笔记 — 大纲导航、关联引用、富文本编辑</em></p>
 
+<p align="center">
+  <img src="images/导出笔记.jpeg" width="720" alt="Batch export">
+</p>
+<p align="center"><em>批量导出 — 后台进程导出，不阻塞浏览；进度面板可累加、像下载列表</em></p>
+
 ### Mind Map
 
 <p align="center">
@@ -93,9 +98,14 @@
 ### AI Integration
 
 <p align="center">
+  <img src="images/Claude 插件2.jpeg" width="720" alt="Claude assistant reading a PDF">
+</p>
+<p align="center"><em>Claude 助手 — 边读 PDF 边问答，感知当前页内容，按页/章读取正文</em></p>
+
+<p align="center">
   <img src="images/Claude 插件.jpeg" width="720" alt="Claude AI plugin">
 </p>
-<p align="center"><em>Claude 插件 — AI 助手直接访问书房内容</em></p>
+<p align="center"><em>Claude 插件 — AI 助手直接访问书房内容（搜索、笔记、脑图、标签等）</em></p>
 
 <p align="center">
   <img src="images/命令行功能.jpeg" width="720" alt="CLI commands">
