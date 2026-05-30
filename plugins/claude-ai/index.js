@@ -189,26 +189,70 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
     }
   }
 
-  buildContextPrefix(context) {
+  getApiBase() {
+    const port = this.getApiPort()
+    return port ? `http://127.0.0.1:${port}` : null
+  }
+
+  async fetchPageText(docId, page) {
+    const base = this.getApiBase()
+    if (!base) return null
+    try {
+      const res = await fetch(`${base}/api/documents/${encodeURIComponent(docId)}/text?page=${page}`)
+      if (!res.ok) return null
+      const data = await res.json()
+      return data.pages?.[0]?.text || null
+    } catch {
+      return null
+    }
+  }
+
+  // Builds the context block prepended to the user's message. This is written
+  // for the LLM: it states what the user has open, where they are, the text of
+  // the page they're reading, and what they've selected — with ids so the model
+  // can act via tools (read_document, read_note, update_note, ...).
+  async buildContextPrefix(context) {
     if (!context || Object.keys(context).length === 0) return ''
-    const parts = []
-    if (context.view) parts.push(`Current view: ${context.view}`)
-    if (context.document) {
-      const d = context.document
-      parts.push(`Open document: "${d.title}"${d.authors?.length ? ` by ${d.authors.join(', ')}` : ''} (${d.type})`)
+    const lines = []
+
+    if (context.openDocuments?.length) {
+      lines.push(`Open documents: ${context.openDocuments.map(d => `"${d.title}" (id: ${d.id}, ${d.type})`).join('; ')}`)
     }
-    if (context.note) {
-      const n = context.note
-      parts.push(`Open note: "${n.title}" (type: ${n.type || 'markdown'})`)
+    if (context.openNotes?.length) {
+      lines.push(`Open notes: ${context.openNotes.map(n => `"${n.title}" (id: ${n.id}, ${n.type})`).join('; ')}`)
     }
-    if (context.currentPage) {
-      parts.push(`Current page: ${context.currentPage}${context.totalPages ? ` of ${context.totalPages}` : ''}`)
+
+    if (context.activeDocument) {
+      const d = context.activeDocument
+      let line = `Currently viewing: "${d.title}" (id: ${d.id}, ${d.type}`
+      if (d.authors?.length) line += `, by ${d.authors.join(', ')}`
+      line += ')'
+      if (d.currentPage) line += ` — page ${d.currentPage}${d.totalPages ? ` of ${d.totalPages}` : ''}`
+      lines.push(line)
+      if (d.id && d.currentPage && d.type === 'pdf') {
+        const text = await this.fetchPageText(d.id, d.currentPage)
+        if (text) {
+          const clipped = text.length > 4000 ? text.slice(0, 4000) + ' …(truncated)' : text
+          lines.push(`Text of the current page (${d.currentPage}):\n"""\n${clipped}\n"""`)
+        }
+      }
+    } else if (context.activeNote) {
+      const n = context.activeNote
+      lines.push(`Currently editing note: "${n.title}" (id: ${n.id}, ${n.type})`)
     }
+
     if (context.selectedText) {
-      parts.push(`Selected text: "${context.selectedText}"`)
+      lines.push(`The user has selected this text${context.selectedPage ? ` (page ${context.selectedPage})` : ''}:\n"""\n${context.selectedText}\n"""`)
     }
-    if (parts.length === 0) return ''
-    return `[App context: ${parts.join(' | ')}]\n\n`
+
+    if (lines.length === 0) return ''
+    return [
+      '[Current app context — the user is working in Banjuan right now.',
+      'Use the ids below with tools (read_document for more pages, read_note, update_note, assign_tags, etc.) when relevant.]',
+      ...lines,
+      '',
+      '',
+    ].join('\n')
   }
 
   async runClaude(message, context) {
@@ -242,7 +286,10 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
       '- create_note / update_note: Create new notes or edit existing ones',
       '- list_documents / get_document: Browse the document library',
       '- get_annotations: Read highlights and annotations on documents',
-      'Use these tools proactively when the user asks about their documents, notes, or wants you to create/edit content.',
+      '- get_mindmap / create_mindmap / add_mindmap_node / update_mindmap_node / delete_mindmap_node: Build and edit mindmaps. Create one, then add child nodes (omit parentId to attach to the root).',
+      '- list_tags / assign_tags / unassign_tag: Organize notes, mindmaps, and documents with tags.',
+      '- list_note_folders / create_note_folder / move_note: Organize notes into folders.',
+      'Use these tools proactively when the user asks about their documents, notes, or wants you to create/edit/organize content.',
       'When creating notes, format content as BlockNote JSON blocks.',
       'Simple paragraph: [{"type":"paragraph","content":[{"type":"text","text":"Your text"}]}]',
       'Heading: [{"type":"heading","props":{"level":2},"content":[{"type":"text","text":"Title"}]}]',
@@ -250,7 +297,7 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
     ].join('\n')
     args.push('--system-prompt', systemPrompt)
 
-    const contextPrefix = this.buildContextPrefix(context)
+    const contextPrefix = await this.buildContextPrefix(context)
     args.push(contextPrefix + message)
 
     const env = { ...process.env }

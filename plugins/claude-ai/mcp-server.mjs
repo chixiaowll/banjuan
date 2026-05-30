@@ -61,6 +61,16 @@ async function apiPut(path, body) {
   return res.json()
 }
 
+async function apiDelete(path) {
+  if (!BASE) throw new Error('Banjuan app is not running')
+  const res = await fetch(`${BASE}${path}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`API ${res.status}: ${text}`)
+  }
+  return res.json()
+}
+
 function blocksToMarkdown(blocks) {
   if (!Array.isArray(blocks)) return ''
   const lines = []
@@ -231,11 +241,24 @@ const TOOLS = [
   },
   {
     name: 'get_document',
-    description: 'Get document metadata by ID (title, authors, path, type).',
+    description: 'Get document metadata by ID (title, authors, path, type). Use read_document to read the actual contents.',
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Document ID' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'read_document',
+    description: 'Read the extracted text of a PDF document, by page range. Returns { numPages, from, to, pages: [{page, text}] }. Only PDFs are supported. Max 25 pages per call — for long documents, paginate by calling again with a higher fromPage. Tip: read a few pages first to find the relevant section before reading more.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Document ID' },
+        fromPage: { type: 'number', description: 'First page to read (1-based, default 1)' },
+        toPage: { type: 'number', description: 'Last page to read, inclusive. Defaults to fromPage (a single page).' },
       },
       required: ['id'],
     },
@@ -250,6 +273,123 @@ const TOOLS = [
         page: { type: 'number', description: 'Filter by page number (optional)' },
       },
       required: ['docId'],
+    },
+  },
+  // --- Mindmaps ---
+  {
+    name: 'get_mindmap',
+    description: 'Get a mindmap with all its nodes (id, title, parentId) and edges, plus a readable outline. Use this to inspect a mindmap before editing it.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', description: 'Mindmap note ID' } },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'create_mindmap',
+    description: 'Create a new, empty mindmap. It is created with a single root node. Returns the mindmap id and the rootNodeId — add child nodes with add_mindmap_node.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Mindmap title (also the root node label)' },
+        folder: { type: 'string', description: 'Folder path (optional)' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'add_mindmap_node',
+    description: 'Add a node to a mindmap. If parentId is omitted, the node is attached to the root. Returns the new node (with its id).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mindmapId: { type: 'string', description: 'Mindmap note ID' },
+        title: { type: 'string', description: 'Node label/text' },
+        parentId: { type: 'string', description: 'Parent node ID (optional; defaults to the root node)' },
+        notes: { type: 'string', description: 'Longer note text attached to the node (optional)' },
+      },
+      required: ['mindmapId', 'title'],
+    },
+  },
+  {
+    name: 'update_mindmap_node',
+    description: 'Update a mindmap node\'s title and/or notes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        nodeId: { type: 'string', description: 'Node ID' },
+        title: { type: 'string', description: 'New label (optional)' },
+        notes: { type: 'string', description: 'New note text (optional)' },
+      },
+      required: ['nodeId'],
+    },
+  },
+  {
+    name: 'delete_mindmap_node',
+    description: 'Delete a mindmap node (and its descendants).',
+    inputSchema: {
+      type: 'object',
+      properties: { nodeId: { type: 'string', description: 'Node ID' } },
+      required: ['nodeId'],
+    },
+  },
+  // --- Tags ---
+  {
+    name: 'list_tags',
+    description: 'List all tags in the library.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'assign_tags',
+    description: 'Assign one or more tags (by name) to a note, mindmap, or document. Tags that do not exist yet are created automatically.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        targetId: { type: 'string', description: 'Note / mindmap / document ID' },
+        targetType: { type: 'string', enum: ['note', 'mindmap', 'document'], description: 'Type of the target' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Tag names to assign' },
+      },
+      required: ['targetId', 'targetType', 'tags'],
+    },
+  },
+  {
+    name: 'unassign_tag',
+    description: 'Remove a tag (by name) from a note, mindmap, or document.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        targetId: { type: 'string', description: 'Note / mindmap / document ID' },
+        targetType: { type: 'string', enum: ['note', 'mindmap', 'document'], description: 'Type of the target' },
+        tagName: { type: 'string', description: 'Tag name to remove' },
+      },
+      required: ['targetId', 'targetType', 'tagName'],
+    },
+  },
+  // --- Folders & organization ---
+  {
+    name: 'list_note_folders',
+    description: 'List all note folder paths in the library.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'create_note_folder',
+    description: 'Create a note folder. Use a slash-separated path for nested folders (e.g. "Research/Papers").',
+    inputSchema: {
+      type: 'object',
+      properties: { path: { type: 'string', description: 'Folder path' } },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'move_note',
+    description: 'Move a note to a folder. Pass an empty string to move it to the library root.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Note ID' },
+        folder: { type: 'string', description: 'Target folder path ("" for root)' },
+      },
+      required: ['id', 'folder'],
     },
   },
 ]
@@ -307,11 +447,68 @@ async function handleToolCall(name, args) {
     }
     case 'get_document':
       return await apiCall(`/api/documents/${encodeURIComponent(args.id)}`)
+    case 'read_document': {
+      const params = new URLSearchParams()
+      if (args.fromPage != null) params.set('from', String(args.fromPage))
+      if (args.toPage != null) params.set('to', String(args.toPage))
+      const qs = params.toString()
+      return await apiCall(`/api/documents/${encodeURIComponent(args.id)}/text${qs ? '?' + qs : ''}`)
+    }
     case 'get_annotations': {
       const params = new URLSearchParams({ docId: args.docId })
       if (args.page != null) params.set('page', String(args.page))
       return await apiCall(`/api/annotations?${params}`)
     }
+    // --- Mindmaps ---
+    case 'get_mindmap': {
+      const mm = await apiCall(`/api/mindmaps/${encodeURIComponent(args.id)}`)
+      return {
+        id: mm.id, title: mm.title,
+        outline: mindmapToOutline(mm.nodes, mm.edges),
+        nodes: (mm.nodes || []).map(n => ({ id: n.id, title: n.title, parentId: n.parentId ?? null, notes: n.notes ?? undefined })),
+      }
+    }
+    case 'create_mindmap': {
+      const mm = await apiPost('/api/mindmaps', { title: args.title, folder: args.folder })
+      let rootNodeId = null
+      try {
+        const full = await apiCall(`/api/mindmaps/${encodeURIComponent(mm.id)}`)
+        rootNodeId = (full.nodes || []).find(n => !n.parentId)?.id ?? null
+      } catch {}
+      return { id: mm.id, title: mm.title, rootNodeId }
+    }
+    case 'add_mindmap_node': {
+      let parentId = args.parentId
+      if (!parentId) {
+        const full = await apiCall(`/api/mindmaps/${encodeURIComponent(args.mindmapId)}`)
+        parentId = (full.nodes || []).find(n => !n.parentId)?.id ?? null
+      }
+      return await apiPost(`/api/mindmaps/${encodeURIComponent(args.mindmapId)}/nodes`, {
+        title: args.title, parentId, notes: args.notes,
+      })
+    }
+    case 'update_mindmap_node': {
+      const updates = {}
+      if (args.title != null) updates.title = args.title
+      if (args.notes != null) updates.notes = args.notes
+      return await apiPut(`/api/mindmaps/nodes/${encodeURIComponent(args.nodeId)}`, updates)
+    }
+    case 'delete_mindmap_node':
+      return await apiDelete(`/api/mindmaps/nodes/${encodeURIComponent(args.nodeId)}`)
+    // --- Tags ---
+    case 'list_tags':
+      return await apiCall('/api/tags')
+    case 'assign_tags':
+      return await apiPost('/api/tags/assign', { targetId: args.targetId, targetType: args.targetType, tags: args.tags })
+    case 'unassign_tag':
+      return await apiPost('/api/tags/unassign', { targetId: args.targetId, targetType: args.targetType, tagName: args.tagName })
+    // --- Folders & organization ---
+    case 'list_note_folders':
+      return await apiCall('/api/notes/dirs')
+    case 'create_note_folder':
+      return await apiPost('/api/notes/dirs', { path: args.path })
+    case 'move_note':
+      return await apiPost(`/api/notes/${encodeURIComponent(args.id)}/move`, { folder: args.folder })
     default:
       throw new Error(`Unknown tool: ${name}`)
   }

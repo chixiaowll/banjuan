@@ -172,22 +172,50 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     return () => document.removeEventListener('notes-changed', syncTabTitles)
   }, [tabs, tabData])
 
-  // Update global context for plugins
+  // Live reading state reported by viewers, keyed so it survives tab switches.
+  const [pageByDoc, setPageByDoc] = useState<Record<string, { currentPage?: number; totalPages?: number }>>({})
+  const [selection, setSelection] = useState<{ text?: string; page?: number; docId?: string }>({})
+
+  // Assemble the context handed to plugins — and thence to the AI assistant.
+  // Single source of truth, rebuilt whenever tabs, the active tab, or the live
+  // reading state change. Shaped for an LLM: what's open, what's active, where
+  // the user is (page), and what they've selected.
   useEffect(() => {
     const activeTab = tabs.find(t => t.id === activeTabId)
-    const data = activeTab ? tabData.get(activeTab.id) : null
-    const base: Record<string, any> = {
+    const summarize = (t: Tab) => {
+      const d = tabData.get(t.id)
+      return d ? { id: d.id, title: d.title, type: d.type } : null
+    }
+    const openDocuments = tabs.filter(t => t.type === 'document').map(summarize).filter(Boolean)
+    const openNotes = tabs.filter(t => t.type === 'note').map(summarize).filter(Boolean)
+
+    const ctx: Record<string, any> = {
       view: activeTab?.type || 'library',
-      title: activeTab?.title || libraryName,
+      libraryName,
+      openDocuments,
+      openNotes,
     }
-    if (activeTab?.type === 'document' && data) {
-      base.document = { id: data.id, title: data.title, authors: data.authors, type: data.type }
+    if (activeTab?.type === 'document') {
+      const d = tabData.get(activeTab.id)
+      if (d) {
+        const pg = pageByDoc[d.id] || {}
+        ctx.activeDocument = {
+          id: d.id, title: d.title, authors: d.authors, type: d.type,
+          currentPage: pg.currentPage, totalPages: pg.totalPages,
+        }
+      }
     }
-    if (activeTab?.type === 'note' && data) {
-      base.note = { id: data.id, title: data.title, type: data.type }
+    if (activeTab?.type === 'note') {
+      const d = tabData.get(activeTab.id)
+      if (d) ctx.activeNote = { id: d.id, title: d.title, type: d.type }
     }
-    ;(window as any).__banjuanContext = base
-  }, [activeTabId, tabs, tabData, libraryName])
+    if (selection.text) {
+      ctx.selectedText = selection.text
+      ctx.selectedPage = selection.page
+      ctx.selectedFromDocId = selection.docId
+    }
+    ;(window as any).__banjuanContext = ctx
+  }, [activeTabId, tabs, tabData, libraryName, pageByDoc, selection])
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -196,13 +224,23 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     })
   }, [activeTabId])
 
-  // Listen for context updates from child components (page changes, selections)
+  // Listen for context updates from viewers (page changes, text selections).
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail
       if (!detail) return
-      const ctx = (window as any).__banjuanContext || {}
-      ;(window as any).__banjuanContext = { ...ctx, ...detail }
+      if (detail.docId && (detail.currentPage != null || detail.totalPages != null)) {
+        setPageByDoc(prev => ({
+          ...prev,
+          [detail.docId]: { currentPage: detail.currentPage, totalPages: detail.totalPages },
+        }))
+      }
+      // selectedText is set to a string on select, and null when cleared.
+      if (detail.selectedText !== undefined) {
+        setSelection(detail.selectedText
+          ? { text: detail.selectedText, page: detail.selectedPage, docId: detail.docId }
+          : {})
+      }
     }
     document.addEventListener('banjuan:context-update', handler)
     return () => document.removeEventListener('banjuan:context-update', handler)

@@ -33,6 +33,17 @@ extraResources:
     to: cli/
     filter:
       - "**/*"
+  - from: ../../plugins/
+    to: plugins/
+    filter:
+      - "**/*"
+      - "!**/.runtime/**"
+      - "!**/node_modules/**"
+      - "!**/config.json"
+  # pdfjs legacy build for server-side PDF text extraction (loaded at runtime by
+  # the main process; not bundled because vite breaks its Node self-polyfill).
+  - from: node_modules/pdfjs-dist/legacy/build/pdf.mjs
+    to: pdfjs/pdf.mjs
 extraMetadata:
   main: dist/main/index.js
 mac:
