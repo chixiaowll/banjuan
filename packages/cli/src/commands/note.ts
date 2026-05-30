@@ -1,19 +1,65 @@
 import { Command } from 'commander'
 import chalk from 'chalk'
+import { readFileSync } from 'node:fs'
+import { resolve, dirname } from 'node:path'
 import { apiGet, apiPost, apiPut, apiDelete } from '../lib.js'
 import { outputJson, outputTable, outputItem } from '../output.js'
 
 export const noteCmd = new Command('note').description('note management')
 
+/** Read all of stdin (used when content is piped/redirected, e.g. `... < file.md`). */
+function readStdin(): Promise<string> {
+  return new Promise((resolve) => {
+    let data = ''
+    process.stdin.setEncoding('utf8')
+    process.stdin.on('data', (chunk) => { data += chunk })
+    process.stdin.on('end', () => resolve(data))
+  })
+}
+
 noteCmd
   .command('create')
-  .description('create a note')
+  .description('create a note, optionally with markdown content')
   .argument('<title>', 'note title')
   .option('--doc <doc-id>', 'linked document ID')
   .option('--folder <folder>', 'folder path')
-  .action(async (title: string, opts: { doc?: string; folder?: string }) => {
-    const note = await apiPost('/api/notes', { title, docId: opts.doc, folder: opts.folder })
-    console.log(chalk.green(`✓ Created note: ${note.title} (${note.id})`))
+  .option('--content <markdown>', 'note content as a markdown string')
+  .option('--file <path>', 'read note content from a markdown file')
+  .addHelpText('after', `
+Content can be provided three ways (precedence: --content > --file > stdin):
+  banjuan note create "Title" --content "# Hello"
+  banjuan note create "Title" --file ./notes/intro.md
+  banjuan note create "Title" --folder Work < ./notes/intro.md
+  cat intro.md | banjuan note create "Title"
+
+Local images referenced in the markdown (e.g. ![](img/x.png)) are copied into
+the note. Prefer --file for markdown with images: paths are resolved relative
+to the file. With stdin/--content they resolve relative to the current dir.`)
+  .action(async (title: string, opts: { doc?: string; folder?: string; content?: string; file?: string }) => {
+    let content: string | undefined
+    // Base dir for resolving local images referenced in the markdown. With
+    // --file we know it exactly; otherwise fall back to the current directory.
+    let contentBaseDir: string | undefined
+    if (opts.content != null) {
+      content = opts.content
+      contentBaseDir = process.cwd()
+    } else if (opts.file) {
+      try {
+        content = readFileSync(opts.file, 'utf-8')
+        contentBaseDir = dirname(resolve(opts.file))
+      } catch (e: any) {
+        console.error(chalk.red(`✗ Cannot read --file "${opts.file}": ${e.message}`))
+        process.exitCode = 1
+        return
+      }
+    } else if (!process.stdin.isTTY) {
+      // Content was piped or redirected in (e.g. `... < file.md`).
+      const piped = await readStdin()
+      if (piped.trim()) { content = piped; contentBaseDir = process.cwd() }
+    }
+    const note = await apiPost('/api/notes', { title, docId: opts.doc, folder: opts.folder, content, contentBaseDir })
+    const withContent = content ? chalk.dim(` (+${content.length} chars of content)`) : ''
+    console.log(chalk.green(`✓ Created note: ${note.title} (${note.id})`) + withContent)
   })
 
 noteCmd

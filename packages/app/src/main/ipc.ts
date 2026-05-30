@@ -435,7 +435,7 @@ export function registerIpcHandlers() {
       let title = baseName
       for (let attempt = 0; attempt < 100; attempt++) {
         try {
-          await lib.notes.create({ title, type: 'markdown', content, folder: folder ?? undefined })
+          await lib.notes.create({ title, type: 'markdown', content, folder: folder ?? undefined, contentBaseDir: dirname(filePath) })
           results.push({ title, success: true })
           return
         } catch (err: any) {
