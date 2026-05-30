@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <title>半卷 BanJuan — Monochrome Mark</title>
+  <desc>甲骨文「册」字 · 单色墨版 · 印刷与单色环境</desc>
+
+  <path d="M22 16 L22 82" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+  <path d="M36 22 L36 76" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+  <path d="M50 14 L50 84" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+  <path d="M64 20 L64 78" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+  <path d="M78 18 L78 80" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+  <path d="M18 38 Q32 36 46 38 Q60 40 74 38 Q78 37 82 38" stroke="#1A1815" stroke-width="3.4" stroke-linecap="round" fill="none"/>
+  <path d="M18 62 Q32 64 46 62 Q60 60 74 62 Q78 63 82 62" stroke="#1A1815" stroke-width="3.4" stroke-linecap="round" fill="none"/>
+</svg>
