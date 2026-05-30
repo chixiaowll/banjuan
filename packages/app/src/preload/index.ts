@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 const api = {
   library: {
     check: (path: string) => ipcRenderer.invoke('library:check', path),
+    checkSize: (path: string) => ipcRenderer.invoke('library:checkSize', path),
     init: (path: string, name?: string) => ipcRenderer.invoke('library:init', path, name),
     open: (path: string) => ipcRenderer.invoke('library:open', path),
     openNewWindow: () => ipcRenderer.invoke('library:openNewWindow'),
@@ -10,6 +11,8 @@ const api = {
     getHistory: () => ipcRenderer.invoke('library:getHistory'),
     removeHistory: (path: string) => ipcRenderer.invoke('library:removeHistory', path),
     rename: (name: string) => ipcRenderer.invoke('library:rename', name),
+    detectMissing: () => ipcRenderer.invoke('library:detectMissing'),
+    rebuild: (purgeIds?: string[]) => ipcRenderer.invoke('library:rebuild', purgeIds ?? []),
   },
   dialog: {
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),

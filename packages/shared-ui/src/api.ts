@@ -69,13 +69,17 @@ export interface BatchExportProgress {
 export interface BanjuanAPI {
   library: {
     check(path: string): Promise<LibraryConfig | null>
-    init(path: string, name?: string): Promise<void>
-    open(path: string): Promise<void>
+    checkSize?(path: string): Promise<{ exceeds: boolean; limit: number }>
+    init(path: string, name?: string): Promise<{ rootPath: string; name: string; imported: number; skipped: number; truncated: boolean; limit: number }>
+    open(path: string): Promise<{ rootPath: string; name: string; imported: number; removed: number; truncated: boolean; limit: number }>
+
     openNewWindow(): Promise<void>
     isOpen(): Promise<boolean>
     getHistory?(): Promise<Array<{ path: string; name: string; lastOpened: string }>>
     removeHistory?(path: string): Promise<void>
     rename?(name: string): Promise<{ name: string }>
+    detectMissing?(): Promise<Array<{ id: string; title: string; path: string }>>
+    rebuild?(purgeIds?: string[]): Promise<{ reimported: number; purged: number; markedMissing: number }>
   }
 
   dialog: {

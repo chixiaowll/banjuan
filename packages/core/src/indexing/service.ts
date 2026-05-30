@@ -5,6 +5,13 @@ import { parseFrontmatter } from '../storage/frontmatter.js'
 import type { DocumentFileData, AnnotationFileData, MindmapFileData, NoteFileData } from '../types.js'
 import { extractNoteLinks, extractDocumentLinks } from '../notes/extract-links.js'
 
+/**
+ * Bump whenever the indexing logic or schema-derived data changes shape. On
+ * open, a persisted DB whose stamped version differs (or is absent) triggers a
+ * one-time full rebuild; matching versions skip rebuildFull entirely.
+ */
+export const INDEX_VERSION = 1
+
 export class IndexService {
   private docStore: JsonStore<DocumentFileData>
   private annStore: JsonStore<AnnotationFileData>
@@ -33,6 +40,10 @@ export class IndexService {
   async rebuildFull(): Promise<void> {
     this.db.pragma('foreign_keys = OFF')
     try {
+    // The DB now persists across opens, so a rebuild may run on a populated DB.
+    // Clear the derived tables first, otherwise FTS rows duplicate (append-only
+    // INSERT) and removed links/notes linger (INSERT OR IGNORE never deletes).
+    this.clearDerivedTables()
     await this.indexTags()
 
     for (const doc of await this.docStore.listAll()) {
@@ -314,7 +325,42 @@ export class IndexService {
     }
   }
 
+  /**
+   * Empty every table rebuildFull repopulates from the on-disk source of truth.
+   * Preserves `folders` and `note_templates`, which have no JSON source and are
+   * maintained only via their services. Call with foreign_keys OFF.
+   */
+  private clearDerivedTables(): void {
+    const tables = [
+      'documents', 'annotations', 'notes', 'note_links', 'doc_links',
+      'note_annotations', 'doc_tags', 'note_tags', 'mindmap_tags',
+      'mindmap_nodes', 'mindmap_edges', 'mindmap_boundaries', 'mindmap_summaries',
+      'tags',
+    ]
+    for (const t of tables) {
+      try { this.db.run(`DELETE FROM ${t}`) } catch { /* table may not exist */ }
+    }
+    if (this.ftsAvailable) {
+      try { this.db.run('DELETE FROM search_index') } catch { /* fts absent */ }
+    }
+  }
+
   private async writeMetaTimestamp(): Promise<void> {
-    await this.fs.writeTextFile(this.metaPath, JSON.stringify({ lastIndexTime: Date.now() }))
+    await this.fs.writeTextFile(this.metaPath, JSON.stringify({ lastIndexTime: Date.now(), indexVersion: INDEX_VERSION }))
+  }
+
+  /**
+   * True when the persisted DB needs a full rebuild: no meta file (DB was never
+   * stamped — e.g. first open after upgrading from the always-wipe model) or a
+   * version mismatch. False means the DB is trusted and rebuildFull can be skipped.
+   */
+  async isStale(): Promise<boolean> {
+    if (!(await this.fs.exists(this.metaPath))) return true
+    try {
+      const meta = JSON.parse(await this.fs.readTextFile(this.metaPath)) as { indexVersion?: number }
+      return meta.indexVersion !== INDEX_VERSION
+    } catch {
+      return true
+    }
   }
 }

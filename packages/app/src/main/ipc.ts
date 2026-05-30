@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { join, basename, dirname, parse as parsePath } from 'node:path'
 import { execSync } from 'node:child_process'
 import { tmpdir, homedir } from 'node:os'
-import { Library, type MindmapNodeCreateInput, type MindmapNode, type PlatformDeps } from '@banjuan/core'
+import { Library, MAX_LIBRARY_FILES, type MindmapNodeCreateInput, type MindmapNode, type PlatformDeps } from '@banjuan/core'
 import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
 import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
@@ -143,7 +143,19 @@ export function registerIpcHandlers() {
     return Library.isLibrary(path, deps)
   })
 
+  // Pre-check directory size BEFORE creating a library, so a too-large folder
+  // never leaves a stray .banjuan / DB behind.
+  ipcMain.handle('library:checkSize', async (_event, path: string) => {
+    const exceeds = await Library.exceedsFileCap(path, deps.fs)
+    return { exceeds, limit: MAX_LIBRARY_FILES }
+  })
+
   ipcMain.handle('library:init', async (event, path: string, name?: string) => {
+    // Backstop: refuse to create anything when over the cap (the renderer also
+    // pre-checks via library:checkSize before showing the name dialog).
+    if (await Library.exceedsFileCap(path, deps.fs)) {
+      throw new Error(`FILE_CAP_EXCEEDED:${MAX_LIBRARY_FILES}`)
+    }
     const lib = await Library.init(path, deps, name)
     libraries.set(event.sender.id, lib)
     const scanResult = await lib.scanAndImport()
@@ -153,7 +165,7 @@ export function registerIpcHandlers() {
     await indexService.rebuildFull()
     const libName = await lib.getName()
     recordLibraryOpen(lib.rootPath, libName)
-    return { rootPath: lib.rootPath, name: libName, imported: scanResult.imported, skipped: scanResult.skipped }
+    return { rootPath: lib.rootPath, name: libName, imported: scanResult.imported, skipped: scanResult.skipped, truncated: scanResult.truncated, limit: scanResult.limit }
   })
 
   ipcMain.handle('library:open', async (event, path: string) => {
@@ -166,10 +178,13 @@ export function registerIpcHandlers() {
     lib.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
     await lib.plugins.loadAll()
     const indexService = lib.createIndexService()
-    await indexService.rebuildFull()
+    // The DB now persists across opens. Only pay for a full rebuild when it is
+    // stale (never stamped / version changed); otherwise the incremental syncs
+    // above plus write-path link maintenance keep it consistent.
+    if (await indexService.isStale()) await indexService.rebuildFull()
     const libName = await lib.getName()
     recordLibraryOpen(lib.rootPath, libName)
-    return { rootPath: lib.rootPath, name: libName, imported: syncResult.imported, removed: syncResult.removed }
+    return { rootPath: lib.rootPath, name: libName, imported: syncResult.imported, removed: syncResult.removed, truncated: syncResult.truncated, limit: syncResult.limit }
   })
 
   ipcMain.handle('library:openNewWindow', () => {
@@ -1129,6 +1144,31 @@ img { max-width: 100%; } table { border-collapse: collapse; width: 100%; } th, t
   ipcMain.handle('index:rebuild', async (event) => {
     const indexService = getLib(event).createIndexService()
     await indexService.rebuildFull()
+  })
+
+  // Documents whose backing file vanished from disk — feeds the rebuild dialog.
+  ipcMain.handle('library:detectMissing', async (event) => {
+    return getLib(event).detectMissingFiles()
+  })
+
+  // Full rebuild: permanently purge the chosen missing documents, then wipe and
+  // rebuild the whole library from the on-disk source of truth (re-reads +
+  // re-hashes every file, rebuilds all indexes). Bypasses any open-time caches.
+  ipcMain.handle('library:rebuild', async (event, purgeIds: string[] = []) => {
+    const lib = getLib(event)
+    const rootPath = lib.rootPath
+    const purged = await lib.purgeDocuments(purgeIds)
+    await lib.close()
+    const fresh = await Library.open(rootPath, deps)
+    libraries.set(event.sender.id, fresh)
+    await Library.migrateNotes(rootPath, deps.fs)
+    const sync = await fresh.syncWithDisk()
+    try { await fresh.notes.syncDisk() } catch { /* non-critical */ }
+    try { await fresh.tags.syncFromFiles() } catch { /* non-critical */ }
+    fresh.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
+    await fresh.plugins.loadAll()
+    await fresh.createIndexService().rebuildFull()
+    return { reimported: sync.imported, purged, markedMissing: sync.missing }
   })
 
   ipcMain.handle('capture:area', async (event, rect: { x: number; y: number; width: number; height: number }) => {

@@ -23,6 +23,13 @@ import { TemplateService } from './notes/template-service.js'
 import { migrateNotesToJsonAsync } from './notes/migration.js'
 import { AttachmentService } from './notes/attachment-service.js'
 
+/**
+ * Hard cap on how many files a single library will enumerate/import. A study
+ * ("书房") holds at most ~5200 files, so anything past this means a wrong
+ * directory was picked (a home folder, a code tree); stop before it hangs the app.
+ */
+export const MAX_LIBRARY_FILES = 5200
+
 export class Library {
   readonly rootPath: string
   readonly documents: DocumentService
@@ -63,6 +70,7 @@ export class Library {
 
     this.notes.setTemplateService(this.templates)
     this.notes.setLinkService(this.noteLinks)
+    this.notes.setDocLinkService(this.docLinks)
     this.mindmaps.setLinkService(this.noteLinks)
   }
 
@@ -107,13 +115,9 @@ export class Library {
     await Library.migrateExistingMindmapFiles(rootPath, deps.fs)
 
     const dbPath = join(banjuanDir, 'db.sqlite')
-    if (await deps.fs.exists(dbPath)) {
-      await deps.fs.remove(dbPath)
-    }
-    const walPath = dbPath + '-wal'
-    const shmPath = dbPath + '-shm'
-    if (await deps.fs.exists(walPath)) await deps.fs.remove(walPath)
-    if (await deps.fs.exists(shmPath)) await deps.fs.remove(shmPath)
+    // Persist the DB across opens — it is a cache rebuilt from the on-disk
+    // source of truth only when stale (IndexService.isStale) or on an explicit
+    // "彻底重建". initSchema is idempotent (CREATE IF NOT EXISTS + additive ALTERs).
     const db = await deps.dbFactory.open(dbPath)
     initSchema(db)
 
@@ -223,30 +227,51 @@ export class Library {
     }
   }
 
-  private async walkFiles(): Promise<string[]> {
+  private async walkFiles(limit = MAX_LIBRARY_FILES): Promise<{ files: string[]; truncated: boolean }> {
+    return Library.walkFilesIn(this.fs, this.rootPath, limit)
+  }
+
+  /**
+   * Enumerate files under a directory, stopping as soon as `limit` is reached.
+   * Static so callers can size up a directory BEFORE creating a library in it
+   * (the over-cap pre-check), without having to construct/init a Library first.
+   */
+  static async walkFilesIn(fs: PlatformFS, rootPath: string, limit = MAX_LIBRARY_FILES): Promise<{ files: string[]; truncated: boolean }> {
     const skipDirs = new Set(['.banjuan', 'node_modules', '.git'])
     const files: string[] = []
+    let truncated = false
     const walk = async (dir: string) => {
-      const entries = await this.fs.readdirWithTypes(dir)
+      if (truncated) return
+      const entries = await fs.readdirWithTypes(dir)
       for (const entry of entries) {
+        if (truncated) return
         if (entry.name.startsWith('.')) continue
         const fullPath = join(dir, entry.name)
         if (entry.isDirectory) {
-          const topDir = relative(this.rootPath, fullPath).split('/')[0]
+          const topDir = relative(rootPath, fullPath).split('/')[0]
           if (skipDirs.has(topDir)) continue
           await walk(fullPath)
         } else {
+          if (files.length >= limit) { truncated = true; return }
           files.push(fullPath)
         }
       }
     }
-    await walk(this.rootPath)
-    return files
+    await walk(rootPath)
+    return { files, truncated }
   }
 
-  async scanAndImport(): Promise<{ imported: number; skipped: number; errors: string[] }> {
-    const files = await this.walkFiles()
-    const result = { imported: 0, skipped: 0, errors: [] as string[] }
+  /** True if the directory holds more than the import cap — used as a pre-check before init. */
+  static async exceedsFileCap(rootPath: string, fs: PlatformFS, limit = MAX_LIBRARY_FILES): Promise<boolean> {
+    const { truncated } = await Library.walkFilesIn(fs, rootPath, limit)
+    return truncated
+  }
+
+  async scanAndImport(): Promise<{ imported: number; skipped: number; errors: string[]; truncated: boolean; limit: number }> {
+    const { files, truncated } = await this.walkFiles()
+    const result = { imported: 0, skipped: 0, errors: [] as string[], truncated, limit: MAX_LIBRARY_FILES }
+    // Over the cap → import nothing; the directory is almost certainly wrong.
+    if (truncated) return result
     for (const file of files) {
       try {
         await this.documents.import(file)
@@ -258,11 +283,19 @@ export class Library {
     return result
   }
 
-  async syncWithDisk(): Promise<{ imported: number; removed: number }> {
-    const walkedFiles = await this.walkFiles()
+  async syncWithDisk(): Promise<{ imported: number; removed: number; missing: number; truncated: boolean; limit: number }> {
+    const { files: walkedFiles, truncated } = await this.walkFiles()
+    // Over the cap → touch nothing: don't import, and don't reconcile (the disk
+    // view is incomplete, so any "missing" verdict would be wrong).
+    if (truncated) return { imported: 0, removed: 0, missing: 0, truncated, limit: MAX_LIBRARY_FILES }
+
     const diskFiles = new Set(walkedFiles.map(f => relative(this.rootPath, f)))
 
-    const removed = await this.documents.purgeOrphanMetadata(diskFiles)
+    // Never silently delete metadata for a vanished file — flag it as missing
+    // instead, so annotations/tags survive and it reappears if the file comes
+    // back. Permanent removal only happens via the explicit rebuild dialog
+    // (purgeDocuments). `removed` is kept at 0 for backward compatibility.
+    const missing = await this.documents.reconcileMissing(diskFiles)
 
     let imported = 0
     for (const relPath of diskFiles) {
@@ -274,7 +307,37 @@ export class Library {
       }
     }
 
-    return { imported, removed }
+    return { imported, removed: 0, missing, truncated, limit: MAX_LIBRARY_FILES }
+  }
+
+  /**
+   * Documents whose metadata exists but whose backing file is gone from disk.
+   * Drives the "rebuild" dialog where the user decides what to purge vs keep.
+   */
+  async detectMissingFiles(): Promise<Array<{ id: string; title: string; path: string }>> {
+    const { files, truncated } = await this.walkFiles()
+    // A truncated walk means the disk view is incomplete — we cannot tell which
+    // metadata is genuinely orphaned, so report nothing rather than false hits.
+    if (truncated) return []
+    const diskFiles = new Set(files.map(f => relative(this.rootPath, f)))
+    const missing: Array<{ id: string; title: string; path: string }> = []
+    for (const meta of await this.documents.listAllMetadata()) {
+      if (!diskFiles.has(meta.path)) {
+        missing.push({ id: meta.id, title: meta.title, path: meta.path })
+      }
+    }
+    return missing
+  }
+
+  /** Permanently purge the given documents and their annotations. */
+  async purgeDocuments(ids: string[]): Promise<number> {
+    let purged = 0
+    for (const id of ids) {
+      await this.annotations.deleteByDoc(id)
+      await this.documents.purgeById(id)
+      purged++
+    }
+    return purged
   }
 
   async close(): Promise<void> {

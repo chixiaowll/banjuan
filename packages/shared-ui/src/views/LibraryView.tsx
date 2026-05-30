@@ -29,6 +29,7 @@ interface Document {
   hash: string
   createdAt: string
   updatedAt: string
+  metadata?: Record<string, unknown>
 }
 
 interface Tag {
@@ -1615,6 +1616,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           }}>
                             {doc.title}
                           </span>
+                          {(doc.metadata as any)?.fileMissing && <span style={{
+                            flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#c0392b',
+                            border: '1px solid #c0392b', borderRadius: 3, padding: '0 5px', lineHeight: '16px',
+                          }}>{locale === 'zh' ? '缺失' : 'missing'}</span>}
                           {!layout.home.showSealChar && (doc as any).author && <span style={{
                             color: 'var(--ink-faint)', fontSize: 12, flexShrink: 0,
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140,
@@ -2490,10 +2495,11 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                               display: 'flex', alignItems: 'center', gap: 8,
                               fontSize: 14, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.35,
                             }}>
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: (item as any).metadata?.fileMissing ? 'var(--ink-mute)' : undefined }}>
                                 {item.title || item.name}
                               </span>
                               {isFavorite && <Star size={13} style={{ color: '#E6C84A', fill: '#E6C84A', flexShrink: 0 }} />}
+                              {(item as any).metadata?.fileMissing && <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#c0392b', border: '1px solid #c0392b', borderRadius: 3, padding: '0 5px', lineHeight: '16px' }}>{locale === 'zh' ? '缺失' : 'missing'}</span>}
                             </div>
                             <div style={{
                               display: 'flex', alignItems: 'center', gap: 6, marginTop: 3,
@@ -2753,6 +2759,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         <ResizeHandle onPointerDown={rightResize.onPointerDown} />
         <div style={detailPanelStyle}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>{t('detail.title')}</div>
+          {selectedItemDetail.metadata?.fileMissing && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 12, borderRadius: 8, background: 'rgba(192,57,43,0.08)', border: '1px solid rgba(192,57,43,0.25)', color: '#c0392b', fontSize: 12, lineHeight: 1.5 }}>
+              <span style={{ fontWeight: 700 }}>{locale === 'zh' ? '文件缺失' : 'File missing'}</span>
+              <span style={{ color: 'var(--ink-mute)' }}>{locale === 'zh' ? '磁盘上已找不到该文件，元数据与批注已保留。' : 'The file is gone from disk; metadata and annotations are kept.'}</span>
+            </div>
+          )}
           <DetailField label={t('detail.docTitle')} value={selectedItemDetail.title} />
           <DetailField label={t('detail.type')} value={(() => {
             const pill = TYPE_PILLS[selectedItemDetail.type]
@@ -3204,6 +3216,47 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
     setNoteTheme(key)
   }, [])
 
+  const api = useBanjuanAPI()
+  const zh = locale === 'zh'
+  const [rebuilding, setRebuilding] = React.useState(false)
+  const [missingDocs, setMissingDocs] = React.useState<Array<{ id: string; title: string; path: string }> | null>(null)
+  const [purgeSel, setPurgeSel] = React.useState<Set<string>>(new Set())
+
+  const runRebuild = useCallback(async (purgeIds: string[]) => {
+    setMissingDocs(null)
+    setRebuilding(true)
+    try {
+      const r = await api.library.rebuild?.(purgeIds)
+      window.alert(zh
+        ? `重建完成：重新导入 ${r?.reimported ?? 0} 个文档，彻底清理 ${r?.purged ?? 0} 个，标记缺失 ${r?.markedMissing ?? 0} 个。\n\n将刷新以加载最新数据。`
+        : `Rebuild done: ${r?.reimported ?? 0} reimported, ${r?.purged ?? 0} purged, ${r?.markedMissing ?? 0} marked missing.\n\nReloading to refresh.`)
+      window.location.reload()
+    } catch (e) {
+      window.alert((zh ? '重建失败：' : 'Rebuild failed: ') + String(e))
+      setRebuilding(false)
+    }
+  }, [api, zh])
+
+  const startRebuild = useCallback(async () => {
+    if (!window.confirm(zh
+      ? '彻底重建会清空索引并从磁盘重新读取、重算哈希、重建所有索引，可能耗时较长。是否继续？'
+      : 'Full rebuild re-reads every file from disk, re-hashes, and rebuilds all indexes. This may take a while. Continue?')) return
+    setRebuilding(true)
+    try {
+      const missing = (await api.library.detectMissing?.()) ?? []
+      setRebuilding(false)
+      if (missing.length === 0) {
+        await runRebuild([])
+      } else {
+        setPurgeSel(new Set())
+        setMissingDocs(missing)
+      }
+    } catch (e) {
+      window.alert((zh ? '检测失败：' : 'Detection failed: ') + String(e))
+      setRebuilding(false)
+    }
+  }, [api, zh, runRebuild])
+
   return (
     <div style={{ padding: 24, overflow: 'auto', flex: 1 }}>
       <h3 style={{ fontSize: 16, marginBottom: 16 }}>{t('settings.title')}</h3>
@@ -3307,6 +3360,67 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
           )
         })}
       </div>
+
+      <div style={{ marginTop: 28, marginBottom: 12, fontSize: 14, fontWeight: 600 }}>{zh ? '数据维护' : 'Maintenance'}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6, maxWidth: 560 }}>
+        {zh
+          ? '从磁盘与 .banjuan 元数据彻底重建整个库的索引（重读、重算哈希、重建全部索引）。在文件被外部删除/移动后出现数据异常时使用。'
+          : 'Rebuild the entire library index from disk and .banjuan metadata (re-read, re-hash, rebuild all indexes). Use this if files were deleted/moved outside the app.'}
+      </div>
+      <button
+        onClick={startRebuild}
+        disabled={rebuilding}
+        style={{
+          fontSize: 13, padding: '6px 14px', borderRadius: 6, cursor: rebuilding ? 'default' : 'pointer',
+          border: '1px solid #c0392b', color: '#c0392b', background: 'transparent', opacity: rebuilding ? 0.5 : 1,
+        }}
+      >
+        {rebuilding ? (zh ? '重建中…' : 'Rebuilding…') : (zh ? '彻底重建库' : 'Rebuild Library')}
+      </button>
+
+      {missingDocs && (
+        <div onClick={() => setMissingDocs(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', color: 'var(--text)', borderRadius: 10, padding: 20, width: 520, maxWidth: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>{zh ? '检测到文件缺失' : 'Missing files detected'}</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.6 }}>
+              {zh
+                ? '以下文档的文件已不在磁盘上。勾选要彻底清理的（连同其批注一并永久删除）；不勾选的将保留并标记为「文件缺失」，文件恢复后会自动重新关联。'
+                : 'These documents no longer have a file on disk. Check the ones to permanently purge (with their annotations); unchecked ones are kept and marked "missing".'}
+            </p>
+            <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 6, marginBottom: 14 }}>
+              {missingDocs.map(d => (
+                <label key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
+                  <input type="checkbox" checked={purgeSel.has(d.id)} onChange={() => {
+                    setPurgeSel(prev => { const n = new Set(prev); if (n.has(d.id)) n.delete(d.id); else n.add(d.id); return n })
+                  }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.path}</div>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+              <button onClick={() => setPurgeSel(prev => prev.size === missingDocs.length ? new Set() : new Set(missingDocs.map(d => d.id)))}
+                style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer' }}>
+                {purgeSel.size === missingDocs.length ? (zh ? '全不选' : 'Select none') : (zh ? '全选' : 'Select all')}
+              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setMissingDocs(null)} style={{ fontSize: 13, padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer' }}>{zh ? '取消' : 'Cancel'}</button>
+                <button onClick={() => runRebuild(Array.from(purgeSel))} style={{ fontSize: 13, padding: '6px 14px', borderRadius: 6, border: 'none', background: '#c0392b', color: '#fff', cursor: 'pointer' }}>
+                  {zh ? `开始重建（清理 ${purgeSel.size}）` : `Rebuild (purge ${purgeSel.size})`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rebuilding && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001, color: '#fff', fontSize: 14 }}>
+          {zh ? '正在重建库，请稍候…' : 'Rebuilding library, please wait…'}
+        </div>
+      )}
     </div>
   )
 }
