@@ -3,6 +3,7 @@ import { join, relative, dirname } from '../platform/path.js'
 import type { SyncAdapter } from './adapter.js'
 import type { SyncSnapshot } from '../types.js'
 import type { EventBus } from '../events/bus.js'
+import { EXCLUDED_NAMES, EXCLUDED_DIRS, PROTECTED_FILES, isExcluded } from './exclusions.js'
 
 export interface SyncResult {
   uploaded: number
@@ -25,21 +26,6 @@ export interface SyncOptions {
   onStub?: (remotePath: string, size: number) => Promise<void>
 }
 
-const EXCLUDED_NAMES = new Set([
-  'db.sqlite', 'db.sqlite-wal', 'db.sqlite-shm',
-  'library.db', 'db.meta.json',
-  'sync-snapshot.json', '.DS_Store',
-])
-
-const PROTECTED_FILES = new Set([
-  '.banjuan/config.json',
-  '.banjuan/tags.json',
-  '.banjuan/sync.json',
-])
-
-const EXCLUDED_DIRS = new Set([
-  'plugins',
-])
 
 export class SyncService {
   private snapshotPath: string
@@ -184,9 +170,7 @@ export class SyncService {
   }
 
   private shouldExclude(name: string, isDirectory: boolean): boolean {
-    if (EXCLUDED_NAMES.has(name)) return true
-    if (isDirectory && EXCLUDED_DIRS.has(name)) return true
-    return false
+    return isExcluded(name, isDirectory)
   }
 
   private async walkDir(dir: string, callback: (absPath: string) => Promise<void>): Promise<void> {
