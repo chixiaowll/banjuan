@@ -30,91 +30,91 @@ Banjuan is an open-source, cross-platform study and research tool that combines 
 ### Welcome & Home
 
 <p align="center">
-  <img src="images/欢迎页1.jpeg" width="720" alt="Welcome page">
+  <img src="assets/images/欢迎页1.jpeg" width="720" alt="Welcome page">
 </p>
 <p align="center"><em>Welcome — daily poem, lunar date, recently opened libraries</em></p>
 
 <p align="center">
-  <img src="images/首页1.jpeg" width="720" alt="Home page">
+  <img src="assets/images/首页1.jpeg" width="720" alt="Home page">
 </p>
 <p align="center"><em>Library home — document stats, daily reading, recent documents</em></p>
 
 ### Document Library
 
 <p align="center">
-  <img src="images/列表页1.jpeg" width="720" alt="Document list">
+  <img src="assets/images/列表页1.jpeg" width="720" alt="Document list">
 </p>
 <p align="center"><em>Document management — folder tree, type filter, search, sorting</em></p>
 
 ### PDF Reading & Annotation
 
 <p align="center">
-  <img src="images/PDF 阅读 + 标注（支持划线、高亮、手写）+笔记（支持markdown、脑图、手写笔记）.jpeg" width="720" alt="PDF reading and annotation">
+  <img src="assets/images/PDF 阅读 + 标注（支持划线、高亮、手写）+笔记（支持markdown、脑图、手写笔记）.jpeg" width="720" alt="PDF reading and annotation">
 </p>
 <p align="center"><em>PDF reader — handwriting annotations + note panel (Markdown, mind map, handwriting)</em></p>
 
 ### Notes
 
 <p align="center">
-  <img src="images/笔记页.jpeg" width="720" alt="Notes list">
+  <img src="assets/images/笔记页.jpeg" width="720" alt="Notes list">
 </p>
 <p align="center"><em>Notes — organized by folder, filtered by type</em></p>
 
 <p align="center">
-  <img src="images/markdown 笔记.jpeg" width="720" alt="Markdown note">
+  <img src="assets/images/markdown 笔记.jpeg" width="720" alt="Markdown note">
 </p>
 <p align="center"><em>Markdown note — outline navigation, linked references, rich text editing</em></p>
 
 <p align="center">
-  <img src="images/导出笔记.jpeg" width="720" alt="Batch export">
+  <img src="assets/images/导出笔记.jpeg" width="720" alt="Batch export">
 </p>
 <p align="center"><em>Batch export — runs in a background process (never blocks browsing); the progress panel accumulates like a download list</em></p>
 
 ### Mind Map
 
 <p align="center">
-  <img src="images/脑图笔记.jpeg" width="720" alt="Mind map with embedded notes">
+  <img src="assets/images/脑图笔记.jpeg" width="720" alt="Mind map with embedded notes">
 </p>
 <p align="center"><em>Mind map — embedded note content, backlink reference panel</em></p>
 
 <p align="center">
-  <img src="images/脑图笔记2.jpeg" width="720" alt="Mind map with floating nodes">
+  <img src="assets/images/脑图笔记2.jpeg" width="720" alt="Mind map with floating nodes">
 </p>
 <p align="center"><em>Mind map — floating nodes, boundary boxes, summary brackets, relation edges</em></p>
 
 ### Video Playback
 
 <p align="center">
-  <img src="images/视频播放（截取关键帧、关键帧跳转、加笔记）.jpeg" width="720" alt="Video playback with keyframes and notes">
+  <img src="assets/images/视频播放（截取关键帧、关键帧跳转、加笔记）.jpeg" width="720" alt="Video playback with keyframes and notes">
 </p>
 <p align="center"><em>Video playback — keyframe capture, keyframe navigation, note-taking</em></p>
 
 ### Handwriting
 
 <p align="center">
-  <img src="images/手写笔记测试.jpeg" width="720" alt="Handwriting note">
+  <img src="assets/images/手写笔记测试.jpeg" width="720" alt="Handwriting note">
 </p>
 <p align="center"><em>Handwriting note — multi-page, pressure-sensitive ink, multiple brushes and colors</em></p>
 
 ### AI Integration
 
 <p align="center">
-  <img src="images/Claude 插件2.jpeg" width="720" alt="Claude assistant reading a PDF">
+  <img src="assets/images/Claude 插件2.jpeg" width="720" alt="Claude assistant reading a PDF">
 </p>
 <p align="center"><em>Claude assistant — read and discuss a PDF in place, aware of the current page; reads document text by page/chapter</em></p>
 
 <p align="center">
-  <img src="images/Claude 插件.jpeg" width="720" alt="Claude AI plugin">
+  <img src="assets/images/Claude 插件.jpeg" width="720" alt="Claude AI plugin">
 </p>
 <p align="center"><em>Claude plugin — AI assistant with direct access to library content (search, notes, mindmaps, tags, ...)</em></p>
 
 <p align="center">
-  <img src="images/命令行功能.jpeg" width="720" alt="CLI commands">
+  <img src="assets/images/命令行功能.jpeg" width="720" alt="CLI commands">
 </p>
 <p align="center"><em>CLI — full-featured command-line tool for managing libraries, documents, notes, and tags</em></p>
 
 <p align="center">
-  <img src="images/使用大模型写入笔记.jpeg" width="720" alt="CLI with AI tools">
+  <img src="assets/images/使用大模型写入笔记.jpeg" width="720" alt="CLI with AI tools">
 </p>
 <p align="center"><em>CLI + AI — batch note operations via command line, seamless LLM integration</em></p>
 

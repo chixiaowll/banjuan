@@ -30,91 +30,91 @@
 ### Welcome & Home
 
 <p align="center">
-  <img src="images/欢迎页1.jpeg" width="720" alt="Welcome page">
+  <img src="assets/images/欢迎页1.jpeg" width="720" alt="Welcome page">
 </p>
 <p align="center"><em>欢迎页 — 每日一诗、农历日期、最近打开的书房</em></p>
 
 <p align="center">
-  <img src="images/首页1.jpeg" width="720" alt="Home page">
+  <img src="assets/images/首页1.jpeg" width="720" alt="Home page">
 </p>
 <p align="center"><em>书房首页 — 文档统计、今日卷、最近阅读文档</em></p>
 
 ### Document Library
 
 <p align="center">
-  <img src="images/列表页1.jpeg" width="720" alt="Document list">
+  <img src="assets/images/列表页1.jpeg" width="720" alt="Document list">
 </p>
 <p align="center"><em>文档管理 — 文件夹树、类型筛选、搜索、排序</em></p>
 
 ### PDF Reading & Annotation
 
 <p align="center">
-  <img src="images/PDF 阅读 + 标注（支持划线、高亮、手写）+笔记（支持markdown、脑图、手写笔记）.jpeg" width="720" alt="PDF reading and annotation">
+  <img src="assets/images/PDF 阅读 + 标注（支持划线、高亮、手写）+笔记（支持markdown、脑图、手写笔记）.jpeg" width="720" alt="PDF reading and annotation">
 </p>
 <p align="center"><em>PDF 阅读 — 手写标注 + 笔记面板（支持 Markdown、脑图、手写笔记）</em></p>
 
 ### Notes
 
 <p align="center">
-  <img src="images/笔记页.jpeg" width="720" alt="Notes list">
+  <img src="assets/images/笔记页.jpeg" width="720" alt="Notes list">
 </p>
 <p align="center"><em>笔记列表 — 按文件夹组织、按类型筛选</em></p>
 
 <p align="center">
-  <img src="images/markdown 笔记.jpeg" width="720" alt="Markdown note">
+  <img src="assets/images/markdown 笔记.jpeg" width="720" alt="Markdown note">
 </p>
 <p align="center"><em>Markdown 笔记 — 大纲导航、关联引用、富文本编辑</em></p>
 
 <p align="center">
-  <img src="images/导出笔记.jpeg" width="720" alt="Batch export">
+  <img src="assets/images/导出笔记.jpeg" width="720" alt="Batch export">
 </p>
 <p align="center"><em>批量导出 — 后台进程导出，不阻塞浏览；进度面板可累加、像下载列表</em></p>
 
 ### Mind Map
 
 <p align="center">
-  <img src="images/脑图笔记.jpeg" width="720" alt="Mind map with embedded notes">
+  <img src="assets/images/脑图笔记.jpeg" width="720" alt="Mind map with embedded notes">
 </p>
 <p align="center"><em>思维导图 — 嵌入笔记内容、双向链接引用面板</em></p>
 
 <p align="center">
-  <img src="images/脑图笔记2.jpeg" width="720" alt="Mind map with floating nodes">
+  <img src="assets/images/脑图笔记2.jpeg" width="720" alt="Mind map with floating nodes">
 </p>
 <p align="center"><em>思维导图 — 浮动节点、边界框、概要括号、关系连线</em></p>
 
 ### Video Playback
 
 <p align="center">
-  <img src="images/视频播放（截取关键帧、关键帧跳转、加笔记）.jpeg" width="720" alt="Video playback with keyframes and notes">
+  <img src="assets/images/视频播放（截取关键帧、关键帧跳转、加笔记）.jpeg" width="720" alt="Video playback with keyframes and notes">
 </p>
 <p align="center"><em>视频播放 — 截取关键帧、关键帧跳转、添加笔记</em></p>
 
 ### Handwriting
 
 <p align="center">
-  <img src="images/手写笔记测试.jpeg" width="720" alt="Handwriting note">
+  <img src="assets/images/手写笔记测试.jpeg" width="720" alt="Handwriting note">
 </p>
 <p align="center"><em>手写笔记 — 多页面、压感墨迹、多种画笔和颜色</em></p>
 
 ### AI Integration
 
 <p align="center">
-  <img src="images/Claude 插件2.jpeg" width="720" alt="Claude assistant reading a PDF">
+  <img src="assets/images/Claude 插件2.jpeg" width="720" alt="Claude assistant reading a PDF">
 </p>
 <p align="center"><em>Claude 助手 — 边读 PDF 边问答，感知当前页内容，按页/章读取正文</em></p>
 
 <p align="center">
-  <img src="images/Claude 插件.jpeg" width="720" alt="Claude AI plugin">
+  <img src="assets/images/Claude 插件.jpeg" width="720" alt="Claude AI plugin">
 </p>
 <p align="center"><em>Claude 插件 — AI 助手直接访问书房内容（搜索、笔记、脑图、标签等）</em></p>
 
 <p align="center">
-  <img src="images/命令行功能.jpeg" width="720" alt="CLI commands">
+  <img src="assets/images/命令行功能.jpeg" width="720" alt="CLI commands">
 </p>
 <p align="center"><em>CLI — 完整的命令行工具，管理书房、文档、笔记、标签等</em></p>
 
 <p align="center">
-  <img src="images/使用大模型写入笔记.jpeg" width="720" alt="CLI with AI tools">
+  <img src="assets/images/使用大模型写入笔记.jpeg" width="720" alt="CLI with AI tools">
 </p>
 <p align="center"><em>CLI + AI 工具 — 通过命令行批量操作笔记，与 LLM 无缝集成</em></p>
 
