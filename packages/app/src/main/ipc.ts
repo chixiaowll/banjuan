@@ -8,6 +8,7 @@ import { Library, MAX_LIBRARY_FILES, type MindmapNodeCreateInput, type MindmapNo
 import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
 import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
+import { LanHostServer, type HostStatus } from './lan-host-server.js'
 
 // Global plugins live here (shared by every library), à la Claude Code's
 // global plugin dir. Built-in plugins are installed here once at startup.
@@ -19,6 +20,8 @@ const deps: PlatformDeps = {
   crypto: new NodeCrypto(),
   globalPluginsDir: GLOBAL_PLUGINS_DIR,
 }
+
+let lanHost: LanHostServer | null = null
 
 // Install/refresh bundled plugins into the GLOBAL plugins dir (~/.banjuan/plugins),
 // once at startup. Per-plugin config.json (user settings/sessions) is preserved.
@@ -877,6 +880,48 @@ export function registerIpcHandlers() {
     if (!config) return 'local'
     const svc = library.createStubService()
     return svc.getStatus(docId, join(library.rootPath, doc.path))
+  })
+
+  ipcMain.handle('lan:startHost', async (event): Promise<HostStatus> => {
+    const library = getLib(event)
+    if (lanHost) await lanHost.stop()
+    lanHost = new LanHostServer(library.rootPath, deps.fs)
+    return lanHost.start()
+  })
+
+  ipcMain.handle('lan:stopHost', async (): Promise<void> => {
+    if (lanHost) { await lanHost.stop(); lanHost = null }
+  })
+
+  ipcMain.handle('lan:getHostStatus', async (): Promise<HostStatus> => {
+    return lanHost ? lanHost.status() : { running: false, url: null, pin: null, port: null }
+  })
+
+  // Client side: exchange PIN for token at the peer, then run a full bidirectional sync.
+  ipcMain.handle('lan:connectAndSync', async (event, peerUrl: string, pin: string) => {
+    const library = getLib(event)
+    const base = peerUrl.replace(/\/$/, '')
+
+    // 1) Pair: GET {base}/.banjuan-pair?pin=NNNNNN -> { token }
+    const pairResp = await fetch(`${base}/.banjuan-pair?pin=${encodeURIComponent(pin)}`)
+    if (!pairResp.ok) throw new Error(`PAIR_FAILED:${pairResp.status}`)
+    const { token } = await pairResp.json() as { token: string }
+    if (!token) throw new Error('PAIR_FAILED:no-token')
+
+    // 2) Reuse existing WebDAVAdapter unchanged: Basic auth, password = token.
+    const { SyncService, WebDAVAdapter } = await import('@banjuan/core')
+    const adapter = new WebDAVAdapter(deps.fs)
+    await adapter.connect({ type: 'webdav', url: base, username: 'banjuan', password: token, remotePath: '/' })
+    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, '/')
+    try {
+      const result = await svc.sync((p) => { event.sender.send('sync:progress', p) })
+      event.sender.send('sync:progress', { phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
+      const indexService = library.createIndexService()
+      await indexService.rebuildFull()
+      return result
+    } finally {
+      await adapter.disconnect()
+    }
   })
 
   ipcMain.handle('clipboard:readFiles', async () => {
