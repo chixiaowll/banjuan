@@ -234,6 +234,17 @@ export interface BanjuanAPI {
     getDocStatus(docId: string): Promise<DocumentSyncStatus>
   }
 
+  lan: {
+    startHost(): Promise<{ running: boolean; url: string | null; pin: string | null; port: number | null }>
+    stopHost(): Promise<void>
+    getHostStatus(): Promise<{ running: boolean; url: string | null; pin: string | null; port: number | null }>
+    connectAndSync(
+      peerUrl: string,
+      pin: string,
+      onProgress?: (p: { phase: string; current: number; total: number; currentFile: string }) => void,
+    ): Promise<{ uploaded: number; downloaded: number; deletedLocal: number; deletedRemote: number; stubbed: number; errors: string[] }>
+  }
+
   /** Optional -- not available on all platforms */
   export?: {
     markdown(input: { title: string; markdown: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }): Promise<string | null>
