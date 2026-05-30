@@ -668,8 +668,8 @@
     <div class="date">2026-05-30 <span class="weekday">周六</span></div>
     <div class="dot"></div>
     <div class="card">
-      <div class="card-title"><span class="icon">🤖</span> AI 助手大升级 &amp; 后台导出</div>
-      <div class="card-desc">Claude 插件从"读笔记"升级为能读全文、改内容的研究助手；导出全面后台化不再卡顿；并把内置插件做成全局机制（~/.banjuan/plugins），装包即用、所有书房共用。</div>
+      <div class="card-title"><span class="icon">🤖</span> AI 助手大升级 · 后台导出 · 打开提速</div>
+      <div class="card-desc">Claude 插件从"读笔记"升级为能读全文、改内容的研究助手；导出全面后台化不再卡顿；内置插件做成全局机制（~/.banjuan/plugins）装包即用；并对"打开书房"做了系统性提速——不再读取文件内容算哈希、SQLite 索引持久化不再每次全量重建。</div>
       <div class="tags">
         <span class="tag">read_document</span>
         <span class="tag">EPUB 抽文</span>
@@ -678,6 +678,11 @@
         <span class="tag">后台导出</span>
         <span class="tag">实时过程</span>
         <span class="tag fix">手写/内嵌图导出修复</span>
+        <span class="tag">打开提速</span>
+        <span class="tag">持久化索引</span>
+        <span class="tag">文件上限 5200</span>
+        <span class="tag">Intel 构建</span>
+        <span class="tag fix">缺失文件处理</span>
       </div>
       <ul class="features">
         <li>Claude 读文档正文：PDF / EPUB（按页/章）、txt / md / html，及笔记与批注</li>
@@ -689,6 +694,12 @@
         <li>导出全面后台进程化：批量 + 单篇统一，不阻塞浏览，进度面板累加（含 PNG/SVG）</li>
         <li>修复：手写笔记导出带图、Markdown 内嵌脑图导出、Markdown 导入带图</li>
         <li>CLI note create 支持 --content / --file / stdin；笔记类型筛选独立、AI 面板可拖拽</li>
+        <li>打开提速：导入不再读取文件内容（id/hash 由路径派生），导入耗时与文件大小无关</li>
+        <li>SQLite 索引持久化：按版本号判断，不再每次打开都全量重建，无变化时近乎秒开</li>
+        <li>双链 / 文档链接改为写入时增量维护；缺失检测改走数据库查询，打开几乎零文件读</li>
+        <li>文件被物理删除后标记「缺失」（保留可恢复）：列表角标 + 详情提示；新增「彻底重建」维护入口</li>
+        <li>单书房 5200 文件硬上限 + 选目录前置校验，避免误选超大目录卡死</li>
+        <li>macOS 同时构建 Apple Silicon (arm64) 与 Intel (x64)</li>
       </ul>
       <div class="commit-count">约 16 次提交</div>
     </div>
