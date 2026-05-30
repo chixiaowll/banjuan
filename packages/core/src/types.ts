@@ -156,6 +156,9 @@ export interface NoteCreateInput {
   folder?: string
   annotationIds?: string[]
   content?: string
+  /** When `content` is markdown, the source file's directory — local images
+   * referenced relative to it are copied into the note's attachments. */
+  contentBaseDir?: string
   templateId?: string
   layout?: string
   theme?: string

@@ -7,6 +7,8 @@ import type { EventBus } from '../events/bus.js'
 import type { TemplateService } from './template-service.js'
 import type { NoteLinkService } from './link-service.js'
 import { markdownToBlocks } from './migration.js'
+import { AttachmentService } from './attachment-service.js'
+import { importMarkdownImages } from './import-images.js'
 
 interface NoteJsonFile {
   meta: NoteFileData
@@ -221,7 +223,18 @@ export class NoteService {
         if (tpl) blocks = JSON.parse(tpl.content)
       }
       if (input.content) {
-        try { blocks = JSON.parse(input.content) } catch { blocks = markdownToBlocks(input.content) }
+        try {
+          blocks = JSON.parse(input.content)
+        } catch {
+          // Markdown content: pull in local images referenced relative to the
+          // source file before converting, so they resolve inside the library.
+          let md = input.content
+          if (input.contentBaseDir) {
+            const attachments = new AttachmentService(this.rootPath, this.fs)
+            md = await importMarkdownImages(this.fs, attachments, id, md, input.contentBaseDir)
+          }
+          blocks = markdownToBlocks(md)
+        }
       }
       await this.fs.writeTextFile(fullPath, JSON.stringify({ meta, blocks }, null, 2))
       contentStr = JSON.stringify(blocks)
