@@ -22,6 +22,11 @@ const deps: PlatformDeps = {
 }
 
 let lanHost: LanHostServer | null = null
+// The host is a single per-process server, but it belongs to the ONE window that
+// started it (serving that window's library). Other windows must not see it as
+// "their" host — they act as clients instead. Tracked by webContents id.
+let lanHostOwner: number | null = null
+const HOST_OFFLINE: HostStatus = { running: false, url: null, pin: null, port: null }
 
 // Install/refresh bundled plugins into the GLOBAL plugins dir (~/.banjuan/plugins),
 // once at startup. Per-plugin config.json (user settings/sessions) is preserved.
@@ -884,23 +889,30 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('lan:startHost', async (event): Promise<HostStatus> => {
     const library = getLib(event)
-    if (lanHost) { await lanHost.stop(); lanHost = null }
+    if (lanHost) { await lanHost.stop(); lanHost = null; lanHostOwner = null }
     const host = new LanHostServer(library.rootPath, deps.fs)
     const status = await host.start()   // assign only on success — a failed start leaves lanHost null
     lanHost = host
+    lanHostOwner = event.sender.id      // this window now owns the host
     return status
   })
 
-  ipcMain.handle('lan:stopHost', async (): Promise<void> => {
-    if (lanHost) { await lanHost.stop(); lanHost = null }
+  ipcMain.handle('lan:stopHost', async (event): Promise<void> => {
+    // Only the owning window may stop the host (other windows show the client UI).
+    if (lanHost && lanHostOwner === event.sender.id) {
+      await lanHost.stop(); lanHost = null; lanHostOwner = null
+    }
   })
 
-  ipcMain.handle('lan:getHostStatus', async (): Promise<HostStatus> => {
-    return lanHost ? lanHost.status() : { running: false, url: null, pin: null, port: null }
+  ipcMain.handle('lan:getHostStatus', async (event): Promise<HostStatus> => {
+    // Report "running" only to the window that started the host; everyone else
+    // sees offline and uses the client (connect) flow.
+    if (lanHost && lanHostOwner === event.sender.id) return lanHost.status()
+    return HOST_OFFLINE
   })
 
   app.on('before-quit', () => {
-    if (lanHost) { void lanHost.stop(); lanHost = null }
+    if (lanHost) { void lanHost.stop(); lanHost = null; lanHostOwner = null }
   })
 
   // Client side: exchange PIN for token at the peer, then run a full bidirectional sync.
