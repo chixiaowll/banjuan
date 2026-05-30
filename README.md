@@ -134,7 +134,10 @@
 
 ### AI Integration
 
-- **插件系统** — 可扩展的插件框架，支持命令注册、事件监听、RPC 调用
+- **内置 Claude 助手** — 侧边栏 AI 面板（基于本地 Claude Code），可读取文档正文（PDF/EPUB/txt/md/html，按页/章）、笔记与批注，创建/编辑笔记与脑图，打标签、整理文件夹，联网搜索资料，并支持删除（需确认）
+- **实时过程展示** — 思考、工具调用（入参/结果）逐步显示，完成后保留
+- **上下文感知** — 自动获知当前书房、打开的文档/笔记、所在页码及本页正文、选中文本
+- **全局插件** — 内置插件安装在 `~/.banjuan/plugins`，对所有书房生效；插件框架支持命令注册、事件监听、RPC、MCP 工具
 - **CLI** — 对 LLM 友好的命令行接口，可在 Claude Code 等工具中直接调用
 
 ### Sync
@@ -203,7 +206,10 @@ banjuan history                      # 书房历史
 banjuan note list                    # 列出所有笔记
 banjuan note list --doc <doc-id>     # 列出关联某文档的笔记
 banjuan note show <id>               # 查看笔记内容
-banjuan note create <title>          # 创建笔记
+banjuan note create <title>          # 创建空笔记
+banjuan note create <title> --content "# md"  # 带 markdown 内容创建
+banjuan note create <title> --file note.md    # 从文件创建（自动导入其中的本地图片）
+banjuan note create <title> < note.md         # 从 stdin 创建
 banjuan note update <id> --title "新标题"  # 更新笔记标题
 banjuan note update <id> --content "内容"  # 更新笔记内容
 banjuan note move <id> <folder>      # 移动笔记到文件夹

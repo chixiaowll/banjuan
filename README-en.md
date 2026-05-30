@@ -134,7 +134,10 @@ Banjuan is an open-source, cross-platform study and research tool that combines 
 
 ### AI Integration
 
-- **Plugin System** — extensible plugin framework with command registration, event handling, RPC
+- **Built-in Claude assistant** — a sidebar AI panel (powered by local Claude Code) that reads document text (PDF/EPUB/txt/md/html, by page/chapter), notes and annotations; creates/edits notes and mindmaps; tags and organizes folders; searches the web; and can delete (with confirmation)
+- **Live tool trace** — thinking and tool calls (inputs/results) shown step by step and kept after completion
+- **Context-aware** — knows the current library, open documents/notes, current page and its text, and selected text
+- **Global plugin** — built-in plugins install to `~/.banjuan/plugins` and apply to every library; the plugin framework supports commands, events, RPC, and MCP tools
 - **CLI** — LLM-friendly command-line interface, can be used directly in tools like Claude Code
 
 ### Sync
@@ -203,7 +206,10 @@ banjuan history                      # Library history
 banjuan note list                    # List all notes
 banjuan note list --doc <doc-id>     # List notes linked to a document
 banjuan note show <id>               # Show note content
-banjuan note create <title>          # Create a note
+banjuan note create <title>          # Create an empty note
+banjuan note create <title> --content "# md"  # Create with markdown content
+banjuan note create <title> --file note.md    # Create from a file (local images imported)
+banjuan note create <title> < note.md         # Create from stdin
 banjuan note update <id> --title "New Title"  # Update note title
 banjuan note update <id> --content "content"  # Update note content
 banjuan note move <id> <folder>      # Move note to folder
