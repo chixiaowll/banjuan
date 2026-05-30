@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>半卷闲书 — 项目里程碑</title>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --text: #1c1917;
+    --muted: #78716c;
+    --line: #d6d3d1;
+    --accent: #0c4a6e;
+    --card-bg: #ffffff;
+    --tag-bg: #f0f9ff;
+    --tag-text: #0369a1;
+    --phase-bg: #fef3c7;
+    --phase-text: #92400e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.8;
+    padding: 60px 20px;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 64px;
+  }
+
+  header h1 {
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+
+  header h1 span {
+    font-weight: 400;
+    color: var(--muted);
+    font-size: 1.6rem;
+  }
+
+  header p {
+    color: var(--muted);
+    font-size: 1rem;
+  }
+
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .stat-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  .timeline {
+    position: relative;
+    padding-left: 140px;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 120px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(to bottom, var(--accent), var(--line));
+    border-radius: 2px;
+  }
+
+  .milestone {
+    position: relative;
+    margin-bottom: 48px;
+  }
+
+  .milestone:last-child {
+    margin-bottom: 0;
+  }
+
+  .date {
+    position: absolute;
+    left: -140px;
+    top: 4px;
+    width: 110px;
+    text-align: right;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .date .weekday {
+    display: block;
+    font-weight: 400;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .dot {
+    position: absolute;
+    left: -23px;
+    top: 8px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid var(--bg);
+    box-shadow: 0 0 0 2px var(--accent);
+    z-index: 1;
+  }
+
+  .milestone.major .dot {
+    width: 20px;
+    height: 20px;
+    left: -26px;
+    top: 5px;
+    background: #dc2626;
+    box-shadow: 0 0 0 2px #dc2626, 0 0 12px rgba(220,38,38,0.3);
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: box-shadow 0.2s;
+  }
+
+  .card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+
+  .card-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title .icon {
+    font-size: 1.3rem;
+  }
+
+  .card-desc {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: var(--tag-bg);
+    color: var(--tag-text);
+  }
+
+  .tag.phase {
+    background: var(--phase-bg);
+    color: var(--phase-text);
+  }
+
+  .tag.arch {
+    background: #f0fdf4;
+    color: #166534;
+  }
+
+  .tag.fix {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  .tag.platform {
+    background: #faf5ff;
+    color: #6b21a8;
+  }
+
+  .features {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+  }
+
+  .features li {
+    font-size: 0.85rem;
+    color: #44403c;
+    list-style: none;
+    padding-left: 16px;
+    position: relative;
+  }
+
+  .features li::before {
+    content: '›';
+    position: absolute;
+    left: 2px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .commit-count {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #f5f5f4;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 64px;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  @media (max-width: 640px) {
+    .timeline {
+      padding-left: 28px;
+    }
+    .timeline::before {
+      left: 8px;
+    }
+    .date {
+      position: static;
+      width: auto;
+      text-align: left;
+      margin-bottom: 4px;
+    }
+    .date .weekday {
+      display: inline;
+      margin-left: 6px;
+    }
+    .dot {
+      left: -24px;
+    }
+    .milestone.major .dot {
+      left: -27px;
+    }
+    .features {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>半卷闲书 <span>Banjuan</span></h1>
+  <p>个人学习与科研知识管理平台</p>
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">318</div>
+      <div class="stat-label">代码提交</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">14</div>
+      <div class="stat-label">里程碑</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">15+</div>
+      <div class="stat-label">功能模块</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">8</div>
+      <div class="stat-label">子包模块</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">36 天</div>
+      <div class="stat-label">开发周期</div>
+    </div>
+  </div>
+</header>
+
+<div class="timeline">
+
+  <!-- 第一天：4月25日 -->
+  <div class="milestone major">
+    <div class="date">2026-04-25 <span class="weekday">周五</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🚀</span> 项目诞生 — 一天完成全栈搭建</div>
+      <div class="card-desc">从设计文档到 9 个阶段全部落地。Monorepo 脚手架、完整核心服务层、Electron 应用含多格式阅读器，一路推进到插件系统、CLI 命令行工具和 Chrome 扩展。</div>
+      <div class="tags">
+        <span class="tag phase">阶段一 基础架构</span>
+        <span class="tag phase">阶段二 阅读器</span>
+        <span class="tag phase">阶段三 批注系统</span>
+        <span class="tag phase">阶段四 笔记系统</span>
+        <span class="tag phase">阶段五 思维导图</span>
+        <span class="tag phase">阶段六 知识图谱</span>
+        <span class="tag phase">阶段七 插件系统</span>
+        <span class="tag phase">阶段八 CLI 工具</span>
+        <span class="tag phase">阶段九 Chrome 扩展</span>
+      </div>
+      <ul class="features">
+        <li>Monorepo 架构：9 个子包（core, app, shared-ui, cli 等）</li>
+        <li>SQLite + FTS5 全文搜索引擎</li>
+        <li>PDF.js / EPUB / Markdown / 图片 / 视频阅读器</li>
+        <li>5 种批注类型：高亮、笔记、书签、墨迹、区域</li>
+        <li>Milkdown 笔记编辑器（自动保存）</li>
+        <li>D3.js 思维导图 &amp; 知识图谱</li>
+        <li>EventBus + 插件加载器架构</li>
+        <li>Commander.js CLI（文档/批注/笔记/搜索）</li>
+      </ul>
+      <div class="tags" style="margin-top:12px">
+        <span class="tag arch">阶段A：文件优先存储重构</span>
+        <span class="tag arch">阶段B：WebDAV 同步引擎</span>
+        <span class="tag arch">阶段C：同步界面与 CLI 集成</span>
+      </div>
+      <ul class="features">
+        <li>文件优先存储（frontmatter .md、JSON）</li>
+        <li>IndexService + FileWatcher 索引重建</li>
+        <li>WebDAV 双向同步引擎</li>
+        <li>Zotero 风格三栏文库布局</li>
+        <li>同步配置面板与状态指示器</li>
+        <li>自动扫描导入全部文件类型</li>
+      </ul>
+      <div class="commit-count">约 90 次提交</div>
+    </div>
+  </div>
+
+  <!-- 第二天：4月26日 -->
+  <div class="milestone major">
+    <div class="date">2026-04-26 <span class="weekday">周六</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📑</span> PDF 阅读器重构 &amp; 笔记系统重写</div>
+      <div class="card-desc">仿 Zotero 风格的 PDF 阅读器，自定义标题栏、多标签页系统、完整批注工具。笔记系统从 Milkdown 全面迁移到 BlockNote，支持文件夹树、双向链接和模板。</div>
+      <div class="tags">
+        <span class="tag">TabManager 多标签页</span>
+        <span class="tag">自定义标题栏</span>
+        <span class="tag">PDF 工具栏 &amp; 侧边栏</span>
+        <span class="tag">BlockNote 编辑器</span>
+        <span class="tag">双向链接</span>
+        <span class="tag">文件夹树</span>
+        <span class="tag">笔记模板</span>
+      </div>
+      <ul class="features">
+        <li>PdfViewerContext 共享状态管理</li>
+        <li>缩略图 / 大纲 / 批注 / 笔记面板</li>
+        <li>高亮、文字、区域、手绘、橡皮擦、套索 6 种工具</li>
+        <li>文档元数据编辑侧边栏</li>
+        <li>6 种嵌入块（批注/文档/笔记/导图/手写/文件）</li>
+        <li>[[双链]] 搜索弹窗</li>
+        <li>反向链接面板（关联文档展示）</li>
+        <li>FolderService 嵌套文件夹树</li>
+      </ul>
+      <div class="commit-count">约 36 次提交</div>
+    </div>
+  </div>
+
+  <!-- 5月1日 -->
+  <div class="milestone">
+    <div class="date">2026-05-01 <span class="weekday">周四</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🧠</span> 思维导图 2.0 — React Flow</div>
+      <div class="card-desc">全面重写思维导图，以 React Flow 替换 D3.js，自研树形布局引擎。内置 11 套主题、6 种 SVG 节点形状、拖拽改变父节点、键盘快捷操作。</div>
+      <div class="tags">
+        <span class="tag">React Flow</span>
+        <span class="tag">自研树形布局</span>
+        <span class="tag">11 套主题</span>
+        <span class="tag">Zustand + 撤销/重做</span>
+        <span class="tag">PNG/SVG/JSON 导出</span>
+      </div>
+      <ul class="features">
+        <li>6 种 SVG 节点形状 + NodeShell 包装</li>
+        <li>树形边 &amp; 关联边两种连线</li>
+        <li>自研树形布局引擎（非 elkjs）</li>
+        <li>丰富快捷键（Tab/Enter/方向键/缩放/粘贴）</li>
+        <li>右键菜单、搜索浮层、边界 &amp; 摘要覆盖层</li>
+        <li>属性面板、内容编辑器、主题面板</li>
+        <li>拖拽改变父子关系 + 剪贴板粘贴（文本 &amp; 图片）</li>
+        <li>导出 PNG / SVG / JSON</li>
+      </ul>
+      <div class="commit-count">约 18 次提交</div>
+    </div>
+  </div>
+
+  <!-- 5月2日 -->
+  <div class="milestone">
+    <div class="date">2026-05-02 <span class="weekday">周五</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🔗</span> 统一笔记模型</div>
+      <div class="card-desc">重大架构重构：将笔记与思维导图合并为统一的多态笔记模型。通过 NoteType 鉴别器和类型专属元数据，大幅简化数据层与 UI 路由。</div>
+      <div class="tags">
+        <span class="tag arch">架构重构</span>
+        <span class="tag">NoteType 枚举</span>
+        <span class="tag">type_meta 列</span>
+        <span class="tag">导图数据迁移</span>
+      </div>
+      <ul class="features">
+        <li>notes 表新增 type / type_meta 列</li>
+        <li>MindmapService 精简为节点/边操作</li>
+        <li>GraphService 统一使用 notes 表</li>
+        <li>TabManager 合并 openMindmap → openNote</li>
+      </ul>
+      <div class="commit-count">约 16 次提交</div>
+    </div>
+  </div>
+
+  <!-- 5月3日 -->
+  <div class="milestone major">
+    <div class="date">2026-05-03 <span class="weekday">周六</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">✏️</span> Mermaid 图表 + 手写笔记 + 标签系统</div>
+      <div class="card-desc">一天三条功能线并行：Mermaid 图表块（CodeMirror 编辑器）、基于 tldraw 的手写/墨迹笔记（多页支持）、完整的标签管理系统。</div>
+      <div class="tags">
+        <span class="tag">Mermaid 图表块</span>
+        <span class="tag">CodeMirror 6</span>
+        <span class="tag">Canvas + perfect-freehand</span>
+        <span class="tag">多页墨迹</span>
+        <span class="tag">标签系统 v2</span>
+      </div>
+      <ul class="features">
+        <li>Mermaid：模板库、主题切换、拖拽缩放</li>
+        <li>Mermaid：BlockNote 斜杠菜单自定义块</li>
+        <li>手写：原生 Canvas 2D + perfect-freehand 笔迹</li>
+        <li>手写：页面列表、缩略图、拖拽排序</li>
+        <li>手写：画笔、荧光笔、橡皮擦、套索 + 颜色/线宽</li>
+        <li>标签：分配/取消、颜色选择、自动配色</li>
+        <li>标签：TagPill、TagInput、标签管理器</li>
+        <li>导图嵌入块导出为图片</li>
+      </ul>
+      <div class="commit-count">约 40 次提交</div>
+    </div>
+  </div>
+
+  <!-- 5月8日 -->
+  <div class="milestone major">
+    <div class="date">2026-05-08 <span class="weekday">周四</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📱</span> 平台抽象层 &amp; 移动端基础</div>
+      <div class="card-desc">重大架构转型：从 core 中提取平台无关接口（文件系统、数据库、加密、路径），全面替换 Node.js 依赖为抽象接口，创建 shared-ui 共享包，为 Capacitor 移动端奠定基础。</div>
+      <div class="tags">
+        <span class="tag platform">平台抽象层</span>
+        <span class="tag platform">platform-node</span>
+        <span class="tag arch">shared-ui 提取</span>
+        <span class="tag">BanjuanAPI 接口</span>
+      </div>
+      <ul class="features">
+        <li>PlatformFS / PlatformDatabase / PlatformCrypto 接口</li>
+        <li>EventEmitter 替换为平台无关实现</li>
+        <li>所有核心服务使用抽象平台依赖</li>
+        <li>shared-ui 包 + BanjuanAPI Context</li>
+        <li>platform-node 包（Electron 适配）</li>
+        <li>Library 类接受 PlatformDeps 依赖注入</li>
+      </ul>
+      <div class="commit-count">约 10 次提交</div>
+    </div>
+  </div>
+
+  <!-- 5月9日 -->
+  <div class="milestone">
+    <div class="date">2026-05-09 <span class="weekday">周五</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🍎</span> iPad / iPhone 应用 — Capacitor</div>
+      <div class="card-desc">基于 Capacitor 的 iPad 和 iPhone 移动应用。响应式抽屉侧边栏布局、Pointer Events 触控适配、长按上下文菜单、同步进度 UI。</div>
+      <div class="tags">
+        <span class="tag platform">Capacitor iOS</span>
+        <span class="tag platform">platform-capacitor</span>
+        <span class="tag">响应式布局</span>
+        <span class="tag">触控适配</span>
+        <span class="tag fix">移动端运行时修复</span>
+      </div>
+      <ul class="features">
+        <li>Capacitor 包 + iOS 原生工程</li>
+        <li>platform-capacitor（sql.js asm.js + Capacitor Filesystem）</li>
+        <li>响应式抽屉侧边栏</li>
+        <li>Pointer Events + 长按菜单</li>
+        <li>同步进度 UI</li>
+        <li>移除 node:fs 以兼容移动端</li>
+      </ul>
+      <div class="commit-count">约 7 次提交</div>
+    </div>
+  </div>
+
+  <!-- 5月16日 -->
+  <div class="milestone">
+    <div class="date">2026-05-16 <span class="weekday">周五</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🏠</span> 欢迎页 &amp; 诗词卡片</div>
+      <div class="card-desc">首页添加诗词卡片，支持中国古典诗词与英文诗歌滑动切换。优化移动端/iPad 体验，增强 CLI 功能。</div>
+      <div class="tags">
+        <span class="tag">诗词卡片</span>
+        <span class="tag">中国古典诗词</span>
+        <span class="tag">滑动手势</span>
+        <span class="tag">移动端优化</span>
+      </div>
+      <ul class="features">
+        <li>PoetryCard：30+ 首中文古诗词 &amp; 20+ 首英文诗</li>
+        <li>竖排书写模式（vertical writing mode）</li>
+        <li>滑动/拖拽切换诗词</li>
+        <li>朝代印章徽标，随机加载诗词</li>
+        <li>移动端/iPad 触控交互优化</li>
+      </ul>
+      <div class="commit-count">约 3 次提交</div>
+    </div>
+  </div>
+
+  <!-- 5月17–19日 -->
+  <div class="milestone major">
+    <div class="date">2026-05-17 — 19 <span class="weekday">周六 — 周一</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🎨</span> Mermaid 全屏、笔记主题 &amp; 手写优化</div>
+      <div class="card-desc">Mermaid 图表新增全屏模式与缩放控制。10 套内置笔记编辑器主题（Classic、Nord、Solarized、Gruvbox 等）。手写笔记缩放清晰度优化，新增平移/抓手工具，修复斜杠菜单。</div>
+      <div class="tags">
+        <span class="tag">Mermaid 全屏/缩放</span>
+        <span class="tag">10 套笔记主题</span>
+        <span class="tag">排版系统</span>
+        <span class="tag">抓手/平移工具</span>
+        <span class="tag fix">斜杠菜单修复</span>
+      </div>
+      <ul class="features">
+        <li>Mermaid 全屏浮层，支持双指缩放</li>
+        <li>10 套笔记编辑器主题（实时预览切换）</li>
+        <li>全局排版优化</li>
+        <li>手写画布新增抓手/平移工具</li>
+        <li>手写笔记缩放清晰度提升</li>
+        <li>斜杠菜单点击事件修复</li>
+        <li>诗词卡片箭头按钮 &amp; 毛玻璃效果</li>
+      </ul>
+      <div class="commit-count">约 2 次提交</div>
+    </div>
+  </div>
+
+  <!-- 5月20日 -->
+  <div class="milestone major">
+    <div class="date">2026-05-20 <span class="weekday">周二</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🖌️</span> EPUB 墨迹批注 &amp; 首页重构</div>
+      <div class="card-desc">为 EPUB 阅读器实现完整的墨迹批注系统：滚动感知覆盖层、空间聚类、浮动工具栏。参考 Notion 风格全面重构首页布局，11 种背景色调预设。Markdown 墨迹工具栏升级为浮动可拖拽版本。</div>
+      <div class="tags">
+        <span class="tag">EPUB 墨迹覆盖层</span>
+        <span class="tag">浮动墨迹工具栏</span>
+        <span class="tag">笔迹空间聚类</span>
+        <span class="tag">首页重构</span>
+        <span class="tag">背景色调（11 种预设）</span>
+        <span class="tag">Markdown 墨迹升级</span>
+      </div>
+      <ul class="features">
+        <li>EPUB 墨迹覆盖层：画笔、橡皮擦、套索工具</li>
+        <li>滚动感知墨迹批注，精确页面 ID 追踪</li>
+        <li>笔迹空间聚类，自动分组为独立批注</li>
+        <li>EPUB &amp; Markdown 浮动可拖拽墨迹工具栏</li>
+        <li>Markdown 墨迹：颜色预设、荧光笔、撤销/重做</li>
+        <li>三层首页：标题栏、诗词卡片、内容网格</li>
+        <li>农历日期 &amp; 二十四节气显示</li>
+        <li>11 种背景色调：暖黄、淡绿、水墨屏、Kindle 等</li>
+        <li>PDF 色调覆盖层（pointer-events 穿透）</li>
+        <li>Apple 风格设计令牌、阴影、排版优化</li>
+      </ul>
+      <div class="commit-count">约 26 次提交</div>
+    </div>
+  </div>
+
+  <!-- 5月21–24日 -->
+  <div class="milestone major">
+    <div class="date">2026-05-21 — 24 <span class="weekday">周三 — 周六</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🎭</span> 主题系统、iPad 打磨 &amp; CLI 国际化</div>
+      <div class="card-desc">完成主题抽象体系，推出「极简」与「笔记本」两套主题，各自拥有独立的布局令牌。iPad 应用全面打磨：响应式诗词卡片缩放、主题 CSS 导入修复、全新应用图标。CLI 命令行全面英文化。PDF 阅读器新增逐页尺寸计算和页面旋转支持。</div>
+      <div class="tags">
+        <span class="tag">主题抽象层</span>
+        <span class="tag">极简主题</span>
+        <span class="tag">笔记本主题</span>
+        <span class="tag platform">iPad 打磨</span>
+        <span class="tag">应用图标重设计</span>
+        <span class="tag">CLI 英文化</span>
+      </div>
+      <ul class="features">
+        <li>ThemeLayout 令牌：侧边栏、工具栏、首页、诗词卡片分主题配置</li>
+        <li>极简主题：简洁线条、黑白色调、无徽章</li>
+        <li>笔记本主题：暖色纸张、蓝色强调、Emoji 标题</li>
+        <li>CSS 拆分：xuan-paper.css、minimal.css、notebook.css</li>
+        <li>500 首古诗词数据扩充</li>
+        <li>护眼模式 &amp; 水墨屏模式</li>
+        <li>图片查看器抓手/平移工具</li>
+        <li>EPUB：套索工具、点击删除、批注开关、缩放修复</li>
+        <li>iPad：诗词卡片 transform 缩放，自适应容器宽度</li>
+        <li>iPad：主题 CSS 导入修复（分隔线缺失问题）</li>
+        <li>PDF：逐页原始尺寸支持（混合尺寸文档）</li>
+        <li>PDF：页面旋转支持、CMap &amp; 标准字体加载</li>
+        <li>脑图反向链接：侧边栏传递 docId 显示关联文档</li>
+        <li>全新应用图标（macOS squircle 透明留白）</li>
+        <li>CLI：全部描述与消息翻译为英文</li>
+      </ul>
+      <div class="commit-count">约 6 次提交</div>
+    </div>
+  </div>
+
+  <!-- 5月25日 -->
+  <div class="milestone">
+    <div class="date">2026-05-25 <span class="weekday">周日</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📄</span> PDF 文字层对齐 &amp; v0.1.0 构建</div>
+      <div class="card-desc">修复 Chromium Fontations 引擎导致的 Type1 字体乱码问题，实现精确的文字选择覆盖层：两遍 scaleX 校正、空格 word-spacing 补偿、旋转页面 transform 顺序修正。脑图稳定性改进。完成 v0.1.0 首个完整构建。</div>
+      <div class="tags">
+        <span class="tag fix">PDF 乱码修复</span>
+        <span class="tag fix">文字层对齐</span>
+        <span class="tag">旋转页面支持</span>
+        <span class="tag">脑图稳定性</span>
+        <span class="tag phase">v0.1.0 构建</span>
+      </div>
+      <ul class="features">
+        <li>PDF 路径渲染字形（绕过 Chromium Fontations Type1 字体 Bug）</li>
+        <li>两遍文字层校正：从无空格 span 计算 charRatio + 逐 span scaleX</li>
+        <li>空格字符 word-spacing 补偿（正确处理 scaleX 放大效应）</li>
+        <li>旋转 PDF 页面的 CSS transform 顺序修正</li>
+        <li>@font-face 注册补丁（disableFontFace:true 模式）</li>
+        <li>脑图浮动节点位置稳定性 &amp; 节点尺寸持久化</li>
+        <li>诗词卡片每小时随机更换</li>
+        <li>英文 README &amp; 双语文档互链</li>
+        <li>v0.1.0 构建：Apple Silicon &amp; Intel DMG</li>
+      </ul>
+      <div class="commit-count">约 10 次提交</div>
+    </div>
+  </div>
+
+  <!-- 5月30日 -->
+  <div class="milestone">
+    <div class="date">2026-05-30 <span class="weekday">周六</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🤖</span> AI 助手大升级 &amp; 后台导出</div>
+      <div class="card-desc">Claude 插件从"读笔记"升级为能读全文、改内容的研究助手；导出全面后台化不再卡顿；并把内置插件做成全局机制（~/.banjuan/plugins），装包即用、所有书房共用。</div>
+      <div class="tags">
+        <span class="tag">read_document</span>
+        <span class="tag">EPUB 抽文</span>
+        <span class="tag">联网搜索</span>
+        <span class="tag">全局插件</span>
+        <span class="tag">后台导出</span>
+        <span class="tag">实时过程</span>
+        <span class="tag fix">手写/内嵌图导出修复</span>
+      </div>
+      <ul class="features">
+        <li>Claude 读文档正文：PDF / EPUB（按页/章）、txt / md / html，及笔记与批注</li>
+        <li>新增 MCP 工具：脑图增删改、标签、文件夹/移动、删除（先确认）</li>
+        <li>联网搜索（WebSearch / WebFetch）：查资料再写进笔记</li>
+        <li>富上下文：当前书房、打开的文档/笔记、所在页码 + 本页正文、选中文本</li>
+        <li>中间过程实时显示并保留：思考、工具调用的入参与结果</li>
+        <li>全局插件机制：~/.banjuan/plugins，装包即自动安装、跨书房共用</li>
+        <li>导出全面后台进程化：批量 + 单篇统一，不阻塞浏览，进度面板累加（含 PNG/SVG）</li>
+        <li>修复：手写笔记导出带图、Markdown 内嵌脑图导出、Markdown 导入带图</li>
+        <li>CLI note create 支持 --content / --file / stdin；笔记类型筛选独立、AI 面板可拖拽</li>
+      </ul>
+      <div class="commit-count">约 16 次提交</div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>基于 Git 提交历史生成 — 半卷闲书 Banjuan &copy; 2026</p>
+</footer>
+
+</div>
+</body>
+</html>
