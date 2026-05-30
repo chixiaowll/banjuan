@@ -17,7 +17,8 @@
   <a href="#cli">CLI</a> ·
   <a href="#development">Development</a> ·
   <a href="#architecture">Architecture</a> ·
-  <a href="#contributing">Contributing</a>
+  <a href="#contributing">Contributing</a> ·
+  <a href="https://htmlpreview.github.io/?https://github.com/chixiaowll/banjuan/blob/main/milestone-zh.html">开发里程碑</a>
 </p>
 
 ---

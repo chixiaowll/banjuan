@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>半卷闲书 (Banjuan) — Project Milestones</title>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --text: #1c1917;
+    --muted: #78716c;
+    --line: #d6d3d1;
+    --accent: #0c4a6e;
+    --card-bg: #ffffff;
+    --tag-bg: #f0f9ff;
+    --tag-text: #0369a1;
+    --phase-bg: #fef3c7;
+    --phase-text: #92400e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 60px 20px;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 64px;
+  }
+
+  header h1 {
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+
+  header h1 span {
+    font-weight: 400;
+    color: var(--muted);
+    font-size: 1.6rem;
+  }
+
+  header p {
+    color: var(--muted);
+    font-size: 1rem;
+  }
+
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .stat-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .timeline {
+    position: relative;
+    padding-left: 140px;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 120px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(to bottom, var(--accent), var(--line));
+    border-radius: 2px;
+  }
+
+  .milestone {
+    position: relative;
+    margin-bottom: 48px;
+  }
+
+  .milestone:last-child {
+    margin-bottom: 0;
+  }
+
+  .date {
+    position: absolute;
+    left: -140px;
+    top: 4px;
+    width: 110px;
+    text-align: right;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .date .weekday {
+    display: block;
+    font-weight: 400;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .dot {
+    position: absolute;
+    left: -23px;
+    top: 8px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid var(--bg);
+    box-shadow: 0 0 0 2px var(--accent);
+    z-index: 1;
+  }
+
+  .milestone.major .dot {
+    width: 20px;
+    height: 20px;
+    left: -26px;
+    top: 5px;
+    background: #dc2626;
+    box-shadow: 0 0 0 2px #dc2626, 0 0 12px rgba(220,38,38,0.3);
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: box-shadow 0.2s;
+  }
+
+  .card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+
+  .card-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title .icon {
+    font-size: 1.3rem;
+  }
+
+  .card-desc {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: var(--tag-bg);
+    color: var(--tag-text);
+  }
+
+  .tag.phase {
+    background: var(--phase-bg);
+    color: var(--phase-text);
+  }
+
+  .tag.arch {
+    background: #f0fdf4;
+    color: #166534;
+  }
+
+  .tag.fix {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  .tag.platform {
+    background: #faf5ff;
+    color: #6b21a8;
+  }
+
+  .features {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+  }
+
+  .features li {
+    font-size: 0.85rem;
+    color: #44403c;
+    list-style: none;
+    padding-left: 16px;
+    position: relative;
+  }
+
+  .features li::before {
+    content: '›';
+    position: absolute;
+    left: 2px;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .commit-count {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #f5f5f4;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 64px;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  @media (max-width: 640px) {
+    .timeline {
+      padding-left: 28px;
+    }
+    .timeline::before {
+      left: 8px;
+    }
+    .date {
+      position: static;
+      width: auto;
+      text-align: left;
+      margin-bottom: 4px;
+    }
+    .date .weekday {
+      display: inline;
+      margin-left: 6px;
+    }
+    .dot {
+      left: -24px;
+    }
+    .milestone.major .dot {
+      left: -27px;
+    }
+    .features {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>半卷闲书 <span>Banjuan</span></h1>
+  <p>Personal Learning &amp; Research Knowledge Management Platform</p>
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">318</div>
+      <div class="stat-label">Commits</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">14</div>
+      <div class="stat-label">Milestones</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">15+</div>
+      <div class="stat-label">Modules</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">8</div>
+      <div class="stat-label">Packages</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">36 days</div>
+      <div class="stat-label">Duration</div>
+    </div>
+  </div>
+</header>
+
+<div class="timeline">
+
+  <!-- Day 1: Apr 25 -->
+  <div class="milestone major">
+    <div class="date">2026-04-25 <span class="weekday">Friday</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🚀</span> Project Genesis — Full Stack in One Day</div>
+      <div class="card-desc">From design spec to 9 phases implemented. Monorepo scaffolding, complete core services, Electron app with multi-format viewers, and all the way through plugin system, CLI, and Chrome extension.</div>
+      <div class="tags">
+        <span class="tag phase">Phase 1 Foundation</span>
+        <span class="tag phase">Phase 2 Viewers</span>
+        <span class="tag phase">Phase 3 Annotations</span>
+        <span class="tag phase">Phase 4 Notes</span>
+        <span class="tag phase">Phase 5 Mindmap</span>
+        <span class="tag phase">Phase 6 Knowledge Graph</span>
+        <span class="tag phase">Phase 7 Plugin System</span>
+        <span class="tag phase">Phase 8 CLI</span>
+        <span class="tag phase">Phase 9 Chrome Extension</span>
+      </div>
+      <ul class="features">
+        <li>Monorepo: 9 packages (core, app, shared-ui, cli, etc.)</li>
+        <li>SQLite + FTS5 full-text search</li>
+        <li>PDF.js / EPUB / Markdown / Image / Video viewers</li>
+        <li>5 annotation types: highlight, note, bookmark, ink, area</li>
+        <li>Milkdown note editor with auto-save</li>
+        <li>D3.js mind map &amp; knowledge graph</li>
+        <li>EventBus + plugin loader architecture</li>
+        <li>Commander.js CLI (doc/ann/note/search)</li>
+      </ul>
+      <div class="tags" style="margin-top:12px">
+        <span class="tag arch">Phase A: File-first Storage</span>
+        <span class="tag arch">Phase B: WebDAV Sync</span>
+        <span class="tag arch">Phase C: Sync UI &amp; CLI</span>
+      </div>
+      <ul class="features">
+        <li>File-first storage (frontmatter .md, JSON)</li>
+        <li>IndexService + FileWatcher for SQLite rebuild</li>
+        <li>WebDAV bidirectional sync engine</li>
+        <li>Zotero-style three-panel library layout</li>
+        <li>Sync config panel &amp; status indicators</li>
+        <li>Auto-import &amp; scan all file types</li>
+      </ul>
+      <div class="commit-count">~90 commits</div>
+    </div>
+  </div>
+
+  <!-- Day 2: Apr 26 -->
+  <div class="milestone major">
+    <div class="date">2026-04-26 <span class="weekday">Saturday</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📑</span> PDF Viewer Redesign &amp; Note System Rewrite</div>
+      <div class="card-desc">Zotero-style PDF reader with custom title bar, multi-tab system, annotation tools. Complete note system rewrite from Milkdown to BlockNote with folder tree, bidirectional links, and templates.</div>
+      <div class="tags">
+        <span class="tag">TabManager multi-tab</span>
+        <span class="tag">Custom title bar</span>
+        <span class="tag">PDF toolbar &amp; sidebar</span>
+        <span class="tag">BlockNote editor</span>
+        <span class="tag">Bidirectional links</span>
+        <span class="tag">Folder tree</span>
+        <span class="tag">Note templates</span>
+      </div>
+      <ul class="features">
+        <li>PdfViewerContext shared state</li>
+        <li>Thumbnail / outline / annotation / notes panels</li>
+        <li>Highlight, text, area, ink, eraser, lasso tools</li>
+        <li>Metadata editor sidebar</li>
+        <li>6 custom embed blocks (annotation, doc, note, mindmap, handwriting, file)</li>
+        <li>LinkSearchPopup for [[wikilinks]]</li>
+        <li>BacklinksPanel with linked docs</li>
+        <li>FolderService with nested tree support</li>
+      </ul>
+      <div class="commit-count">~36 commits</div>
+    </div>
+  </div>
+
+  <!-- May 1 -->
+  <div class="milestone">
+    <div class="date">2026-05-01 <span class="weekday">Thursday</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🧠</span> Mindmap 2.0 — React Flow</div>
+      <div class="card-desc">Complete mindmap rewrite replacing D3.js with React Flow and custom tree layout engine. 11 built-in themes, 6 node shapes via SVG paths, drag-to-reparent, and keyboard shortcuts.</div>
+      <div class="tags">
+        <span class="tag">React Flow</span>
+        <span class="tag">custom tree layout</span>
+        <span class="tag">11 themes</span>
+        <span class="tag">Zustand + undo/redo</span>
+        <span class="tag">PNG/SVG/JSON export</span>
+      </div>
+      <ul class="features">
+        <li>6 SVG node shapes + NodeShell wrapper</li>
+        <li>Tree &amp; relation edge types</li>
+        <li>Custom tree layout engine (no elkjs)</li>
+        <li>Rich keyboard shortcuts (Tab/Enter/arrows/zoom/paste)</li>
+        <li>Context menu, search overlay, boundary &amp; summary overlays</li>
+        <li>Property panel, content editor, theme panel</li>
+        <li>Drag-to-reparent + clipboard paste (text &amp; images)</li>
+        <li>Export to PNG / SVG / JSON</li>
+      </ul>
+      <div class="commit-count">~18 commits</div>
+    </div>
+  </div>
+
+  <!-- May 2 -->
+  <div class="milestone">
+    <div class="date">2026-05-02 <span class="weekday">Friday</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🔗</span> Unified Note Model</div>
+      <div class="card-desc">Major architectural refactor merging notes and mindmaps into a single polymorphic note model. NoteType discriminator with type-specific metadata, simplifying the data layer and UI routing.</div>
+      <div class="tags">
+        <span class="tag arch">Architecture refactor</span>
+        <span class="tag">NoteType enum</span>
+        <span class="tag">type_meta column</span>
+        <span class="tag">Mindmap migration</span>
+      </div>
+      <ul class="features">
+        <li>Notes table gains type / type_meta columns</li>
+        <li>MindmapService slimmed to node/edge ops</li>
+        <li>GraphService uses unified notes table</li>
+        <li>TabManager merges openMindmap → openNote</li>
+      </ul>
+      <div class="commit-count">~16 commits</div>
+    </div>
+  </div>
+
+  <!-- May 3 -->
+  <div class="milestone major">
+    <div class="date">2026-05-03 <span class="weekday">Saturday</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">✏️</span> Mermaid Diagrams + Handwriting Notes + Tags</div>
+      <div class="card-desc">Three major feature tracks in one day: Mermaid diagram blocks with CodeMirror editor, tldraw-based handwriting/ink notes with multi-page support, and a complete tag management system.</div>
+      <div class="tags">
+        <span class="tag">Mermaid blocks</span>
+        <span class="tag">CodeMirror 6</span>
+        <span class="tag">Canvas + perfect-freehand</span>
+        <span class="tag">Multi-page ink</span>
+        <span class="tag">Tag system v2</span>
+      </div>
+      <ul class="features">
+        <li>Mermaid: template gallery, theme selector, resize handle</li>
+        <li>Mermaid: custom block in BlockNote slash menu</li>
+        <li>Handwriting: Canvas 2D + perfect-freehand strokes</li>
+        <li>Handwriting: page list, thumbnails, drag reorder</li>
+        <li>Handwriting: pen, highlighter, eraser, lasso tools + color/width</li>
+        <li>Tags: assign/unassign, color picker, auto-color</li>
+        <li>Tags: TagPill, TagInput, TagManagerView</li>
+        <li>Mindmap embed export as image</li>
+      </ul>
+      <div class="commit-count">~40 commits</div>
+    </div>
+  </div>
+
+  <!-- May 8 -->
+  <div class="milestone major">
+    <div class="date">2026-05-08 <span class="weekday">Thursday</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📱</span> Platform Abstraction &amp; Mobile Foundation</div>
+      <div class="card-desc">Major architecture shift: extract platform-agnostic interfaces (fs, database, crypto, path) from core, replace all Node.js dependencies with abstract interfaces, create shared-ui package, and lay foundation for Capacitor mobile app.</div>
+      <div class="tags">
+        <span class="tag platform">Platform abstraction</span>
+        <span class="tag platform">platform-node</span>
+        <span class="tag arch">shared-ui extraction</span>
+        <span class="tag">BanjuanAPI interface</span>
+      </div>
+      <ul class="features">
+        <li>PlatformFS / PlatformDatabase / PlatformCrypto interfaces</li>
+        <li>EventEmitter replaced with platform-agnostic impl</li>
+        <li>All core services use abstract platform deps</li>
+        <li>shared-ui package with BanjuanAPI context</li>
+        <li>platform-node package for Electron</li>
+        <li>Library class accepts PlatformDeps injection</li>
+      </ul>
+      <div class="commit-count">~10 commits</div>
+    </div>
+  </div>
+
+  <!-- May 9 -->
+  <div class="milestone">
+    <div class="date">2026-05-09 <span class="weekday">Friday</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🍎</span> iPad / iPhone App — Capacitor</div>
+      <div class="card-desc">Mobile app for iPad and iPhone using Capacitor. Responsive layout with drawer sidebar, touch adaptation with Pointer Events, long-press context menus, and sync progress UI.</div>
+      <div class="tags">
+        <span class="tag platform">Capacitor iOS</span>
+        <span class="tag platform">platform-capacitor</span>
+        <span class="tag">Responsive layout</span>
+        <span class="tag">Touch adaptation</span>
+        <span class="tag fix">Mobile runtime fixes</span>
+      </div>
+      <ul class="features">
+        <li>Capacitor package with iOS project</li>
+        <li>platform-capacitor (sql.js asm.js + Capacitor Filesystem)</li>
+        <li>Responsive drawer sidebar for mobile</li>
+        <li>Pointer Events + long-press menus</li>
+        <li>Sync progress UI</li>
+        <li>node:fs removal for mobile compat</li>
+      </ul>
+      <div class="commit-count">~7 commits</div>
+    </div>
+  </div>
+
+  <!-- May 16 -->
+  <div class="milestone">
+    <div class="date">2026-05-16 <span class="weekday">Friday</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🏠</span> Welcome Page &amp; Poetry Card</div>
+      <div class="card-desc">Add poetry card to welcome/home page with swipeable Chinese classical poetry and English poems. Enhance mobile/iPad support and improve CLI capabilities.</div>
+      <div class="tags">
+        <span class="tag">Poetry card</span>
+        <span class="tag">Chinese classical poetry</span>
+        <span class="tag">Swipe gestures</span>
+        <span class="tag">Mobile enhancements</span>
+      </div>
+      <ul class="features">
+        <li>PoetryCard: 30+ Chinese poems &amp; 20+ English poems</li>
+        <li>Vertical writing mode for classical Chinese</li>
+        <li>Swipe/drag to switch poems</li>
+        <li>Dynasty seal badge with random poem on reload</li>
+        <li>Mobile/iPad touch improvements</li>
+      </ul>
+      <div class="commit-count">~3 commits</div>
+    </div>
+  </div>
+
+  <!-- May 17–19 -->
+  <div class="milestone major">
+    <div class="date">2026-05-17 — 19 <span class="weekday">Sat — Mon</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🎨</span> Mermaid Fullscreen, Note Themes &amp; Handwriting Polish</div>
+      <div class="card-desc">Mermaid diagrams gain fullscreen mode with zoom controls. 10 built-in note editor themes (Classic, Nord, Solarized, Gruvbox, etc.). Handwriting zoom clarity, hand/pan tool, slash menu fixes.</div>
+      <div class="tags">
+        <span class="tag">Mermaid fullscreen/zoom</span>
+        <span class="tag">10 note themes</span>
+        <span class="tag">Typography system</span>
+        <span class="tag">Hand/pan tool</span>
+        <span class="tag fix">Slash menu fix</span>
+      </div>
+      <ul class="features">
+        <li>Mermaid fullscreen overlay with pinch-to-zoom</li>
+        <li>10 note editor themes with live preview</li>
+        <li>Typography refinements across the app</li>
+        <li>Hand/pan tool for handwriting canvas</li>
+        <li>Handwriting zoom clarity improvements</li>
+        <li>Slash menu click handler fix</li>
+        <li>Poetry card arrow buttons &amp; backdrop blur</li>
+      </ul>
+      <div class="commit-count">~2 commits</div>
+    </div>
+  </div>
+
+  <!-- May 20 -->
+  <div class="milestone major">
+    <div class="date">2026-05-20 <span class="weekday">Tuesday</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🖌️</span> EPUB Ink Annotations &amp; Homepage Redesign</div>
+      <div class="card-desc">Full ink annotation system for EPUB viewer with scroll-aware overlays, spatial clustering, and floating toolbar. Homepage redesign with Notion-inspired layout and background tint system with 11 presets. Markdown ink toolbar upgraded to floating draggable with presets.</div>
+      <div class="tags">
+        <span class="tag">EPUB ink overlay</span>
+        <span class="tag">Floating ink toolbar</span>
+        <span class="tag">Spatial stroke clustering</span>
+        <span class="tag">Homepage redesign</span>
+        <span class="tag">Background tint (11 presets)</span>
+        <span class="tag">Markdown ink upgrade</span>
+      </div>
+      <ul class="features">
+        <li>EPUB ink overlay with drawing, eraser, lasso tools</li>
+        <li>Scroll-aware ink annotations with precise page ID tracking</li>
+        <li>Spatial clustering of ink strokes into separate annotations</li>
+        <li>Floating draggable ink toolbar for EPUB &amp; Markdown</li>
+        <li>Markdown ink toolbar: color presets, highlighter, undo/redo</li>
+        <li>3-layer homepage: header, poetry card, content grid</li>
+        <li>Lunar calendar &amp; 24 solar terms display</li>
+        <li>11 background tints: warm, green, sepia, rose, e-ink, kindle, etc.</li>
+        <li>PDF tint overlay with pointer-events passthrough</li>
+        <li>Apple-inspired design tokens, shadows, typography</li>
+      </ul>
+      <div class="commit-count">~26 commits</div>
+    </div>
+  </div>
+
+  <!-- May 21–24 -->
+  <div class="milestone major">
+    <div class="date">2026-05-21 — 24 <span class="weekday">Wed — Sat</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🎭</span> Theme System, iPad Polish &amp; CLI</div>
+      <div class="card-desc">Complete theme abstraction with Minimal and Notebook themes, each with distinct layout tokens. iPad app polish with responsive PoetryCard scaling, theme CSS import fix, and new app icon. CLI fully localized to English. PDF viewer gains per-page sizing and page rotation support.</div>
+      <div class="tags">
+        <span class="tag">Theme abstraction</span>
+        <span class="tag">Minimal theme</span>
+        <span class="tag">Notebook theme</span>
+        <span class="tag platform">iPad polish</span>
+        <span class="tag">App icon redesign</span>
+        <span class="tag">CLI i18n (English)</span>
+      </div>
+      <ul class="features">
+        <li>ThemeLayout tokens: sidebar, toolbar, home, poetryCard per theme</li>
+        <li>Minimal theme: clean lines, monochrome, no badges</li>
+        <li>Notebook theme: warm paper tones, blue accents, emoji headers</li>
+        <li>CSS split: xuan-paper.css, minimal.css, notebook.css</li>
+        <li>500 poems data (Chinese classical poetry expansion)</li>
+        <li>Eye protection mode &amp; e-ink mode</li>
+        <li>ImageViewer hand/pan tool</li>
+        <li>EPUB: lasso tool, click-to-delete, annotation toggle, zoom fix</li>
+        <li>iPad: responsive PoetryCard with transform-based scaling</li>
+        <li>iPad: theme CSS import fix (missing divider lines)</li>
+        <li>PDF: per-page raw sizes for mixed-dimension documents</li>
+        <li>PDF: page rotation support, CMap &amp; standard font loading</li>
+        <li>Mindmap backlinks: pass docId to sidebar for linked docs</li>
+        <li>New app icon with transparent padding for macOS squircle</li>
+        <li>CLI: all descriptions &amp; messages translated to English</li>
+      </ul>
+      <div class="commit-count">~6 commits</div>
+    </div>
+  </div>
+
+  <!-- May 25 -->
+  <div class="milestone">
+    <div class="date">2026-05-25 <span class="weekday">Sunday</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">📄</span> PDF Text Layer Alignment &amp; v0.1.0 Build</div>
+      <div class="card-desc">Fix garbled PDF text rendering caused by Chromium Fontations engine breaking Type1 fonts. Implement precise text selection overlay with two-pass scaleX correction, word-spacing for space characters, and correct transform order for rotated pages. Mindmap stability improvements. First complete v0.1.0 build.</div>
+      <div class="tags">
+        <span class="tag fix">PDF garbled text fix</span>
+        <span class="tag fix">Text layer alignment</span>
+        <span class="tag">Rotated page support</span>
+        <span class="tag">Mindmap stability</span>
+        <span class="tag phase">v0.1.0 Build</span>
+      </div>
+      <ul class="features">
+        <li>PDF path-based glyph rendering (bypass Chromium Fontations bug)</li>
+        <li>Two-pass text layer: charRatio from space-free spans + per-span scaleX</li>
+        <li>Word-spacing correction for space characters in text selection</li>
+        <li>Correct CSS transform order for rotated PDF pages</li>
+        <li>@font-face registration patch for disableFontFace:true mode</li>
+        <li>Mindmap floating node position stability &amp; persisted node sizes</li>
+        <li>Poetry card hourly randomization</li>
+        <li>English README &amp; cross-linked docs</li>
+        <li>v0.1.0 build: DMG for Apple Silicon &amp; Intel</li>
+      </ul>
+      <div class="commit-count">~10 commits</div>
+    </div>
+  </div>
+
+  <!-- May 30 -->
+  <div class="milestone">
+    <div class="date">2026-05-30 <span class="weekday">Sat</span></div>
+    <div class="dot"></div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🤖</span> AI Assistant Overhaul &amp; Background Export</div>
+      <div class="card-desc">The Claude plugin grew from "read my notes" into a research assistant that reads full text and edits content; export moved fully into a background process (no more blocking); and built-in plugins became global (~/.banjuan/plugins) — installed on first launch, shared across libraries.</div>
+      <div class="tags">
+        <span class="tag">read_document</span>
+        <span class="tag">EPUB text</span>
+        <span class="tag">web search</span>
+        <span class="tag">global plugins</span>
+        <span class="tag">background export</span>
+        <span class="tag">live tool trace</span>
+        <span class="tag fix">export image fixes</span>
+      </div>
+      <ul class="features">
+        <li>Claude reads document text: PDF / EPUB (by page/chapter), txt / md / html, plus notes &amp; annotations</li>
+        <li>New MCP tools: mindmap add/edit/delete nodes, tags, folders/move, deletes (with confirmation)</li>
+        <li>Web research (WebSearch / WebFetch): look things up, then write them into notes</li>
+        <li>Rich context: current library, open documents/notes, current page + its text, selected text</li>
+        <li>Live tool trace, kept after completion: thinking and each tool call's input/result</li>
+        <li>Global plugin dir (~/.banjuan/plugins): auto-installed on launch, shared across libraries</li>
+        <li>Export fully backgrounded: batch + single unified, never blocks browsing, accumulating progress panel (incl. PNG/SVG)</li>
+        <li>Fixes: handwriting export keeps images, embedded-mindmap export, image import on Markdown import</li>
+        <li>CLI note create takes --content / --file / stdin; independent note type filter; resizable AI panel</li>
+      </ul>
+      <div class="commit-count">~16 commits</div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>Generated from git history — 半卷闲书 Banjuan &copy; 2026</p>
+</footer>
+
+</div>
+</body>
+</html>
