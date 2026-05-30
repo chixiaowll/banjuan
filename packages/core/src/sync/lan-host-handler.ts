@@ -51,6 +51,16 @@ function unauthorized(): DavResponse {
   return { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="banjuan"' }, body: 'Unauthorized' }
 }
 
+/** True if any segment of the (decoded) path is an excluded file or directory. */
+function isExcludedPath(reqPath: string): boolean {
+  const segments = reqPath.replace(/^\/+/, '').split('/').filter(Boolean)
+  for (let i = 0; i < segments.length; i++) {
+    const isDir = i < segments.length - 1   // only the last segment is the leaf (possibly a file)
+    if (isExcluded(segments[i], isDir)) return true
+  }
+  return false
+}
+
 export async function handleDavRequest(req: DavRequest, ctx: DavContext): Promise<DavResponse> {
   try {
     return await routeDavRequest(req, ctx)
@@ -83,6 +93,8 @@ async function routeDavRequest(req: DavRequest, ctx: DavContext): Promise<DavRes
 
   const abs = resolveSafe(ctx.rootPath, req.path)
   if (abs === null) return { status: 403, headers: {}, body: 'Forbidden' }
+
+  if (isExcludedPath(req.path)) return { status: 403, headers: {}, body: 'Forbidden' }
 
   const fs = ctx.fs
 

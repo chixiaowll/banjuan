@@ -89,4 +89,12 @@ describe('lan-host-handler', () => {
     const xml = String(res.body)
     expect(xml).not.toContain('book.pdf')   // children not listed at Depth:0
   })
+
+  it('refuses direct access to excluded files on every verb', async () => {
+    const auth = { authorization: basic('secrettoken') }
+    expect((await handleDavRequest({ method: 'GET', path: '/db.sqlite', headers: auth }, ctx)).status).toBe(403)
+    expect((await handleDavRequest({ method: 'DELETE', path: '/db.sqlite', headers: auth }, ctx)).status).toBe(403)
+    expect((await handleDavRequest({ method: 'PUT', path: '/db.sqlite', headers: auth, body: new TextEncoder().encode('x') }, ctx)).status).toBe(403)
+    expect((await handleDavRequest({ method: 'PUT', path: '/plugins/evil.js', headers: auth, body: new TextEncoder().encode('x') }, ctx)).status).toBe(403)
+  })
 })

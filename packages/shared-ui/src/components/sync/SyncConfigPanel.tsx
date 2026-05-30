@@ -90,6 +90,10 @@ export default function SyncConfigPanel({ onClose }: Props) {
           })
         }
       } catch {}
+      try {
+        const s = await api.lan.getHostStatus()
+        if (s.running) setHostStatus({ running: true, url: s.url, pin: s.pin })
+      } catch { /* ignore */ }
     }
     load()
   }, [])
@@ -308,7 +312,7 @@ export default function SyncConfigPanel({ onClose }: Props) {
             >
               {hostStatus.running ? '停止共享' : '开启共享'}
             </button>
-            {hostStatus.running && hostStatus.url && (
+            {hostStatus.running && hostStatus.url && hostStatus.pin && (
               <div style={{
                 padding: '12px 14px', borderRadius: 8, fontSize: 13,
                 background: 'rgba(52,199,89,0.06)', border: '1px solid rgba(52,199,89,0.2)',
