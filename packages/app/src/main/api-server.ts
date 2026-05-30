@@ -9,9 +9,10 @@ import type { Library } from '@banjuan/core'
 import { blocksToMarkdown, markdownToBlocks } from '@banjuan/core'
 import { saveClip } from './clip-service.js'
 import { openLibraryForApi, initLibraryForApi, libraries, getLibraryHistory } from './ipc.js'
-import { extractPdfText } from './pdf-text.js'
+import { extractDocumentText } from './pdf-text.js'
 
 const MAX_TEXT_PAGES = 25
+const TEXT_SUPPORTED = new Set(['pdf', 'epub', 'txt', 'md', 'html'])
 
 let server: ReturnType<typeof createServer> | null = null
 let portFilePath = ''
@@ -451,13 +452,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     try {
       const doc = await lib.documents.get(docTextMatch[1])
       if (!doc) { json(res, 404, { error: 'Document not found' }); return }
-      if (doc.type !== 'pdf') { json(res, 400, { error: `Text extraction is only supported for PDF documents (this is "${doc.type}")` }); return }
+      if (!TEXT_SUPPORTED.has(doc.type)) { json(res, 400, { error: `Text extraction is not supported for "${doc.type}" documents` }); return }
       const from = query.from ? parseInt(query.from as string, 10) : (query.page ? parseInt(query.page as string, 10) : 1)
       let to = query.to ? parseInt(query.to as string, 10) : (query.page ? parseInt(query.page as string, 10) : from)
       if (to - from + 1 > MAX_TEXT_PAGES) to = from + MAX_TEXT_PAGES - 1
       const abs = join(lib.rootPath, doc.path)
-      const result = await extractPdfText(abs, from, to)
-      json(res, 200, { ...result, truncated: result.to - result.from + 1 >= MAX_TEXT_PAGES && result.to < result.numPages })
+      const result = await extractDocumentText(abs, doc.type, from, to)
+      json(res, 200, result)
     } catch (e: any) {
       json(res, 500, { error: e.message })
     }

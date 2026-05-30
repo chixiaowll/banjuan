@@ -563,11 +563,16 @@ select.claude-settings-input {
 
 /* Tool calls */
 .claude-tool-call {
-  margin: 4px 0;
-  border: 1px solid var(--border, #e0e0e0);
+  flex-shrink: 0; /* in the flex-column message list, don't collapse */
+  margin: 6px 0;
+  /* Explicit contrast colors — theme vars (--border/--surface) blend into the
+     cream panel and made these cards invisible. */
+  border: 1px solid rgba(120, 90, 60, 0.38);
   border-radius: 8px;
   overflow: hidden;
   font-size: 12px;
+  background: rgba(128, 110, 90, 0.06);
+  box-shadow: 0 1px 2px rgba(60, 40, 20, 0.06);
 }
 
 .claude-tool-header {
@@ -575,7 +580,8 @@ select.claude-settings-input {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  background: var(--surface, #f5f5f5);
+  background: rgba(120, 90, 60, 0.1);
+  border-bottom: 1px solid rgba(120, 90, 60, 0.18);
   user-select: none;
 }
 
@@ -652,3 +658,34 @@ select.claude-settings-input {
   overflow-y: auto;
   line-height: 1.4;
 }
+
+/* Thinking block — reasoning shown as collapsible prose, distinct from tools. */
+.claude-thinking-block .claude-tool-name {
+  font-style: italic;
+  color: var(--text-muted, #888);
+}
+.claude-thinking-text {
+  font-size: 12px;
+  color: var(--text-muted, #777);
+  line-height: 1.55;
+  white-space: normal;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* Tool call — richer inline detail */
+.claude-tool-emoji { margin-right: 4px; }
+.claude-tool-rawname {
+  font-size: 10px;
+  color: var(--text-muted, #aaa);
+  font-family: 'SF Mono', 'Menlo', monospace;
+  margin-left: auto;
+  opacity: 0.7;
+}
+.claude-tool-summary {
+  padding: 2px 10px 6px;
+  font-size: 11.5px;
+  color: var(--text-muted, #777);
+  word-break: break-word;
+}
+.claude-tool-result-preview { color: var(--text, #555); }

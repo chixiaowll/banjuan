@@ -10,9 +10,11 @@ const MODEL_LABELS = {
 
 export function activate(api) {
   const el = api.containerEl
+  // Ordered conversation items so the whole trace (text, thinking, tool calls)
+  // is shown live AND preserved after completion:
+  //   { role:'user'|'assistant'|'thinking', content, streaming? }
+  //   { role:'tool', id, name, input, result, isError }
   let messages = []
-  let currentStream = ''
-  let toolCalls = []
   let isStreaming = false
   let settingsOpen = false
   let sessionsOpen = false
@@ -60,8 +62,8 @@ export function activate(api) {
     `
     header.querySelector('[data-action="new"]').addEventListener('click', async () => {
       messages = []
-      currentStream = ''
       sessionInfo = null
+      isStreaming = false
       await api.rpc('newSession')
       sessionsOpen = false
       render()
@@ -127,24 +129,7 @@ export function activate(api) {
         </div>
       `
     } else {
-      for (const msg of messages) {
-        messageArea.appendChild(createMessageEl(msg.role, msg.content))
-      }
-      if (isStreaming) {
-        if (toolCalls.length > 0) {
-          for (const tc of toolCalls) {
-            messageArea.appendChild(createToolCallEl(tc))
-          }
-        }
-        if (currentStream) {
-          messageArea.appendChild(createMessageEl('assistant', currentStream, true))
-        } else if (toolCalls.length === 0 || toolCalls[toolCalls.length - 1].result != null) {
-          const thinking = document.createElement('div')
-          thinking.className = 'claude-message claude-message-assistant'
-          thinking.innerHTML = '<div class="claude-message-bubble claude-thinking"><span class="claude-thinking-dot"></span><span class="claude-thinking-dot"></span><span class="claude-thinking-dot"></span></div>'
-          messageArea.appendChild(thinking)
-        }
-      }
+      renderItems(messageArea)
     }
     el.appendChild(messageArea)
 
@@ -306,6 +291,53 @@ export function activate(api) {
     el.appendChild(panel)
   }
 
+  // Render all conversation items (text / thinking / tool) in order into msgArea.
+  function renderItems(msgArea) {
+    msgArea.innerHTML = ''
+    for (const item of messages) {
+      if (item.role === 'tool') {
+        msgArea.appendChild(createToolCallEl(item))
+      } else if (item.role === 'thinking') {
+        msgArea.appendChild(createThinkingEl(item.content, item.streaming))
+      } else {
+        msgArea.appendChild(createMessageEl(item.role, item.content, item.streaming))
+      }
+    }
+    // "Working…" dots only while waiting with nothing in-flight to show.
+    const last = messages[messages.length - 1]
+    if (isStreaming && (!last || (last.role !== 'assistant' && last.role !== 'thinking') || !last.streaming)) {
+      if (!last || last.role !== 'tool' || last.result != null) {
+        const working = document.createElement('div')
+        working.className = 'claude-message claude-message-assistant'
+        working.innerHTML = '<div class="claude-message-bubble claude-thinking"><span class="claude-thinking-dot"></span><span class="claude-thinking-dot"></span><span class="claude-thinking-dot"></span></div>'
+        msgArea.appendChild(working)
+      }
+    }
+    msgArea.scrollTop = msgArea.scrollHeight
+  }
+
+  function createThinkingEl(content, streaming = false) {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'claude-tool-call claude-thinking-block'
+    wrapper.style.cssText = 'flex-shrink:0;margin:6px 0;border:1px solid rgba(120,90,60,0.28);border-radius:8px;overflow:hidden;background:rgba(128,110,90,0.04)'
+    const header = document.createElement('div')
+    header.className = 'claude-tool-header'
+    header.innerHTML = `<span class="claude-tool-icon">💭</span><span class="claude-tool-name">Thinking${streaming ? '…' : ''}</span>`
+    wrapper.appendChild(header)
+    const body = document.createElement('div')
+    body.className = 'claude-tool-detail claude-thinking-text'
+    body.innerHTML = renderMarkdown(content)
+    if (streaming) { const c = document.createElement('span'); c.className = 'claude-cursor'; body.appendChild(c) }
+    wrapper.appendChild(body)
+    // Collapsible once finished.
+    if (!streaming) {
+      body.classList.add('claude-tool-hidden')
+      header.style.cursor = 'pointer'
+      header.addEventListener('click', () => body.classList.toggle('claude-tool-hidden'))
+    }
+    return wrapper
+  }
+
   function createMessageEl(role, content, streaming = false) {
     const msgEl = document.createElement('div')
     msgEl.className = `claude-message claude-message-${role}`
@@ -335,49 +367,100 @@ export function activate(api) {
     return msgEl
   }
 
+  // Friendly action label + icon for a tool name (banjuan MCP tools, web tools).
+  function toolLabel(rawName) {
+    const name = String(rawName || '').replace(/^mcp__banjuan__/, '')
+    const MAP = {
+      search: ['🔍', 'Searching library'],
+      list_notes: ['📝', 'Listing notes'], read_note: ['📖', 'Reading note'],
+      create_note: ['✏️', 'Creating note'], update_note: ['✏️', 'Updating note'],
+      list_documents: ['📚', 'Listing documents'], get_document: ['📄', 'Getting document info'],
+      read_document: ['📖', 'Reading document'], get_annotations: ['🖍️', 'Reading annotations'],
+      get_mindmap: ['🧠', 'Reading mindmap'], create_mindmap: ['🧠', 'Creating mindmap'],
+      add_mindmap_node: ['🧠', 'Adding mindmap node'], update_mindmap_node: ['🧠', 'Updating mindmap node'],
+      delete_mindmap_node: ['🧠', 'Deleting mindmap node'],
+      list_tags: ['🏷️', 'Listing tags'], assign_tags: ['🏷️', 'Tagging'], unassign_tag: ['🏷️', 'Removing tag'],
+      list_note_folders: ['📁', 'Listing folders'], create_note_folder: ['📁', 'Creating folder'], move_note: ['📁', 'Moving note'],
+      delete_note: ['🗑️', 'Deleting note'], delete_document: ['🗑️', 'Deleting document'], delete_tag: ['🗑️', 'Deleting tag'],
+      WebSearch: ['🌐', 'Web search'], WebFetch: ['🌐', 'Fetching page'],
+    }
+    const [icon, label] = MAP[name] || ['🔧', name]
+    return { icon, label, name }
+  }
+
+  // One-line summary of the most salient input fields, shown without expanding.
+  function inputSummary(input) {
+    if (!input || typeof input !== 'object') return ''
+    const keys = ['query', 'q', 'title', 'name', 'tagName', 'id', 'noteId', 'mindmapId', 'docId', 'folder', 'path', 'url']
+    for (const k of keys) {
+      if (input[k]) return `${k}: ${String(input[k]).slice(0, 80)}`
+    }
+    if (input.fromPage) return `pages ${input.fromPage}${input.toPage ? '–' + input.toPage : ''}`
+    if (Array.isArray(input.tags)) return `tags: ${input.tags.join(', ').slice(0, 80)}`
+    const first = Object.entries(input)[0]
+    return first ? `${first[0]}: ${String(first[1]).slice(0, 80)}` : ''
+  }
+
   function createToolCallEl(tc) {
     const wrapper = document.createElement('div')
     wrapper.className = 'claude-tool-call'
+    // flex-shrink:0 is the critical bit: the message list is a flex column, and a
+    // flex item with overflow:hidden gets min-size 0, so it collapsed to a thin
+    // line when the column overflowed. Inline styles also avoid CSS-reload issues.
+    wrapper.style.cssText = 'flex-shrink:0;margin:6px 0;border:1px solid rgba(120,90,60,0.38);border-radius:8px;overflow:hidden;font-size:12px;background:rgba(128,110,90,0.06);box-shadow:0 1px 2px rgba(60,40,20,0.06)'
     const isRunning = tc.result == null
     const statusIcon = isRunning
       ? '<span class="claude-tool-spinner"></span>'
       : tc.isError
         ? '<span class="claude-tool-icon claude-tool-error">✕</span>'
         : '<span class="claude-tool-icon claude-tool-ok">✓</span>'
+    const { icon, label, name } = toolLabel(tc.name)
     const header = document.createElement('div')
     header.className = 'claude-tool-header'
-    header.innerHTML = `${statusIcon}<span class="claude-tool-name">${escapeHtml(tc.name)}</span>`
+    header.style.cssText = 'display:flex;align-items:center;gap:6px;padding:7px 10px;font-size:12px;color:#3a2a1a;background:rgba(120,90,60,0.10);border-bottom:1px solid rgba(120,90,60,0.18);user-select:none'
+    header.innerHTML = `${statusIcon}<span style="font-size:13px">${icon}</span><span style="font-weight:600">${escapeHtml(label)}</span><span style="margin-left:auto;font-size:10px;opacity:0.55;font-family:monospace">${escapeHtml(name)}</span>`
     wrapper.appendChild(header)
 
-    if (tc.input && Object.keys(tc.input).length > 0) {
-      const inputEl = document.createElement('div')
-      inputEl.className = 'claude-tool-detail claude-tool-hidden'
-      const inputLabel = document.createElement('div')
-      inputLabel.className = 'claude-tool-detail-label'
-      inputLabel.textContent = 'Input'
-      inputEl.appendChild(inputLabel)
-      const inputPre = document.createElement('pre')
-      inputPre.className = 'claude-tool-json'
-      inputPre.textContent = JSON.stringify(tc.input, null, 2)
-      inputEl.appendChild(inputPre)
-      wrapper.appendChild(inputEl)
+    // Always-visible summary line: what it's doing + (when done) a result peek.
+    const summary = inputSummary(tc.input)
+    if (summary) {
+      const sub = document.createElement('div')
+      sub.style.cssText = 'padding:4px 10px;font-size:11.5px;color:#6b5a48;word-break:break-word'
+      sub.textContent = summary
+      wrapper.appendChild(sub)
+    }
+    if (tc.result != null) {
+      const preview = document.createElement('div')
+      preview.style.cssText = 'padding:0 10px 6px;font-size:11.5px;color:#5a4a38;word-break:break-word'
+      const oneLine = String(tc.result).replace(/\s+/g, ' ').trim()
+      preview.textContent = (tc.isError ? '⚠ ' : '→ ') + (oneLine.length > 160 ? oneLine.slice(0, 160) + '…' : oneLine)
+      wrapper.appendChild(preview)
+    }
 
+    if ((tc.input && Object.keys(tc.input).length > 0) || tc.result != null) {
+      if (tc.input && Object.keys(tc.input).length > 0) {
+        const inputEl = document.createElement('div')
+        inputEl.className = 'claude-tool-detail claude-tool-hidden'
+        inputEl.innerHTML = '<div class="claude-tool-detail-label">Input</div>'
+        const inputPre = document.createElement('pre')
+        inputPre.className = 'claude-tool-json'
+        inputPre.textContent = JSON.stringify(tc.input, null, 2)
+        inputEl.appendChild(inputPre)
+        wrapper.appendChild(inputEl)
+      }
       if (tc.result != null) {
         const resultEl = document.createElement('div')
         resultEl.className = 'claude-tool-detail claude-tool-hidden'
-        const resultLabel = document.createElement('div')
-        resultLabel.className = 'claude-tool-detail-label'
-        resultLabel.textContent = 'Result'
-        resultEl.appendChild(resultLabel)
+        resultEl.innerHTML = '<div class="claude-tool-detail-label">Result</div>'
         const resultPre = document.createElement('pre')
         resultPre.className = 'claude-tool-json'
-        const resultText = tc.result.length > 2000 ? tc.result.slice(0, 2000) + '\n...(truncated)' : tc.result
+        const resultText = tc.result.length > 4000 ? tc.result.slice(0, 4000) + '\n…(truncated)' : tc.result
         resultPre.textContent = resultText
         resultEl.appendChild(resultPre)
         wrapper.appendChild(resultEl)
       }
-
       header.style.cursor = 'pointer'
+      header.title = 'Click to show full input / result'
       header.addEventListener('click', () => {
         wrapper.querySelectorAll('.claude-tool-detail').forEach(d => d.classList.toggle('claude-tool-hidden'))
       })
@@ -388,8 +471,6 @@ export function activate(api) {
   function sendMessage(text) {
     if (!text || isStreaming) return
     messages.push({ role: 'user', content: text })
-    currentStream = ''
-    toolCalls = []
     isStreaming = true
     render()
     const context = api.getContext()
@@ -438,56 +519,64 @@ export function activate(api) {
   }
 
   // Event handlers
-  const unsub1 = api.onMessage('chat:start', () => {
-    isStreaming = true
-    currentStream = ''
-    toolCalls = []
-  })
+  const getMsgArea = () => el.querySelector('.claude-chat-messages')
+  const finalizeStreaming = () => { for (const m of messages) if (m.streaming) m.streaming = false }
 
-  const unsub2 = api.onMessage('chat:delta', ({ text }) => {
-    currentStream += text
-    const msgArea = el.querySelector('.claude-chat-messages')
-    if (!msgArea) return
-    const thinking = msgArea.querySelector('.claude-thinking')
-    if (thinking) thinking.closest('.claude-message').remove()
-    const hasCursor = msgArea.querySelector('.claude-cursor')
-    if (!hasCursor) {
-      msgArea.appendChild(createMessageEl('assistant', currentStream, true))
+  // Append streamed text to the current streaming item of `role` (assistant or
+  // thinking), creating a new item when the stream was interrupted (e.g. a tool
+  // call). Updates the live bubble incrementally; full re-render when structure
+  // changes so nothing is lost.
+  function streamInto(role, text) {
+    const last = messages[messages.length - 1]
+    let item, isNew = false
+    if (last && last.role === role && last.streaming) {
+      item = last; item.content += text
     } else {
-      const streamingBubble = msgArea.querySelector('.claude-message-assistant:last-child .claude-message-bubble')
-      if (streamingBubble) {
-        streamingBubble.innerHTML = renderMarkdown(currentStream)
-        const cursor = document.createElement('span')
-        cursor.className = 'claude-cursor'
-        streamingBubble.appendChild(cursor)
-      }
+      finalizeStreaming()
+      item = { role, content: text, streaming: true }
+      messages.push(item); isNew = true
     }
-    msgArea.scrollTop = msgArea.scrollHeight
-  })
+    const msgArea = getMsgArea()
+    if (!msgArea) return
+    if (isNew) { renderItems(msgArea); return }
+    const lastEl = msgArea.lastElementChild
+    const bubble = lastEl && lastEl.querySelector(role === 'thinking' ? '.claude-thinking-text' : '.claude-message-bubble')
+    if (bubble) {
+      bubble.innerHTML = renderMarkdown(item.content)
+      const c = document.createElement('span'); c.className = 'claude-cursor'; bubble.appendChild(c)
+      msgArea.scrollTop = msgArea.scrollHeight
+    } else {
+      renderItems(msgArea)
+    }
+  }
+
+  const unsub1 = api.onMessage('chat:start', () => { isStreaming = true })
+
+  const unsubThink = api.onMessage('chat:thinking', ({ text }) => streamInto('thinking', text))
+
+  const unsub2 = api.onMessage('chat:delta', ({ text }) => streamInto('assistant', text))
 
   const unsub3 = api.onMessage('chat:result', ({ text }) => {
-    if (currentStream) {
-      messages.push({ role: 'assistant', content: currentStream })
-    } else if (text && (messages.length === 0 || messages[messages.length - 1].content !== text)) {
-      messages.push({ role: 'assistant', content: text })
+    finalizeStreaming()
+    if (text) {
+      const lastUser = messages.map(m => m.role).lastIndexOf('user')
+      const hasAsst = messages.slice(lastUser + 1).some(m => m.role === 'assistant')
+      if (!hasAsst) messages.push({ role: 'assistant', content: text })
     }
-    currentStream = ''
-    toolCalls = []
     isStreaming = false
     render()
   })
 
   const unsub4 = api.onMessage('chat:error', ({ error }) => {
+    finalizeStreaming()
     isStreaming = false
-    currentStream = ''
     messages.push({ role: 'assistant', content: `\u26a0\ufe0f ${error}` })
     render()
   })
 
   const unsub5 = api.onMessage('chat:end', () => {
     if (isStreaming) {
-      if (currentStream) messages.push({ role: 'assistant', content: currentStream })
-      currentStream = ''
+      finalizeStreaming()
       isStreaming = false
       render()
     }
@@ -500,43 +589,22 @@ export function activate(api) {
   })
 
   const unsub7 = api.onMessage('chat:tool_use', ({ id, name, input }) => {
-    if (currentStream) {
-      messages.push({ role: 'assistant', content: currentStream })
-      currentStream = ''
-    }
-    toolCalls.push({ id, name, input, result: null, isError: false })
-    const msgArea = el.querySelector('.claude-chat-messages')
-    if (!msgArea) return
-    const thinking = msgArea.querySelector('.claude-thinking')
-    if (thinking) thinking.closest('.claude-message').remove()
-    const streamMsg = msgArea.querySelector('.claude-cursor')
-    if (streamMsg) streamMsg.closest('.claude-message').remove()
-    if (currentStream === '' && messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
-      msgArea.appendChild(createMessageEl('assistant', messages[messages.length - 1].content))
-    }
-    msgArea.appendChild(createToolCallEl(toolCalls[toolCalls.length - 1]))
-    msgArea.scrollTop = msgArea.scrollHeight
+    finalizeStreaming()
+    messages.push({ role: 'tool', id, name, input, result: null, isError: false })
+    const msgArea = getMsgArea()
+    if (msgArea) renderItems(msgArea)
   })
 
   const unsub8 = api.onMessage('chat:tool_result', ({ toolUseId, content, isError }) => {
-    const tc = toolCalls.find(t => t.id === toolUseId)
-    if (tc) {
-      tc.result = content
-      tc.isError = isError
-    }
-    const msgArea = el.querySelector('.claude-chat-messages')
-    if (!msgArea) return
-    const toolEls = msgArea.querySelectorAll('.claude-tool-call')
-    const lastEl = toolEls[toolEls.length - 1]
-    if (lastEl && tc) {
-      lastEl.replaceWith(createToolCallEl(tc))
-    }
-    msgArea.scrollTop = msgArea.scrollHeight
+    const tc = [...messages].reverse().find(m => m.role === 'tool' && m.id === toolUseId)
+    if (tc) { tc.result = content; tc.isError = isError }
+    const msgArea = getMsgArea()
+    if (msgArea) renderItems(msgArea)
   })
 
   render()
 
   return {
-    cleanup() { unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6(); unsub7(); unsub8() },
+    cleanup() { unsub1(); unsubThink(); unsub2(); unsub3(); unsub4(); unsub5(); unsub6(); unsub7(); unsub8() },
   }
 }

@@ -10,6 +10,7 @@ import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
 import ExportPanel from './ExportPanel.js'
 import MindmapExportHost from './MindmapExportHost.js'
+import { ResizeHandle, useResizable } from './ResizeHandle.js'
 import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 import '../styles/mobile.css'
 
@@ -41,6 +42,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
   const [tabData, setTabData] = useState<Map<string, any>>(() => new Map())
   const [pluginViews, setPluginViews] = useState<PluginViewInfo[]>([])
   const [sidePanel, setSidePanel] = useState<{ pluginId: string; viewType: string } | null>(null)
+  const sidePanelResize = useResizable(380, 300, 900, 'right')
   const tabHistoryRef = useRef<string[]>([LIBRARY_TAB_ID])
 
   const activateTab = useCallback((tabId: string) => {
@@ -363,13 +365,16 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
           <MindmapExportHost />
         </div>
         {sidePanel && (
-          <div className="plugin-side-panel">
-            <PluginViewHost
-              key={sidePanel.pluginId}
-              pluginId={sidePanel.pluginId}
-              viewType={sidePanel.viewType}
-            />
-          </div>
+          <>
+            <ResizeHandle onPointerDown={sidePanelResize.onPointerDown} />
+            <div className="plugin-side-panel" style={{ width: sidePanelResize.width, minWidth: sidePanelResize.width }}>
+              <PluginViewHost
+                key={sidePanel.pluginId}
+                pluginId={sidePanel.pluginId}
+                viewType={sidePanel.viewType}
+              />
+            </div>
+          </>
         )}
       </div>
       <ExportPanel />

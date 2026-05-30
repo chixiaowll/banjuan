@@ -34,6 +34,7 @@
     "d3": "^7.9.0",
     "elkjs": "^0.11.1",
     "epubjs": "^0.3.93",
+    "fflate": "^0.8.3",
     "file-uri-to-path": "^1.0.0",
     "framer-motion": "^12.38.0",
     "html-to-image": "^1.11.13",
