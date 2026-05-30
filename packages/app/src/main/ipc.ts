@@ -884,9 +884,11 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('lan:startHost', async (event): Promise<HostStatus> => {
     const library = getLib(event)
-    if (lanHost) await lanHost.stop()
-    lanHost = new LanHostServer(library.rootPath, deps.fs)
-    return lanHost.start()
+    if (lanHost) { await lanHost.stop(); lanHost = null }
+    const host = new LanHostServer(library.rootPath, deps.fs)
+    const status = await host.start()   // assign only on success — a failed start leaves lanHost null
+    lanHost = host
+    return status
   })
 
   ipcMain.handle('lan:stopHost', async (): Promise<void> => {
