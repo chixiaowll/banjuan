@@ -40,6 +40,7 @@ export class LanHostServer {
 
     this.server = createServer((req, res) => {
       const chunks: Buffer[] = []
+      req.on('error', () => { /* aborted/erroring request stream — drop it, don't crash */ })
       req.on('data', (c) => chunks.push(c))
       req.on('end', async () => {
         try {
@@ -64,8 +65,12 @@ export class LanHostServer {
     })
 
     await new Promise<void>((resolve, reject) => {
-      this.server!.once('error', reject)
-      this.server!.listen(0, '0.0.0.0', () => resolve())
+      const onError = (err: Error) => reject(err)
+      this.server!.once('error', onError)
+      this.server!.listen(0, '0.0.0.0', () => {
+        this.server!.removeListener('error', onError)   // don't leave a stale one-shot reject handler
+        resolve()
+      })
     })
     this.port = (this.server!.address() as { port: number }).port
     return this.status()
