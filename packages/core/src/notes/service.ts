@@ -6,6 +6,8 @@ import type { SearchService } from '../search/service.js'
 import type { EventBus } from '../events/bus.js'
 import type { TemplateService } from './template-service.js'
 import type { NoteLinkService } from './link-service.js'
+import type { DocLinkService } from './doc-link-service.js'
+import { extractNoteLinks, extractDocumentLinks } from './extract-links.js'
 import { markdownToBlocks } from './migration.js'
 import { AttachmentService } from './attachment-service.js'
 import { importMarkdownImages } from './import-images.js'
@@ -25,6 +27,7 @@ export class NoteService {
   private notesDir: string
   private templateService: TemplateService | null = null
   private linkService: NoteLinkService | null = null
+  private docLinkService: DocLinkService | null = null
 
   constructor(
     private db: PlatformDatabase,
@@ -100,6 +103,20 @@ export class NoteService {
     }
   }
   setLinkService(svc: NoteLinkService): void { this.linkService = svc }
+  setDocLinkService(svc: DocLinkService): void { this.docLinkService = svc }
+
+  /**
+   * Keep note_links + doc_links in sync with a note's current content. Uses the
+   * same extractors as IndexService.rebuildFull so incremental results match a
+   * full rebuild exactly. Must be called AFTER the note's row exists (FK on
+   * note_links.source_id). Both sync() calls delete-then-insert for this source,
+   * so removed links are pruned. No-op for note types without block content.
+   */
+  private async syncLinksFromBlocks(noteId: string, blocks: unknown[]): Promise<void> {
+    const arr = Array.isArray(blocks) ? blocks : []
+    if (this.linkService) await this.linkService.sync(noteId, extractNoteLinks(arr))
+    if (this.docLinkService) await this.docLinkService.sync(noteId, extractDocumentLinks(arr))
+  }
 
   async listDirs(): Promise<string[]> {
     await this.fs.mkdir(this.notesDir, { recursive: true })
@@ -179,6 +196,7 @@ export class NoteService {
     const fullPath = join(this.notesDir, relPath)
 
     let typeMeta: Record<string, unknown> | null = null
+    let linkBlocks: unknown[] | null = null
     if (noteType === 'mindmap') {
       typeMeta = { layout: input.layout ?? 'mindmap', theme: input.theme ?? 'classic' }
     }
@@ -239,6 +257,7 @@ export class NoteService {
       await this.fs.writeTextFile(fullPath, JSON.stringify({ meta, blocks }, null, 2))
       contentStr = JSON.stringify(blocks)
       this.search.index({ id, title: input.title, content: this.blocksToText(blocks), type: 'note' })
+      linkBlocks = blocks
     }
 
     this.db.run(
@@ -259,6 +278,8 @@ export class NoteService {
         this.db.run('INSERT INTO note_annotations (note_id, annotation_id) VALUES (?, ?)', [id, annId])
       }
     }
+
+    if (linkBlocks) await this.syncLinksFromBlocks(id, linkBlocks)
 
     const note: Note = {
       id, title: input.title, type: noteType, path: relPath, docId: input.docId ?? null,
@@ -367,6 +388,9 @@ export class NoteService {
           }
         }
         await this.fs.writeTextFile(filePath, JSON.stringify(raw, null, 2))
+        // Content may have added/removed wiki-links — keep link tables current
+        // so we don't depend on a full rebuild to fix them.
+        if (updates.content !== undefined) await this.syncLinksFromBlocks(id, raw.blocks)
       }
     }
 
@@ -421,6 +445,7 @@ export class NoteService {
     if (await this.fs.exists(filePath)) { await this.fs.remove(filePath) }
     this.search.removeById(id)
     if (this.linkService) { await this.linkService.removeAllForNote(id) }
+    if (this.docLinkService) { await this.docLinkService.removeAllForNote(id) }
     this.db.run('DELETE FROM note_annotations WHERE note_id = ?', [id])
     if (row.type === 'mindmap') {
       this.db.run('DELETE FROM mindmap_edges WHERE mindmap_id = ?', [id])

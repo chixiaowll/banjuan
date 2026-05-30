@@ -34,18 +34,22 @@ export class DocumentService {
       throw new Error('File must be inside the library directory')
     }
 
-    const content = await this.fs.readFile(absPath)
-    const hash = await this.crypto.sha256(content)
-
+    // Skip paths already imported into this DB.
     const existingByPath = this.db.queryOne<{ id: string }>('SELECT id FROM documents WHERE path = ?', [relPath])
     if (existingByPath) {
       throw new Error(`File already imported at path: ${relPath}`)
     }
 
+    // Identify the document purely from its path — a directory scan never reads
+    // or hashes file contents. Both `id` and `hash` derive from the path hash
+    // (dedup is path-based; `hash`'s only consumer is a cosmetic detail field),
+    // so importing is O(1) per file regardless of file size.
     const existing = await this.findExistingByPath(relPath)
     const type = detectDocumentType(absPath)
     const title = options?.title ?? existing?.title ?? extractTitle(absPath)
-    const id = existing?.id ?? (await this.crypto.sha256(new TextEncoder().encode(relPath))).slice(0, 32)
+    const pathHash = await this.crypto.sha256(new TextEncoder().encode(relPath))
+    const id = existing?.id ?? pathHash.slice(0, 32)
+    const hash = existing?.hash ?? pathHash
     const now = new Date().toISOString()
     const tags = options?.tags ?? existing?.tags ?? []
 
@@ -145,6 +149,61 @@ export class DocumentService {
       }
     }
     return removed
+  }
+
+  /** Raw document metadata straight from the JSON store (source of truth). */
+  async listAllMetadata(): Promise<DocumentFileData[]> {
+    return this.store.listAll()
+  }
+
+  /**
+   * Permanently remove a document's metadata + index entry. Does NOT touch the
+   * disk file (callers use this for documents whose file is already gone).
+   * Annotations are handled separately by the caller (AnnotationService.deleteByDoc).
+   */
+  async purgeById(id: string): Promise<void> {
+    await this.store.delete(id)
+    this.search.removeById(id)
+    this.db.run('DELETE FROM documents WHERE id = ?', [id])
+    this.events.emit('document:deleted', { id })
+  }
+
+  /**
+   * Reconcile the `fileMissing` flag against what is actually on disk, without
+   * ever deleting metadata. A document whose file disappeared is flagged
+   * missing (preserving its metadata + annotations); one whose file is back
+   * has the flag cleared. Returns how many documents are currently missing.
+   */
+  async reconcileMissing(diskFiles: Set<string>): Promise<number> {
+    // Drive from the (persisted) documents table, not the JSON store, so a
+    // normal open does ZERO file reads here — only a document whose
+    // missing-state actually flips pays for a single JSON+DB write.
+    const rows = this.db.query<{ id: string; path: string; metadata: string }>('SELECT id, path, metadata FROM documents')
+    let missing = 0
+    for (const row of rows) {
+      const onDisk = diskFiles.has(row.path)
+      let flagged = false
+      try { flagged = !!(JSON.parse(row.metadata || '{}') as Record<string, unknown>).fileMissing } catch { /* not flagged */ }
+      if (!onDisk) {
+        missing++
+        if (!flagged) await this.setFileMissing(row.id, true)
+      } else if (flagged) {
+        await this.setFileMissing(row.id, false)
+      }
+    }
+    return missing
+  }
+
+  /** Set/clear the fileMissing flag in both the JSON store (source of truth) and the DB row. */
+  private async setFileMissing(id: string, missing: boolean): Promise<void> {
+    const meta = await this.store.read(id)
+    if (!meta) return
+    const md: Record<string, unknown> = { ...(meta.metadata ?? {}) }
+    if (missing) md.fileMissing = true
+    else delete md.fileMissing
+    meta.metadata = md
+    await this.store.write(meta)
+    this.db.run('UPDATE documents SET metadata = ? WHERE id = ?', [JSON.stringify(md), id])
   }
 
   async move(id: string, destDir: string): Promise<Document | null> {

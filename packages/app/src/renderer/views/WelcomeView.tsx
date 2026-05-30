@@ -27,11 +27,20 @@ export default function WelcomeView({ onOpen }: Props) {
     api.library.getHistory?.().then((h: RecentLibrary[]) => setRecentLibraries(h ?? []))
   }, [])
 
+  const warnIfTruncated = (result: any) => {
+    if (!result?.truncated) return
+    const n = result.limit
+    alert(locale === 'zh'
+      ? `该目录文件数超过上限（${n}），未导入任何文件。请选择文件更少的目录或更小的子目录重新打开。`
+      : `This folder exceeds the ${n}-file limit, so nothing was imported. Please pick a folder with fewer files (or a smaller subfolder).`)
+  }
+
   const openLibrary = async (dir: string) => {
     setLoading(true)
     try {
       const result = await api.library.open(dir)
       const name = (result as any).name || dir.split('/').pop() || ''
+      warnIfTruncated(result)
       onOpen((result as any).rootPath, name)
     } catch (e: any) {
       alert(e.message)
@@ -48,6 +57,15 @@ export default function WelcomeView({ onOpen }: Props) {
     if (isLibrary) {
       await openLibrary(dir)
     } else {
+      // Pre-check size before creating anything — a too-large folder must not
+      // leave behind a .banjuan / database.
+      const size = await api.library.checkSize?.(dir)
+      if (size?.exceeds) {
+        alert(locale === 'zh'
+          ? `该目录文件数超过上限（${size.limit}），不能作为资料库。请选择文件更少的目录，或更小的子目录。`
+          : `This folder exceeds the ${size.limit}-file limit and can't be used as a library. Please pick a folder with fewer files (or a smaller subfolder).`)
+        return
+      }
       setPendingDir(dir)
       setLibraryName(dir.split('/').pop() || '')
       setShowNameDialog(true)
@@ -60,6 +78,7 @@ export default function WelcomeView({ onOpen }: Props) {
     try {
       const result = await api.library.init(pendingDir, libraryName.trim())
       const name = (result as any).name || libraryName.trim()
+      warnIfTruncated(result)
       onOpen((result as any).rootPath, name)
     } catch (e: any) {
       alert(e.message)

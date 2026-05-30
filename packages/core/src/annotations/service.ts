@@ -96,6 +96,21 @@ export class AnnotationService {
     this.db.run('DELETE FROM annotations WHERE id = ?', [id])
     if (ann) this.events.emit('annotation:deleted', { id, docId: ann.doc_id })
   }
+
+  /**
+   * Delete every annotation belonging to a document — both the SQLite rows and
+   * the JSON store files. Used when a document is purged so no orphan
+   * annotations are left pointing at a document that no longer exists.
+   */
+  async deleteByDoc(docId: string): Promise<number> {
+    const rows = this.db.query<{ id: string }>('SELECT id FROM annotations WHERE doc_id = ?', [docId])
+    for (const row of rows) {
+      await this.store.delete(row.id)
+    }
+    this.db.run('DELETE FROM annotations WHERE doc_id = ?', [docId])
+    if (rows.length) this.events.emit('annotation:deleted', { id: '*', docId })
+    return rows.length
+  }
 }
 
 function rowToAnnotation(row: Record<string, unknown>): Annotation {

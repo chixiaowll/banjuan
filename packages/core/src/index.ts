@@ -1,6 +1,6 @@
 export * from './platform/index.js'
 export * from './types.js'
-export { Library } from './library.js'
+export { Library, MAX_LIBRARY_FILES } from './library.js'
 export { EventBus } from './events/bus.js'
 export { BanjuanPlugin } from './plugins/base.js'
 export { PluginManager } from './plugins/manager.js'
