@@ -3,7 +3,7 @@ import { join, relative, dirname } from '../platform/path.js'
 import type { SyncAdapter } from './adapter.js'
 import type { SyncSnapshot } from '../types.js'
 import type { EventBus } from '../events/bus.js'
-import { EXCLUDED_NAMES, EXCLUDED_DIRS, PROTECTED_FILES, isExcluded } from './exclusions.js'
+import { PROTECTED_FILES, isExcluded } from './exclusions.js'
 
 export interface SyncResult {
   uploaded: number
