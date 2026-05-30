@@ -1,5 +1,5 @@
 import { app, protocol, net, Menu } from 'electron'
-import { registerIpcHandlers, getLibraryRootPath } from './ipc.js'
+import { registerIpcHandlers, getLibraryRootPath, installBundledPlugins } from './ipc.js'
 import { registerExportWindowHandlers } from './export-window.js'
 import { startApiServer, stopApiServer } from './api-server.js'
 import { installCli } from './install-cli.js'
@@ -30,6 +30,7 @@ app.whenReady().then(() => {
     return net.fetch(`file://${fullPath}`)
   })
   registerIpcHandlers()
+  installBundledPlugins() // refresh global plugins (~/.banjuan/plugins) at startup
   registerExportWindowHandlers()
   startApiServer().catch(console.error)
   installCli().catch(console.error)

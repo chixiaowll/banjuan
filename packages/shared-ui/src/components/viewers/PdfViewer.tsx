@@ -204,9 +204,9 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
 
   useEffect(() => {
     document.dispatchEvent(new CustomEvent('banjuan:context-update', {
-      detail: { currentPage: ctx.currentPage, totalPages: ctx.numPages }
+      detail: { docId: doc.id, currentPage: ctx.currentPage, totalPages: ctx.numPages }
     }))
-  }, [ctx.currentPage, ctx.numPages])
+  }, [ctx.currentPage, ctx.numPages, doc.id])
 
   // --- Text selection toolbar ---
   const [selectionToolbar, setSelectionToolbar] = useState<{ info: TextSelectInfo; pos: { x: number; y: number; bottom: number } } | null>(null)
@@ -215,7 +215,7 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
 
   const handleTextSelect = useCallback(async (info: TextSelectInfo) => {
     document.dispatchEvent(new CustomEvent('banjuan:context-update', {
-      detail: { selectedText: info.text, selectedPage: info.page }
+      detail: { docId: doc.id, selectedText: info.text, selectedPage: info.page }
     }))
     if (ctx.activeTool === 'highlight') {
       await createHighlightFromSelection(api, doc.id, info, ctx.activeColor)

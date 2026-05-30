@@ -7,7 +7,10 @@ import type { PluginManifest, PluginInfo, PluginCommand, PluginViewInfo } from '
 
 export class PluginManager {
   private plugins = new Map<string, { plugin: BanjuanPlugin; manifest: PluginManifest; path: string }>()
+  /** Library-local plugins directory (always present). */
   private pluginsDir: string
+  /** Directories scanned for plugins, in priority order (local overrides global). */
+  private pluginDirs: string[]
   private webContentsSender: ((channel: string, data: any) => void) | null = null
 
   constructor(
@@ -15,14 +18,25 @@ export class PluginManager {
     private bus: EventBus,
     rootPath: string,
     private fs: PlatformFS,
+    globalPluginsDir?: string,
   ) {
     this.pluginsDir = join(rootPath, '.banjuan', 'plugins')
+    // Local first so a library-local plugin can override a global one by id.
+    this.pluginDirs = globalPluginsDir ? [this.pluginsDir, globalPluginsDir] : [this.pluginsDir]
   }
 
   async init(): Promise<void> {
     if (!(await this.fs.exists(this.pluginsDir))) {
       await this.fs.mkdir(this.pluginsDir, { recursive: true })
     }
+  }
+
+  /** Find the directory containing a plugin dir-name, searching all sources. */
+  private async resolvePluginDir(pluginDirName: string): Promise<string | null> {
+    for (const dir of this.pluginDirs) {
+      if (await this.fs.exists(join(dir, pluginDirName, 'manifest.json'))) return dir
+    }
+    return null
   }
 
   setWebContentsSender(sender: (channel: string, data: any) => void): void {
@@ -33,20 +47,34 @@ export class PluginManager {
   }
 
   async loadAll(): Promise<void> {
-    if (!(await this.fs.exists(this.pluginsDir))) return
-    const entries = await this.fs.readdirWithTypes(this.pluginsDir)
-    for (const entry of entries) {
-      if (!entry.isDirectory) continue
-      try {
-        await this.load(entry.name)
-      } catch {
-        // skip plugins that fail to load
+    const loaded = new Set<string>()
+    for (const dir of this.pluginDirs) {
+      if (!(await this.fs.exists(dir))) continue
+      const entries = await this.fs.readdirWithTypes(dir)
+      for (const entry of entries) {
+        if (!entry.isDirectory) continue
+        try {
+          const manifestPath = join(dir, entry.name, 'manifest.json')
+          if (!(await this.fs.exists(manifestPath))) continue
+          const manifest: PluginManifest = JSON.parse(await this.fs.readTextFile(manifestPath))
+          if (loaded.has(manifest.id) || this.plugins.has(manifest.id)) continue
+          await this.loadFromDir(dir, entry.name)
+          loaded.add(manifest.id)
+        } catch {
+          // skip plugins that fail to load
+        }
       }
     }
   }
 
   async load(pluginDirName: string): Promise<void> {
-    const pluginPath = join(this.pluginsDir, pluginDirName)
+    const dir = await this.resolvePluginDir(pluginDirName)
+    if (!dir) throw new Error(`Plugin not found: ${pluginDirName}`)
+    await this.loadFromDir(dir, pluginDirName)
+  }
+
+  private async loadFromDir(baseDir: string, pluginDirName: string): Promise<void> {
+    const pluginPath = join(baseDir, pluginDirName)
     const manifestPath = join(pluginPath, 'manifest.json')
     if (!(await this.fs.exists(manifestPath))) {
       throw new Error(`No manifest.json in ${pluginPath}`)
@@ -107,46 +135,53 @@ export class PluginManager {
   }
 
   async listAll(): Promise<PluginInfo[]> {
-    if (!(await this.fs.exists(this.pluginsDir))) return []
     const result: PluginInfo[] = []
-    const entries = await this.fs.readdirWithTypes(this.pluginsDir)
-    for (const entry of entries) {
-      if (!entry.isDirectory) continue
-      const pluginPath = join(this.pluginsDir, entry.name)
-      const manifestPath = join(pluginPath, 'manifest.json')
-      if (!(await this.fs.exists(manifestPath))) continue
-      try {
-        const manifest: PluginManifest = JSON.parse(await this.fs.readTextFile(manifestPath))
-        result.push({
-          id: manifest.id,
-          name: manifest.name,
-          version: manifest.version,
-          description: manifest.description ?? '',
-          enabled: this.plugins.has(manifest.id),
-          path: pluginPath,
-        })
-      } catch {}
+    const seen = new Set<string>()
+    for (const dir of this.pluginDirs) {
+      if (!(await this.fs.exists(dir))) continue
+      const entries = await this.fs.readdirWithTypes(dir)
+      for (const entry of entries) {
+        if (!entry.isDirectory) continue
+        const pluginPath = join(dir, entry.name)
+        const manifestPath = join(pluginPath, 'manifest.json')
+        if (!(await this.fs.exists(manifestPath))) continue
+        try {
+          const manifest: PluginManifest = JSON.parse(await this.fs.readTextFile(manifestPath))
+          if (seen.has(manifest.id)) continue
+          seen.add(manifest.id)
+          result.push({
+            id: manifest.id,
+            name: manifest.name,
+            version: manifest.version,
+            description: manifest.description ?? '',
+            enabled: this.plugins.has(manifest.id),
+            path: pluginPath,
+          })
+        } catch {}
+      }
     }
     return result
   }
 
   async enable(pluginId: string): Promise<void> {
     if (this.plugins.has(pluginId)) return
-    if (!(await this.fs.exists(this.pluginsDir))) throw new Error('Plugins directory not found')
-    const entries = await this.fs.readdirWithTypes(this.pluginsDir)
-    for (const entry of entries) {
-      if (!entry.isDirectory) continue
-      const manifestPath = join(this.pluginsDir, entry.name, 'manifest.json')
-      if (!(await this.fs.exists(manifestPath))) continue
-      let manifest: PluginManifest
-      try {
-        manifest = JSON.parse(await this.fs.readTextFile(manifestPath))
-      } catch {
-        continue
-      }
-      if (manifest.id === pluginId) {
-        await this.load(entry.name)
-        return
+    for (const dir of this.pluginDirs) {
+      if (!(await this.fs.exists(dir))) continue
+      const entries = await this.fs.readdirWithTypes(dir)
+      for (const entry of entries) {
+        if (!entry.isDirectory) continue
+        const manifestPath = join(dir, entry.name, 'manifest.json')
+        if (!(await this.fs.exists(manifestPath))) continue
+        let manifest: PluginManifest
+        try {
+          manifest = JSON.parse(await this.fs.readTextFile(manifestPath))
+        } catch {
+          continue
+        }
+        if (manifest.id === pluginId) {
+          await this.loadFromDir(dir, entry.name)
+          return
+        }
       }
     }
     throw new Error(`Plugin not found: ${pluginId}`)

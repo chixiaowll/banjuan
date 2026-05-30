@@ -9,24 +9,30 @@ import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
 import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
 
+// Global plugins live here (shared by every library), à la Claude Code's
+// global plugin dir. Built-in plugins are installed here once at startup.
+const GLOBAL_PLUGINS_DIR = join(homedir(), '.banjuan', 'plugins')
+
 const deps: PlatformDeps = {
   fs: new NodeFS(),
   dbFactory: new NodeDatabaseFactory(),
   crypto: new NodeCrypto(),
+  globalPluginsDir: GLOBAL_PLUGINS_DIR,
 }
 
-function installBundledPlugins(libraryRoot: string): void {
+// Install/refresh bundled plugins into the GLOBAL plugins dir (~/.banjuan/plugins),
+// once at startup. Per-plugin config.json (user settings/sessions) is preserved.
+export function installBundledPlugins(): void {
   const bundledDir = app.isPackaged
     ? join(process.resourcesPath, 'plugins')
     : join(dirname(dirname(dirname(dirname(__dirname)))), 'plugins')
   if (!existsSync(bundledDir)) return
-  const targetDir = join(libraryRoot, '.banjuan', 'plugins')
-  if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true })
+  if (!existsSync(GLOBAL_PLUGINS_DIR)) mkdirSync(GLOBAL_PLUGINS_DIR, { recursive: true })
 
   for (const entry of readdirSync(bundledDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
     const srcDir = join(bundledDir, entry.name)
-    const destDir = join(targetDir, entry.name)
+    const destDir = join(GLOBAL_PLUGINS_DIR, entry.name)
     if (!existsSync(destDir)) mkdirSync(destDir, { recursive: true })
     for (const file of readdirSync(srcDir)) {
       if (file === 'config.json') continue
@@ -106,7 +112,6 @@ export async function initLibraryForApi(path: string, name?: string): Promise<Li
   } else {
     await lib.scanAndImport()
   }
-  installBundledPlugins(lib.rootPath)
   await lib.plugins.loadAll()
   const indexService = lib.createIndexService()
   await indexService.rebuildFull()
@@ -124,7 +129,6 @@ export async function openLibraryForApi(path: string): Promise<Library> {
   await lib.syncWithDisk()
   try { await lib.notes.syncDisk() } catch {}
   try { await lib.tags.syncFromFiles() } catch {}
-  installBundledPlugins(lib.rootPath)
   await lib.plugins.loadAll()
   const indexService = lib.createIndexService()
   await indexService.rebuildFull()
@@ -144,7 +148,6 @@ export function registerIpcHandlers() {
     libraries.set(event.sender.id, lib)
     const scanResult = await lib.scanAndImport()
     lib.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
-    installBundledPlugins(lib.rootPath)
     await lib.plugins.loadAll()
     const indexService = lib.createIndexService()
     await indexService.rebuildFull()
@@ -161,7 +164,6 @@ export function registerIpcHandlers() {
     try { await lib.notes.syncDisk() } catch { /* non-critical */ }
     try { await lib.tags.syncFromFiles() } catch {}
     lib.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
-    installBundledPlugins(lib.rootPath)
     await lib.plugins.loadAll()
     const indexService = lib.createIndexService()
     await indexService.rebuildFull()
