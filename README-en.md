@@ -18,7 +18,7 @@
   <a href="#development">Development</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#contributing">Contributing</a> ·
-  <a href="https://htmlpreview.github.io/?https://github.com/chixiaowll/banjuan/blob/main/milestone.html">Milestones</a>
+  <a href="https://htmlpreview.github.io/?https://github.com/chixiaowll/banjuan/blob/main/docs/milestone/milestone.html">Milestones</a>
 </p>
 
 ---
