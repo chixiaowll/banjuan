@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>半卷 BanJuan — App Icon</title>
+  <desc>甲骨文「册」字 logo · 五简两绳 · 白底墨竹朱绳</desc>
+
+  <!-- 圆角方形底（macOS App Icon 标准圆角 ~22.4%） -->
+  <rect x="0" y="0" width="1024" height="1024" rx="229" ry="229" fill="#FFFFFF"/>
+
+  <!-- 极淡的边线（让纯白图标在浅色背景下有边界） -->
+  <rect x="0.5" y="0.5" width="1023" height="1023" rx="228.5" ry="228.5" fill="none" stroke="#000000" stroke-opacity="0.04" stroke-width="1"/>
+
+  <!-- 甲骨「册」logo · viewBox 100 → 1024 缩放系数 10.24 -->
+  <g transform="translate(0, 0) scale(10.24)">
+    <!-- 五根竹简 · 长短不齐 -->
+    <path d="M22 16 L22 82" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+    <path d="M36 22 L36 76" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+    <path d="M50 14 L50 84" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+    <path d="M64 20 L64 78" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+    <path d="M78 18 L78 80" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+    <!-- 两道朱砂编绳 · 波浪穿过 -->
+    <path d="M18 38 Q32 36 46 38 Q60 40 74 38 Q78 37 82 38" stroke="#B73E2A" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+    <path d="M18 62 Q32 64 46 62 Q60 60 74 62 Q78 63 82 62" stroke="#B73E2A" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>

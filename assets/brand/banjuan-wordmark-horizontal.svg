@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 140" width="480" height="140">
+  <title>半卷 BanJuan — Horizontal Wordmark</title>
+  <desc>横排品牌标识 · logo + 中英文字</desc>
+
+  <!-- logo 部分 · 100×100 viewBox 缩放到 100×100 -->
+  <g transform="translate(20, 20)">
+    <path d="M22 16 L22 82" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+    <path d="M36 22 L36 76" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+    <path d="M50 14 L50 84" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+    <path d="M64 20 L64 78" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+    <path d="M78 18 L78 80" stroke="#1A1815" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+    <path d="M18 38 Q32 36 46 38 Q60 40 74 38 Q78 37 82 38" stroke="#B73E2A" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+    <path d="M18 62 Q32 64 46 62 Q60 60 74 62 Q78 63 82 62" stroke="#B73E2A" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+  </g>
+
+  <!-- 文字部分 -->
+  <text x="150" y="76"
+        font-family="'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', serif"
+        font-size="48"
+        font-weight="600"
+        fill="#1A1815"
+        letter-spacing="4">半卷</text>
+
+  <text x="150" y="104"
+        font-family="'JetBrains Mono', 'SF Mono', 'Menlo', monospace"
+        font-size="12"
+        font-weight="500"
+        fill="#8A8377"
+        letter-spacing="3.5">BAN&#xB7;JUAN</text>
+</svg>
