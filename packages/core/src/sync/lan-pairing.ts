@@ -11,7 +11,10 @@ function toHex(bytes: Uint8Array): string {
   return s
 }
 
-/** Generate a fresh PIN + token. `rand` is injected so callers/tests control entropy. */
+/**
+ * Generate a fresh PIN + token. `rand` is injected so callers/tests control entropy.
+ * Calls `rand` twice as independent draws: once for the token (n=16), once for the PIN (n=3).
+ */
 export function generatePairing(rand: RandomBytes): Pairing {
   const tokenBytes = rand(16)              // 16 bytes -> 32 hex chars
   const pinBytes = rand(3)                 // 3 bytes -> derive 6 digits
@@ -40,7 +43,7 @@ export function parseBasicAuthPassword(header: string | undefined): string | nul
   try {
     const decoded = decodeBase64(header.slice('Basic '.length).trim())
     const idx = decoded.indexOf(':')
-    return idx === -1 ? '' : decoded.slice(idx + 1)
+    return idx === -1 ? null : decoded.slice(idx + 1)
   } catch {
     return null
   }

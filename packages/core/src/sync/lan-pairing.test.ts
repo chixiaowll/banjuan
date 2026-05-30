@@ -8,10 +8,14 @@ describe('lan-pairing', () => {
     const { pin, token } = generatePairing(rand)
     expect(pin).toMatch(/^\d{6}$/)
     expect(token).toMatch(/^[0-9a-f]{32}$/)
+    // exact derived values from the known byte sequence (guards the arithmetic)
+    expect(token).toBe('0102030405060708090a0b0c0d0e0f10')
+    expect(pin).toBe('066051')
   })
 
   it('verifyToken is constant-shape equality', () => {
     expect(verifyToken('abc', 'abc')).toBe(true)
+    expect(verifyToken('abc', 'xbc')).toBe(false)   // differs at index 0
     expect(verifyToken('abc', 'abd')).toBe(false)
     expect(verifyToken('abc', '')).toBe(false)
   })
