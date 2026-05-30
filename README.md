@@ -170,7 +170,7 @@
 
 | Platform | Format |
 |----------|--------|
-| macOS (Apple Silicon) | `.dmg` / `.zip` |
+| macOS (Apple Silicon / Intel) | `.dmg` / `.zip` |
 | Windows | `.exe` (NSIS installer) |
 | Linux | `.AppImage` |
 
