@@ -211,6 +211,7 @@ const api = {
     getDocStatus: (docId: string) => ipcRenderer.invoke('sync:getDocStatus', docId),
   },
   lan: {
+    canHost: true,
     startHost: () => ipcRenderer.invoke('lan:startHost'),
     stopHost: () => ipcRenderer.invoke('lan:stopHost'),
     getHostStatus: () => ipcRenderer.invoke('lan:getHostStatus'),
