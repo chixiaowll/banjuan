@@ -916,18 +916,35 @@ export function registerIpcHandlers() {
   })
 
   // Client side: exchange PIN for token at the peer, then run a full bidirectional sync.
-  ipcMain.handle('lan:connectAndSync', async (event, peerUrl: string, pin: string) => {
+  // Client side: pair (PIN -> token + host identity), guard against merging a
+  // DIFFERENT book-room, then run a full bidirectional sync.
+  ipcMain.handle('lan:connectAndSync', async (event, peerUrl: string, pin: string, force?: boolean) => {
     if (!/^https?:\/\//i.test(peerUrl)) throw new Error('PAIR_FAILED:invalid-url')
     const library = getLib(event)
     const base = peerUrl.replace(/\/$/, '')
 
-    // 1) Pair: GET {base}/.banjuan-pair?pin=NNNNNN -> { token }
+    // 1) Pair: GET {base}/.banjuan-pair?pin=NNNNNN -> { token, libraryId, libraryName }
     const pairResp = await fetch(`${base}/.banjuan-pair?pin=${encodeURIComponent(pin)}`)
     if (!pairResp.ok) throw new Error(`PAIR_FAILED:${pairResp.status}`)
-    const { token } = await pairResp.json() as { token: string }
+    const { token, libraryId: hostLibraryId, libraryName: hostLibraryName } =
+      await pairResp.json() as { token: string; libraryId?: string; libraryName?: string }
     if (!token) throw new Error('PAIR_FAILED:no-token')
 
-    // 2) Reuse existing WebDAVAdapter unchanged: Basic auth, password = token.
+    // 2) Book-room identity guard.
+    const localId = await library.getId()
+    if (hostLibraryId && hostLibraryId !== localId) {
+      const isEmpty = (await library.documents.list()).length === 0
+      if (isEmpty || force) {
+        // New device joining this room (empty), or the user explicitly confirmed a
+        // cross-room merge — adopt the host's identity so future syncs match.
+        await library.adoptLibraryId(hostLibraryId)
+      } else {
+        // Different, non-empty room — refuse until the user confirms.
+        return { needsConfirm: true as const, peerName: hostLibraryName ?? '', localName: await library.getName() }
+      }
+    }
+
+    // 3) Reuse existing WebDAVAdapter unchanged: Basic auth, password = token.
     const { SyncService, WebDAVAdapter } = await import('@banjuan/core')
     const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect({ type: 'webdav', url: base, username: 'banjuan', password: token, remotePath: '/' })
