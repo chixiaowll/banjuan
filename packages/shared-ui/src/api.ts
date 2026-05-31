@@ -242,7 +242,11 @@ export interface BanjuanAPI {
       peerUrl: string,
       pin: string,
       onProgress?: (p: { phase: string; current: number; total: number; currentFile: string }) => void,
-    ): Promise<{ uploaded: number; downloaded: number; deletedLocal: number; deletedRemote: number; stubbed: number; errors: string[] }>
+      force?: boolean,
+    ): Promise<
+      | { uploaded: number; downloaded: number; deletedLocal: number; deletedRemote: number; stubbed: number; errors: string[] }
+      | { needsConfirm: true; peerName: string; localName: string }
+    >
   }
 
   /** Optional -- not available on all platforms */
