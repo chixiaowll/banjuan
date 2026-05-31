@@ -12,6 +12,7 @@ let library: Library | null = null
 export interface LibraryEntry {
   path: string
   name: string
+  id?: string   // book-room identity, for "already joined this host?" dedupe
 }
 
 const LIBRARIES_ROOT = 'BanJuanLibrary'
@@ -30,7 +31,7 @@ export async function listLibraries(): Promise<LibraryEntry[]> {
           encoding: Encoding.UTF8,
         })
         const config = JSON.parse(configResult.data as string)
-        entries.push({ path: `${LIBRARIES_ROOT}/${item.name}`, name: config.name || item.name })
+        entries.push({ path: `${LIBRARIES_ROOT}/${item.name}`, name: config.name || item.name, id: config.id })
       } catch {
         // not a library
       }
