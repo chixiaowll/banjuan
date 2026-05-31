@@ -3,6 +3,9 @@ import type { PlatformDeps } from '@banjuan/core'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { CapacitorFS, CapacitorDatabaseFactory, WebCrypto } from '@banjuan/platform-capacitor'
 import type { BanjuanAPI } from '@banjuan/shared-ui'
+import { CapacitorHttp } from '@capacitor/core'
+import { getDeviceIdentity } from './capacitor-device-identity'
+import { scanNearby as mdnsScanNearby } from './capacitor-mdns'
 
 let library: Library | null = null
 
@@ -423,6 +426,86 @@ export function createCapacitorAPI(): BanjuanAPI {
       async stubUpload() {},
       async getDocStatus() {
         return 'local'
+      },
+    },
+
+    lan: {
+      canHost: false,   // mobile is client-only — UI hides the host controls
+      async startHost() { return { running: false, url: null, pin: null, port: null } },
+      async stopHost() { /* mobile cannot host */ },
+      async getHostStatus() { return { running: false, url: null, pin: null, port: null } },
+
+      async scanNearby() {
+        return mdnsScanNearby()
+      },
+
+      async pairDevice(peerUrl: string, pin: string) {
+        const base = peerUrl.replace(/\/$/, '')
+        const me = await getDeviceIdentity()
+        const lib = getLib()
+        const myLibraryId = await lib.getId()
+        const { PairingStore } = await import('@banjuan/core')
+
+        const infoResp = await CapacitorHttp.get({ url: `${base}/.banjuan-info` })
+        const info = (typeof infoResp.data === 'string' ? JSON.parse(infoResp.data) : infoResp.data) as { deviceId?: string; deviceName?: string; libraryId?: string; libraryName?: string }
+        const hostDeviceId = info.deviceId ?? ''
+        if (!hostDeviceId) throw new Error('PAIR_FAILED:no-device-id')
+
+        const pairResp = await CapacitorHttp.get({ url: `${base}/.banjuan-pair`, params: { pin, deviceId: me.deviceId, deviceName: me.deviceName, libraryId: myLibraryId } })
+        const pair = (typeof pairResp.data === 'string' ? JSON.parse(pairResp.data) : pairResp.data) as { token?: string }
+        if (!pair.token) throw new Error('PAIR_FAILED:no-token')
+
+        const store = new PairingStore(lib.rootPath, createDeps(lib.rootPath).fs)
+        await store.addOrUpdate({ peerDeviceId: hostDeviceId, peerDeviceName: info.deviceName ?? '', peerLibraryId: info.libraryId ?? '', token: pair.token })
+        return { ok: true as const, deviceName: info.deviceName ?? '', libraryName: info.libraryName ?? '' }
+      },
+
+      async syncDevice(peerUrl: string, onProgress?: (p: any) => void, force?: boolean) {
+        const base = peerUrl.replace(/\/$/, '')
+        const lib = getLib()
+        const myLibraryId = await lib.getId()
+        const { PairingStore, SyncService } = await import('@banjuan/core')
+        const { CapacitorWebDAVAdapter } = await import('./capacitor-webdav-adapter')
+
+        const infoResp = await CapacitorHttp.get({ url: `${base}/.banjuan-info` })
+        const info = (typeof infoResp.data === 'string' ? JSON.parse(infoResp.data) : infoResp.data) as { deviceId?: string; libraryId?: string; libraryName?: string }
+        const hostDeviceId = info.deviceId ?? ''
+        const hostLibraryId = info.libraryId ?? ''
+        const hostLibraryName = info.libraryName ?? ''
+
+        const store = new PairingStore(lib.rootPath, createDeps(lib.rootPath).fs)
+        const existing = hostDeviceId ? await store.findByDeviceId(hostDeviceId) : undefined
+        if (!existing) return { needsPair: true as const }
+
+        if (hostLibraryId && hostLibraryId !== myLibraryId) {
+          const isEmpty = (await lib.documents.list()).length === 0
+          if (isEmpty || force) {
+            await lib.adoptLibraryId(hostLibraryId)
+          } else {
+            return { needsConfirm: true as const, peerName: hostLibraryName, localName: await lib.getName() }
+          }
+        }
+
+        const adapter = new CapacitorWebDAVAdapter(createDeps(lib.rootPath).fs)
+        await adapter.connect({ type: 'webdav', url: base, username: 'banjuan', password: existing.token, remotePath: '/' })
+        const svc = new SyncService(lib.rootPath, adapter, lib.events, createDeps(lib.rootPath).fs, '/')
+        const result = await svc.sync(onProgress)
+        onProgress?.({ phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
+        await lib.createIndexService().rebuildFull()
+        return result
+      },
+
+      async listPairedDevices() {
+        const lib = getLib()
+        const { PairingStore } = await import('@banjuan/core')
+        const devices = await new PairingStore(lib.rootPath, createDeps(lib.rootPath).fs).list()
+        return devices.map(({ token: _t, ...rest }) => rest)
+      },
+
+      async unpairDevice(peerDeviceId: string) {
+        const lib = getLib()
+        const { PairingStore } = await import('@banjuan/core')
+        await new PairingStore(lib.rootPath, createDeps(lib.rootPath).fs).removeByDeviceId(peerDeviceId)
       },
     },
 

@@ -235,6 +235,7 @@ export interface BanjuanAPI {
   }
 
   lan: {
+    canHost?: boolean
     startHost(): Promise<{ running: boolean; url: string | null; pin: string | null; port: number | null }>
     stopHost(): Promise<void>
     getHostStatus(): Promise<{ running: boolean; url: string | null; pin: string | null; port: number | null }>
