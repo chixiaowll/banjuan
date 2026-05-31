@@ -221,6 +221,8 @@ const api = {
         if (handler) ipcRenderer.removeListener('sync:progress', handler)
       })
     },
+    listPairedDevices: () => ipcRenderer.invoke('lan:listPairedDevices'),
+    unpairDevice: (peerDeviceId: string) => ipcRenderer.invoke('lan:unpairDevice', peerDeviceId),
   },
   export: {
     markdown: (input: { title: string; markdown: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }) =>
