@@ -97,4 +97,15 @@ describe('lan-host-handler', () => {
     expect((await handleDavRequest({ method: 'PUT', path: '/db.sqlite', headers: auth, body: new TextEncoder().encode('x') }, ctx)).status).toBe(403)
     expect((await handleDavRequest({ method: 'PUT', path: '/plugins/evil.js', headers: auth, body: new TextEncoder().encode('x') }, ctx)).status).toBe(403)
   })
+
+  it('PUT applies X-Banjuan-Mtime to the written file', async () => {
+    const auth = basic('secrettoken')
+    const target = 1_700_000_000_000
+    const res = await handleDavRequest(
+      { method: 'PUT', path: '/timed.md', headers: { authorization: auth, 'x-banjuan-mtime': String(target) }, body: new TextEncoder().encode('hi') }, ctx)
+    expect(res.status).toBe(201)
+    const { statSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    expect(Math.abs(statSync(join(root, 'timed.md')).mtimeMs - target)).toBeLessThanOrEqual(1000)
+  })
 })
