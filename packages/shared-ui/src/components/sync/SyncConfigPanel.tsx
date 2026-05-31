@@ -82,13 +82,28 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
     }
   }
 
+  const showSyncResult = (r: { downloaded: number; uploaded: number; deletedLocal: number; deletedRemote: number; errors: string[] }) => {
+    setLanMsg(`完成:↓${r.downloaded} ↑${r.uploaded} 删除 ${r.deletedLocal + r.deletedRemote}${r.errors.length ? `,错误 ${r.errors.length}` : ''}`)
+  }
+
   const connectPeer = async () => {
     if (!peerUrl || !/^\d{6}$/.test(peerPin)) { setLanMsg('请输入对方地址和 6 位 PIN'); return }
     setLanBusy(true)
     setLanMsg('连接中…')
+    const onProgress = (p: { phase: string; current: number; total: number; currentFile: string }) =>
+      setLanMsg(`${p.phase} ${p.current}/${p.total} ${p.currentFile}`)
     try {
-      const r = await api.lan.connectAndSync(peerUrl, peerPin, (p) => setLanMsg(`${p.phase} ${p.current}/${p.total} ${p.currentFile}`))
-      setLanMsg(`完成:↓${r.downloaded} ↑${r.uploaded} 删除 ${r.deletedLocal + r.deletedRemote}${r.errors.length ? `,错误 ${r.errors.length}` : ''}`)
+      const r = await api.lan.connectAndSync(peerUrl, peerPin, onProgress)
+      if ('needsConfirm' in r) {
+        const ok = confirm(`对方是不同的书房「${r.peerName}」,当前是「${r.localName}」。继续会把两个书房合并,通常你不想这样。确定继续吗?`)
+        if (!ok) { setLanMsg('已取消'); return }
+        setLanMsg('合并中…')
+        const r2 = await api.lan.connectAndSync(peerUrl, peerPin, onProgress, true)
+        if ('needsConfirm' in r2) { setLanMsg('已取消'); return }
+        showSyncResult(r2)
+        return
+      }
+      showSyncResult(r)
     } catch (e: any) {
       setLanMsg(`失败:${e?.message ?? String(e)}`)
     } finally {
