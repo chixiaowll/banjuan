@@ -19,6 +19,7 @@
     "@capacitor/preferences": "^6.0.4",
     "@mantine/core": "^8.3.18",
     "@mantine/hooks": "^8.3.18",
+    "capacitor-zeroconf": "3.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
