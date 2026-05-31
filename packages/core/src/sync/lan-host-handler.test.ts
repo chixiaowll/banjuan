@@ -86,6 +86,13 @@ describe('lan-host-handler', () => {
     expect(res.status).toBe(403)
   })
 
+  it('refuses GET/PUT/DELETE of .banjuan/config.json even with valid auth (identity stays local)', async () => {
+    const auth = { authorization: basic('secrettoken') }
+    expect((await handleDavRequest({ method: 'GET', path: '/.banjuan/config.json', headers: auth }, ctx)).status).toBe(403)
+    expect((await handleDavRequest({ method: 'PUT', path: '/.banjuan/config.json', headers: auth, body: new TextEncoder().encode('{}') }, ctx)).status).toBe(403)
+    expect((await handleDavRequest({ method: 'DELETE', path: '/.banjuan/config.json', headers: auth }, ctx)).status).toBe(403)
+  })
+
   it('blocks paths containing a null byte (no unhandled rejection)', async () => {
     const res = await handleDavRequest(
       { method: 'GET', path: '/foo\x00bar', headers: { authorization: basic('secrettoken') } }, ctx)
