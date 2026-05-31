@@ -3,7 +3,15 @@ import { networkInterfaces } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { handleDavRequest, generatePairing, type DavContext } from '@banjuan/core'
+import { PairingStore } from '@banjuan/core'
 import type { PlatformFS } from '@banjuan/core'
+import { getDeviceIdentity } from './device-identity.js'
+
+function toHex(bytes: Uint8Array): string {
+  let s = ''
+  for (const b of bytes) s += b.toString(16).padStart(2, '0')
+  return s
+}
 
 export interface HostStatus {
   running: boolean
@@ -45,7 +53,20 @@ export class LanHostServer {
       libraryName = cfg.name ?? ''
     } catch { /* config unreadable — advertise empty identity */ }
 
-    const ctx: DavContext = { rootPath: this.rootPath, fs: this.fs, token: this.token, pin: this.pin, libraryId, libraryName }
+    const identity = getDeviceIdentity()
+    const pairingStore = new PairingStore(this.rootPath, this.fs)
+
+    const ctx: DavContext = {
+      rootPath: this.rootPath, fs: this.fs, token: this.token, pin: this.pin,
+      libraryId, libraryName,
+      deviceId: identity.deviceId, deviceName: identity.deviceName,
+      isValidToken: (t) => pairingStore.hasToken(t),
+      recordPairing: async (peerDeviceId, peerDeviceName, peerLibraryId) => {
+        const token = toHex(randomBytes(16))
+        await pairingStore.addOrUpdate({ peerDeviceId, peerDeviceName, peerLibraryId, token })
+        return token
+      },
+    }
 
     this.server = createServer((req, res) => {
       const chunks: Buffer[] = []
