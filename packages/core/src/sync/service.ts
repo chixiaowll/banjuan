@@ -79,11 +79,12 @@ export class SyncService {
         if (local && remote) {
           if (remote.mtime > local.mtime + 1000) {
             await this.adapter.download(this.toRemotePath(path), local.absolutePath)
+            await this.preserveMtime(local.absolutePath, remote.mtime)
             result.downloaded++
             this.events?.emit('sync:file:downloaded', { path })
           } else if (local.mtime > remote.mtime + 1000) {
             await this.ensureRemoteDir(path)
-            await this.adapter.upload(local.absolutePath, this.toRemotePath(path))
+            await this.adapter.upload(local.absolutePath, this.toRemotePath(path), local.mtime)
             result.uploaded++
             this.events?.emit('sync:file:uploaded', { path })
           }
@@ -93,7 +94,7 @@ export class SyncService {
             result.deletedLocal++
           } else {
             await this.ensureRemoteDir(path)
-            await this.adapter.upload(local.absolutePath, this.toRemotePath(path))
+            await this.adapter.upload(local.absolutePath, this.toRemotePath(path), local.mtime)
             result.uploaded++
             this.events?.emit('sync:file:uploaded', { path })
           }
@@ -108,6 +109,7 @@ export class SyncService {
             const localPath = join(this.rootPath, path)
             await this.fs.mkdir(dirname(localPath), { recursive: true })
             await this.adapter.download(this.toRemotePath(path), localPath)
+            await this.preserveMtime(localPath, remote.mtime)
             result.downloaded++
             this.events?.emit('sync:file:downloaded', { path })
           }
@@ -193,6 +195,15 @@ export class SyncService {
 
   private toRemotePath(relativePath: string): string {
     return this.remotePath + relativePath
+  }
+
+  // Make the local copy carry the source file's mtime so the next sync treats
+  // them as identical (within the ±1000ms compare grace) instead of re-transferring.
+  // Best-effort: skipped when the platform lacks setMtime or the source mtime is unknown.
+  private async preserveMtime(localPath: string, mtime: number): Promise<void> {
+    if (mtime > 0) {
+      try { await this.fs.setMtime?.(localPath, mtime) } catch { /* best-effort */ }
+    }
   }
 
   private async ensureRemoteDir(relativePath: string): Promise<void> {
