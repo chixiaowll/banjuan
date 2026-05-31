@@ -90,10 +90,13 @@ export class Library {
     await deps.fs.mkdir(join(banjuanDir, 'stubs'), { recursive: true })
     await deps.fs.mkdir(join(banjuanDir, 'notes'), { recursive: true })
 
+    const createdAt = new Date().toISOString()
+    const id = (await deps.crypto.sha256(new TextEncoder().encode(rootPath + '|' + createdAt))).slice(0, 32)
     const config: LibraryConfig = {
+      id,
       name: name || 'My Library',
       version: '1',
-      createdAt: new Date().toISOString(),
+      createdAt,
     }
     await deps.fs.writeTextFile(join(banjuanDir, 'config.json'), JSON.stringify(config, null, 2))
     await deps.fs.writeTextFile(join(banjuanDir, 'tags.json'), '[]')
@@ -121,6 +124,16 @@ export class Library {
     const db = await deps.dbFactory.open(dbPath)
     initSchema(db)
 
+    // Back-fill identity for libraries created before `id` existed (idempotent).
+    const cfgPath = join(banjuanDir, 'config.json')
+    try {
+      const cfg = JSON.parse(await deps.fs.readTextFile(cfgPath))
+      if (!cfg.id) {
+        cfg.id = (await deps.crypto.sha256(new TextEncoder().encode(rootPath + '|' + (cfg.createdAt ?? '')))).slice(0, 32)
+        await deps.fs.writeTextFile(cfgPath, JSON.stringify(cfg, null, 2))
+      }
+    } catch { /* config unreadable — leave as-is */ }
+
     return new Library(rootPath, db, deps)
   }
 
@@ -143,6 +156,18 @@ export class Library {
     const configPath = join(this.rootPath, '.banjuan', 'config.json')
     const config = await this.getConfig()
     config.name = name
+    await this.fs.writeTextFile(configPath, JSON.stringify(config, null, 2))
+  }
+
+  async getId(): Promise<string> {
+    const config = await this.getConfig()
+    return config.id
+  }
+
+  async adoptLibraryId(id: string): Promise<void> {
+    const configPath = join(this.rootPath, '.banjuan', 'config.json')
+    const config = await this.getConfig()
+    config.id = id
     await this.fs.writeTextFile(configPath, JSON.stringify(config, null, 2))
   }
 
