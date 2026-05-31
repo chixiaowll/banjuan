@@ -62,6 +62,16 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
   }
   const [lanBusy, setLanBusy] = useState(false)
   const [lanMsg, setLanMsg] = useState('')
+  const [pairedDevices, setPairedDevices] = useState<Array<{ peerDeviceId: string; peerDeviceName: string; peerLibraryId: string; linkedAt: string }>>([])
+
+  const loadPaired = async () => {
+    try { setPairedDevices(await api.lan.listPairedDevices()) } catch { setPairedDevices([]) }
+  }
+
+  const unpair = async (peerDeviceId: string) => {
+    await api.lan.unpairDevice(peerDeviceId)
+    await loadPaired()
+  }
 
   const toggleHost = async () => {
     setLanBusy(true)
@@ -87,23 +97,27 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
   }
 
   const connectPeer = async () => {
-    if (!peerUrl || !/^\d{6}$/.test(peerPin)) { setLanMsg('请输入对方地址和 6 位 PIN'); return }
+    if (!peerUrl) { setLanMsg('请输入对方地址'); return }
     setLanBusy(true)
     setLanMsg('连接中…')
     const onProgress = (p: { phase: string; current: number; total: number; currentFile: string }) =>
       setLanMsg(`${p.phase} ${p.current}/${p.total} ${p.currentFile}`)
     try {
-      const r = await api.lan.connectAndSync(peerUrl, peerPin, onProgress)
+      let r = await api.lan.connectAndSync(peerUrl, peerPin, onProgress)
+      if ('needsPin' in r) {
+        if (!/^\d{6}$/.test(peerPin)) { setLanMsg('对方设备尚未配对,请输入 6 位 PIN 后再连接'); return }
+        r = await api.lan.connectAndSync(peerUrl, peerPin, onProgress)
+      }
+      if ('needsPin' in r) { setLanMsg('已取消'); return }
       if ('needsConfirm' in r) {
         const ok = confirm(`对方是不同的书房「${r.peerName}」,当前是「${r.localName}」。继续会把两个书房合并,通常你不想这样。确定继续吗?`)
         if (!ok) { setLanMsg('已取消'); return }
         setLanMsg('合并中…')
         const r2 = await api.lan.connectAndSync(peerUrl, peerPin, onProgress, true)
-        if ('needsConfirm' in r2) { setLanMsg('已取消'); return }
-        showSyncResult(r2)
-        return
+        if ('needsConfirm' in r2 || 'needsPin' in r2) { setLanMsg('已取消'); return }
+        showSyncResult(r2); await loadPaired(); return
       }
-      showSyncResult(r)
+      showSyncResult(r); await loadPaired()
     } catch (e: any) {
       setLanMsg(`失败:${e?.message ?? String(e)}`)
     } finally {
@@ -128,6 +142,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
         const s = await api.lan.getHostStatus()
         if (s.running) setHostStatus({ running: true, url: s.url, pin: s.pin })
       } catch { /* ignore */ }
+      await loadPaired()
     }
     load()
   }, [])
@@ -415,6 +430,25 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
                 {lanMsg}
               </div>
             )}
+            <div style={{ marginTop: 18 }}>
+              <div style={{ ...labelStyle, marginBottom: 6 }}>已连接设备</div>
+              {pairedDevices.length === 0 ? (
+                <div style={{ fontSize: 13, color: 'var(--ink-mute, #8A8377)' }}>还没有链接任何设备</div>
+              ) : (
+                pairedDevices.map(d => (
+                  <div key={d.peerDeviceId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--paper-edge, #eee)' }}>
+                    <div style={{ fontSize: 13 }}>
+                      <div style={{ color: 'var(--ink, #2A2722)' }}>{d.peerDeviceName || d.peerDeviceId}</div>
+                      <div style={{ fontSize: 11, color: 'var(--ink-mute, #8A8377)' }}>{new Date(d.linkedAt).toLocaleString()}</div>
+                    </div>
+                    <button onClick={() => unpair(d.peerDeviceId)} disabled={lanBusy}
+                      style={{ fontSize: 12, color: '#c0392b', background: 'none', border: '1px solid var(--paper-edge, #e5e5e7)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
+                      断开
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
