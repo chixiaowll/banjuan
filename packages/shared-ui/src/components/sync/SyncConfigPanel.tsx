@@ -20,11 +20,16 @@ interface SyncProgressState {
 
 interface Props {
   onClose: () => void
+  // Identifies the current library so the LAN peer address/PIN are remembered
+  // per-library (each 书房 connects to its own peer), not globally.
+  libraryKey?: string
 }
 
-export default function SyncConfigPanel({ onClose }: Props) {
+export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
   const api = useBanjuanAPI()
   const t = useT()
+  const lanUrlKey = `banjuan.lan.peerUrl:${libraryKey ?? ''}`
+  const lanPinKey = `banjuan.lan.peerPin:${libraryKey ?? ''}`
   const [config, setConfig] = useState<SyncConfig>({
     url: '',
     username: '',
@@ -42,18 +47,18 @@ export default function SyncConfigPanel({ onClose }: Props) {
   // Persist the peer address/PIN so they survive navigating away from this panel
   // (and app restarts) — otherwise the user must retype them every time.
   const [peerUrl, setPeerUrlState] = useState(() => {
-    try { return localStorage.getItem('banjuan.lan.peerUrl') ?? '' } catch { return '' }
+    try { return localStorage.getItem(lanUrlKey) ?? '' } catch { return '' }
   })
   const [peerPin, setPeerPinState] = useState(() => {
-    try { return localStorage.getItem('banjuan.lan.peerPin') ?? '' } catch { return '' }
+    try { return localStorage.getItem(lanPinKey) ?? '' } catch { return '' }
   })
   const setPeerUrl = (v: string) => {
     setPeerUrlState(v)
-    try { localStorage.setItem('banjuan.lan.peerUrl', v) } catch { /* ignore */ }
+    try { localStorage.setItem(lanUrlKey, v) } catch { /* ignore */ }
   }
   const setPeerPin = (v: string) => {
     setPeerPinState(v)
-    try { localStorage.setItem('banjuan.lan.peerPin', v) } catch { /* ignore */ }
+    try { localStorage.setItem(lanPinKey, v) } catch { /* ignore */ }
   }
   const [lanBusy, setLanBusy] = useState(false)
   const [lanMsg, setLanMsg] = useState('')

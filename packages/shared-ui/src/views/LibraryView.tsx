@@ -1875,7 +1875,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         ) : selectedSection === 'sync' ? (
           <div style={layout.contentMaxWidth ? { flex: 1, overflow: 'auto' } : { display: 'contents' }}>
             <div style={layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth, margin: '0 auto' } : { display: 'contents' }}>
-              <SyncConfigPanel onClose={() => { handleSectionChange('home'); loadDocuments() }} />
+              <SyncConfigPanel libraryKey={rootPath} onClose={() => { handleSectionChange('home'); loadDocuments() }} />
             </div>
           </div>
         ) : selectedSection === 'tags' ? (
