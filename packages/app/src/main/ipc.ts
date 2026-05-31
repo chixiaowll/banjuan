@@ -983,7 +983,9 @@ export function registerIpcHandlers() {
   ipcMain.handle('lan:listPairedDevices', async (event) => {
     const library = getLib(event)
     const { PairingStore } = await import('@banjuan/core')
-    return new PairingStore(library.rootPath, deps.fs).list()
+    const devices = await new PairingStore(library.rootPath, deps.fs).list()
+    // Never expose the shared durable token to the renderer — the UI only needs identity.
+    return devices.map(({ token: _token, ...rest }) => rest)
   })
 
   ipcMain.handle('lan:unpairDevice', async (event, peerDeviceId: string) => {

@@ -248,7 +248,7 @@ export interface BanjuanAPI {
       | { needsConfirm: true; peerName: string; localName: string }
       | { needsPin: true; peerName: string }
     >
-    listPairedDevices(): Promise<Array<{ peerDeviceId: string; peerDeviceName: string; peerLibraryId: string; token: string; linkedAt: string }>>
+    listPairedDevices(): Promise<Array<{ peerDeviceId: string; peerDeviceName: string; peerLibraryId: string; linkedAt: string }>>
     unpairDevice(peerDeviceId: string): Promise<void>
   }
 
