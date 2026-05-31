@@ -9,6 +9,7 @@ import { PROTECTED_FILES, isExcluded } from './exclusions.js'
 // hold per-device identity/settings that must never be overwritten by a peer.
 const SYNC_EXCLUDED_PATHS = new Set([
   '.banjuan/config.json',
+  '.banjuan/paired-devices.json',
 ])
 
 export interface SyncResult {
