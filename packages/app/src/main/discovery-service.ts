@@ -1,14 +1,9 @@
 import { Bonjour } from 'bonjour-service'
+import { parseDiscoveredService, type NearbyShare } from '@banjuan/core'
 
 const SERVICE_TYPE = 'banjuan-sync'   // advertises/browses as _banjuan-sync._tcp
 
-export interface NearbyShare {
-  deviceId: string
-  deviceName: string
-  libraryName: string
-  libraryId: string
-  url: string                          // e.g. "http://192.168.1.20:51234"
-}
+export type { NearbyShare }
 
 export interface AdvertiseOptions {
   port: number
@@ -16,31 +11,6 @@ export interface AdvertiseOptions {
   deviceName: string
   libraryId: string
   libraryName: string
-}
-
-// Shape of the subset of a bonjour Service we read (kept loose for testability).
-interface BonjourServiceLike {
-  port?: number
-  addresses?: string[]
-  txt?: Record<string, unknown>
-}
-
-const IPV4 = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/
-
-/** Map a discovered bonjour service to a NearbyShare, or null if unusable. */
-export function parseNearbyService(svc: BonjourServiceLike): NearbyShare | null {
-  const txt = svc.txt ?? {}
-  const deviceId = String(txt.deviceid ?? '')
-  if (!deviceId) return null
-  const ipv4 = (svc.addresses ?? []).find(a => IPV4.test(a))
-  if (!ipv4 || !svc.port) return null
-  return {
-    deviceId,
-    deviceName: String(txt.devicename ?? ''),
-    libraryName: String(txt.libraryname ?? ''),
-    libraryId: String(txt.libraryid ?? ''),
-    url: `http://${ipv4}:${svc.port}`,
-  }
 }
 
 /** mDNS advertise (when hosting) + browse (when scanning). Desktop/Node only. */
@@ -76,7 +46,7 @@ export class DiscoveryService {
     return new Promise((resolve) => {
       const found = new Map<string, NearbyShare>()
       const browser = this.bonjour.find({ type: SERVICE_TYPE }, (svc) => {
-        const n = parseNearbyService(svc as BonjourServiceLike)
+        const n = parseDiscoveredService(svc as { port?: number; addresses?: string[]; txt?: Record<string, unknown> })
         if (n) found.set(n.deviceId, n)   // one entry per device (a host may advertise on several interfaces)
       })
       setTimeout(() => {
