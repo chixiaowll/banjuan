@@ -109,6 +109,13 @@ async function routeDavRequest(req: DavRequest, ctx: DavContext): Promise<DavRes
       // Deliberate RFC 4918 deviation: create missing parents (recursive) for sync robustness.
       await fs.mkdir(dirname(abs), { recursive: true })
       await fs.writeFile(abs, req.body ?? new Uint8Array())
+      // Preserve the client's mtime when provided, so the next sync sees the files
+      // as identical instead of re-transferring them. Best-effort.
+      const rawMtime = req.headers['x-banjuan-mtime']
+      const mtimeMs = rawMtime ? Number(rawMtime) : 0
+      if (mtimeMs > 0) {
+        try { await fs.setMtime?.(abs, mtimeMs) } catch { /* best-effort */ }
+      }
       return { status: 201, headers: {} }
     }
     case 'DELETE': {
