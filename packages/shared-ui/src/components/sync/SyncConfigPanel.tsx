@@ -39,8 +39,22 @@ export default function SyncConfigPanel({ onClose }: Props) {
   const startTimeRef = useRef(0)
 
   const [hostStatus, setHostStatus] = useState<{ running: boolean; url: string | null; pin: string | null }>({ running: false, url: null, pin: null })
-  const [peerUrl, setPeerUrl] = useState('')
-  const [peerPin, setPeerPin] = useState('')
+  // Persist the peer address/PIN so they survive navigating away from this panel
+  // (and app restarts) — otherwise the user must retype them every time.
+  const [peerUrl, setPeerUrlState] = useState(() => {
+    try { return localStorage.getItem('banjuan.lan.peerUrl') ?? '' } catch { return '' }
+  })
+  const [peerPin, setPeerPinState] = useState(() => {
+    try { return localStorage.getItem('banjuan.lan.peerPin') ?? '' } catch { return '' }
+  })
+  const setPeerUrl = (v: string) => {
+    setPeerUrlState(v)
+    try { localStorage.setItem('banjuan.lan.peerUrl', v) } catch { /* ignore */ }
+  }
+  const setPeerPin = (v: string) => {
+    setPeerPinState(v)
+    try { localStorage.setItem('banjuan.lan.peerPin', v) } catch { /* ignore */ }
+  }
   const [lanBusy, setLanBusy] = useState(false)
   const [lanMsg, setLanMsg] = useState('')
 
