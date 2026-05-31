@@ -9,6 +9,7 @@ import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
 import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
 import { LanHostServer, type HostStatus } from './lan-host-server.js'
+import { getDeviceIdentity } from './device-identity.js'
 
 // Global plugins live here (shared by every library), à la Claude Code's
 // global plugin dir. Built-in plugins are installed here once at startup.
@@ -915,35 +916,55 @@ export function registerIpcHandlers() {
     if (lanHost) { void lanHost.stop(); lanHost = null; lanHostOwner = null }
   })
 
-  // Client side: pair (PIN -> token + host identity), guard against merging a
-  // DIFFERENT book-room, then run a full bidirectional sync.
+  // Client side: discover the peer's identity, reconnect with a stored token if
+  // already paired (no PIN), otherwise PIN-link (and store the pairing). Then
+  // guard against merging a different book-room, then run a bidirectional sync.
   ipcMain.handle('lan:connectAndSync', async (event, peerUrl: string, pin: string, force?: boolean) => {
     if (!/^https?:\/\//i.test(peerUrl)) throw new Error('PAIR_FAILED:invalid-url')
     const library = getLib(event)
     const base = peerUrl.replace(/\/$/, '')
+    const { PairingStore } = await import('@banjuan/core')
+    const store = new PairingStore(library.rootPath, deps.fs)
+    const me = getDeviceIdentity()
+    const myLibraryId = await library.getId()
 
-    // 1) Pair: GET {base}/.banjuan-pair?pin=NNNNNN -> { token, libraryId, libraryName }
-    const pairResp = await fetch(`${base}/.banjuan-pair?pin=${encodeURIComponent(pin)}`)
-    if (!pairResp.ok) throw new Error(`PAIR_FAILED:${pairResp.status}`)
-    const { token, libraryId: hostLibraryId, libraryName: hostLibraryName } =
-      await pairResp.json() as { token: string; libraryId?: string; libraryName?: string }
-    if (!token) throw new Error('PAIR_FAILED:no-token')
+    // 1) Discover the peer.
+    const infoResp = await fetch(`${base}/.banjuan-info`)
+    if (!infoResp.ok) throw new Error(`PAIR_FAILED:${infoResp.status}`)
+    const info = await infoResp.json() as { deviceId?: string; deviceName?: string; libraryId?: string; libraryName?: string }
+    const hostDeviceId = info.deviceId ?? ''
+    const hostLibraryId = info.libraryId ?? ''
+    const hostLibraryName = info.libraryName ?? ''
 
-    // 2) Book-room identity guard.
-    const localId = await library.getId()
-    if (hostLibraryId && hostLibraryId !== localId) {
-      const isEmpty = (await library.documents.list()).length === 0
-      if (isEmpty || force) {
-        // New device joining this room (empty), or the user explicitly confirmed a
-        // cross-room merge — adopt the host's identity so future syncs match.
-        await library.adoptLibraryId(hostLibraryId)
-      } else {
-        // Different, non-empty room — refuse until the user confirms.
-        return { needsConfirm: true as const, peerName: hostLibraryName ?? '', localName: await library.getName() }
+    // 2) Reconnect (paired) or link (PIN).
+    let token: string
+    const existing = hostDeviceId ? await store.findByDeviceId(hostDeviceId) : undefined
+    if (existing) {
+      token = existing.token
+    } else {
+      if (!pin) return { needsPin: true as const, peerName: hostLibraryName }
+      const q = new URLSearchParams({ pin, deviceId: me.deviceId, deviceName: me.deviceName, libraryId: myLibraryId })
+      const pairResp = await fetch(`${base}/.banjuan-pair?${q.toString()}`)
+      if (!pairResp.ok) throw new Error(`PAIR_FAILED:${pairResp.status}`)
+      const paired = await pairResp.json() as { token?: string }
+      if (!paired.token) throw new Error('PAIR_FAILED:no-token')
+      token = paired.token
+      if (hostDeviceId) {
+        await store.addOrUpdate({ peerDeviceId: hostDeviceId, peerDeviceName: info.deviceName ?? '', peerLibraryId: hostLibraryId, token })
       }
     }
 
-    // 3) Reuse existing WebDAVAdapter unchanged: Basic auth, password = token.
+    // 3) Book-room identity guard.
+    if (hostLibraryId && hostLibraryId !== myLibraryId) {
+      const isEmpty = (await library.documents.list()).length === 0
+      if (isEmpty || force) {
+        await library.adoptLibraryId(hostLibraryId)
+      } else {
+        return { needsConfirm: true as const, peerName: hostLibraryName, localName: await library.getName() }
+      }
+    }
+
+    // 4) Sync (reuse the existing WebDAVAdapter unchanged; Basic auth, password = token).
     const { SyncService, WebDAVAdapter } = await import('@banjuan/core')
     const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect({ type: 'webdav', url: base, username: 'banjuan', password: token, remotePath: '/' })
@@ -957,6 +978,18 @@ export function registerIpcHandlers() {
     } finally {
       await adapter.disconnect()
     }
+  })
+
+  ipcMain.handle('lan:listPairedDevices', async (event) => {
+    const library = getLib(event)
+    const { PairingStore } = await import('@banjuan/core')
+    return new PairingStore(library.rootPath, deps.fs).list()
+  })
+
+  ipcMain.handle('lan:unpairDevice', async (event, peerDeviceId: string) => {
+    const library = getLib(event)
+    const { PairingStore } = await import('@banjuan/core')
+    await new PairingStore(library.rootPath, deps.fs).removeByDeviceId(peerDeviceId)
   })
 
   ipcMain.handle('clipboard:readFiles', async () => {
