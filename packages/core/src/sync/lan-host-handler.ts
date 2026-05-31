@@ -23,8 +23,15 @@ export interface DavContext {
   token: string
   pin: string
   pairPath?: string                     // default '/.banjuan-pair'
+  infoPath?: string                     // default '/.banjuan-info'
   libraryId?: string
   libraryName?: string
+  deviceId?: string
+  deviceName?: string
+  // Persistent pairing (injected by the host): accept any stored token, and
+  // record a freshly PIN-paired peer (returning the minted durable token).
+  isValidToken?: (token: string) => Promise<boolean>
+  recordPairing?: (peerDeviceId: string, peerDeviceName: string, peerLibraryId: string) => Promise<string>
 }
 
 function xmlEscape(s: string): string {
@@ -86,11 +93,31 @@ async function routeDavRequest(req: DavRequest, ctx: DavContext): Promise<DavRes
   const pairPath = ctx.pairPath ?? '/.banjuan-pair'
   const method = req.method.toUpperCase()
 
+  const infoPath = ctx.infoPath ?? '/.banjuan-info'
+
+  // --- Identity discovery (no auth): GET /.banjuan-info ---
+  if (method === 'GET' && req.path === infoPath) {
+    return { status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      deviceId: ctx.deviceId ?? '', deviceName: ctx.deviceName ?? '',
+      libraryId: ctx.libraryId ?? '', libraryName: ctx.libraryName ?? '',
+    }) }
+  }
+
   // --- Pairing endpoint (no auth): GET /.banjuan-pair?pin=NNNNNN -> { token } ---
   if (method === 'GET' && req.path === pairPath) {
     const pin = req.query?.pin ?? ''
     if (pin === ctx.pin) {
-      return { status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: ctx.token, libraryId: ctx.libraryId ?? '', libraryName: ctx.libraryName ?? '' }) }
+      const peerDeviceId = req.query?.deviceId ?? ''
+      const peerDeviceName = req.query?.deviceName ?? ''
+      const peerLibraryId = req.query?.libraryId ?? ''
+      const token = ctx.recordPairing
+        ? await ctx.recordPairing(peerDeviceId, peerDeviceName, peerLibraryId)
+        : ctx.token
+      return { status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        token,
+        deviceId: ctx.deviceId ?? '', deviceName: ctx.deviceName ?? '',
+        libraryId: ctx.libraryId ?? '', libraryName: ctx.libraryName ?? '',
+      }) }
     }
     return { status: 403, headers: {}, body: 'Bad PIN' }
   }
@@ -101,7 +128,9 @@ async function routeDavRequest(req: DavRequest, ctx: DavContext): Promise<DavRes
 
   // --- All other routes require Basic auth where password === token ---
   const supplied = parseBasicAuthPassword(req.headers['authorization'])
-  if (supplied === null || !verifyToken(ctx.token, supplied)) return unauthorized()
+  if (supplied === null) return unauthorized()
+  const ok = verifyToken(ctx.token, supplied) || (ctx.isValidToken ? await ctx.isValidToken(supplied) : false)
+  if (!ok) return unauthorized()
 
   const abs = resolveSafe(ctx.rootPath, req.path)
   if (abs === null) return { status: 403, headers: {}, body: 'Forbidden' }

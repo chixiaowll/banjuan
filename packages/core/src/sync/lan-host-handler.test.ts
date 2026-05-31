@@ -131,4 +131,39 @@ describe('lan-host-handler', () => {
     const { join } = await import('node:path')
     expect(Math.abs(statSync(join(root, 'timed.md')).mtimeMs - target)).toBeLessThanOrEqual(1000)
   })
+
+  it('GET /.banjuan-info returns identity without auth', async () => {
+    const res = await handleDavRequest({ method: 'GET', path: '/.banjuan-info', headers: {} }, ctx)
+    expect(res.status).toBe(200)
+    const body = JSON.parse(String(res.body))
+    expect(body.libraryId).toBe('LIB123')
+    expect(body.libraryName).toBe('My Room')
+    expect(body).toHaveProperty('deviceId')
+    expect(body).toHaveProperty('deviceName')
+  })
+
+  it('accepts a token reported valid by ctx.isValidToken (persistent pairing)', async () => {
+    const ctx2 = { ...ctx, token: 'unused', isValidToken: async (t: string) => t === 'storedtok' }
+    expect((await handleDavRequest({ method: 'GET', path: '/book.pdf', headers: { authorization: basic('nope') } }, ctx2)).status).toBe(401)
+    expect((await handleDavRequest({ method: 'GET', path: '/book.pdf', headers: { authorization: basic('storedtok') } }, ctx2)).status).toBe(200)
+  })
+
+  it('pairing records the peer and returns a minted token via recordPairing', async () => {
+    const recorded: any[] = []
+    const ctx3 = {
+      ...ctx,
+      deviceId: 'HOSTDEV', deviceName: 'Mac',
+      recordPairing: async (peerDeviceId: string, peerDeviceName: string, peerLibraryId: string) => {
+        recorded.push({ peerDeviceId, peerDeviceName, peerLibraryId })
+        return 'minted-token'
+      },
+    }
+    const res = await handleDavRequest(
+      { method: 'GET', path: '/.banjuan-pair', headers: {}, query: { pin: '123456', deviceId: 'CLIENTDEV', deviceName: 'iPad', libraryId: 'CLIENTLIB' } }, ctx3)
+    expect(res.status).toBe(200)
+    const body = JSON.parse(String(res.body))
+    expect(body.token).toBe('minted-token')
+    expect(body.deviceId).toBe('HOSTDEV')
+    expect(recorded[0]).toEqual({ peerDeviceId: 'CLIENTDEV', peerDeviceName: 'iPad', peerLibraryId: 'CLIENTLIB' })
+  })
 })
