@@ -77,7 +77,7 @@ export class DiscoveryService {
       const found = new Map<string, NearbyShare>()
       const browser = this.bonjour.find({ type: SERVICE_TYPE }, (svc) => {
         const n = parseNearbyService(svc as BonjourServiceLike)
-        if (n) found.set(n.url, n)
+        if (n) found.set(n.deviceId, n)   // one entry per device (a host may advertise on several interfaces)
       })
       setTimeout(() => {
         try { browser.stop() } catch { /* ignore */ }
