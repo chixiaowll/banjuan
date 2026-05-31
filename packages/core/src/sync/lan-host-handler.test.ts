@@ -115,6 +115,12 @@ describe('lan-host-handler', () => {
     expect((await handleDavRequest({ method: 'PUT', path: '/plugins/evil.js', headers: auth, body: new TextEncoder().encode('x') }, ctx)).status).toBe(403)
   })
 
+  it('refuses direct access to .banjuan/paired-devices.json (trust stays local)', async () => {
+    const auth = { authorization: basic('secrettoken') }
+    expect((await handleDavRequest({ method: 'GET', path: '/.banjuan/paired-devices.json', headers: auth }, ctx)).status).toBe(403)
+    expect((await handleDavRequest({ method: 'PUT', path: '/.banjuan/paired-devices.json', headers: auth, body: new TextEncoder().encode('[]') }, ctx)).status).toBe(403)
+  })
+
   it('PUT applies X-Banjuan-Mtime to the written file', async () => {
     const auth = basic('secrettoken')
     const target = 1_700_000_000_000

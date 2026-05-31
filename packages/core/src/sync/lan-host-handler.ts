@@ -56,7 +56,10 @@ function unauthorized(): DavResponse {
 // Full-path files the host must never serve or accept — per-device identity that
 // is excluded from sync (mirrors SyncService's SYNC_EXCLUDED_PATHS). Without this
 // an authenticated peer could GET/PUT/DELETE the host's config.json directly.
-const HOST_EXCLUDED_FULL_PATHS = new Set(['.banjuan/config.json'])
+const HOST_EXCLUDED_FULL_PATHS = new Set([
+  '.banjuan/config.json',
+  '.banjuan/paired-devices.json',
+])
 
 /** True if the path is a full-path-excluded file, or any segment is an excluded name/dir. */
 function isExcludedPath(reqPath: string): boolean {
