@@ -27,6 +27,7 @@ interface Props {
 
 export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
   const api = useBanjuanAPI()
+  const canHost = api.lan.canHost !== false   // undefined (older desktop) treated as can-host; mobile sets false
   const t = useT()
   const lanUrlKey = `banjuan.lan.peerUrl:${libraryKey ?? ''}`
   const lanPinKey = `banjuan.lan.peerPin:${libraryKey ?? ''}`
@@ -362,7 +363,8 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
             <Wifi size={15} />局域网直连<span style={{ fontSize: 12, fontWeight: 400, color: 'var(--ink-mute, #8A8377)' }}>（同一 Wi-Fi）</span>
           </h3>
 
-          {/* Host section */}
+          {/* Host section — hidden on mobile (canHost===false) */}
+          {canHost && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
             <div style={labelStyle}>开启共享（本机作为 host）</div>
             <button
@@ -403,6 +405,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
               </div>
             )}
           </div>
+          )}
 
           {/* Client section */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
