@@ -440,18 +440,22 @@ export function createCapacitorAPI(): BanjuanAPI {
       },
 
       async pairDevice(peerUrl: string, pin: string) {
+        if (!/^https?:\/\//i.test(peerUrl)) throw new Error('PAIR_FAILED:invalid-url')
         const base = peerUrl.replace(/\/$/, '')
         const me = await getDeviceIdentity()
         const lib = getLib()
         const myLibraryId = await lib.getId()
         const { PairingStore } = await import('@banjuan/core')
 
+        // CapacitorHttp does NOT throw on non-2xx — check status explicitly.
         const infoResp = await CapacitorHttp.get({ url: `${base}/.banjuan-info` })
+        if (infoResp.status >= 400) throw new Error(`PAIR_FAILED:${infoResp.status}`)
         const info = (typeof infoResp.data === 'string' ? JSON.parse(infoResp.data) : infoResp.data) as { deviceId?: string; deviceName?: string; libraryId?: string; libraryName?: string }
         const hostDeviceId = info.deviceId ?? ''
         if (!hostDeviceId) throw new Error('PAIR_FAILED:no-device-id')
 
         const pairResp = await CapacitorHttp.get({ url: `${base}/.banjuan-pair`, params: { pin, deviceId: me.deviceId, deviceName: me.deviceName, libraryId: myLibraryId } })
+        if (pairResp.status >= 400) throw new Error(`PAIR_FAILED:${pairResp.status}`)
         const pair = (typeof pairResp.data === 'string' ? JSON.parse(pairResp.data) : pairResp.data) as { token?: string }
         if (!pair.token) throw new Error('PAIR_FAILED:no-token')
 
@@ -461,6 +465,7 @@ export function createCapacitorAPI(): BanjuanAPI {
       },
 
       async syncDevice(peerUrl: string, onProgress?: (p: any) => void, force?: boolean) {
+        if (!/^https?:\/\//i.test(peerUrl)) throw new Error('SYNC_FAILED:invalid-url')
         const base = peerUrl.replace(/\/$/, '')
         const lib = getLib()
         const myLibraryId = await lib.getId()
@@ -468,6 +473,7 @@ export function createCapacitorAPI(): BanjuanAPI {
         const { CapacitorWebDAVAdapter } = await import('./capacitor-webdav-adapter')
 
         const infoResp = await CapacitorHttp.get({ url: `${base}/.banjuan-info` })
+        if (infoResp.status >= 400) throw new Error(`SYNC_FAILED:${infoResp.status}`)
         const info = (typeof infoResp.data === 'string' ? JSON.parse(infoResp.data) : infoResp.data) as { deviceId?: string; libraryId?: string; libraryName?: string }
         const hostDeviceId = info.deviceId ?? ''
         const hostLibraryId = info.libraryId ?? ''
