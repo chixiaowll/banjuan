@@ -53,10 +53,13 @@ export class WebDAVAdapter implements SyncAdapter {
     return results
   }
 
-  async upload(localPath: string, remotePath: string): Promise<void> {
+  async upload(localPath: string, remotePath: string, mtimeMs?: number): Promise<void> {
     const client = this.getClient()
     const content = await this.fs.readFile(localPath)
-    await client.putFileContents(remotePath, Buffer.from(content))
+    const options = mtimeMs && mtimeMs > 0
+      ? { headers: { 'X-Banjuan-Mtime': String(mtimeMs) } }
+      : undefined
+    await client.putFileContents(remotePath, Buffer.from(content), options)
   }
 
   async download(remotePath: string, localPath: string, onProgress?: (p: { loaded: number; total: number }) => void): Promise<void> {
