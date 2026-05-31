@@ -214,10 +214,12 @@ const api = {
     startHost: () => ipcRenderer.invoke('lan:startHost'),
     stopHost: () => ipcRenderer.invoke('lan:stopHost'),
     getHostStatus: () => ipcRenderer.invoke('lan:getHostStatus'),
-    connectAndSync: (peerUrl: string, pin: string, onProgress?: (p: any) => void, force?: boolean) => {
+    scanNearby: () => ipcRenderer.invoke('lan:scanNearby'),
+    pairDevice: (peerUrl: string, pin: string) => ipcRenderer.invoke('lan:pairDevice', peerUrl, pin),
+    syncDevice: (peerUrl: string, onProgress?: (p: any) => void, force?: boolean) => {
       const handler = onProgress ? (_e: any, p: any) => onProgress(p) : null
       if (handler) ipcRenderer.on('sync:progress', handler)
-      return ipcRenderer.invoke('lan:connectAndSync', peerUrl, pin, force).finally(() => {
+      return ipcRenderer.invoke('lan:syncDevice', peerUrl, force).finally(() => {
         if (handler) ipcRenderer.removeListener('sync:progress', handler)
       })
     },
