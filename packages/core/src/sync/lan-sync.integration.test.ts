@@ -88,4 +88,38 @@ describe('LAN sync integration (webdav client ↔ handler)', () => {
     await svc.sync()
     expect(existsSync(join(clientRoot, 'db.sqlite'))).toBe(false)
   })
+
+  it('host -> client converges: second sync transfers nothing', async () => {
+    writeFileSync(join(hostRoot, 'paper.pdf'), 'HOSTDATA')
+    const connect = async () => {
+      const a = new WebDAVAdapter(new NodeFS())
+      await a.connect({ type: 'webdav', url: `http://127.0.0.1:${port}`, username: 'banjuan', password: TOKEN, remotePath: '/' })
+      return new SyncService(clientRoot, a, undefined, new NodeFS(), '/')
+    }
+    const first = await (await connect()).sync()
+    expect(first.downloaded).toBeGreaterThanOrEqual(1)
+    expect(first.errors).toEqual([])
+
+    const second = await (await connect()).sync()
+    expect(second.downloaded).toBe(0)
+    expect(second.uploaded).toBe(0)
+    expect(second.errors).toEqual([])
+  })
+
+  it('client -> host converges: second sync transfers nothing', async () => {
+    writeFileSync(join(clientRoot, 'mynote.md'), 'CLIENTNOTE')
+    const connect = async () => {
+      const a = new WebDAVAdapter(new NodeFS())
+      await a.connect({ type: 'webdav', url: `http://127.0.0.1:${port}`, username: 'banjuan', password: TOKEN, remotePath: '/' })
+      return new SyncService(clientRoot, a, undefined, new NodeFS(), '/')
+    }
+    const first = await (await connect()).sync()
+    expect(first.uploaded).toBeGreaterThanOrEqual(1)
+    expect(first.errors).toEqual([])
+
+    const second = await (await connect()).sync()
+    expect(second.uploaded).toBe(0)
+    expect(second.downloaded).toBe(0)
+    expect(second.errors).toEqual([])
+  })
 })
