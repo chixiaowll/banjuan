@@ -73,6 +73,56 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
     await loadPaired()
   }
 
+  const [nearby, setNearby] = useState<Array<{ deviceId: string; deviceName: string; libraryName: string; libraryId: string; url: string }>>([])
+  const [scanning, setScanning] = useState(false)
+
+  const pairedIds = new Set(pairedDevices.map(d => d.peerDeviceId))
+
+  const scanNearby = async () => {
+    setScanning(true)
+    setLanMsg('')
+    try { setNearby(await api.lan.scanNearby()) } finally { setScanning(false) }
+  }
+
+  const connectNearby = async (url: string) => {
+    if (!/^\d{6}$/.test(peerPin)) { setLanMsg('请输入对方显示的 6 位 PIN'); return }
+    setLanBusy(true)
+    setLanMsg('连接中…')
+    try {
+      const r = await api.lan.pairDevice(url, peerPin)
+      setLanMsg(`已连接「${r.libraryName || r.deviceName}」`)
+      await loadPaired()
+    } catch (e: any) {
+      setLanMsg(`连接失败:${e?.message ?? String(e)}`)
+    } finally {
+      setLanBusy(false)
+    }
+  }
+
+  const syncWith = async (url: string) => {
+    setLanBusy(true)
+    setLanMsg('同步中…')
+    const onProgress = (p: { phase: string; current: number; total: number; currentFile: string }) =>
+      setLanMsg(`${p.phase} ${p.current}/${p.total} ${p.currentFile}`)
+    try {
+      let r = await api.lan.syncDevice(url, onProgress)
+      if ('needsPair' in r) { setLanMsg('尚未连接该设备,请先点"连接"'); return }
+      if ('needsConfirm' in r) {
+        const ok = confirm(`对方是不同的书房「${r.peerName}」,当前是「${r.localName}」。继续会把两个书房合并,通常你不想这样。确定继续吗?`)
+        if (!ok) { setLanMsg('已取消'); return }
+        setLanMsg('合并中…')
+        const r2 = await api.lan.syncDevice(url, onProgress, true)
+        if ('needsConfirm' in r2 || 'needsPair' in r2) { setLanMsg('已取消'); return }
+        showSyncResult(r2); await loadPaired(); return
+      }
+      showSyncResult(r); await loadPaired()
+    } catch (e: any) {
+      setLanMsg(`同步失败:${e?.message ?? String(e)}`)
+    } finally {
+      setLanBusy(false)
+    }
+  }
+
   const toggleHost = async () => {
     setLanBusy(true)
     try {
@@ -94,35 +144,6 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
 
   const showSyncResult = (r: { downloaded: number; uploaded: number; deletedLocal: number; deletedRemote: number; errors: string[] }) => {
     setLanMsg(`完成:↓${r.downloaded} ↑${r.uploaded} 删除 ${r.deletedLocal + r.deletedRemote}${r.errors.length ? `,错误 ${r.errors.length}` : ''}`)
-  }
-
-  const connectPeer = async () => {
-    if (!peerUrl) { setLanMsg('请输入对方地址'); return }
-    setLanBusy(true)
-    setLanMsg('连接中…')
-    const onProgress = (p: { phase: string; current: number; total: number; currentFile: string }) =>
-      setLanMsg(`${p.phase} ${p.current}/${p.total} ${p.currentFile}`)
-    try {
-      let r = await api.lan.connectAndSync(peerUrl, peerPin, onProgress)
-      if ('needsPin' in r) {
-        if (!/^\d{6}$/.test(peerPin)) { setLanMsg('对方设备尚未配对,请输入 6 位 PIN 后再连接'); return }
-        r = await api.lan.connectAndSync(peerUrl, peerPin, onProgress)
-      }
-      if ('needsPin' in r) { setLanMsg('已取消'); return }
-      if ('needsConfirm' in r) {
-        const ok = confirm(`对方是不同的书房「${r.peerName}」,当前是「${r.localName}」。继续会把两个书房合并,通常你不想这样。确定继续吗?`)
-        if (!ok) { setLanMsg('已取消'); return }
-        setLanMsg('合并中…')
-        const r2 = await api.lan.connectAndSync(peerUrl, peerPin, onProgress, true)
-        if ('needsConfirm' in r2 || 'needsPin' in r2) { setLanMsg('已取消'); return }
-        showSyncResult(r2); await loadPaired(); return
-      }
-      showSyncResult(r); await loadPaired()
-    } catch (e: any) {
-      setLanMsg(`失败:${e?.message ?? String(e)}`)
-    } finally {
-      setLanBusy(false)
-    }
   }
 
   useEffect(() => {
@@ -385,51 +406,53 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
 
           {/* Client section */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={labelStyle}>连接附近设备（本机作为 client）</div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <input
-                style={{ ...inputStyle, flex: 1 }}
-                type="text"
-                placeholder="http://192.168.x.x:端口"
-                value={peerUrl}
-                onChange={(e) => setPeerUrl(e.target.value)}
-                disabled={lanBusy}
-              />
-              <input
-                style={{ ...inputStyle, width: 100, flex: 'none' }}
-                type="text"
-                inputMode="numeric"
-                placeholder="6 位 PIN"
-                value={peerPin}
-                onChange={(e) => setPeerPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                disabled={lanBusy}
-              />
-            </div>
-            <button
-              onClick={connectPeer}
-              disabled={lanBusy}
-              style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '9px 16px', fontSize: 13, fontWeight: 500, borderRadius: 8,
-                background: 'var(--surface-raised, #fff)', color: 'var(--ink-soft, var(--text))',
-                border: '1px solid var(--paper-edge, var(--border))',
-                cursor: lanBusy ? 'not-allowed' : 'pointer',
-                opacity: lanBusy ? 0.6 : 1,
-                alignSelf: 'flex-start',
-              }}
-            >
-              <RefreshCw size={14} className={lanBusy ? 'spin' : ''} />
-              连接并同步
-            </button>
-            {lanMsg && (
-              <div style={{
-                fontSize: 13, padding: '10px 14px', borderRadius: 8,
-                color: lanMsg.startsWith('失败') ? '#ff3b30' : 'var(--ink-mute, #8A8377)',
-                background: lanMsg.startsWith('失败') ? 'rgba(255,59,48,0.06)' : 'rgba(0,0,0,0.03)',
-              }}>
-                {lanMsg}
+
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div style={labelStyle}>附近的共享</div>
+                <button onClick={scanNearby} disabled={scanning || lanBusy}
+                  style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--paper-edge, #e5e5e7)', background: 'var(--surface-raised, #fff)', cursor: 'pointer' }}>
+                  {scanning ? '扫描中…' : '扫描'}
+                </button>
               </div>
-            )}
+              {nearby.length === 0 ? (
+                <div style={{ fontSize: 13, color: 'var(--ink-mute, #8A8377)' }}>{scanning ? '正在查找…' : '附近没有发现共享的设备(可在下方手动输入地址)'}</div>
+              ) : (
+                nearby.map(s => (
+                  <div key={s.url} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--paper-edge, #eee)' }}>
+                    <div style={{ fontSize: 13 }}>
+                      <span style={{ color: 'var(--ink, #2A2722)' }}>{s.deviceName || s.url}</span>
+                      <span style={{ color: 'var(--ink-mute, #8A8377)' }}> · {s.libraryName}</span>
+                    </div>
+                    {pairedIds.has(s.deviceId) ? (
+                      <button onClick={() => syncWith(s.url)} disabled={lanBusy}
+                        style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--paper-edge, #e5e5e7)', background: 'var(--surface-raised, #fff)', cursor: 'pointer' }}>同步</button>
+                    ) : (
+                      <button onClick={() => connectNearby(s.url)} disabled={lanBusy}
+                        style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#2f6fd8', color: '#fff', cursor: 'pointer' }}>连接</button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <div style={{ ...labelStyle, marginBottom: 6 }}>手动连接(发现不到时)</div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input style={{ ...inputStyle, flex: 1 }} type="text" placeholder="http://192.168.x.x:端口"
+                  value={peerUrl} onChange={(e) => setPeerUrl(e.target.value)} disabled={lanBusy} />
+                <input style={{ ...inputStyle, width: 100, flex: 'none' }} type="text" inputMode="numeric" placeholder="6 位 PIN"
+                  value={peerPin} onChange={(e) => setPeerPin(e.target.value.replace(/\D/g, '').slice(0, 6))} disabled={lanBusy} />
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <button onClick={() => peerUrl && connectNearby(peerUrl)} disabled={lanBusy}
+                  style={{ fontSize: 13, padding: '8px 14px', borderRadius: 8, border: 'none', background: '#2f6fd8', color: '#fff', cursor: 'pointer' }}>连接</button>
+                <button onClick={() => peerUrl && syncWith(peerUrl)} disabled={lanBusy}
+                  style={{ fontSize: 13, padding: '8px 14px', borderRadius: 8, border: '1px solid var(--paper-edge, #e5e5e7)', background: 'var(--surface-raised, #fff)', cursor: 'pointer' }}>同步</button>
+              </div>
+              {lanMsg && <div style={{ marginTop: 8, fontSize: 13, color: 'var(--ink-mute, #666)' }}>{lanMsg}</div>}
+            </div>
+
             <div style={{ marginTop: 18 }}>
               <div style={{ ...labelStyle, marginBottom: 6 }}>已连接设备</div>
               {pairedDevices.length === 0 ? (
