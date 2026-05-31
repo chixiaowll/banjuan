@@ -933,10 +933,8 @@ export function registerIpcHandlers() {
     if (lanHost) { void lanHost.stop(); lanHost = null; lanHostOwner = null }
   })
 
-  // Client side: discover the peer's identity, reconnect with a stored token if
-  // already paired (no PIN), otherwise PIN-link (and store the pairing). Then
-  // guard against merging a different book-room, then run a bidirectional sync.
-  ipcMain.handle('lan:connectAndSync', async (event, peerUrl: string, pin: string, force?: boolean) => {
+  // 连接 = one-time pairing (no data movement): store a durable token for the peer.
+  ipcMain.handle('lan:pairDevice', async (event, peerUrl: string, pin: string) => {
     if (!/^https?:\/\//i.test(peerUrl)) throw new Error('PAIR_FAILED:invalid-url')
     const library = getLib(event)
     const base = peerUrl.replace(/\/$/, '')
@@ -945,33 +943,48 @@ export function registerIpcHandlers() {
     const me = getDeviceIdentity()
     const myLibraryId = await library.getId()
 
-    // 1) Discover the peer.
     const infoResp = await fetch(`${base}/.banjuan-info`)
     if (!infoResp.ok) throw new Error(`PAIR_FAILED:${infoResp.status}`)
     const info = await infoResp.json() as { deviceId?: string; deviceName?: string; libraryId?: string; libraryName?: string }
     const hostDeviceId = info.deviceId ?? ''
+    if (!hostDeviceId) throw new Error('PAIR_FAILED:no-device-id')
+
+    const q = new URLSearchParams({ pin, deviceId: me.deviceId, deviceName: me.deviceName, libraryId: myLibraryId })
+    const pairResp = await fetch(`${base}/.banjuan-pair?${q.toString()}`)
+    if (!pairResp.ok) throw new Error(`PAIR_FAILED:${pairResp.status}`)
+    const paired = await pairResp.json() as { token?: string }
+    if (!paired.token) throw new Error('PAIR_FAILED:no-token')
+
+    await store.addOrUpdate({
+      peerDeviceId: hostDeviceId,
+      peerDeviceName: info.deviceName ?? '',
+      peerLibraryId: info.libraryId ?? '',
+      token: paired.token,
+    })
+    return { ok: true as const, deviceName: info.deviceName ?? '', libraryName: info.libraryName ?? '' }
+  })
+
+  // 同步 = data transfer for an already-paired peer. Guards against merging a
+  // different book-room (the guard lives here, not at pair time).
+  ipcMain.handle('lan:syncDevice', async (event, peerUrl: string, force?: boolean) => {
+    if (!/^https?:\/\//i.test(peerUrl)) throw new Error('SYNC_FAILED:invalid-url')
+    const library = getLib(event)
+    const base = peerUrl.replace(/\/$/, '')
+    const { PairingStore, SyncService, WebDAVAdapter } = await import('@banjuan/core')
+    const store = new PairingStore(library.rootPath, deps.fs)
+    const myLibraryId = await library.getId()
+
+    const infoResp = await fetch(`${base}/.banjuan-info`)
+    if (!infoResp.ok) throw new Error(`SYNC_FAILED:${infoResp.status}`)
+    const info = await infoResp.json() as { deviceId?: string; libraryId?: string; libraryName?: string }
+    const hostDeviceId = info.deviceId ?? ''
     const hostLibraryId = info.libraryId ?? ''
     const hostLibraryName = info.libraryName ?? ''
 
-    // 2) Reconnect (paired) or link (PIN).
-    let token: string
     const existing = hostDeviceId ? await store.findByDeviceId(hostDeviceId) : undefined
-    if (existing) {
-      token = existing.token
-    } else {
-      if (!pin) return { needsPin: true as const, peerName: hostLibraryName }
-      const q = new URLSearchParams({ pin, deviceId: me.deviceId, deviceName: me.deviceName, libraryId: myLibraryId })
-      const pairResp = await fetch(`${base}/.banjuan-pair?${q.toString()}`)
-      if (!pairResp.ok) throw new Error(`PAIR_FAILED:${pairResp.status}`)
-      const paired = await pairResp.json() as { token?: string }
-      if (!paired.token) throw new Error('PAIR_FAILED:no-token')
-      token = paired.token
-      if (hostDeviceId) {
-        await store.addOrUpdate({ peerDeviceId: hostDeviceId, peerDeviceName: info.deviceName ?? '', peerLibraryId: hostLibraryId, token })
-      }
-    }
+    if (!existing) return { needsPair: true as const }
+    const token = existing.token
 
-    // 3) Book-room identity guard.
     if (hostLibraryId && hostLibraryId !== myLibraryId) {
       const isEmpty = (await library.documents.list()).length === 0
       if (isEmpty || force) {
@@ -981,8 +994,6 @@ export function registerIpcHandlers() {
       }
     }
 
-    // 4) Sync (reuse the existing WebDAVAdapter unchanged; Basic auth, password = token).
-    const { SyncService, WebDAVAdapter } = await import('@banjuan/core')
     const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect({ type: 'webdav', url: base, username: 'banjuan', password: token, remotePath: '/' })
     const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, '/')
