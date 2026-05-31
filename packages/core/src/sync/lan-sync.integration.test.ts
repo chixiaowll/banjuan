@@ -122,4 +122,17 @@ describe('LAN sync integration (webdav client ↔ handler)', () => {
     expect(second.downloaded).toBe(0)
     expect(second.errors).toEqual([])
   })
+
+  it('does not sync .banjuan/config.json (identity stays local)', async () => {
+    writeFileSync(join(hostRoot, '.banjuan', 'config.json'), JSON.stringify({ id: 'HOSTID', name: 'HostRoom', version: '1', createdAt: 'x' }))
+    writeFileSync(join(clientRoot, '.banjuan', 'config.json'), JSON.stringify({ id: 'CLIENTID', name: 'ClientRoom', version: '1', createdAt: 'y' }))
+    const a = new WebDAVAdapter(new NodeFS())
+    await a.connect({ type: 'webdav', url: `http://127.0.0.1:${port}`, username: 'banjuan', password: TOKEN, remotePath: '/' })
+    const svc = new SyncService(clientRoot, a, undefined, new NodeFS(), '/')
+    await svc.sync()
+    const clientCfg = JSON.parse(readFileSync(join(clientRoot, '.banjuan', 'config.json'), 'utf-8'))
+    expect(clientCfg.id).toBe('CLIENTID')
+    const hostCfg = JSON.parse(readFileSync(join(hostRoot, '.banjuan', 'config.json'), 'utf-8'))
+    expect(hostCfg.id).toBe('HOSTID')
+  })
 })

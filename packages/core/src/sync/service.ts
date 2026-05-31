@@ -5,6 +5,12 @@ import type { SyncSnapshot } from '../types.js'
 import type { EventBus } from '../events/bus.js'
 import { PROTECTED_FILES, isExcluded } from './exclusions.js'
 
+// Files excluded from sync by their FULL relative path (not basename) — these
+// hold per-device identity/settings that must never be overwritten by a peer.
+const SYNC_EXCLUDED_PATHS = new Set([
+  '.banjuan/config.json',
+])
+
 export interface SyncResult {
   uploaded: number
   downloaded: number
@@ -142,6 +148,7 @@ export class SyncService {
     await this.walkDir(this.rootPath, async (absPath) => {
       try {
         const rel = relative(this.rootPath, absPath)
+        if (SYNC_EXCLUDED_PATHS.has(rel)) return
         const stat = await this.fs.stat(absPath)
         results.push({ relativePath: rel, absolutePath: absPath, mtime: stat.mtime })
       } catch {
@@ -163,7 +170,7 @@ export class SyncService {
         } else if (rel.startsWith('/')) {
           rel = rel.slice(1)
         }
-        if (rel) results.push({ relativePath: rel, mtime: item.mtime, size: item.size })
+        if (rel && !SYNC_EXCLUDED_PATHS.has(rel)) results.push({ relativePath: rel, mtime: item.mtime, size: item.size })
       }
     } catch {
       // Remote might be empty on first sync
