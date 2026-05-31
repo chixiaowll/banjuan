@@ -126,6 +126,12 @@ describe('LAN sync integration (webdav client ↔ handler)', () => {
   it('does not sync .banjuan/config.json (identity stays local)', async () => {
     writeFileSync(join(hostRoot, '.banjuan', 'config.json'), JSON.stringify({ id: 'HOSTID', name: 'HostRoom', version: '1', createdAt: 'x' }))
     writeFileSync(join(clientRoot, '.banjuan', 'config.json'), JSON.stringify({ id: 'CLIENTID', name: 'ClientRoom', version: '1', createdAt: 'y' }))
+    // Make the host config clearly NEWER — WITHOUT the exclusion the remote-newer
+    // rule would download it and clobber the client's id, so this test only passes
+    // because config.json is excluded from sync (a genuine red→green guard).
+    const { utimesSync } = await import('node:fs')
+    const future = new Date(Date.now() + 10_000)
+    utimesSync(join(hostRoot, '.banjuan', 'config.json'), future, future)
     const a = new WebDAVAdapter(new NodeFS())
     await a.connect({ type: 'webdav', url: `http://127.0.0.1:${port}`, username: 'banjuan', password: TOKEN, remotePath: '/' })
     const svc = new SyncService(clientRoot, a, undefined, new NodeFS(), '/')
