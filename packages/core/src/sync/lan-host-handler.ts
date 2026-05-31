@@ -53,9 +53,16 @@ function unauthorized(): DavResponse {
   return { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="banjuan"' }, body: 'Unauthorized' }
 }
 
-/** True if any segment of the (decoded) path is an excluded file or directory. */
+// Full-path files the host must never serve or accept — per-device identity that
+// is excluded from sync (mirrors SyncService's SYNC_EXCLUDED_PATHS). Without this
+// an authenticated peer could GET/PUT/DELETE the host's config.json directly.
+const HOST_EXCLUDED_FULL_PATHS = new Set(['.banjuan/config.json'])
+
+/** True if the path is a full-path-excluded file, or any segment is an excluded name/dir. */
 function isExcludedPath(reqPath: string): boolean {
-  const segments = reqPath.replace(/^\/+/, '').split('/').filter(Boolean)
+  const rel = reqPath.replace(/^\/+/, '')
+  if (HOST_EXCLUDED_FULL_PATHS.has(rel)) return true
+  const segments = rel.split('/').filter(Boolean)
   for (let i = 0; i < segments.length; i++) {
     const isDir = i < segments.length - 1   // only the last segment is the leaf (possibly a file)
     if (isExcluded(segments[i], isDir)) return true
