@@ -18,7 +18,17 @@ describe('lan-host-handler', () => {
     mkdirSync(join(root, '.banjuan'), { recursive: true })
     writeFileSync(join(root, 'book.pdf'), 'PDF-DATA')
     writeFileSync(join(root, 'db.sqlite'), 'SHOULD-BE-HIDDEN')
-    ctx = { rootPath: root, fs: new NodeFS(), token: 'secrettoken', pin: '123456' }
+    ctx = { rootPath: root, fs: new NodeFS(), token: 'secrettoken', pin: '123456', libraryId: 'LIB123', libraryName: 'My Room' }
+  })
+
+  it('pairing response includes the host library identity', async () => {
+    const res = await handleDavRequest(
+      { method: 'GET', path: '/.banjuan-pair', headers: {}, query: { pin: '123456' } }, ctx)
+    expect(res.status).toBe(200)
+    const body = JSON.parse(String(res.body))
+    expect(body.token).toBe('secrettoken')
+    expect(body.libraryId).toBe('LIB123')
+    expect(body.libraryName).toBe('My Room')
   })
 
   it('pairing endpoint returns token for correct PIN, 403 otherwise (no auth needed)', async () => {

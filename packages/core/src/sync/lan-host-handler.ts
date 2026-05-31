@@ -23,6 +23,8 @@ export interface DavContext {
   token: string
   pin: string
   pairPath?: string                     // default '/.banjuan-pair'
+  libraryId?: string
+  libraryName?: string
 }
 
 function xmlEscape(s: string): string {
@@ -78,7 +80,7 @@ async function routeDavRequest(req: DavRequest, ctx: DavContext): Promise<DavRes
   if (method === 'GET' && req.path === pairPath) {
     const pin = req.query?.pin ?? ''
     if (pin === ctx.pin) {
-      return { status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: ctx.token }) }
+      return { status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: ctx.token, libraryId: ctx.libraryId ?? '', libraryName: ctx.libraryName ?? '' }) }
     }
     return { status: 403, headers: {}, body: 'Bad PIN' }
   }
