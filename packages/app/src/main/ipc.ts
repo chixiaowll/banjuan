@@ -10,6 +10,7 @@ import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
 import { LanHostServer, type HostStatus } from './lan-host-server.js'
 import { getDeviceIdentity } from './device-identity.js'
+import { DiscoveryService } from './discovery-service.js'
 
 // Global plugins live here (shared by every library), à la Claude Code's
 // global plugin dir. Built-in plugins are installed here once at startup.
@@ -28,6 +29,7 @@ let lanHost: LanHostServer | null = null
 // "their" host — they act as clients instead. Tracked by webContents id.
 let lanHostOwner: number | null = null
 const HOST_OFFLINE: HostStatus = { running: false, url: null, pin: null, port: null }
+const discovery = new DiscoveryService()
 
 // Install/refresh bundled plugins into the GLOBAL plugins dir (~/.banjuan/plugins),
 // once at startup. Per-plugin config.json (user settings/sessions) is preserved.
@@ -890,18 +892,28 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('lan:startHost', async (event): Promise<HostStatus> => {
     const library = getLib(event)
-    if (lanHost) { await lanHost.stop(); lanHost = null; lanHostOwner = null }
+    if (lanHost) { await lanHost.stop(); lanHost = null }
     const host = new LanHostServer(library.rootPath, deps.fs)
     const status = await host.start()   // assign only on success — a failed start leaves lanHost null
     lanHost = host
-    lanHostOwner = event.sender.id      // this window now owns the host
+    lanHostOwner = event.sender.id
+    if (status.port) {
+      const me = getDeviceIdentity()
+      discovery.advertise({
+        port: status.port,
+        deviceId: me.deviceId,
+        deviceName: me.deviceName,
+        libraryId: await library.getId(),
+        libraryName: await library.getName(),
+      })
+    }
     return status
   })
 
   ipcMain.handle('lan:stopHost', async (event): Promise<void> => {
-    // Only the owning window may stop the host (other windows show the client UI).
     if (lanHost && lanHostOwner === event.sender.id) {
       await lanHost.stop(); lanHost = null; lanHostOwner = null
+      discovery.stopAdvertise()
     }
   })
 
@@ -912,7 +924,12 @@ export function registerIpcHandlers() {
     return HOST_OFFLINE
   })
 
+  ipcMain.handle('lan:scanNearby', async () => {
+    return discovery.scan()
+  })
+
   app.on('before-quit', () => {
+    discovery.destroy()
     if (lanHost) { void lanHost.stop(); lanHost = null; lanHostOwner = null }
   })
 
