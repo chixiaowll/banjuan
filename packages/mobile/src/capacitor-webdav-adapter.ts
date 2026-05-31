@@ -92,15 +92,17 @@ export class CapacitorWebDAVAdapter implements SyncAdapter {
     return results
   }
 
-  async upload(localPath: string, remotePath: string): Promise<void> {
+  async upload(localPath: string, remotePath: string, mtimeMs?: number): Promise<void> {
     const t0 = performance.now()
     const url = this.buildUrl(remotePath)
     const uri = await Filesystem.getUri({ path: localPath, directory: Directory.Documents })
+    const uploadHeaders: Record<string, string> = { ...this.headers, 'Content-Type': 'application/octet-stream' }
+    if (mtimeMs && mtimeMs > 0) uploadHeaders['X-Banjuan-Mtime'] = String(mtimeMs)
     const result = await FileUploader.upload({
       filePath: uri.uri,
       serverUrl: url,
       method: 'PUT',
-      headers: { ...this.headers, 'Content-Type': 'application/octet-stream' },
+      headers: uploadHeaders,
     })
     console.log(`[sync] PUT ${remotePath} ${result.status} ${(performance.now() - t0).toFixed(0)}ms`)
   }
