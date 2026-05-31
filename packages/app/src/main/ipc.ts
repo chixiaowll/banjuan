@@ -915,7 +915,6 @@ export function registerIpcHandlers() {
     if (lanHost) { void lanHost.stop(); lanHost = null; lanHostOwner = null }
   })
 
-  // Client side: exchange PIN for token at the peer, then run a full bidirectional sync.
   // Client side: pair (PIN -> token + host identity), guard against merging a
   // DIFFERENT book-room, then run a full bidirectional sync.
   ipcMain.handle('lan:connectAndSync', async (event, peerUrl: string, pin: string, force?: boolean) => {
