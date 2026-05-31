@@ -246,7 +246,10 @@ export interface BanjuanAPI {
     ): Promise<
       | { uploaded: number; downloaded: number; deletedLocal: number; deletedRemote: number; stubbed: number; errors: string[] }
       | { needsConfirm: true; peerName: string; localName: string }
+      | { needsPin: true; peerName: string }
     >
+    listPairedDevices(): Promise<Array<{ peerDeviceId: string; peerDeviceName: string; peerLibraryId: string; token: string; linkedAt: string }>>
+    unpairDevice(peerDeviceId: string): Promise<void>
   }
 
   /** Optional -- not available on all platforms */
