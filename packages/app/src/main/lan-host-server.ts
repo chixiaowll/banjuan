@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { randomBytes } from 'node:crypto'
+import { join } from 'node:path'
 import { handleDavRequest, generatePairing, type DavContext } from '@banjuan/core'
 import type { PlatformFS } from '@banjuan/core'
 
@@ -36,7 +37,15 @@ export class LanHostServer {
     this.token = pairing.token
     this.pin = pairing.pin
 
-    const ctx: DavContext = { rootPath: this.rootPath, fs: this.fs, token: this.token, pin: this.pin }
+    let libraryId = ''
+    let libraryName = ''
+    try {
+      const cfg = JSON.parse(await this.fs.readTextFile(join(this.rootPath, '.banjuan', 'config.json')))
+      libraryId = cfg.id ?? ''
+      libraryName = cfg.name ?? ''
+    } catch { /* config unreadable — advertise empty identity */ }
+
+    const ctx: DavContext = { rootPath: this.rootPath, fs: this.fs, token: this.token, pin: this.pin, libraryId, libraryName }
 
     this.server = createServer((req, res) => {
       const chunks: Buffer[] = []
