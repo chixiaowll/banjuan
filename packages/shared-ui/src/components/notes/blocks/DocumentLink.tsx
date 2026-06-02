@@ -24,7 +24,7 @@ export const DocumentLink = createReactInlineContentSpec(
             e.preventDefault()
             e.stopPropagation()
             document.dispatchEvent(
-              new CustomEvent('document-link-click', { detail: { docId } })
+              new CustomEvent('document-link-click', { detail: { docId, title } })
             )
           }}
         >{title}</span>
