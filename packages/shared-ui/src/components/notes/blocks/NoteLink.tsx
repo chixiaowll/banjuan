@@ -27,7 +27,7 @@ export const NoteLink = createReactInlineContentSpec(
             e.preventDefault()
             e.stopPropagation()
             document.dispatchEvent(
-              new CustomEvent('note-link-click', { detail: { noteId } })
+              new CustomEvent('note-link-click', { detail: { noteId, title } })
             )
           }}
         >{title}</span>

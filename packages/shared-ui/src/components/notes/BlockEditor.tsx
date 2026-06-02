@@ -200,10 +200,12 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   const [allDocs, setAllDocs] = useState<Array<{ id: string; title: string }>>([])
   const onOpenNoteRef = useRef(onOpenNote)
   const allNotesRef = useRef(allNotes)
+  const allDocsRef = useRef(allDocs)
   const editorRef = useRef<any>(null)
   const prevAttachmentsRef = useRef<Set<string>>(new Set())
   onOpenNoteRef.current = onOpenNote
   allNotesRef.current = allNotes
+  allDocsRef.current = allDocs
 
   const openNoteById = useCallback((noteId: string) => {
     const note = allNotesRef.current.find(n => n.id === noteId)
@@ -221,11 +223,18 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const noteId = (e as CustomEvent).detail?.noteId
-      if (noteId) openNoteById(noteId)
+      const detail = (e as CustomEvent).detail || {}
+      if (detail.noteId) { openNoteById(detail.noteId); return }
+      // Markdown-created links ([[Title]]) carry no id — resolve by title.
+      if (detail.title) {
+        const note = allNotesRef.current.find(n => n.title === detail.title)
+        if (note && onOpenNoteRef.current) onOpenNoteRef.current(note)
+      }
     }
     const docHandler = (e: Event) => {
-      const docId = (e as CustomEvent).detail?.docId
+      const detail = (e as CustomEvent).detail || {}
+      let docId = detail.docId
+      if (!docId && detail.title) docId = allDocsRef.current.find(d => d.title === detail.title)?.id
       if (docId) {
         document.dispatchEvent(new CustomEvent('banjuan:open-document', { detail: { docId } }))
       }
