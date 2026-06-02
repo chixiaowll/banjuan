@@ -405,12 +405,39 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     onHeadingsChange?.(extractHeadings(blocks))
   }, [editor, onChange, noteId, onHeadingsChange])
 
+  // The reference menu uses a single-char "[" trigger (BlockNote multi-char
+  // triggers only fire at a block's start), opened only when the previous char
+  // is also "[" — i.e. the user just typed the 2nd bracket of "[[" anywhere on
+  // the line. Excludes "![[" so it doesn't hijack the embed trigger.
+  const bracketShouldOpen = useCallback((tr: any) => {
+    try {
+      if (!tr?.selection?.empty) return false
+      const from = tr.selection.from
+      const prev = tr.doc.textBetween(Math.max(0, from - 1), from)
+      const prev2 = tr.doc.textBetween(Math.max(0, from - 2), Math.max(0, from - 1))
+      return prev === '[' && prev2 !== '!'
+    } catch { return false }
+  }, [])
+
+  // On select, BlockNote removes the 2nd "[" + query; this strips the leftover
+  // 1st "[" so the whole "[[" is replaced by the reference chip.
+  const stripBracketBeforeCursor = useCallback(() => {
+    try {
+      const tt = (editor as any)._tiptapEditor
+      const pos = tt?.state?.selection?.from
+      if (tt && typeof pos === 'number' && pos > 0 && tt.state.doc.textBetween(pos - 1, pos) === '[') {
+        tt.chain().deleteRange({ from: pos - 1, to: pos }).run()
+      }
+    } catch { /* best-effort cleanup */ }
+  }, [editor])
+
   const getNoteLinkItems = useCallback(async (query: string) => {
     const noteItems = allNotes.map(note => ({
       title: note.title,
       aliases: [] as string[],
       group: 'Notes',
       onItemClick: () => {
+        stripBracketBeforeCursor()
         editor.insertInlineContent([
           { type: 'noteLink' as any, props: { noteId: note.id, title: note.title } },
           ' ',
@@ -422,6 +449,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       aliases: [] as string[],
       group: 'Documents',
       onItemClick: () => {
+        stripBracketBeforeCursor()
         editor.insertInlineContent([
           { type: 'documentLink' as any, props: { docId: doc.id, title: doc.title } },
           ' ',
@@ -429,7 +457,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       },
     }))
     return filterSuggestionItems([...noteItems, ...docItems], query)
-  }, [allNotes, allDocs, editor])
+  }, [allNotes, allDocs, editor, stripBracketBeforeCursor])
 
   const getNoteEmbedItems = useCallback(async (query: string) => {
     return filterSuggestionItems(
@@ -484,9 +512,10 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
         {!readOnly && (
           <>
             <SuggestionMenuController
-              triggerCharacter="[["
+              triggerCharacter="["
               getItems={getNoteLinkItems}
               minQueryLength={0}
+              shouldOpen={bracketShouldOpen as any}
             />
             <SuggestionMenuController
               triggerCharacter="![["
