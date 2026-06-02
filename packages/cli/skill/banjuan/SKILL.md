@@ -1,6 +1,6 @@
 ---
 name: banjuan
-description: Use when the user asks to manage their research library, look up documents, create or edit notes, search annotations, organize with tags, or work with mindmaps. Also use when the user mentions 半卷, 书房, banjuan, or their PDF/EPUB research collection.
+description: Use when the user asks to manage their research library, look up documents, import or back up documents/files into the library, store/create/edit notes, search annotations, organize with tags, or work with mindmaps. Also use when the user mentions 半卷, 书房, banjuan, 存笔记, 备份文档, or their PDF/EPUB research collection.
 ---
 
 # Banjuan CLI
@@ -18,6 +18,7 @@ Most commands auto-launch the desktop app if not running. `history` works offlin
 | Open library | `banjuan open <path>` |
 | Switch active library | `banjuan use <path>` |
 | List documents | `banjuan doc list [--tag <t>] [--type <t>]` |
+| Import / back up a document | `banjuan doc import <file> [--dir <d>] [--title "标题"] [--tag <t>]` |
 | List folders | `banjuan folder list` |
 | Create folder | `banjuan folder create <name> [--parent <id>]` |
 | Create note | `banjuan note create <title> [--doc <id>] [--folder <id>]` |
@@ -66,10 +67,26 @@ banjuan folder delete <id>
 ### Documents
 
 ```bash
+banjuan doc import <file> [--dir <subdir>] [--title "标题"] [--tag <tag>...]   # 导入/备份一个文件到书房
+banjuan doc refresh                                                          # 扫描书房目录，同步新增/删除的文件
 banjuan doc list [--tag <tag>] [--type <type>] [--json]
 banjuan doc info <id> [--json]
 banjuan doc delete <id>
 ```
+
+**Import / back up a document** — `doc import` **copies the file into the library**
+(under the library root, or `--dir <subdir>` if given) and registers it. This is the
+correct way to "back up" or add a file (PDF/EPUB/etc.) — never hand-copy files into
+`.banjuan/`. The original file is left in place; a copy lives in the library.
+
+```bash
+banjuan doc import ~/Downloads/paper.pdf --title "重要论文" --tag 文献 --tag AI
+# ✓ Imported: 重要论文   →   prints the new document ID + its path inside the library
+banjuan doc import ~/notes/spec.md --dir Specs        # into the "Specs" subfolder
+```
+
+If you dropped files into the library folder directly (outside the app), run
+`banjuan doc refresh` to pick them up (and drop entries for files removed on disk).
 
 ### Notes
 
@@ -137,6 +154,33 @@ banjuan search <query> [--type <type>] [--limit <n>] [--json]
 banjuan init ~/Documents/研究资料 --name "研究资料"
 banjuan doc list    # PDF/EPUB files are auto-imported
 ```
+
+**Store a note (correct usage for an AI agent):**
+```bash
+# 1. Make sure a library is open (commands 503 if none). Check, open if needed:
+banjuan status                              # is a library open? which one is 当前?
+banjuan open ~/Documents/研究资料            # open the target library if not already
+# 2. Write the note. Put the markdown in a file and use --file (most reliable,
+#    and required if the note has local images like ![](img/x.png)):
+banjuan note create "会议纪要" --file ./note.md --folder 工作/会议
+#    short notes can go inline:  banjuan note create "想法" --content "# 标题\n正文"
+# 3. Verify it landed:
+banjuan note list --json                    # confirm it appears (grab its ID)
+```
+- Pick the library explicitly when unsure: `banjuan --library <path> note create ...`.
+- `--folder` is a path string (e.g. `工作/会议`); it's created if missing.
+- Link a note to a document with `--doc <doc-id>` (get the id from `doc list`).
+
+**Back up / add a document (correct usage):**
+```bash
+banjuan status                              # ensure the right library is open
+banjuan doc import ~/Downloads/report.pdf --title "季度报告" --tag 报告
+banjuan doc list --json                     # verify it's in the library
+```
+- `doc import` copies the file **into** the library and registers it — that IS the
+  backup. Do **not** copy files into `.banjuan/` by hand.
+- To back up many files, call `doc import` per file (loop), or drop them into the
+  library folder and run `banjuan doc refresh`.
 
 **Research session:**
 ```bash
