@@ -119,9 +119,9 @@ function extractNoteLinks(blocks: any[]): Array<{ targetId: string; context: str
   const walk = (node: any) => {
     if (!node) return
     if (node.type === 'noteLink' && node.props?.noteId) {
-      const text = Array.isArray(node.content)
+      const text = node.props.title || (Array.isArray(node.content)
         ? node.content.map((c: any) => (typeof c === 'string' ? c : c.text || '')).join('')
-        : ''
+        : '')
       links.push({ targetId: node.props.noteId, context: text })
     }
     if (node.type === 'noteEmbed' && node.props?.noteId) {
@@ -139,9 +139,9 @@ function extractDocumentLinks(blocks: any[]): Array<{ targetId: string; context:
   const walk = (node: any) => {
     if (!node) return
     if (node.type === 'documentLink' && node.props?.docId) {
-      const text = Array.isArray(node.content)
+      const text = node.props.title || (Array.isArray(node.content)
         ? node.content.map((c: any) => (typeof c === 'string' ? c : c.text || '')).join('')
-        : ''
+        : '')
       links.push({ targetId: node.props.docId, context: text })
     }
     if (node.type === 'documentEmbed' && node.props?.docId) {
@@ -152,6 +152,26 @@ function extractDocumentLinks(blocks: any[]): Array<{ targetId: string; context:
   }
   blocks.forEach(walk)
   return links
+}
+
+// Migrate legacy note/document references (created when these were editable
+// 'styled' inline content, with the label in `content`) to the atomic form the
+// current spec expects: label in `props.title`, no inline content. Without this,
+// old notes would fail the `content: 'none'` schema. Mutates the parsed blocks.
+function migrateRefNodes(nodes: any[]): void {
+  for (const node of nodes) {
+    if (!node) continue
+    if (node.type === 'noteLink' || node.type === 'documentLink') {
+      if (!node.props?.title && Array.isArray(node.content) && node.content.length) {
+        const text = node.content.map((c: any) => (typeof c === 'string' ? c : c.text || '')).join('')
+        node.props = { ...(node.props || {}), title: text }
+      }
+      node.content = undefined   // atomic inline content has no children
+      continue
+    }
+    if (Array.isArray(node.content)) migrateRefNodes(node.content)
+    if (Array.isArray(node.children)) migrateRefNodes(node.children)
+  }
 }
 
 function getMermaidSlashItem(editor: any) {
@@ -222,7 +242,10 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     if (!initialContent) return { parsedContent: undefined, rawMarkdown: null }
     try {
       const blocks = JSON.parse(initialContent)
-      if (Array.isArray(blocks) && blocks.length > 0) return { parsedContent: blocks, rawMarkdown: null }
+      if (Array.isArray(blocks) && blocks.length > 0) {
+        migrateRefNodes(blocks)   // legacy 'styled' refs → atomic (title in props)
+        return { parsedContent: blocks, rawMarkdown: null }
+      }
       return { parsedContent: undefined, rawMarkdown: null }
     } catch {
       if (autoParseMarkdown && initialContent.trim()) {
@@ -380,11 +403,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       group: 'Notes',
       onItemClick: () => {
         editor.insertInlineContent([
-          {
-            type: 'noteLink' as any,
-            props: { noteId: note.id },
-            content: note.title,
-          },
+          { type: 'noteLink' as any, props: { noteId: note.id, title: note.title } },
           ' ',
         ])
       },
@@ -395,11 +414,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       group: 'Documents',
       onItemClick: () => {
         editor.insertInlineContent([
-          {
-            type: 'documentLink' as any,
-            props: { docId: doc.id },
-            content: doc.title,
-          },
+          { type: 'documentLink' as any, props: { docId: doc.id, title: doc.title } },
           ' ',
         ])
       },
