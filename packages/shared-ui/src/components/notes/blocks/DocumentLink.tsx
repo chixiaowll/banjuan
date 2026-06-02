@@ -17,6 +17,9 @@ export const DocumentLink = createReactInlineContentSpec(
           className="document-link-inline"
           data-doc-id={docId}
           ref={props.contentRef}
+          // Non-editable so a mid-line reference fires onClick (navigates)
+          // instead of ProseMirror grabbing the click for cursor placement.
+          contentEditable={false}
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
