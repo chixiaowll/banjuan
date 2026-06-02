@@ -17,6 +17,11 @@ export const NoteLink = createReactInlineContentSpec(
           className="note-link-inline"
           data-note-id={noteId}
           ref={props.contentRef}
+          // Mark the chip non-editable so ProseMirror doesn't treat it as
+          // editable text and swallow the click for cursor placement — without
+          // this, a reference sitting mid-line (after other text) never fires
+          // onClick and can't be navigated.
+          contentEditable={false}
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
