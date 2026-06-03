@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { ChevronDown, ChevronRight, FilePlus, Download, Upload, Trash2, FolderPlus, Check, Pencil, LibraryBig, PenLine, Cloud, Puzzle, Settings, Folder, Tag, Home, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, FolderOutput, X, RefreshCw, Plus, Highlighter, MessageSquareQuote, Search, Star } from 'lucide-react'
+import { ChevronDown, ChevronRight, FilePlus, Download, Upload, Trash2, FolderPlus, Check, Pencil, LibraryBig, PenLine, Cloud, Puzzle, Settings, Folder, Tag, Home, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, PanelRightClose, FolderOutput, X, RefreshCw, Plus, Highlighter, MessageSquareQuote, Search, Star, Info } from 'lucide-react'
 import { PoetryCard } from '../components/PoetryCard.js'
 import type { NoteType } from '../components/notes/TemplatePicker.js'
 import SyncConfigPanel from '../components/sync/SyncConfigPanel.js'
@@ -375,6 +375,21 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => appTheme !== 'minimal' && appTheme !== 'notebook')
   const leftResize = useResizable(220, 160, 400, 'left')
   const rightResize = useResizable(280, 200, 500, 'right')
+  // Detail panel is collapsed by default; a persistent right rail toggles it.
+  // Keeping the rail always-present means selecting an item never reflows the
+  // centered list — only the explicit toggle changes the layout width.
+  const [detailOpen, setDetailOpen] = useState(() => {
+    try { return localStorage.getItem('banjuan-detail-open') === '1' } catch { return false }
+  })
+  const toggleDetail = useCallback(() => {
+    setDetailOpen(v => { const next = !v; try { localStorage.setItem('banjuan-detail-open', next ? '1' : '0') } catch {} ; return next })
+  }, [])
+  const detailEmptyState = (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60%', gap: 10, color: 'var(--text-muted)', textAlign: 'center', padding: '0 12px' }}>
+      <Info size={28} style={{ opacity: 0.3 }} />
+      <div style={{ fontSize: 13 }}>{t('detail.empty')}</div>
+    </div>
+  )
 
   useEffect(() => {
     if (!contextMenu) return
@@ -794,9 +809,30 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   }
 
   const detailPanelStyle: React.CSSProperties = {
-    width: rightResize.width, minWidth: 200, borderLeft: 'none',
+    width: rightResize.width, minWidth: 200, borderLeft: '1px solid var(--border)',
     background: 'var(--surface)', overflow: 'auto', padding: '20px 20px 40px', flexShrink: 0,
   }
+  const detailHeaderStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12,
+  }
+  const detailCollapseBtnStyle: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 24, height: 24, padding: 0, border: 'none', background: 'transparent',
+    color: 'var(--text-muted)', cursor: 'pointer', borderRadius: 6,
+  }
+  // Persistent thin rail on the far right; its button toggles the detail panel.
+  const detailRailStyle: React.CSSProperties = {
+    width: 44, flexShrink: 0, borderLeft: '1px solid var(--border)',
+    background: 'var(--surface)', display: 'flex', flexDirection: 'column',
+    alignItems: 'center', paddingTop: 12, gap: 6,
+  }
+  const detailRailBtnStyle = (active: boolean): React.CSSProperties => ({
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: 30, height: 30, padding: 0, border: 'none', borderRadius: 8, cursor: 'pointer',
+    background: active ? 'var(--accent-soft, rgba(74,144,226,0.14))' : 'transparent',
+    color: active ? 'var(--accent, #4A90E2)' : 'var(--text-muted)',
+    transition: 'background 0.12s, color 0.12s',
+  })
 
 
   return (
@@ -2753,12 +2789,16 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         )}
       </div>
 
-      {/* Right Detail Panel */}
-      {selectedItemId && selectedSection === 'documents' && selectedItemDetail && (
+      {/* Right Detail Panel + rail (Zotero-style; collapsed by default) */}
+      {detailOpen && selectedSection === 'documents' && (
         <>
         <ResizeHandle onPointerDown={rightResize.onPointerDown} />
         <div style={detailPanelStyle}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>{t('detail.title')}</div>
+          <div style={detailHeaderStyle}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('detail.title')}</span>
+            <button onClick={toggleDetail} title={t('detail.collapse')} style={detailCollapseBtnStyle}><PanelRightClose size={15} /></button>
+          </div>
+          {!(selectedItemId && selectedItemDetail) ? detailEmptyState : (<>
           {selectedItemDetail.metadata?.fileMissing && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 12, borderRadius: 8, background: 'rgba(192,57,43,0.08)', border: '1px solid rgba(192,57,43,0.25)', color: '#c0392b', fontSize: 12, lineHeight: 1.5 }}>
               <span style={{ fontWeight: 700 }}>{locale === 'zh' ? '文件缺失' : 'File missing'}</span>
@@ -2815,18 +2855,22 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               <button onClick={() => handleUpload(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Upload size={14} />{t('detail.upload')}</button>
             )}
           </div>
+          </>)}
         </div>
         </>
       )}
 
-      {selectedItemId && selectedSection !== 'documents' && selectedSection !== 'plugins' && selectedSection !== 'settings' && selectedSection !== 'sync' && (
+      {detailOpen && selectedSection === 'notes' && (
         <>
         <ResizeHandle onPointerDown={rightResize.onPointerDown} />
         <div style={detailPanelStyle}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>{t('detail.title')}</div>
+          <div style={detailHeaderStyle}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('detail.title')}</span>
+            <button onClick={toggleDetail} title={t('detail.collapse')} style={detailCollapseBtnStyle}><PanelRightClose size={15} /></button>
+          </div>
           {(() => {
             const item = notes.find((i: any) => i.id === selectedItemId)
-            if (!item) return null
+            if (!selectedItemId || !item) return detailEmptyState
             return (
               <>
                 <DetailField label={t('detail.docTitle')} value={item.title} />
@@ -2845,6 +2889,15 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
           })()}
         </div>
         </>
+      )}
+
+      {/* Persistent far-right rail: toggles the detail panel (collapsed by default) */}
+      {(selectedSection === 'documents' || selectedSection === 'notes') && (
+        <div style={detailRailStyle}>
+          <button onClick={toggleDetail} title={t('detail.title')} style={detailRailBtnStyle(detailOpen)}>
+            <Info size={18} />
+          </button>
+        </div>
       )}
 
       {showNotePicker && (

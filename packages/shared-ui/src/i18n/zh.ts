@@ -131,6 +131,8 @@ const zh = {
 
   // Library detail
   'detail.title': '详情',
+  'detail.collapse': '收起',
+  'detail.empty': '未选择项目',
   'detail.docTitle': '标题',
   'detail.type': '类型',
   'detail.path': '路径',

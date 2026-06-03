@@ -123,6 +123,8 @@ const ko = {
   'handwriting.zoomFit': '페이지에 맞추기',
 
   'detail.title': '상세 정보',
+  'detail.collapse': '접기',
+  'detail.empty': '선택된 항목 없음',
   'detail.docTitle': '제목',
   'detail.type': '유형',
   'detail.path': '경로',
