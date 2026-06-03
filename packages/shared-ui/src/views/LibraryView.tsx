@@ -47,6 +47,8 @@ interface Props {
   onOpenGraph?: () => void
   onOpenTagManager?: () => void
   onOpenPluginView?: (pluginId: string, viewType: string) => void
+  detailOpen?: boolean
+  onToggleDetail?: () => void
   onSwitchLibrary?: () => void
   onLibraryRenamed?: (name: string) => void
 }
@@ -304,7 +306,7 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
   )
 }
 
-export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNote, onOpenMindmap, onOpenPluginView, onSwitchLibrary, onLibraryRenamed }: Props) {
+export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNote, onOpenMindmap, onOpenPluginView, detailOpen = false, onToggleDetail, onSwitchLibrary, onLibraryRenamed }: Props) {
   const api = useBanjuanAPI()
   const { t, locale, setLocale } = useI18n()
   const { theme: appTheme } = useTheme()
@@ -375,15 +377,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => appTheme !== 'minimal' && appTheme !== 'notebook')
   const leftResize = useResizable(220, 160, 400, 'left')
   const rightResize = useResizable(280, 200, 500, 'right')
-  // Detail panel is collapsed by default; a persistent right rail toggles it.
-  // Keeping the rail always-present means selecting an item never reflows the
-  // centered list — only the explicit toggle changes the layout width.
-  const [detailOpen, setDetailOpen] = useState(() => {
-    try { return localStorage.getItem('banjuan-detail-open') === '1' } catch { return false }
-  })
-  const toggleDetail = useCallback(() => {
-    setDetailOpen(v => { const next = !v; try { localStorage.setItem('banjuan-detail-open', next ? '1' : '0') } catch {} ; return next })
-  }, [])
+  // detailOpen / onToggleDetail are controlled by the window-level right rail
+  // in TabManager so the detail panel and plugin views stay mutually exclusive.
   const detailEmptyState = (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60%', gap: 10, color: 'var(--text-muted)', textAlign: 'center', padding: '0 12px' }}>
       <Info size={28} style={{ opacity: 0.3 }} />
@@ -497,7 +492,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     } catch { setPluginViews([]) }
   }
 
-  useEffect(() => { loadDocuments(); loadNotes(); loadTags(); loadNoteDirs(); loadRecentAnnotations(); loadPlugins() }, [])
+  useEffect(() => { loadDocuments(); loadNotes(); loadTags(); loadNoteDirs(); loadRecentAnnotations() }, [])
 
   useEffect(() => {
     const refresh = () => { loadDocuments(); loadNotes(); loadTags(); loadNoteDirs(); loadRecentAnnotations() }
@@ -821,19 +816,6 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     width: 24, height: 24, padding: 0, border: 'none', background: 'transparent',
     color: 'var(--text-muted)', cursor: 'pointer', borderRadius: 6,
   }
-  // Persistent thin rail on the far right; its button toggles the detail panel.
-  const detailRailStyle: React.CSSProperties = {
-    width: 44, flexShrink: 0, borderLeft: '1px solid var(--border)',
-    background: 'var(--surface)', display: 'flex', flexDirection: 'column',
-    alignItems: 'center', paddingTop: 12, gap: 6,
-  }
-  const detailRailBtnStyle = (active: boolean): React.CSSProperties => ({
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    width: 30, height: 30, padding: 0, border: 'none', borderRadius: 8, cursor: 'pointer',
-    background: active ? 'var(--accent-soft, rgba(74,144,226,0.14))' : 'transparent',
-    color: active ? 'var(--accent, #4A90E2)' : 'var(--text-muted)',
-    transition: 'background 0.12s, color 0.12s',
-  })
 
 
   return (
@@ -2797,7 +2779,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         <div style={detailPanelStyle}>
           <div style={detailHeaderStyle}>
             <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('detail.title')}</span>
-            <button onClick={toggleDetail} title={t('detail.collapse')} style={detailCollapseBtnStyle}><PanelRightClose size={15} /></button>
+            <button onClick={onToggleDetail} title={t('detail.collapse')} style={detailCollapseBtnStyle}><PanelRightClose size={15} /></button>
           </div>
           {!(selectedItemId && selectedItemDetail) ? detailEmptyState : (<>
           {selectedItemDetail.metadata?.fileMissing && (
@@ -2867,7 +2849,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         <div style={detailPanelStyle}>
           <div style={detailHeaderStyle}>
             <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('detail.title')}</span>
-            <button onClick={toggleDetail} title={t('detail.collapse')} style={detailCollapseBtnStyle}><PanelRightClose size={15} /></button>
+            <button onClick={onToggleDetail} title={t('detail.collapse')} style={detailCollapseBtnStyle}><PanelRightClose size={15} /></button>
           </div>
           {(() => {
             const item = notes.find((i: any) => i.id === selectedItemId)
@@ -2890,31 +2872,6 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
           })()}
         </div>
         </>
-      )}
-
-      {/* Persistent far-right rail: detail toggle + plugin view launchers */}
-      {(selectedSection === 'documents' || selectedSection === 'notes') && (
-        <div style={detailRailStyle}>
-          <button onClick={toggleDetail} title={t('detail.title')} style={detailRailBtnStyle(detailOpen)}>
-            <Info size={18} />
-          </button>
-          {pluginViews.length > 0 && <div style={{ width: 22, height: 1, background: 'var(--border)', margin: '2px 0' }} />}
-          {pluginViews.map(view => {
-            const isSvg = !!view.icon && view.icon.includes('<svg')
-            return (
-              <button
-                key={view.viewType}
-                onClick={() => onOpenPluginView?.(view.pluginId, view.viewType)}
-                title={view.displayText}
-                style={detailRailBtnStyle(false)}
-              >
-                {isSvg
-                  ? <span style={{ display: 'inline-flex' }} dangerouslySetInnerHTML={{ __html: view.icon!.replace(/width="\d+"/, 'width="18"').replace(/height="\d+"/, 'height="18"') }} />
-                  : <span style={{ fontSize: 16, lineHeight: 1 }}>{view.icon || '🧩'}</span>}
-              </button>
-            )
-          })}
-        </div>
       )}
 
       {showNotePicker && (
