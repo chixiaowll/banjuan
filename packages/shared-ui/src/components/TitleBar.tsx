@@ -199,24 +199,7 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
           </div>
         ))}
       </div>
-      {pluginViews && pluginViews.length > 0 && (
-        <div className="title-bar-plugins">
-          {pluginViews.map(pv => (
-            <button
-              key={pv.pluginId}
-              className={`title-bar-plugin-btn ${activePanelPlugin === pv.pluginId ? 'active' : ''}`}
-              title={pv.displayText}
-              onClick={() => onTogglePluginPanel?.(pv.pluginId, pv.viewType)}
-            >
-              {pv.icon && pv.icon.includes('<svg') ? (
-                <span dangerouslySetInnerHTML={{ __html: pv.icon }} />
-              ) : (
-                <span>{pv.icon || '🧩'}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Plugin launchers live in the window-level right rail (TabManager), not here. */}
     </div>
   )
 }
