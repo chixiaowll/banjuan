@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, ChevronRight, FilePlus, Download, Upload, Trash2, FolderPlus, Check, Pencil, LibraryBig, PenLine, Cloud, Puzzle, Settings, Folder, Tag, Home, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, PanelRightClose, FolderOutput, X, RefreshCw, Plus, Highlighter, MessageSquareQuote, Search, Star, Info } from 'lucide-react'
 import { PoetryCard } from '../components/PoetryCard.js'
 import type { NoteType } from '../components/notes/TemplatePicker.js'
@@ -49,6 +50,7 @@ interface Props {
   onOpenPluginView?: (pluginId: string, viewType: string) => void
   detailOpen?: boolean
   onToggleDetail?: () => void
+  detailPortalTarget?: HTMLElement | null
   onSwitchLibrary?: () => void
   onLibraryRenamed?: (name: string) => void
 }
@@ -306,7 +308,7 @@ function DirTreeItem({ node, selectedDir, onSelect, expandedDirs, onToggle, onCo
   )
 }
 
-export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNote, onOpenMindmap, onOpenPluginView, detailOpen = false, onToggleDetail, onSwitchLibrary, onLibraryRenamed }: Props) {
+export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNote, onOpenMindmap, onOpenPluginView, detailOpen = false, onToggleDetail, detailPortalTarget, onSwitchLibrary, onLibraryRenamed }: Props) {
   const api = useBanjuanAPI()
   const { t, locale, setLocale } = useI18n()
   const { theme: appTheme } = useTheme()
@@ -376,7 +378,6 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [recentAnnotations, setRecentAnnotations] = useState<Array<{ id: string; docId: string; type: string; selectedText: string | null; content: string | null; color: string; page: number | null; createdAt: string; docTitle?: string }>>([])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => appTheme !== 'minimal' && appTheme !== 'notebook')
   const leftResize = useResizable(220, 160, 400, 'left')
-  const rightResize = useResizable(280, 200, 500, 'right')
   // detailOpen / onToggleDetail are controlled by the window-level right rail
   // in TabManager so the detail panel and plugin views stay mutually exclusive.
   const detailEmptyState = (
@@ -804,10 +805,6 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     overflow: 'hidden',
   }
 
-  const detailPanelStyle: React.CSSProperties = {
-    width: rightResize.width, minWidth: 200, borderLeft: '1px solid var(--border)',
-    background: 'var(--surface)', overflow: 'auto', padding: '20px 20px 40px', flexShrink: 0,
-  }
   const detailHeaderStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12,
   }
@@ -2772,16 +2769,16 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         )}
       </div>
 
-      {/* Right Detail Panel + rail (Zotero-style; collapsed by default) */}
-      {detailOpen && selectedSection === 'documents' && (
+      {/* Detail content is portaled into the shared right inspector container
+          owned by TabManager, so it shares one resizable panel with plugins. */}
+      {detailOpen && detailPortalTarget && createPortal(
         <>
-        <ResizeHandle onPointerDown={rightResize.onPointerDown} />
-        <div style={detailPanelStyle}>
           <div style={detailHeaderStyle}>
             <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('detail.title')}</span>
             <button onClick={onToggleDetail} title={t('detail.collapse')} style={detailCollapseBtnStyle}><PanelRightClose size={15} /></button>
           </div>
-          {!(selectedItemId && selectedItemDetail) ? detailEmptyState : (<>
+          {selectedSection === 'documents' ? (
+          !(selectedItemId && selectedItemDetail) ? detailEmptyState : (<>
           {selectedItemDetail.metadata?.fileMissing && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 12, borderRadius: 8, background: 'rgba(192,57,43,0.08)', border: '1px solid rgba(192,57,43,0.25)', color: '#c0392b', fontSize: 12, lineHeight: 1.5 }}>
               <span style={{ fontWeight: 700 }}>{locale === 'zh' ? '文件缺失' : 'File missing'}</span>
@@ -2838,20 +2835,9 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               <button onClick={() => handleUpload(selectedItemId)} style={{ fontSize: 12, padding: '4px 10px', width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Upload size={14} />{t('detail.upload')}</button>
             )}
           </div>
-          </>)}
-        </div>
-        </>
-      )}
-
-      {detailOpen && selectedSection === 'notes' && (
-        <>
-        <ResizeHandle onPointerDown={rightResize.onPointerDown} />
-        <div style={detailPanelStyle}>
-          <div style={detailHeaderStyle}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('detail.title')}</span>
-            <button onClick={onToggleDetail} title={t('detail.collapse')} style={detailCollapseBtnStyle}><PanelRightClose size={15} /></button>
-          </div>
-          {(() => {
+          </>)
+          ) : selectedSection === 'notes' ? (
+          (() => {
             const item = notes.find((i: any) => i.id === selectedItemId)
             if (!selectedItemId || !item) return detailEmptyState
             return (
@@ -2869,9 +2855,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 </div>
               </>
             )
-          })()}
-        </div>
-        </>
+          })()
+          ) : detailEmptyState}
+        </>,
+        detailPortalTarget
       )}
 
       {showNotePicker && (

@@ -50,7 +50,8 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
   const [tabData, setTabData] = useState<Map<string, any>>(() => new Map())
   const [pluginViews, setPluginViews] = useState<PluginViewInfo[]>([])
   const [sidePanel, setSidePanel] = useState<{ pluginId: string; viewType: string } | null>(null)
-  const sidePanelResize = useResizable(380, 300, 900, 'right')
+  // Default width matches the left sidebar (220) so the two flanks are symmetric.
+  const sidePanelResize = useResizable(220, 200, 700, 'right')
   // The right rail toggles a single right-hand surface: either the library
   // detail panel (rendered inside LibraryView) or a plugin view. They are
   // mutually exclusive, so opening one closes the other — no stacked columns.
@@ -61,6 +62,9 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     setSidePanel(null)
     setDetailOpen(v => { const next = !v; try { localStorage.setItem('banjuan-detail-open', next ? '1' : '0') } catch {} ; return next })
   }, [])
+  // DOM node of the shared inspector's detail slot; LibraryView portals its
+  // detail content into it so detail + plugins share one resizable container.
+  const [inspectorEl, setInspectorEl] = useState<HTMLDivElement | null>(null)
   const tabHistoryRef = useRef<string[]>([LIBRARY_TAB_ID])
 
   const activateTab = useCallback((tabId: string) => {
@@ -360,6 +364,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
                   onOpenPluginView={togglePluginPanel}
                   detailOpen={detailOpen}
                   onToggleDetail={toggleDetail}
+                  detailPortalTarget={inspectorEl}
                   onSwitchLibrary={onSwitchLibrary}
                   onLibraryRenamed={(name) => { setTabs(prev => prev.map(t => t.id === LIBRARY_TAB_ID ? { ...t, title: name } : t)); onLibraryRenamed?.(name) }}
                 />
@@ -385,22 +390,26 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
           ))}
           <MindmapExportHost />
         </div>
-        {sidePanel && (
+        {(sidePanel || detailOpen) && (
           <>
             <ResizeHandle onPointerDown={sidePanelResize.onPointerDown} />
             <div className="plugin-side-panel" style={{ width: sidePanelResize.width, minWidth: sidePanelResize.width }}>
-              <PluginViewHost
-                key={sidePanel.pluginId}
-                pluginId={sidePanel.pluginId}
-                viewType={sidePanel.viewType}
-              />
+              {sidePanel ? (
+                <PluginViewHost
+                  key={sidePanel.pluginId}
+                  pluginId={sidePanel.pluginId}
+                  viewType={sidePanel.viewType}
+                />
+              ) : (
+                <div ref={setInspectorEl} style={{ flex: 1, overflow: 'auto', padding: '20px 20px 40px' }} />
+              )}
             </div>
           </>
         )}
         {/* Window-level right rail: switches a single right surface — the library
             detail panel or a plugin view (mutually exclusive). */}
         {(activeTabId === LIBRARY_TAB_ID || pluginViews.length > 0) && (
-        <div style={{ width: 44, flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 12, gap: 6 }}>
+        <div style={{ width: 48, flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 12, gap: 6 }}>
           {activeTabId === LIBRARY_TAB_ID && (
             <button
               onClick={toggleDetail}
