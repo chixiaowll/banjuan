@@ -513,7 +513,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
           {/* Large bottom padding lets the last lines scroll up to mid-viewport,
               so the [[ / slash suggestion menu always has room to open downward
               instead of being clipped at the bottom edge. */}
-          <div style={{ flex: 1, overflow: 'auto', paddingBottom: '50vh', ['--note-font-scale' as any]: noteFontSize / 100 }}>
+          <div style={{ flex: 1, overflow: 'auto', paddingBottom: '80vh', ['--note-font-scale' as any]: noteFontSize / 100 }}>
             <BlockEditor
               ref={editorRef}
               key={note.id}
