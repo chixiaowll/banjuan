@@ -123,6 +123,8 @@ const es = {
   'handwriting.zoomFit': 'Ajustar a página',
 
   'detail.title': 'Detalles',
+  'detail.collapse': 'Contraer',
+  'detail.empty': 'Ningún elemento seleccionado',
   'detail.docTitle': 'Título',
   'detail.type': 'Tipo',
   'detail.path': 'Ruta',

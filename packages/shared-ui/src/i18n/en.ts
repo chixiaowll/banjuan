@@ -131,6 +131,8 @@ const en = {
 
   // Library detail
   'detail.title': 'Details',
+  'detail.collapse': 'Collapse',
+  'detail.empty': 'No item selected',
   'detail.docTitle': 'Title',
   'detail.type': 'Type',
   'detail.path': 'Path',

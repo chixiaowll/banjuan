@@ -123,6 +123,8 @@ const ja = {
   'handwriting.zoomFit': 'ページに合わせる',
 
   'detail.title': '詳細',
+  'detail.collapse': '折りたたむ',
+  'detail.empty': '項目が選択されていません',
   'detail.docTitle': 'タイトル',
   'detail.type': 'タイプ',
   'detail.path': 'パス',
