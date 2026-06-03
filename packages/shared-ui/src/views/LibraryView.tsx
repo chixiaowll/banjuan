@@ -487,16 +487,17 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   }
 
   const loadPlugins = async () => {
-    const list = await api.plugins!.listAll()
+    if (!api.plugins) return
+    const list = await api.plugins.listAll()
     setPlugins(list)
     try {
-      const views = await api.plugins!.getViews()
+      const views = await api.plugins.getViews()
       setPluginViews(views)
       views.forEach(v => { if (v.icon) pluginIconCache.current.set(v.pluginId, v.icon) })
     } catch { setPluginViews([]) }
   }
 
-  useEffect(() => { loadDocuments(); loadNotes(); loadTags(); loadNoteDirs(); loadRecentAnnotations() }, [])
+  useEffect(() => { loadDocuments(); loadNotes(); loadTags(); loadNoteDirs(); loadRecentAnnotations(); loadPlugins() }, [])
 
   useEffect(() => {
     const refresh = () => { loadDocuments(); loadNotes(); loadTags(); loadNoteDirs(); loadRecentAnnotations() }
@@ -2891,12 +2892,28 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         </>
       )}
 
-      {/* Persistent far-right rail: toggles the detail panel (collapsed by default) */}
+      {/* Persistent far-right rail: detail toggle + plugin view launchers */}
       {(selectedSection === 'documents' || selectedSection === 'notes') && (
         <div style={detailRailStyle}>
           <button onClick={toggleDetail} title={t('detail.title')} style={detailRailBtnStyle(detailOpen)}>
             <Info size={18} />
           </button>
+          {pluginViews.length > 0 && <div style={{ width: 22, height: 1, background: 'var(--border)', margin: '2px 0' }} />}
+          {pluginViews.map(view => {
+            const isSvg = !!view.icon && view.icon.includes('<svg')
+            return (
+              <button
+                key={view.viewType}
+                onClick={() => onOpenPluginView?.(view.pluginId, view.viewType)}
+                title={view.displayText}
+                style={detailRailBtnStyle(false)}
+              >
+                {isSvg
+                  ? <span style={{ display: 'inline-flex' }} dangerouslySetInnerHTML={{ __html: view.icon!.replace(/width="\d+"/, 'width="18"').replace(/height="\d+"/, 'height="18"') }} />
+                  : <span style={{ fontSize: 16, lineHeight: 1 }}>{view.icon || '🧩'}</span>}
+              </button>
+            )
+          })}
         </div>
       )}
 
