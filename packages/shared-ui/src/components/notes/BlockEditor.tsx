@@ -22,6 +22,14 @@ import {
   renderMindmapTreeMd, renderMindmapTreeHtml,
 } from '../../utils/noteExport.js'
 
+// Position suggestion menus (`[[`, `![[`, `/`) relative to the viewport rather
+// than the editor's scroll container. The container has a large bottom padding
+// (so lines can scroll up), which otherwise makes floating-ui think there is
+// huge space below the caret — so it never flips the menu above and never caps
+// its height. Fixed strategy makes the viewport the boundary again, so the menu
+// flips up / shrinks to fit when near the bottom.
+const SUGGESTION_FLOATING_OPTIONS = { useFloatingOptions: { strategy: 'fixed' as const } }
+
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'])
 
 const supportedLanguages = {
@@ -516,15 +524,18 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
               getItems={getNoteLinkItems}
               minQueryLength={0}
               shouldOpen={bracketShouldOpen as any}
+              floatingUIOptions={SUGGESTION_FLOATING_OPTIONS}
             />
             <SuggestionMenuController
               triggerCharacter="![["
               getItems={getNoteEmbedItems}
               minQueryLength={0}
+              floatingUIOptions={SUGGESTION_FLOATING_OPTIONS}
             />
             <SuggestionMenuController
               triggerCharacter="/"
               getItems={getSlashMenuItems}
+              floatingUIOptions={SUGGESTION_FLOATING_OPTIONS}
             />
           </>
         )}

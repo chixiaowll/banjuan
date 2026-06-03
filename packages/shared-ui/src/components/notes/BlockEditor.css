@@ -1,3 +1,11 @@
+/* Suggestion menus ([[ / ![[ / slash) have no built-in height cap, so a long
+   list overflows past the viewport with no way to reach the lower items. Cap
+   the height and let the list scroll internally. */
+.bn-suggestion-menu {
+  max-height: 45vh !important;
+  overflow-y: auto !important;
+}
+
 /* ── Base Typography ── */
 .bn-editor {
   font-family: -apple-system, 'PingFang SC', 'Noto Sans SC', 'Helvetica Neue', sans-serif;
