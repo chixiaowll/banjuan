@@ -49,15 +49,19 @@ extraMetadata:
 mac:
   icon: resources/icon.icns
   category: public.app-category.productivity
+  # arch order matters: electron-builder rebuilds the native better-sqlite3 for
+  # each target in turn, and the LAST one is what stays in node_modules. Build
+  # x64 first and arm64 last so the dev machine (Apple Silicon) keeps a working
+  # arm64 binary after packaging — no manual electron-rebuild needed.
   target:
     - target: dmg
       arch:
-        - arm64
         - x64
+        - arm64
     - target: zip
       arch:
-        - arm64
         - x64
+        - arm64
 dmg:
   title: "半卷"
   artifactName: "${productName}-${version}-mac-${arch}.${ext}"
