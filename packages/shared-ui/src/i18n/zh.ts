@@ -13,6 +13,21 @@ const zh = {
   'welcome.creating': '创建中...',
   'welcome.create': '创建',
   'welcome.recentLibraries': '最近打开',
+  'welcome.joinNearby': '从附近设备加入',
+  'welcome.scan': '扫描',
+  'welcome.scanning': '扫描中…',
+  'welcome.scanHint': '点"扫描"查找同一 Wi‑Fi 下共享的设备',
+  'welcome.join': '加入',
+  'welcome.open': '打开',
+  'welcome.joinedTapOpen': '已加入，点按打开',
+  'welcome.joinTitle': '加入「{0}」',
+  'welcome.enterPinHint': '输入对方设备上显示的 6 位 PIN',
+  'welcome.pinPlaceholder': '6 位 PIN',
+  'welcome.pinRequired': '请输入对方显示的 6 位 PIN',
+  'welcome.joinAndSync': '加入并同步',
+  'welcome.joining': '加入中…',
+  'welcome.joinFailed': '加入失败：{0}',
+  'welcome.myLibraries': '我的书房',
 
   // Common
   'common.save': '保存',
@@ -116,6 +131,8 @@ const zh = {
 
   // Library detail
   'detail.title': '详情',
+  'detail.collapse': '收起',
+  'detail.empty': '未选择项目',
   'detail.docTitle': '标题',
   'detail.type': '类型',
   'detail.path': '路径',
@@ -204,7 +221,7 @@ const zh = {
   'mindmap.dockPosition': '停靠位置',
 
   // Sync
-  'sync.title': 'WebDAV 同步配置',
+  'sync.title': '同步',
   'sync.url': 'WebDAV 地址',
   'sync.username': '用户名',
   'sync.password': '密码',

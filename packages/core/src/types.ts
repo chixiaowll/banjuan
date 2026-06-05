@@ -234,6 +234,7 @@ export interface SearchOptions {
 }
 
 export interface LibraryConfig {
+  id: string
   name: string
   version: string
   createdAt: string

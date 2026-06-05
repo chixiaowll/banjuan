@@ -54,6 +54,11 @@ export class NodeFS implements PlatformFS {
     return { mtime: s.mtimeMs, size: s.size }
   }
 
+  async setMtime(filePath: string, mtimeMs: number): Promise<void> {
+    const t = new Date(mtimeMs)
+    fs.utimesSync(filePath, t, t)
+  }
+
   async rename(from: string, to: string): Promise<void> {
     fs.renameSync(from, to)
   }

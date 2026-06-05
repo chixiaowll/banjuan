@@ -13,6 +13,21 @@ const en = {
   'welcome.creating': 'Creating...',
   'welcome.create': 'Create',
   'welcome.recentLibraries': 'Recent Libraries',
+  'welcome.joinNearby': 'Join from Nearby',
+  'welcome.scan': 'Scan',
+  'welcome.scanning': 'Scanning…',
+  'welcome.scanHint': 'Tap Scan to find shared devices on the same Wi‑Fi',
+  'welcome.join': 'Join',
+  'welcome.open': 'Open',
+  'welcome.joinedTapOpen': 'Joined — tap to open',
+  'welcome.joinTitle': 'Join "{0}"',
+  'welcome.enterPinHint': 'Enter the 6-digit PIN shown on the other device',
+  'welcome.pinPlaceholder': '6-digit PIN',
+  'welcome.pinRequired': 'Enter the 6-digit PIN shown on the other device',
+  'welcome.joinAndSync': 'Join & Sync',
+  'welcome.joining': 'Joining…',
+  'welcome.joinFailed': 'Join failed: {0}',
+  'welcome.myLibraries': 'My Libraries',
 
   // Common
   'common.save': 'Save',
@@ -116,6 +131,8 @@ const en = {
 
   // Library detail
   'detail.title': 'Details',
+  'detail.collapse': 'Collapse',
+  'detail.empty': 'No item selected',
   'detail.docTitle': 'Title',
   'detail.type': 'Type',
   'detail.path': 'Path',
@@ -204,7 +221,7 @@ const en = {
   'mindmap.dockPosition': 'Dock Position',
 
   // Sync
-  'sync.title': 'WebDAV Sync Config',
+  'sync.title': 'Sync',
   'sync.url': 'WebDAV URL',
   'sync.username': 'Username',
   'sync.password': 'Password',

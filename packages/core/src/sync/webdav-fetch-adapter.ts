@@ -94,12 +94,14 @@ export class WebDAVFetchAdapter implements SyncAdapter {
     return results
   }
 
-  async upload(localPath: string, remotePath: string): Promise<void> {
+  async upload(localPath: string, remotePath: string, mtimeMs?: number): Promise<void> {
     const t0 = performance.now()
     const content = await this.fs.readFile(localPath)
+    const headers: Record<string, string> = { ...this.headers }
+    if (mtimeMs && mtimeMs > 0) headers['X-Banjuan-Mtime'] = String(mtimeMs)
     const resp = await fetch(this.url(remotePath), {
       method: 'PUT',
-      headers: this.headers,
+      headers,
       body: content.buffer as ArrayBuffer,
     })
     if (!resp.ok) throw new Error(`PUT ${remotePath}: ${resp.status} ${resp.statusText}`)

@@ -3,6 +3,14 @@ import { join, relative, dirname } from '../platform/path.js'
 import type { SyncAdapter } from './adapter.js'
 import type { SyncSnapshot } from '../types.js'
 import type { EventBus } from '../events/bus.js'
+import { PROTECTED_FILES, isExcluded } from './exclusions.js'
+
+// Files excluded from sync by their FULL relative path (not basename) — these
+// hold per-device identity/settings that must never be overwritten by a peer.
+const SYNC_EXCLUDED_PATHS = new Set([
+  '.banjuan/config.json',
+  '.banjuan/paired-devices.json',
+])
 
 export interface SyncResult {
   uploaded: number
@@ -25,21 +33,6 @@ export interface SyncOptions {
   onStub?: (remotePath: string, size: number) => Promise<void>
 }
 
-const EXCLUDED_NAMES = new Set([
-  'db.sqlite', 'db.sqlite-wal', 'db.sqlite-shm',
-  'library.db', 'db.meta.json',
-  'sync-snapshot.json', '.DS_Store',
-])
-
-const PROTECTED_FILES = new Set([
-  '.banjuan/config.json',
-  '.banjuan/tags.json',
-  '.banjuan/sync.json',
-])
-
-const EXCLUDED_DIRS = new Set([
-  'plugins',
-])
 
 export class SyncService {
   private snapshotPath: string
@@ -93,11 +86,12 @@ export class SyncService {
         if (local && remote) {
           if (remote.mtime > local.mtime + 1000) {
             await this.adapter.download(this.toRemotePath(path), local.absolutePath)
+            await this.preserveMtime(local.absolutePath, remote.mtime)
             result.downloaded++
             this.events?.emit('sync:file:downloaded', { path })
           } else if (local.mtime > remote.mtime + 1000) {
             await this.ensureRemoteDir(path)
-            await this.adapter.upload(local.absolutePath, this.toRemotePath(path))
+            await this.adapter.upload(local.absolutePath, this.toRemotePath(path), local.mtime)
             result.uploaded++
             this.events?.emit('sync:file:uploaded', { path })
           }
@@ -107,7 +101,7 @@ export class SyncService {
             result.deletedLocal++
           } else {
             await this.ensureRemoteDir(path)
-            await this.adapter.upload(local.absolutePath, this.toRemotePath(path))
+            await this.adapter.upload(local.absolutePath, this.toRemotePath(path), local.mtime)
             result.uploaded++
             this.events?.emit('sync:file:uploaded', { path })
           }
@@ -122,6 +116,7 @@ export class SyncService {
             const localPath = join(this.rootPath, path)
             await this.fs.mkdir(dirname(localPath), { recursive: true })
             await this.adapter.download(this.toRemotePath(path), localPath)
+            await this.preserveMtime(localPath, remote.mtime)
             result.downloaded++
             this.events?.emit('sync:file:downloaded', { path })
           }
@@ -154,6 +149,7 @@ export class SyncService {
     await this.walkDir(this.rootPath, async (absPath) => {
       try {
         const rel = relative(this.rootPath, absPath)
+        if (SYNC_EXCLUDED_PATHS.has(rel)) return
         const stat = await this.fs.stat(absPath)
         results.push({ relativePath: rel, absolutePath: absPath, mtime: stat.mtime })
       } catch {
@@ -175,7 +171,7 @@ export class SyncService {
         } else if (rel.startsWith('/')) {
           rel = rel.slice(1)
         }
-        if (rel) results.push({ relativePath: rel, mtime: item.mtime, size: item.size })
+        if (rel && !SYNC_EXCLUDED_PATHS.has(rel)) results.push({ relativePath: rel, mtime: item.mtime, size: item.size })
       }
     } catch {
       // Remote might be empty on first sync
@@ -184,9 +180,7 @@ export class SyncService {
   }
 
   private shouldExclude(name: string, isDirectory: boolean): boolean {
-    if (EXCLUDED_NAMES.has(name)) return true
-    if (isDirectory && EXCLUDED_DIRS.has(name)) return true
-    return false
+    return isExcluded(name, isDirectory)
   }
 
   private async walkDir(dir: string, callback: (absPath: string) => Promise<void>): Promise<void> {
@@ -209,6 +203,15 @@ export class SyncService {
 
   private toRemotePath(relativePath: string): string {
     return this.remotePath + relativePath
+  }
+
+  // Make the local copy carry the source file's mtime so the next sync treats
+  // them as identical (within the ±1000ms compare grace) instead of re-transferring.
+  // Best-effort: skipped when the platform lacks setMtime or the source mtime is unknown.
+  private async preserveMtime(localPath: string, mtime: number): Promise<void> {
+    if (mtime > 0) {
+      try { await this.fs.setMtime?.(localPath, mtime) } catch { /* best-effort */ }
+    }
   }
 
   private async ensureRemoteDir(relativePath: string): Promise<void> {

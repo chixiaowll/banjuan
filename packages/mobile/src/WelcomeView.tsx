@@ -1,22 +1,33 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { useBanjuanAPI, PoetryCard } from '@banjuan/shared-ui'
+import { useBanjuanAPI, PoetryCard, useT } from '@banjuan/shared-ui'
 import { listLibraries, getLibrariesRoot, type LibraryEntry } from './capacitor-api.js'
 
 interface Props {
   onOpen: (path: string, name: string) => void
 }
 
+type NearbyShare = { deviceId: string; deviceName: string; libraryName: string; libraryId: string; url: string }
+
 export function WelcomeView({ onOpen }: Props) {
   const api = useBanjuanAPI()
+  const t = useT()
   const [libraries, setLibraries] = useState<LibraryEntry[]>([])
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
 
+  // Join from nearby device
+  const [nearby, setNearby] = useState<NearbyShare[]>([])
+  const [scanning, setScanning] = useState(false)
+  const [joinTarget, setJoinTarget] = useState<NearbyShare | null>(null)
+  const [joinPin, setJoinPin] = useState('')
+
   useEffect(() => {
     listLibraries().then(setLibraries)
   }, [])
+
+  const refreshLibraries = async () => setLibraries(await listLibraries())
 
   const handleOpen = async (entry: LibraryEntry) => {
     setLoading(entry.path)
@@ -33,10 +44,18 @@ export function WelcomeView({ onOpen }: Props) {
     }
   }
 
+  const slugDir = (name: string): string => {
+    const base = name.replace(/[^a-zA-Z0-9一-鿿 _-]/g, '').replace(/\s+/g, '_') || `Library_${Date.now()}`
+    const existing = new Set(libraries.map(l => l.path.split('/').pop()))
+    if (!existing.has(base)) return base
+    let i = 2
+    while (existing.has(`${base}_${i}`)) i++
+    return `${base}_${i}`
+  }
+
   const handleCreate = async () => {
     const name = newName.trim() || 'My Library'
-    const dirName = name.replace(/[^a-zA-Z0-9一-鿿 _-]/g, '').replace(/\s+/g, '_') || 'Library_' + Date.now()
-    const path = `${getLibrariesRoot()}/${dirName}`
+    const path = `${getLibrariesRoot()}/${slugDir(name)}`
     setLoading(path)
     setError(null)
     try {
@@ -46,6 +65,48 @@ export function WelcomeView({ onOpen }: Props) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('Failed to create library:', msg, err)
       setError(msg)
+      setLoading(null)
+    }
+  }
+
+  const scan = async () => {
+    setScanning(true)
+    setError(null)
+    try {
+      setNearby(await api.lan.scanNearby())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  // Tapping a discovered host: if this library is already on the device, just
+  // open it; otherwise ask for the PIN and join (create + pair + first sync).
+  const tapNearby = (h: NearbyShare) => {
+    const already = libraries.find(l => l.id && l.id === h.libraryId)
+    if (already) { handleOpen(already); return }
+    setJoinTarget(h)
+    setJoinPin('')
+    setError(null)
+  }
+
+  const confirmJoin = async () => {
+    if (!joinTarget) return
+    if (!/^\d{6}$/.test(joinPin)) { setError(t('welcome.pinRequired')); return }
+    const h = joinTarget
+    const name = h.libraryName || h.deviceName || 'Library'
+    const path = `${getLibrariesRoot()}/${slugDir(name)}`
+    setLoading(path)
+    setError(null)
+    try {
+      await api.library.init(path, name)        // create + open an empty local library
+      await api.lan.pairDevice(h.url, joinPin)   // store the durable token
+      await api.lan.syncDevice(h.url)            // empty library adopts host's id + pulls content
+      await refreshLibraries()
+      onOpen(path, name)
+    } catch (err) {
+      setError(t('welcome.joinFailed', err instanceof Error ? err.message : String(err)))
       setLoading(null)
     }
   }
@@ -82,6 +143,11 @@ export function WelcomeView({ onOpen }: Props) {
     color: '#fff', fontSize: 20, flexShrink: 0,
   }
 
+  const sectionLabel: React.CSSProperties = {
+    fontSize: 14, fontWeight: 600, color: 'var(--text-muted, #888)',
+    textTransform: 'uppercase' as const, letterSpacing: 0.5, margin: '0 0 12px',
+  }
+
   return (
     <div style={containerStyle}>
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
@@ -96,9 +162,10 @@ export function WelcomeView({ onOpen }: Props) {
         </div>
       )}
 
+      {/* Existing libraries */}
       {libraries.length > 0 && (
         <div style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted, #888)', textTransform: 'uppercase', letterSpacing: 0.5, margin: '0 0 12px' }}>Libraries</h2>
+          <h2 style={sectionLabel}>{t('welcome.myLibraries')}</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {libraries.map(lib => (
               <div key={lib.path} style={cardStyle}
@@ -109,7 +176,7 @@ export function WelcomeView({ onOpen }: Props) {
                   <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', marginTop: 2 }}>{lib.path.split('/').pop()}</div>
                 </div>
                 {loading === lib.path && (
-                  <div style={{ fontSize: 13, color: 'var(--text-muted, #888)' }}>Opening...</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted, #888)' }}>{t('welcome.opening')}</div>
                 )}
               </div>
             ))}
@@ -117,6 +184,78 @@ export function WelcomeView({ onOpen }: Props) {
         </div>
       )}
 
+      {/* Join from nearby device */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <h2 style={{ ...sectionLabel, margin: 0 }}>{t('welcome.joinNearby')}</h2>
+          <button onClick={scan} disabled={scanning || loading !== null}
+            style={{
+              fontSize: 13, padding: '5px 12px', borderRadius: 8,
+              border: '1px solid var(--border, #e0e0e0)',
+              background: 'var(--surface, #fff)', color: '#228be6',
+              cursor: 'pointer', fontWeight: 500,
+            }}>
+            {scanning ? t('welcome.scanning') : t('welcome.scan')}
+          </button>
+        </div>
+        {nearby.length === 0 ? (
+          <div style={{ fontSize: 13, color: 'var(--text-muted, #888)' }}>{t('welcome.scanHint')}</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {nearby.map(h => {
+              const joined = libraries.some(l => l.id && l.id === h.libraryId)
+              return (
+                <div key={h.url} style={cardStyle} onClick={() => loading ? null : tapNearby(h)}>
+                  <div style={iconStyle}>📶</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 16, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.libraryName || h.deviceName}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', marginTop: 2 }}>
+                      {h.deviceName}{joined ? ` · ${t('welcome.joinedTapOpen')}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 13, color: '#228be6', fontWeight: 500 }}>
+                    {joined ? t('welcome.open') : t('welcome.join')}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {joinTarget && (
+          <div style={{ marginTop: 12, padding: 20, borderRadius: 12, border: '1px solid var(--border, #e0e0e0)', background: 'var(--surface, #fff)' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
+              {t('welcome.joinTitle', joinTarget.libraryName || joinTarget.deviceName)}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', marginBottom: 12 }}>
+              {t('welcome.enterPinHint')}
+            </div>
+            <input
+              type="text" inputMode="numeric"
+              placeholder={t('welcome.pinPlaceholder')}
+              value={joinPin} autoFocus
+              onChange={e => setJoinPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: 8,
+                border: '1px solid var(--border, #e0e0e0)', fontSize: 16,
+                letterSpacing: 4, boxSizing: 'border-box', marginBottom: 12,
+              }}
+              onKeyDown={e => e.key === 'Enter' && confirmJoin()}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setJoinTarget(null); setJoinPin('') }} disabled={loading !== null}
+                style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid var(--border, #e0e0e0)', background: 'transparent', fontSize: 14, cursor: 'pointer' }}>
+                {t('welcome.cancel')}
+              </button>
+              <button onClick={confirmJoin} disabled={loading !== null}
+                style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#228be6', color: '#fff', fontSize: 14, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+                {loading ? t('welcome.joining') : t('welcome.joinAndSync')}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Create new library */}
       {!showCreate ? (
         <button onClick={() => setShowCreate(true)}
           style={{
@@ -126,13 +265,13 @@ export function WelcomeView({ onOpen }: Props) {
             fontSize: 15, color: 'var(--text-muted, #888)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}>
-          <span style={{ fontSize: 20 }}>+</span> Create New Library
+          <span style={{ fontSize: 20 }}>+</span> {t('welcome.createLibrary')}
         </button>
       ) : (
         <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border, #e0e0e0)', background: 'var(--surface, #fff)' }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>New Library</div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{t('welcome.createLibrary')}</div>
           <input
-            type="text" placeholder="Library name"
+            type="text" placeholder={t('welcome.libraryName')}
             value={newName} onChange={e => setNewName(e.target.value)}
             autoFocus
             style={{
@@ -145,11 +284,11 @@ export function WelcomeView({ onOpen }: Props) {
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => { setShowCreate(false); setNewName('') }}
               style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid var(--border, #e0e0e0)', background: 'transparent', fontSize: 14, cursor: 'pointer' }}>
-              Cancel
+              {t('welcome.cancel')}
             </button>
             <button onClick={handleCreate} disabled={loading !== null}
               style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#228be6', color: '#fff', fontSize: 14, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
-              {loading ? 'Creating...' : 'Create'}
+              {loading ? t('welcome.creating') : t('welcome.create')}
             </button>
           </div>
         </div>

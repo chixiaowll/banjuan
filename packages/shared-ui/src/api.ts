@@ -234,6 +234,26 @@ export interface BanjuanAPI {
     getDocStatus(docId: string): Promise<DocumentSyncStatus>
   }
 
+  lan: {
+    canHost?: boolean
+    startHost(): Promise<{ running: boolean; url: string | null; pin: string | null; port: number | null }>
+    stopHost(): Promise<void>
+    getHostStatus(): Promise<{ running: boolean; url: string | null; pin: string | null; port: number | null }>
+    scanNearby(): Promise<Array<{ deviceId: string; deviceName: string; libraryName: string; libraryId: string; url: string }>>
+    pairDevice(peerUrl: string, pin: string): Promise<{ ok: true; deviceName: string; libraryName: string }>
+    syncDevice(
+      peerUrl: string,
+      onProgress?: (p: { phase: string; current: number; total: number; currentFile: string }) => void,
+      force?: boolean,
+    ): Promise<
+      | { uploaded: number; downloaded: number; deletedLocal: number; deletedRemote: number; stubbed: number; errors: string[] }
+      | { needsConfirm: true; peerName: string; localName: string }
+      | { needsPair: true }
+    >
+    listPairedDevices(): Promise<Array<{ peerDeviceId: string; peerDeviceName: string; peerLibraryId: string; linkedAt: string }>>
+    unpairDevice(peerDeviceId: string): Promise<void>
+  }
+
   /** Optional -- not available on all platforms */
   export?: {
     markdown(input: { title: string; markdown: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }): Promise<string | null>

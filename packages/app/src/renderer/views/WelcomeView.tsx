@@ -35,15 +35,39 @@ export default function WelcomeView({ onOpen }: Props) {
       : `This folder exceeds the ${n}-file limit, so nothing was imported. Please pick a folder with fewer files (or a smaller subfolder).`)
   }
 
+  // A recent library may have been moved, deleted, or emptied since it was last
+  // opened. Offer to forget it instead of surfacing a raw "not a library" error.
+  const promptForgetMissing = async (dir: string) => {
+    const name = recentLibraries.find(l => l.path === dir)?.name || dir.split('/').pop() || dir
+    const remove = confirm(locale === 'zh'
+      ? `「${name}」已不存在或不再是一个书房（可能已被移动或删除）。是否从“最近打开”中移除？`
+      : `"${name}" no longer exists or isn't a library (it may have been moved or deleted). Remove it from "Recent"?`)
+    if (remove) {
+      await api.library.removeHistory?.(dir)
+      const h = await api.library.getHistory?.() ?? []
+      setRecentLibraries(h)
+    }
+  }
+
   const openLibrary = async (dir: string) => {
     setLoading(true)
     try {
+      // Guard against a folder that has gone missing / been emptied.
+      if (!(await api.library.check(dir))) {
+        await promptForgetMissing(dir)
+        return
+      }
       const result = await api.library.open(dir)
       const name = (result as any).name || dir.split('/').pop() || ''
       warnIfTruncated(result)
       onOpen((result as any).rootPath, name)
     } catch (e: any) {
-      alert(e.message)
+      // Race fallback: deleted between the check and the open call.
+      if (typeof e?.message === 'string' && e.message.includes('not a library')) {
+        await promptForgetMissing(dir)
+      } else {
+        alert(e.message)
+      }
     } finally {
       setLoading(false)
     }
