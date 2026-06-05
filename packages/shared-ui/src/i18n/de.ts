@@ -206,7 +206,7 @@ const de = {
   'mindmap.dockRight': 'Rechts andocken',
   'mindmap.dockPosition': 'Andockposition',
 
-  'sync.title': 'WebDAV-Synchronisierung',
+  'sync.title': 'Sync',
   'sync.url': 'WebDAV-URL',
   'sync.username': 'Benutzername',
   'sync.password': 'Passwort',

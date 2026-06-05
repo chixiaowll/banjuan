@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
-import { handleDavRequest, generatePairing, type DavContext } from '@banjuan/core'
+import { handleDavRequest, generatePairing, LAN_PREFERRED_PORTS, type DavContext } from '@banjuan/core'
 import { PairingStore } from '@banjuan/core'
 import type { PlatformFS } from '@banjuan/core'
 import { getDeviceIdentity } from './device-identity.js'
@@ -94,14 +94,27 @@ export class LanHostServer {
       })
     })
 
-    await new Promise<void>((resolve, reject) => {
-      const onError = (err: Error) => reject(err)
+    // Try the preferred fixed ports in order (so clients can probe known
+    // addresses), then fall back to an ephemeral port (0) if all are taken.
+    const tryListen = (port: number) => new Promise<boolean>((resolve, reject) => {
+      const onError = (err: NodeJS.ErrnoException) => {
+        this.server!.removeListener('listening', onListening)
+        if (err.code === 'EADDRINUSE') resolve(false)   // port taken, try the next
+        else reject(err)
+      }
+      const onListening = () => {
+        this.server!.removeListener('error', onError)
+        resolve(true)
+      }
       this.server!.once('error', onError)
-      this.server!.listen(0, '0.0.0.0', () => {
-        this.server!.removeListener('error', onError)   // don't leave a stale one-shot reject handler
-        resolve()
-      })
+      this.server!.once('listening', onListening)
+      this.server!.listen(port, '0.0.0.0')
     })
+    let bound = false
+    for (const p of LAN_PREFERRED_PORTS) {
+      if (await tryListen(p)) { bound = true; break }
+    }
+    if (!bound) await tryListen(0)   // ephemeral fallback (throws on real errors)
     this.port = (this.server!.address() as { port: number }).port
     return this.status()
   }

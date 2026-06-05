@@ -206,7 +206,7 @@ const ko = {
   'mindmap.dockRight': '오른쪽 고정',
   'mindmap.dockPosition': '고정 위치',
 
-  'sync.title': 'WebDAV 동기화 설정',
+  'sync.title': 'Sync',
   'sync.url': 'WebDAV URL',
   'sync.username': '사용자 이름',
   'sync.password': '비밀번호',

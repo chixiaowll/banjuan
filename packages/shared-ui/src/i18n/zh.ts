@@ -221,7 +221,7 @@ const zh = {
   'mindmap.dockPosition': '停靠位置',
 
   // Sync
-  'sync.title': 'WebDAV 同步配置',
+  'sync.title': '同步',
   'sync.url': 'WebDAV 地址',
   'sync.username': '用户名',
   'sync.password': '密码',

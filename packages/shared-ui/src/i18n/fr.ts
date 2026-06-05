@@ -206,7 +206,7 @@ const fr = {
   'mindmap.dockRight': 'Ancrer à droite',
   'mindmap.dockPosition': "Position d'ancrage",
 
-  'sync.title': 'Configuration WebDAV',
+  'sync.title': 'Sync',
   'sync.url': 'URL WebDAV',
   'sync.username': "Nom d'utilisateur",
   'sync.password': 'Mot de passe',
