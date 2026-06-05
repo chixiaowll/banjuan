@@ -221,7 +221,7 @@ const en = {
   'mindmap.dockPosition': 'Dock Position',
 
   // Sync
-  'sync.title': 'WebDAV Sync Config',
+  'sync.title': 'Sync',
   'sync.url': 'WebDAV URL',
   'sync.username': 'Username',
   'sync.password': 'Password',

@@ -1,3 +1,9 @@
+// Preferred fixed ports the LAN host tries before falling back to an ephemeral
+// one. A stable port lets a client probe known addresses (e.g. 127.0.0.1 on the
+// iOS simulator, where mDNS browsing is unreliable) instead of relying solely
+// on Bonjour discovery.
+export const LAN_PREFERRED_PORTS = [48710, 48711, 48712, 48713, 48714] as const
+
 export interface NearbyShare {
   deviceId: string
   deviceName: string

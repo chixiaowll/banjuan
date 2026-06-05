@@ -6,7 +6,13 @@ PODS:
     - SQLCipher
     - ZIPFoundation
   - CapacitorCordova (6.2.1)
+  - CapacitorDevice (6.0.3):
+    - Capacitor
   - CapacitorFilesystem (6.0.4):
+    - Capacitor
+  - CapacitorPreferences (6.0.4):
+    - Capacitor
+  - CapacitorZeroconf (3.0.0):
     - Capacitor
   - SQLCipher (4.10.0):
     - SQLCipher/standard (= 4.10.0)
@@ -19,7 +25,10 @@ DEPENDENCIES:
   - "Capacitor (from `../../../../node_modules/.pnpm/@capacitor+ios@6.2.1_@capacitor+core@6.2.1/node_modules/@capacitor/ios`)"
   - "CapacitorCommunitySqlite (from `../../../../node_modules/.pnpm/@capacitor-community+sqlite@6.0.2_@capacitor+core@6.2.1/node_modules/@capacitor-community/sqlite`)"
   - "CapacitorCordova (from `../../../../node_modules/.pnpm/@capacitor+ios@6.2.1_@capacitor+core@6.2.1/node_modules/@capacitor/ios`)"
+  - "CapacitorDevice (from `../../../../node_modules/.pnpm/@capacitor+device@6.0.3_@capacitor+core@6.2.1/node_modules/@capacitor/device`)"
   - "CapacitorFilesystem (from `../../../../node_modules/.pnpm/@capacitor+filesystem@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/filesystem`)"
+  - "CapacitorPreferences (from `../../../../node_modules/.pnpm/@capacitor+preferences@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/preferences`)"
+  - "CapacitorZeroconf (from `../../../../node_modules/.pnpm/capacitor-zeroconf@3.0.0_@capacitor+core@6.2.1_bonjour@3.5.1/node_modules/capacitor-zeroconf`)"
 
 SPEC REPOS:
   trunk:
@@ -33,17 +42,26 @@ EXTERNAL SOURCES:
     :path: "../../../../node_modules/.pnpm/@capacitor-community+sqlite@6.0.2_@capacitor+core@6.2.1/node_modules/@capacitor-community/sqlite"
   CapacitorCordova:
     :path: "../../../../node_modules/.pnpm/@capacitor+ios@6.2.1_@capacitor+core@6.2.1/node_modules/@capacitor/ios"
+  CapacitorDevice:
+    :path: "../../../../node_modules/.pnpm/@capacitor+device@6.0.3_@capacitor+core@6.2.1/node_modules/@capacitor/device"
   CapacitorFilesystem:
     :path: "../../../../node_modules/.pnpm/@capacitor+filesystem@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/filesystem"
+  CapacitorPreferences:
+    :path: "../../../../node_modules/.pnpm/@capacitor+preferences@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/preferences"
+  CapacitorZeroconf:
+    :path: "../../../../node_modules/.pnpm/capacitor-zeroconf@3.0.0_@capacitor+core@6.2.1_bonjour@3.5.1/node_modules/capacitor-zeroconf"
 
 SPEC CHECKSUMS:
   Capacitor: c95400d761e376be9da6be5a05f226c0e865cebf
   CapacitorCommunitySqlite: 0299d20f4b00c2e6aa485a1d8932656753937b9b
   CapacitorCordova: 8d93e14982f440181be7304aa9559ca631d77fff
+  CapacitorDevice: 3ec44d26b51986119a1987fad1253609d5aacb68
   CapacitorFilesystem: 5b9aec35c0212bd0064e26d278c93e925864f212
+  CapacitorPreferences: 5848e0691b36b4bb4acc98e481ab56d451578d30
+  CapacitorZeroconf: 5e812add0e5cda9a2509a6f747d1f917c39e4368
   SQLCipher: eb79c64049cb002b4e9fcb30edb7979bf4706dfc
   ZIPFoundation: dfd3d681c4053ff7e2f7350bc4e53b5dba3f5351
 
-PODFILE CHECKSUM: c5bc5ae2df652305b2fb8f6b7c396df86f95f085
+PODFILE CHECKSUM: 910df56369f76ed942f09cdade1684f1dd60a7b9
 
 COCOAPODS: 1.16.2

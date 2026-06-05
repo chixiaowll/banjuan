@@ -206,7 +206,7 @@ const ja = {
   'mindmap.dockRight': '右にドック',
   'mindmap.dockPosition': 'ドック位置',
 
-  'sync.title': 'WebDAV同期設定',
+  'sync.title': 'Sync',
   'sync.url': 'WebDAV URL',
   'sync.username': 'ユーザー名',
   'sync.password': 'パスワード',

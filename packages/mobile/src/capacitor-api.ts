@@ -1,5 +1,5 @@
-import { Library } from '@banjuan/core'
-import type { PlatformDeps } from '@banjuan/core'
+import { Library, LAN_PREFERRED_PORTS } from '@banjuan/core'
+import type { PlatformDeps, NearbyShare } from '@banjuan/core'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { CapacitorFS, CapacitorDatabaseFactory, WebCrypto } from '@banjuan/platform-capacitor'
 import type { BanjuanAPI } from '@banjuan/shared-ui'
@@ -437,7 +437,38 @@ export function createCapacitorAPI(): BanjuanAPI {
       async getHostStatus() { return { running: false, url: null, pin: null, port: null } },
 
       async scanNearby() {
-        return mdnsScanNearby()
+        const results = new Map<string, NearbyShare>()
+        // Run BOTH discovery paths concurrently. On the iOS simulator
+        // ZeroConf.watch can hang and never resolve, so we must not await it
+        // before the localhost probe — and we cap the whole scan with a timeout
+        // so a stuck Bonjour browse can't freeze the UI on "scanning…".
+        const mdnsP = (async () => {
+          try { for (const n of await mdnsScanNearby()) results.set(n.deviceId, n) } catch { /* ignore */ }
+        })()
+        // Same-machine probe: on the simulator localhost reaches the Mac host
+        // but Bonjour is unreliable, so hit the known fixed ports on 127.0.0.1
+        // directly. Harmless on a real device (nothing listens, fails fast).
+        const localP = Promise.all(LAN_PREFERRED_PORTS.map(async (port) => {
+          const url = `http://127.0.0.1:${port}`
+          try {
+            const resp = await CapacitorHttp.get({ url: `${url}/.banjuan-info`, connectTimeout: 1500, readTimeout: 1500 } as any)
+            if (resp.status >= 400) return
+            const info = (typeof resp.data === 'string' ? JSON.parse(resp.data) : resp.data) as { deviceId?: string; deviceName?: string; libraryId?: string; libraryName?: string }
+            if (!info?.deviceId) return
+            results.set(info.deviceId, {
+              deviceId: info.deviceId,
+              deviceName: info.deviceName ?? '',
+              libraryName: info.libraryName ?? '',
+              libraryId: info.libraryId ?? '',
+              url,
+            })
+          } catch { /* port not listening */ }
+        }))
+        await Promise.race([
+          Promise.allSettled([mdnsP, localP]),
+          new Promise((r) => setTimeout(r, 4000)),
+        ])
+        return [...results.values()]
       },
 
       async pairDevice(peerUrl: string, pin: string) {
