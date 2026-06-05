@@ -137,9 +137,12 @@ function inlineToMd(content: unknown): string {
       const linkText = inlineToMd(node.content)
       return `[${linkText}](${href})`
     }
-    if (node.type === 'noteLink') {
-      const linkText = inlineToMd(node.content)
-      return `[[${linkText}]]`
+    if (node.type === 'noteLink' || node.type === 'documentLink') {
+      // Atomic reference chips carry their label in props.title; older stored
+      // notes kept it as editable inline content. Prefer the prop, fall back.
+      const props = (node.props ?? {}) as Record<string, unknown>
+      const title = (props.title as string) || inlineToMd(node.content)
+      return `[[${title}]]`
     }
     return inlineToMd(node.content)
   }).join('')

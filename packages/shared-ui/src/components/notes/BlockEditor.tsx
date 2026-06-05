@@ -22,6 +22,14 @@ import {
   renderMindmapTreeMd, renderMindmapTreeHtml,
 } from '../../utils/noteExport.js'
 
+// Position suggestion menus (`[[`, `![[`, `/`) relative to the viewport rather
+// than the editor's scroll container. The container has a large bottom padding
+// (so lines can scroll up), which otherwise makes floating-ui think there is
+// huge space below the caret — so it never flips the menu above and never caps
+// its height. Fixed strategy makes the viewport the boundary again, so the menu
+// flips up / shrinks to fit when near the bottom.
+const SUGGESTION_FLOATING_OPTIONS = { useFloatingOptions: { strategy: 'fixed' as const } }
+
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'])
 
 const supportedLanguages = {
@@ -119,9 +127,9 @@ function extractNoteLinks(blocks: any[]): Array<{ targetId: string; context: str
   const walk = (node: any) => {
     if (!node) return
     if (node.type === 'noteLink' && node.props?.noteId) {
-      const text = Array.isArray(node.content)
+      const text = node.props.title || (Array.isArray(node.content)
         ? node.content.map((c: any) => (typeof c === 'string' ? c : c.text || '')).join('')
-        : ''
+        : '')
       links.push({ targetId: node.props.noteId, context: text })
     }
     if (node.type === 'noteEmbed' && node.props?.noteId) {
@@ -139,9 +147,9 @@ function extractDocumentLinks(blocks: any[]): Array<{ targetId: string; context:
   const walk = (node: any) => {
     if (!node) return
     if (node.type === 'documentLink' && node.props?.docId) {
-      const text = Array.isArray(node.content)
+      const text = node.props.title || (Array.isArray(node.content)
         ? node.content.map((c: any) => (typeof c === 'string' ? c : c.text || '')).join('')
-        : ''
+        : '')
       links.push({ targetId: node.props.docId, context: text })
     }
     if (node.type === 'documentEmbed' && node.props?.docId) {
@@ -152,6 +160,26 @@ function extractDocumentLinks(blocks: any[]): Array<{ targetId: string; context:
   }
   blocks.forEach(walk)
   return links
+}
+
+// Migrate legacy note/document references (created when these were editable
+// 'styled' inline content, with the label in `content`) to the atomic form the
+// current spec expects: label in `props.title`, no inline content. Without this,
+// old notes would fail the `content: 'none'` schema. Mutates the parsed blocks.
+function migrateRefNodes(nodes: any[]): void {
+  for (const node of nodes) {
+    if (!node) continue
+    if (node.type === 'noteLink' || node.type === 'documentLink') {
+      if (!node.props?.title && Array.isArray(node.content) && node.content.length) {
+        const text = node.content.map((c: any) => (typeof c === 'string' ? c : c.text || '')).join('')
+        node.props = { ...(node.props || {}), title: text }
+      }
+      node.content = undefined   // atomic inline content has no children
+      continue
+    }
+    if (Array.isArray(node.content)) migrateRefNodes(node.content)
+    if (Array.isArray(node.children)) migrateRefNodes(node.children)
+  }
 }
 
 function getMermaidSlashItem(editor: any) {
@@ -180,10 +208,12 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   const [allDocs, setAllDocs] = useState<Array<{ id: string; title: string }>>([])
   const onOpenNoteRef = useRef(onOpenNote)
   const allNotesRef = useRef(allNotes)
+  const allDocsRef = useRef(allDocs)
   const editorRef = useRef<any>(null)
   const prevAttachmentsRef = useRef<Set<string>>(new Set())
   onOpenNoteRef.current = onOpenNote
   allNotesRef.current = allNotes
+  allDocsRef.current = allDocs
 
   const openNoteById = useCallback((noteId: string) => {
     const note = allNotesRef.current.find(n => n.id === noteId)
@@ -201,11 +231,18 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const noteId = (e as CustomEvent).detail?.noteId
-      if (noteId) openNoteById(noteId)
+      const detail = (e as CustomEvent).detail || {}
+      if (detail.noteId) { openNoteById(detail.noteId); return }
+      // Markdown-created links ([[Title]]) carry no id — resolve by title.
+      if (detail.title) {
+        const note = allNotesRef.current.find(n => n.title === detail.title)
+        if (note && onOpenNoteRef.current) onOpenNoteRef.current(note)
+      }
     }
     const docHandler = (e: Event) => {
-      const docId = (e as CustomEvent).detail?.docId
+      const detail = (e as CustomEvent).detail || {}
+      let docId = detail.docId
+      if (!docId && detail.title) docId = allDocsRef.current.find(d => d.title === detail.title)?.id
       if (docId) {
         document.dispatchEvent(new CustomEvent('banjuan:open-document', { detail: { docId } }))
       }
@@ -222,7 +259,10 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     if (!initialContent) return { parsedContent: undefined, rawMarkdown: null }
     try {
       const blocks = JSON.parse(initialContent)
-      if (Array.isArray(blocks) && blocks.length > 0) return { parsedContent: blocks, rawMarkdown: null }
+      if (Array.isArray(blocks) && blocks.length > 0) {
+        migrateRefNodes(blocks)   // legacy 'styled' refs → atomic (title in props)
+        return { parsedContent: blocks, rawMarkdown: null }
+      }
       return { parsedContent: undefined, rawMarkdown: null }
     } catch {
       if (autoParseMarkdown && initialContent.trim()) {
@@ -373,18 +413,41 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     onHeadingsChange?.(extractHeadings(blocks))
   }, [editor, onChange, noteId, onHeadingsChange])
 
+  // The reference menu uses a single-char "[" trigger (BlockNote multi-char
+  // triggers only fire at a block's start), opened only when the previous char
+  // is also "[" — i.e. the user just typed the 2nd bracket of "[[" anywhere on
+  // the line. Excludes "![[" so it doesn't hijack the embed trigger.
+  const bracketShouldOpen = useCallback((tr: any) => {
+    try {
+      if (!tr?.selection?.empty) return false
+      const from = tr.selection.from
+      const prev = tr.doc.textBetween(Math.max(0, from - 1), from)
+      const prev2 = tr.doc.textBetween(Math.max(0, from - 2), Math.max(0, from - 1))
+      return prev === '[' && prev2 !== '!'
+    } catch { return false }
+  }, [])
+
+  // On select, BlockNote removes the 2nd "[" + query; this strips the leftover
+  // 1st "[" so the whole "[[" is replaced by the reference chip.
+  const stripBracketBeforeCursor = useCallback(() => {
+    try {
+      const tt = (editor as any)._tiptapEditor
+      const pos = tt?.state?.selection?.from
+      if (tt && typeof pos === 'number' && pos > 0 && tt.state.doc.textBetween(pos - 1, pos) === '[') {
+        tt.chain().deleteRange({ from: pos - 1, to: pos }).run()
+      }
+    } catch { /* best-effort cleanup */ }
+  }, [editor])
+
   const getNoteLinkItems = useCallback(async (query: string) => {
     const noteItems = allNotes.map(note => ({
       title: note.title,
       aliases: [] as string[],
       group: 'Notes',
       onItemClick: () => {
+        stripBracketBeforeCursor()
         editor.insertInlineContent([
-          {
-            type: 'noteLink' as any,
-            props: { noteId: note.id },
-            content: note.title,
-          },
+          { type: 'noteLink' as any, props: { noteId: note.id, title: note.title } },
           ' ',
         ])
       },
@@ -394,18 +457,15 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       aliases: [] as string[],
       group: 'Documents',
       onItemClick: () => {
+        stripBracketBeforeCursor()
         editor.insertInlineContent([
-          {
-            type: 'documentLink' as any,
-            props: { docId: doc.id },
-            content: doc.title,
-          },
+          { type: 'documentLink' as any, props: { docId: doc.id, title: doc.title } },
           ' ',
         ])
       },
     }))
     return filterSuggestionItems([...noteItems, ...docItems], query)
-  }, [allNotes, allDocs, editor])
+  }, [allNotes, allDocs, editor, stripBracketBeforeCursor])
 
   const getNoteEmbedItems = useCallback(async (query: string) => {
     return filterSuggestionItems(
@@ -460,18 +520,22 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
         {!readOnly && (
           <>
             <SuggestionMenuController
-              triggerCharacter="[["
+              triggerCharacter="["
               getItems={getNoteLinkItems}
               minQueryLength={0}
+              shouldOpen={bracketShouldOpen as any}
+              floatingUIOptions={SUGGESTION_FLOATING_OPTIONS}
             />
             <SuggestionMenuController
               triggerCharacter="![["
               getItems={getNoteEmbedItems}
               minQueryLength={0}
+              floatingUIOptions={SUGGESTION_FLOATING_OPTIONS}
             />
             <SuggestionMenuController
               triggerCharacter="/"
               getItems={getSlashMenuItems}
+              floatingUIOptions={SUGGESTION_FLOATING_OPTIONS}
             />
           </>
         )}

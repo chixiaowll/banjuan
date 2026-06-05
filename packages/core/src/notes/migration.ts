@@ -31,7 +31,9 @@ function parseInline(text: string): unknown[] {
     } else if (m[8] && m[9]) {
       result.push({ type: 'link', href: m[9], content: [{ type: 'text', text: m[8], styles: {} }] })
     } else if (m[10]) {
-      result.push({ type: 'noteLink', content: [{ type: 'text', text: m[10], styles: {} }] })
+      // [[Title]] — atomic note reference; title carried in props (id resolved by
+      // title at click time, since this pure parser has no notes list).
+      result.push({ type: 'noteLink', props: { noteId: '', title: m[10] } })
     }
     last = m.index + m[0].length
   }

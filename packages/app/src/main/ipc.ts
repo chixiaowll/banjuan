@@ -8,6 +8,9 @@ import { Library, MAX_LIBRARY_FILES, type MindmapNodeCreateInput, type MindmapNo
 import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
 import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
+import { LanHostServer, type HostStatus } from './lan-host-server.js'
+import { getDeviceIdentity } from './device-identity.js'
+import { DiscoveryService } from './discovery-service.js'
 
 // Global plugins live here (shared by every library), à la Claude Code's
 // global plugin dir. Built-in plugins are installed here once at startup.
@@ -19,6 +22,14 @@ const deps: PlatformDeps = {
   crypto: new NodeCrypto(),
   globalPluginsDir: GLOBAL_PLUGINS_DIR,
 }
+
+let lanHost: LanHostServer | null = null
+// The host is a single per-process server, but it belongs to the ONE window that
+// started it (serving that window's library). Other windows must not see it as
+// "their" host — they act as clients instead. Tracked by webContents id.
+let lanHostOwner: number | null = null
+const HOST_OFFLINE: HostStatus = { running: false, url: null, pin: null, port: null }
+const discovery = new DiscoveryService()
 
 // Install/refresh bundled plugins into the GLOBAL plugins dir (~/.banjuan/plugins),
 // once at startup. Per-plugin config.json (user settings/sessions) is preserved.
@@ -877,6 +888,138 @@ export function registerIpcHandlers() {
     if (!config) return 'local'
     const svc = library.createStubService()
     return svc.getStatus(docId, join(library.rootPath, doc.path))
+  })
+
+  ipcMain.handle('lan:startHost', async (event): Promise<HostStatus> => {
+    const library = getLib(event)
+    if (lanHost) { await lanHost.stop(); lanHost = null }
+    const host = new LanHostServer(library.rootPath, deps.fs)
+    const status = await host.start()   // assign only on success — a failed start leaves lanHost null
+    lanHost = host
+    lanHostOwner = event.sender.id
+    if (status.port) {
+      const me = getDeviceIdentity()
+      discovery.advertise({
+        port: status.port,
+        deviceId: me.deviceId,
+        deviceName: me.deviceName,
+        libraryId: await library.getId(),
+        libraryName: await library.getName(),
+      })
+    }
+    return status
+  })
+
+  ipcMain.handle('lan:stopHost', async (event): Promise<void> => {
+    if (lanHost && lanHostOwner === event.sender.id) {
+      await lanHost.stop(); lanHost = null; lanHostOwner = null
+      discovery.stopAdvertise()
+    }
+  })
+
+  ipcMain.handle('lan:getHostStatus', async (event): Promise<HostStatus> => {
+    // Report "running" only to the window that started the host; everyone else
+    // sees offline and uses the client (connect) flow.
+    if (lanHost && lanHostOwner === event.sender.id) return lanHost.status()
+    return HOST_OFFLINE
+  })
+
+  ipcMain.handle('lan:scanNearby', async () => {
+    return discovery.scan()
+  })
+
+  app.on('before-quit', () => {
+    discovery.destroy()
+    if (lanHost) { void lanHost.stop(); lanHost = null; lanHostOwner = null }
+  })
+
+  // 连接 = one-time pairing (no data movement): store a durable token for the peer.
+  ipcMain.handle('lan:pairDevice', async (event, peerUrl: string, pin: string) => {
+    if (!/^https?:\/\//i.test(peerUrl)) throw new Error('PAIR_FAILED:invalid-url')
+    const library = getLib(event)
+    const base = peerUrl.replace(/\/$/, '')
+    const { PairingStore } = await import('@banjuan/core')
+    const store = new PairingStore(library.rootPath, deps.fs)
+    const me = getDeviceIdentity()
+    const myLibraryId = await library.getId()
+
+    const infoResp = await fetch(`${base}/.banjuan-info`)
+    if (!infoResp.ok) throw new Error(`PAIR_FAILED:${infoResp.status}`)
+    const info = await infoResp.json() as { deviceId?: string; deviceName?: string; libraryId?: string; libraryName?: string }
+    const hostDeviceId = info.deviceId ?? ''
+    if (!hostDeviceId) throw new Error('PAIR_FAILED:no-device-id')
+
+    const q = new URLSearchParams({ pin, deviceId: me.deviceId, deviceName: me.deviceName, libraryId: myLibraryId })
+    const pairResp = await fetch(`${base}/.banjuan-pair?${q.toString()}`)
+    if (!pairResp.ok) throw new Error(`PAIR_FAILED:${pairResp.status}`)
+    const paired = await pairResp.json() as { token?: string }
+    if (!paired.token) throw new Error('PAIR_FAILED:no-token')
+
+    await store.addOrUpdate({
+      peerDeviceId: hostDeviceId,
+      peerDeviceName: info.deviceName ?? '',
+      peerLibraryId: info.libraryId ?? '',
+      token: paired.token,
+    })
+    return { ok: true as const, deviceName: info.deviceName ?? '', libraryName: info.libraryName ?? '' }
+  })
+
+  // 同步 = data transfer for an already-paired peer. Guards against merging a
+  // different book-room (the guard lives here, not at pair time).
+  ipcMain.handle('lan:syncDevice', async (event, peerUrl: string, force?: boolean) => {
+    if (!/^https?:\/\//i.test(peerUrl)) throw new Error('SYNC_FAILED:invalid-url')
+    const library = getLib(event)
+    const base = peerUrl.replace(/\/$/, '')
+    const { PairingStore, SyncService, WebDAVAdapter } = await import('@banjuan/core')
+    const store = new PairingStore(library.rootPath, deps.fs)
+    const myLibraryId = await library.getId()
+
+    const infoResp = await fetch(`${base}/.banjuan-info`)
+    if (!infoResp.ok) throw new Error(`SYNC_FAILED:${infoResp.status}`)
+    const info = await infoResp.json() as { deviceId?: string; libraryId?: string; libraryName?: string }
+    const hostDeviceId = info.deviceId ?? ''
+    const hostLibraryId = info.libraryId ?? ''
+    const hostLibraryName = info.libraryName ?? ''
+
+    const existing = hostDeviceId ? await store.findByDeviceId(hostDeviceId) : undefined
+    if (!existing) return { needsPair: true as const }
+    const token = existing.token
+
+    if (hostLibraryId && hostLibraryId !== myLibraryId) {
+      const isEmpty = (await library.documents.list()).length === 0
+      if (isEmpty || force) {
+        await library.adoptLibraryId(hostLibraryId)
+      } else {
+        return { needsConfirm: true as const, peerName: hostLibraryName, localName: await library.getName() }
+      }
+    }
+
+    const adapter = new WebDAVAdapter(deps.fs)
+    await adapter.connect({ type: 'webdav', url: base, username: 'banjuan', password: token, remotePath: '/' })
+    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, '/')
+    try {
+      const result = await svc.sync((p) => { event.sender.send('sync:progress', p) })
+      event.sender.send('sync:progress', { phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
+      const indexService = library.createIndexService()
+      await indexService.rebuildFull()
+      return result
+    } finally {
+      await adapter.disconnect()
+    }
+  })
+
+  ipcMain.handle('lan:listPairedDevices', async (event) => {
+    const library = getLib(event)
+    const { PairingStore } = await import('@banjuan/core')
+    const devices = await new PairingStore(library.rootPath, deps.fs).list()
+    // Never expose the shared durable token to the renderer — the UI only needs identity.
+    return devices.map(({ token: _token, ...rest }) => rest)
+  })
+
+  ipcMain.handle('lan:unpairDevice', async (event, peerDeviceId: string) => {
+    const library = getLib(event)
+    const { PairingStore } = await import('@banjuan/core')
+    await new PairingStore(library.rootPath, deps.fs).removeByDeviceId(peerDeviceId)
   })
 
   ipcMain.handle('clipboard:readFiles', async () => {

@@ -11,8 +11,11 @@ install! 'cocoapods', :disable_input_output_paths => true
 def capacitor_pods
   pod 'Capacitor', :path => '../../../../node_modules/.pnpm/@capacitor+ios@6.2.1_@capacitor+core@6.2.1/node_modules/@capacitor/ios'
   pod 'CapacitorCordova', :path => '../../../../node_modules/.pnpm/@capacitor+ios@6.2.1_@capacitor+core@6.2.1/node_modules/@capacitor/ios'
-  pod 'CapacitorFilesystem', :path => '../../../../node_modules/.pnpm/@capacitor+filesystem@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/filesystem'
   pod 'CapacitorCommunitySqlite', :path => '../../../../node_modules/.pnpm/@capacitor-community+sqlite@6.0.2_@capacitor+core@6.2.1/node_modules/@capacitor-community/sqlite'
+  pod 'CapacitorDevice', :path => '../../../../node_modules/.pnpm/@capacitor+device@6.0.3_@capacitor+core@6.2.1/node_modules/@capacitor/device'
+  pod 'CapacitorFilesystem', :path => '../../../../node_modules/.pnpm/@capacitor+filesystem@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/filesystem'
+  pod 'CapacitorPreferences', :path => '../../../../node_modules/.pnpm/@capacitor+preferences@6.0.4_@capacitor+core@6.2.1/node_modules/@capacitor/preferences'
+  pod 'CapacitorZeroconf', :path => '../../../../node_modules/.pnpm/capacitor-zeroconf@3.0.0_@capacitor+core@6.2.1_bonjour@3.5.1/node_modules/capacitor-zeroconf'
 end
 
 target 'App' do

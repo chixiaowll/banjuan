@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, Info } from 'lucide-react'
 import TitleBar, { type Tab, type PluginViewInfo } from './TitleBar.js'
 import LibraryView from '../views/LibraryView.js'
 import DocumentViewer from './viewers/DocumentViewer.js'
@@ -15,6 +15,14 @@ import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 import '../styles/mobile.css'
 
 const LIBRARY_TAB_ID = 'library'
+
+const railBtnStyle = (active: boolean): React.CSSProperties => ({
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  width: 30, height: 30, padding: 0, border: 'none', borderRadius: 8, cursor: 'pointer',
+  background: active ? 'var(--accent-soft, rgba(74,144,226,0.14))' : 'transparent',
+  color: active ? 'var(--accent, #4A90E2)' : 'var(--text-muted)',
+  transition: 'background 0.12s, color 0.12s',
+})
 
 interface Props {
   libraryPath: string
@@ -42,7 +50,21 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
   const [tabData, setTabData] = useState<Map<string, any>>(() => new Map())
   const [pluginViews, setPluginViews] = useState<PluginViewInfo[]>([])
   const [sidePanel, setSidePanel] = useState<{ pluginId: string; viewType: string } | null>(null)
-  const sidePanelResize = useResizable(380, 300, 900, 'right')
+  // Default width matches the left sidebar (220) so the two flanks are symmetric.
+  const sidePanelResize = useResizable(220, 200, 700, 'right')
+  // The right rail toggles a single right-hand surface: either the library
+  // detail panel (rendered inside LibraryView) or a plugin view. They are
+  // mutually exclusive, so opening one closes the other — no stacked columns.
+  const [detailOpen, setDetailOpen] = useState(() => {
+    try { return localStorage.getItem('banjuan-detail-open') === '1' } catch { return false }
+  })
+  const toggleDetail = useCallback(() => {
+    setSidePanel(null)
+    setDetailOpen(v => { const next = !v; try { localStorage.setItem('banjuan-detail-open', next ? '1' : '0') } catch {} ; return next })
+  }, [])
+  // DOM node of the shared inspector's detail slot; LibraryView portals its
+  // detail content into it so detail + plugins share one resizable container.
+  const [inspectorEl, setInspectorEl] = useState<HTMLDivElement | null>(null)
   const tabHistoryRef = useRef<string[]>([LIBRARY_TAB_ID])
 
   const activateTab = useCallback((tabId: string) => {
@@ -111,6 +133,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
   }, [tabs, t, activateTab])
 
   const togglePluginPanel = useCallback((pluginId: string, viewType: string) => {
+    setDetailOpen(false)
     setSidePanel(prev =>
       prev?.pluginId === pluginId ? null : { pluginId, viewType }
     )
@@ -339,6 +362,9 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
                   onOpenMindmap={openNote}
                   onOpenTagManager={openTagManager}
                   onOpenPluginView={togglePluginPanel}
+                  detailOpen={detailOpen}
+                  onToggleDetail={toggleDetail}
+                  detailPortalTarget={inspectorEl}
                   onSwitchLibrary={onSwitchLibrary}
                   onLibraryRenamed={(name) => { setTabs(prev => prev.map(t => t.id === LIBRARY_TAB_ID ? { ...t, title: name } : t)); onLibraryRenamed?.(name) }}
                 />
@@ -364,17 +390,55 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
           ))}
           <MindmapExportHost />
         </div>
-        {sidePanel && (
+        {(sidePanel || detailOpen) && (
           <>
             <ResizeHandle onPointerDown={sidePanelResize.onPointerDown} />
             <div className="plugin-side-panel" style={{ width: sidePanelResize.width, minWidth: sidePanelResize.width }}>
-              <PluginViewHost
-                key={sidePanel.pluginId}
-                pluginId={sidePanel.pluginId}
-                viewType={sidePanel.viewType}
-              />
+              {sidePanel ? (
+                <PluginViewHost
+                  key={sidePanel.pluginId}
+                  pluginId={sidePanel.pluginId}
+                  viewType={sidePanel.viewType}
+                />
+              ) : (
+                <div ref={setInspectorEl} style={{ flex: 1, overflow: 'auto', padding: '20px 20px 40px' }} />
+              )}
             </div>
           </>
+        )}
+        {/* Window-level right rail: switches a single right surface — the library
+            detail panel or a plugin view (mutually exclusive). */}
+        {(activeTabId === LIBRARY_TAB_ID || pluginViews.length > 0) && (
+        <div style={{ width: 48, flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 12, gap: 6 }}>
+          {activeTabId === LIBRARY_TAB_ID && (
+            <button
+              onClick={toggleDetail}
+              title={t('detail.title')}
+              style={railBtnStyle(detailOpen)}
+            >
+              <Info size={18} />
+            </button>
+          )}
+          {pluginViews.length > 0 && activeTabId === LIBRARY_TAB_ID && (
+            <div style={{ width: 22, height: 1, background: 'var(--border)', margin: '2px 0' }} />
+          )}
+          {pluginViews.map(view => {
+            const isSvg = !!view.icon && view.icon.includes('<svg')
+            const active = sidePanel?.pluginId === view.pluginId
+            return (
+              <button
+                key={view.viewType}
+                onClick={() => togglePluginPanel(view.pluginId, view.viewType)}
+                title={view.displayText}
+                style={railBtnStyle(active)}
+              >
+                {isSvg
+                  ? <span style={{ display: 'inline-flex' }} dangerouslySetInnerHTML={{ __html: view.icon!.replace(/width="\d+"/, 'width="18"').replace(/height="\d+"/, 'height="18"') }} />
+                  : <span style={{ fontSize: 16, lineHeight: 1 }}>{view.icon || '🧩'}</span>}
+              </button>
+            )
+          })}
+        </div>
         )}
       </div>
       <ExportPanel />

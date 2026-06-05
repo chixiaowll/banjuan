@@ -201,7 +201,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     return saved ? Number(saved) : 100
   })
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true)
-  const [rightSidebarOpen, setRightSidebarOpen] = useState(true)
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
   const noteFolder = note.path?.includes('/') ? note.path.substring(0, note.path.lastIndexOf('/')) : null
   const [selectedFolder, setSelectedFolder] = useState<string | null>(noteFolder)
   const [showTemplatePicker, setShowTemplatePicker] = useState(false)
@@ -510,7 +510,10 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
           </div>
 
           {/* Editor */}
-          <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80, ['--note-font-scale' as any]: noteFontSize / 100 }}>
+          {/* Large bottom padding lets the last lines scroll up to mid-viewport,
+              so the [[ / slash suggestion menu always has room to open downward
+              instead of being clipped at the bottom edge. */}
+          <div className="note-editor-canvas" style={{ flex: 1, overflow: 'auto', paddingBottom: '80vh', ['--note-font-scale' as any]: noteFontSize / 100 }}>
             <BlockEditor
               ref={editorRef}
               key={note.id}

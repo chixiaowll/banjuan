@@ -57,6 +57,7 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_http._tcp</string>
+		<string>_banjuan-sync._tcp</string>
 	</array>
 </dict>
 </plist>

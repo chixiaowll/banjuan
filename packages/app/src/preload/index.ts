@@ -210,6 +210,23 @@ const api = {
     stubUpload: (docId: string) => ipcRenderer.invoke('sync:stubUpload', docId),
     getDocStatus: (docId: string) => ipcRenderer.invoke('sync:getDocStatus', docId),
   },
+  lan: {
+    canHost: true,
+    startHost: () => ipcRenderer.invoke('lan:startHost'),
+    stopHost: () => ipcRenderer.invoke('lan:stopHost'),
+    getHostStatus: () => ipcRenderer.invoke('lan:getHostStatus'),
+    scanNearby: () => ipcRenderer.invoke('lan:scanNearby'),
+    pairDevice: (peerUrl: string, pin: string) => ipcRenderer.invoke('lan:pairDevice', peerUrl, pin),
+    syncDevice: (peerUrl: string, onProgress?: (p: any) => void, force?: boolean) => {
+      const handler = onProgress ? (_e: any, p: any) => onProgress(p) : null
+      if (handler) ipcRenderer.on('sync:progress', handler)
+      return ipcRenderer.invoke('lan:syncDevice', peerUrl, force).finally(() => {
+        if (handler) ipcRenderer.removeListener('sync:progress', handler)
+      })
+    },
+    listPairedDevices: () => ipcRenderer.invoke('lan:listPairedDevices'),
+    unpairDevice: (peerDeviceId: string) => ipcRenderer.invoke('lan:unpairDevice', peerDeviceId),
+  },
   export: {
     markdown: (input: { title: string; markdown: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }) =>
       ipcRenderer.invoke('export:markdown', input) as Promise<string | null>,
