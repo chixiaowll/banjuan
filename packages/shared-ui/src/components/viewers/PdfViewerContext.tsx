@@ -103,7 +103,7 @@ export function PdfViewerProvider({ pdfDoc, numPages, initialPageSizes, rawPageS
   }, [initialPageSizes])
   const [currentPage, setCurrentPage] = useState(1)
   const [zoom, setZoom] = useState(1.0)
-  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true)
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false)
   const [leftSidebarTab, setLeftSidebarTab] = useState<LeftSidebarTab>('outline')
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
   const [activeTool, setActiveTool] = useState<AnnotationTool>('none')

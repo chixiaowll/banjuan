@@ -85,7 +85,7 @@ export function EpubViewerProvider({ children }: { children: React.ReactNode }) 
   const [percentage, setPercentage] = useState(0)
 
   const [fontSize, setFontSize] = useState(100)
-  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true)
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false)
   const [leftSidebarTab, setLeftSidebarTab] = useState<EpubLeftSidebarTab>('outline')
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
   const [activeTool, setActiveTool] = useState<EpubAnnotationTool>('none')

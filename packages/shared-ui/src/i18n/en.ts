@@ -28,6 +28,12 @@ const en = {
   'welcome.joining': 'Joining…',
   'welcome.joinFailed': 'Join failed: {0}',
   'welcome.myLibraries': 'My Libraries',
+  'welcome.delete': 'Delete',
+  'welcome.deleting': 'Deleting…',
+  'welcome.deleteTitle': 'Delete Library',
+  'welcome.deleteBody': 'This will permanently delete “{0}” and all notes inside it. This cannot be undone.',
+  'welcome.incomplete': 'Incomplete',
+  'welcome.incompleteHint': 'This library is incomplete (left over from a failed delete or join) and can’t be opened. Swipe left to delete it.',
 
   // Common
   'common.save': 'Save',

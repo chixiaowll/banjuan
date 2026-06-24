@@ -577,7 +577,7 @@ export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
     addSummary: async (nodeIds) => {
       const { mindmapId } = get()
       if (!mindmapId || nodeIds.length === 0) return
-      const result = await api.mindmaps.addSummary(mindmapId, { nodeIds }) as any
+      const result = await api.mindmaps.addSummary(mindmapId, { nodeIds })
       const summaryNode = result.summaryNode
       const depths = buildTreeDepths(get().rfNodes)
       const maxDepth = Math.max(...nodeIds.map(id => depths.get(id) ?? 0))

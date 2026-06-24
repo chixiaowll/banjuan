@@ -26,6 +26,12 @@ const fr = {
   'welcome.joining': 'Jonction en cours…',
   'welcome.joinFailed': 'Échec de la jonction : {0}',
   'welcome.myLibraries': 'Mes bibliothèques',
+  'welcome.delete': 'Supprimer',
+  'welcome.deleting': 'Suppression…',
+  'welcome.deleteTitle': 'Supprimer la bibliothèque',
+  'welcome.deleteBody': 'Cela supprimera définitivement « {0} » et toutes les notes qu’elle contient. Cette action est irréversible.',
+  'welcome.incomplete': 'Incomplet',
+  'welcome.incompleteHint': 'Cette bibliothèque est incomplète (résidu d’une suppression ou d’une jointure échouée) et ne peut pas être ouverte. Balayez vers la gauche pour la supprimer.',
 
   'common.save': 'Enregistrer',
   'common.cancel': 'Annuler',

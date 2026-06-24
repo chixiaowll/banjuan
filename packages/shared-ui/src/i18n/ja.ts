@@ -26,6 +26,12 @@ const ja = {
   'welcome.joining': '参加中…',
   'welcome.joinFailed': '参加失敗: {0}',
   'welcome.myLibraries': 'マイライブラリ',
+  'welcome.delete': '削除',
+  'welcome.deleting': '削除中…',
+  'welcome.deleteTitle': 'ライブラリを削除',
+  'welcome.deleteBody': '「{0}」とその中のすべてのノートを完全に削除します。この操作は元に戻せません。',
+  'welcome.incomplete': '未完成',
+  'welcome.incompleteHint': 'このライブラリは不完全（削除や参加の失敗による残骸）で、開けません。左にスワイプで削除できます。',
 
   'common.save': '保存',
   'common.cancel': 'キャンセル',
