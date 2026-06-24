@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import chalk from 'chalk'
-import { apiGet, apiPost } from '../lib.js'
+import { apiGet, apiPost, resolveFolderArg } from '../lib.js'
 import { outputJson } from '../output.js'
 
 export const folderCmd = new Command('folder').description('folder management')
@@ -20,8 +20,11 @@ folderCmd
       for (const dir of dirs) {
         const depth = dir.split('/').length - 1
         const name = dir.split('/').pop()!
-        const indent = '  '.repeat(depth)
-        console.log(`${indent}📁 ${name}  ${chalk.dim(dir)}`)
+        const indent = depth ? '   '.repeat(depth - 1) + '└─ ' : ''
+        // Append the full, copy-pasteable path (what `note move` wants) dim — only
+        // when nested, so top-level rows aren't "[0] X   [0] X" duplicates.
+        const fullPath = depth ? `  ${chalk.dim(dir)}` : ''
+        console.log(`${indent}📁 ${name}${fullPath}`)
       }
     }
   })
@@ -48,6 +51,11 @@ folderCmd
       console.log(chalk.red('✗ Document folder renaming is not supported yet'))
       return
     }
-    await apiPost('/api/notes/dirs/rename', { oldPath, newPath })
-    console.log(chalk.green(`✓ Renamed folder: ${oldPath} → ${newPath}`))
+    // The folder being renamed must already exist — auto-correct a missing
+    // "[N] " prefix, and never invent one.
+    const dirs: string[] = await apiGet('/api/notes/dirs')
+    const resolvedOld = resolveFolderArg(oldPath, dirs, { allowCreate: false })
+    if (resolvedOld === null) { process.exitCode = 1; return }
+    await apiPost('/api/notes/dirs/rename', { oldPath: resolvedOld, newPath })
+    console.log(chalk.green(`✓ Renamed folder: ${resolvedOld} → ${newPath}`))
   })
