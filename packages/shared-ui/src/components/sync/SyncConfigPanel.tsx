@@ -143,8 +143,9 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
     }
   }
 
-  const showSyncResult = (r: { downloaded: number; uploaded: number; deletedLocal: number; deletedRemote: number; errors: string[] }) => {
-    setLanMsg(`完成:↓${r.downloaded} ↑${r.uploaded} 删除 ${r.deletedLocal + r.deletedRemote}${r.errors.length ? `,错误 ${r.errors.length}` : ''}`)
+  const showSyncResult = (r: { downloaded: number; uploaded: number; deletedLocal: number; deletedRemote: number; conflicts?: number; errors: string[] }) => {
+    const conflictPart = r.conflicts ? `,冲突 ${r.conflicts}` : ''
+    setLanMsg(`完成:↓${r.downloaded} ↑${r.uploaded} 删除 ${r.deletedLocal + r.deletedRemote}${conflictPart}${r.errors.length ? `,错误 ${r.errors.length}` : ''}`)
   }
 
   useEffect(() => {

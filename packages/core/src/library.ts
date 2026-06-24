@@ -183,13 +183,13 @@ export class Library {
   }
 
   createSyncService(remotePath?: string): SyncService {
-    return new SyncService(this.rootPath, new WebDAVAdapter(this.fs), this.events, this.fs, remotePath)
+    return new SyncService(this.rootPath, new WebDAVAdapter(this.fs), this.events, this.fs, remotePath, this.deps.crypto)
   }
 
   async createSyncServiceConnected(config: SyncConfig): Promise<SyncService> {
     const adapter = new WebDAVAdapter(this.fs)
     await adapter.connect(config)
-    return new SyncService(this.rootPath, adapter, this.events, this.fs, config.remotePath)
+    return new SyncService(this.rootPath, adapter, this.events, this.fs, config.remotePath, this.deps.crypto)
   }
 
   createIndexService(): IndexService {
