@@ -562,6 +562,7 @@ export type BanjuanEventMap = {
   'sync:error': { error: string }
   'sync:file:uploaded': { path: string }
   'sync:file:downloaded': { path: string }
+  'sync:conflict': { path: string; conflictPath: string }
   'ui:selection:text': { text: string; docId?: string; noteId?: string }
 }
 
