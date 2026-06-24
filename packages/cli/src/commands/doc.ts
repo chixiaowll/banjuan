@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import chalk from 'chalk'
-import { apiGet, apiPost, apiDelete } from '../lib.js'
+import { apiGet, apiPost, apiDelete, resolveFolderArg } from '../lib.js'
 import { outputJson, outputTable, outputItem } from '../output.js'
 
 export const docCmd = new Command('doc').description('document management')
@@ -15,9 +15,17 @@ docCmd
   .action(async (file: string, opts: { dir?: string; title?: string; tag?: string[] }) => {
     const { resolve } = await import('node:path')
     const absPath = resolve(file)
+    let destDir = opts.dir
+    if (destDir) {
+      // Auto-correct to an existing document folder; a new one is created as typed.
+      const dirs: string[] = await apiGet('/api/documents/dirs')
+      const resolved = resolveFolderArg(destDir, dirs, { allowCreate: true })
+      if (resolved === null) { process.exitCode = 1; return }
+      destDir = resolved
+    }
     const doc = await apiPost('/api/documents/import', {
       filePath: absPath,
-      destDir: opts.dir,
+      destDir,
       title: opts.title,
       tags: opts.tag,
     })
