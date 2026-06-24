@@ -200,7 +200,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     const saved = localStorage.getItem('banjuan-note-font-size')
     return saved ? Number(saved) : 100
   })
-  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true)
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false)
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
   const noteFolder = note.path?.includes('/') ? note.path.substring(0, note.path.lastIndexOf('/')) : null
   const [selectedFolder, setSelectedFolder] = useState<string | null>(noteFolder)

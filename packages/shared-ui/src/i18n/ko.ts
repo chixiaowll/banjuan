@@ -26,6 +26,12 @@ const ko = {
   'welcome.joining': '참가 중…',
   'welcome.joinFailed': '참가 실패: {0}',
   'welcome.myLibraries': '내 라이브러리',
+  'welcome.delete': '삭제',
+  'welcome.deleting': '삭제 중…',
+  'welcome.deleteTitle': '라이브러리 삭제',
+  'welcome.deleteBody': '“{0}” 및 그 안의 모든 노트를 영구적으로 삭제합니다. 이 작업은 되돌릴 수 없습니다.',
+  'welcome.incomplete': '미완성',
+  'welcome.incompleteHint': '이 라이브러리는 불완전합니다(삭제/참가 실패의 잔여물). 열 수 없습니다. 왼쪽으로 밀어 삭제하세요.',
 
   'common.save': '저장',
   'common.cancel': '취소',

@@ -78,6 +78,7 @@ export interface BanjuanAPI {
     getHistory?(): Promise<Array<{ path: string; name: string; lastOpened: string }>>
     removeHistory?(path: string): Promise<void>
     rename?(name: string): Promise<{ name: string }>
+    delete?(path: string): Promise<void>
     detectMissing?(): Promise<Array<{ id: string; title: string; path: string }>>
     rebuild?(purgeIds?: string[]): Promise<{ reimported: number; purged: number; markedMissing: number }>
   }
@@ -195,7 +196,7 @@ export interface BanjuanAPI {
     getBoundaries(mindmapId: string): Promise<MindmapBoundary[]>
     updateBoundary(id: string, updates: { label?: string; color?: string; nodeIds?: string[] }): Promise<MindmapBoundary>
     removeBoundary(id: string): Promise<void>
-    addSummary(mindmapId: string, input: { nodeIds: string[]; summaryTitle?: string }): Promise<MindmapSummary>
+    addSummary(mindmapId: string, input: { nodeIds: string[]; summaryTitle?: string }): Promise<{ summary: MindmapSummary; summaryNode: MindmapNode }>
     getSummaries(mindmapId: string): Promise<MindmapSummary[]>
     removeSummary(id: string): Promise<void>
   }

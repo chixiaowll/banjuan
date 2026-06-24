@@ -28,6 +28,12 @@ const zh = {
   'welcome.joining': '加入中…',
   'welcome.joinFailed': '加入失败：{0}',
   'welcome.myLibraries': '我的书房',
+  'welcome.delete': '删除',
+  'welcome.deleting': '删除中…',
+  'welcome.deleteTitle': '删除书房',
+  'welcome.deleteBody': '将永久删除「{0}」及其中的所有笔记，此操作不可恢复。',
+  'welcome.incomplete': '未完成',
+  'welcome.incompleteHint': '该书房不完整（删除残留或加入失败留下的），无法打开。左滑可删除。',
 
   // Common
   'common.save': '保存',

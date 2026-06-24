@@ -52,7 +52,7 @@ export function useMarkdownViewer(): MarkdownViewerContextValue {
 }
 
 export function MarkdownViewerProvider({ children }: { children: React.ReactNode }) {
-  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true)
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false)
   const [leftSidebarTab, setLeftSidebarTab] = useState<MdLeftSidebarTab>('outline')
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
   const [fontSize, setFontSize] = useState(100)
