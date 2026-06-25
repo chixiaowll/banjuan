@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import React, { useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import BlockEditor, { type BlockEditorHandle } from '../components/notes/BlockEditor.js'
 import FolderTree from '../components/notes/FolderTree.js'
@@ -17,7 +17,7 @@ import { useKeyboardShortcuts } from '../components/mindmap/useKeyboardShortcuts
 import HandwritingCenterContent from '../components/handwriting/HandwritingCenterContent.js'
 import PageListPanel from '../components/handwriting/PageListPanel.js'
 import { createHandwritingStore, HandwritingStoreContext } from '../components/handwriting/useHandwritingStore.js'
-import { FileDown, FileText, FileImage, Eye, Pencil, PanelLeft, PanelRight, Minus, Plus } from 'lucide-react'
+import { FileDown, FileText, FileImage, Eye, Pencil, PanelLeft, PanelRight, ZoomIn, ZoomOut } from 'lucide-react'
 import { exportToDirectory, exportSingleNote } from '../utils/exportToDirectory.js'
 import TagInput from '../components/tags/TagInput.js'
 import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
@@ -213,6 +213,87 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     return 'files'
   })
   const [headings, setHeadings] = useState<HeadingItem[]>([])
+  // PAGE zoom (whole-page, like a PDF/browser) — distinct from the font-size %
+  // below. Persisted globally.
+  const [pageZoom, setPageZoom] = useState(() => {
+    const saved = Number(localStorage.getItem('banjuan-note-page-zoom'))
+    return saved >= 0.5 && saved <= 3 ? saved : 1
+  })
+  // Page zoom magnifies the page with `transform: scale` (NO text reflow, unlike
+  // font size or CSS `zoom`). A sizer reserves the scaled dimensions so the
+  // canvas scrolls correctly: baseW = unscaled page width (canvas content width),
+  // naturalH = unscaled page height (measured).
+  const HCANVAS_PAD = 56 // .note-editor-canvas horizontal padding (28 × 2)
+  const [baseW, setBaseW] = useState(0)
+  const [naturalH, setNaturalH] = useState(0)
+  // Trackpad pinch (a macOS pinch is a ctrlKey wheel event) drives PAGE zoom,
+  // anchored at the cursor. A callback ref attaches the non-passive listener
+  // whenever the editor canvas mounts (it only renders once content is loaded).
+  const canvasElRef = useRef<HTMLDivElement | null>(null)
+  const wheelCleanupRef = useRef<(() => void) | null>(null)
+  const canvasObsRef = useRef<ResizeObserver | null>(null)
+  const pageZoomFocalRef = useRef<{ x: number; y: number } | null>(null)
+  const prevPageZoomRef = useRef(pageZoom)
+  const noteCanvasRef = useCallback((el: HTMLDivElement | null) => {
+    canvasElRef.current = el
+    wheelCleanupRef.current?.()
+    wheelCleanupRef.current = null
+    canvasObsRef.current?.disconnect()
+    canvasObsRef.current = null
+    if (!el) return
+    const obs = new ResizeObserver(() => setBaseW(Math.max(0, el.clientWidth - HCANVAS_PAD)))
+    obs.observe(el)
+    canvasObsRef.current = obs
+    setBaseW(Math.max(0, el.clientWidth - HCANVAS_PAD))
+    let raf = 0
+    let pending = 0
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return // normal scroll
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      pageZoomFocalRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+      pending += e.deltaY
+      if (!raf) {
+        raf = requestAnimationFrame(() => {
+          raf = 0
+          const factor = Math.exp(-pending * 0.01)
+          pending = 0
+          setPageZoom(z => {
+            const v = Math.min(3, Math.max(0.5, z * factor))
+            try { localStorage.setItem('banjuan-note-page-zoom', String(v)) } catch {}
+            return v
+          })
+        })
+      }
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    wheelCleanupRef.current = () => { el.removeEventListener('wheel', onWheel); if (raf) cancelAnimationFrame(raf) }
+  }, [])
+  // After a page-zoom change, keep the content under the cursor fixed.
+  useLayoutEffect(() => {
+    const el = canvasElRef.current
+    const prev = prevPageZoomRef.current
+    prevPageZoomRef.current = pageZoom
+    const focal = pageZoomFocalRef.current
+    if (!el || !focal || prev === pageZoom) return
+    const ratio = pageZoom / prev
+    el.scrollTop = Math.max(0, (el.scrollTop + focal.y) * ratio - focal.y)
+    el.scrollLeft = Math.max(0, (el.scrollLeft + focal.x) * ratio - focal.x)
+    pageZoomFocalRef.current = null
+  }, [pageZoom])
+  // Measure the page's unscaled height so the sizer can reserve scaled space.
+  // offsetHeight is the pre-transform layout height, so it's correct even while
+  // the page is scaled.
+  const innerObsRef = useRef<ResizeObserver | null>(null)
+  const zoomInnerRef = useCallback((el: HTMLDivElement | null) => {
+    innerObsRef.current?.disconnect()
+    innerObsRef.current = null
+    if (!el) return
+    const obs = new ResizeObserver(() => setNaturalH(el.offsetHeight))
+    obs.observe(el)
+    innerObsRef.current = obs
+    setNaturalH(el.offsetHeight)
+  }, [])
   const editorRef = useRef<BlockEditorHandle>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const leftPanel = useResizable(240, 160, 480, 'left')
@@ -396,17 +477,36 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
             <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
               {saving ? t('note.saving') : t('note.saved')}
             </span>
+            {/* Font-size control (distinct from page zoom): small-A / big-A, snapping
+                to multiples of 10 so an off-grid value (e.g. 147%) can reach 100%. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <button onClick={() => setNoteFontSize(s => { const v = Math.max(50, s - 10); localStorage.setItem('banjuan-note-font-size', String(v)); return v })}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'inline-flex', alignItems: 'center' }}>
-                <Minus size={14} />
+              <button onClick={() => setNoteFontSize(s => { const v = Math.max(50, Math.round(s / 10) * 10 - 10); localStorage.setItem('banjuan-note-font-size', String(v)); return v })}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px 4px', display: 'inline-flex', alignItems: 'baseline', lineHeight: 1 }}>
+                <span style={{ fontSize: 12, fontWeight: 600 }}>A</span><span style={{ fontSize: 9, marginLeft: 1 }}>−</span>
               </button>
-              <span style={{ fontSize: 11, minWidth: 36, textAlign: 'center', color: 'var(--text-muted)' }}>
+              <span onClick={() => setNoteFontSize(() => { localStorage.setItem('banjuan-note-font-size', '100'); return 100 })}
+                style={{ fontSize: 11, minWidth: 36, textAlign: 'center', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 {noteFontSize}%
               </span>
-              <button onClick={() => setNoteFontSize(s => { const v = Math.min(200, s + 10); localStorage.setItem('banjuan-note-font-size', String(v)); return v })}
+              <button onClick={() => setNoteFontSize(s => { const v = Math.min(200, Math.round(s / 10) * 10 + 10); localStorage.setItem('banjuan-note-font-size', String(v)); return v })}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px 4px', display: 'inline-flex', alignItems: 'baseline', lineHeight: 1 }}>
+                <span style={{ fontSize: 16, fontWeight: 600 }}>A</span><span style={{ fontSize: 9, marginLeft: 1 }}>+</span>
+              </button>
+            </div>
+            {/* Page zoom (whole-page, like a PDF) — magnifier icons to clearly
+                distinguish it from the A−/A+ font control; same value the pinch drives. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <button onClick={() => setPageZoom(z => { const v = Math.max(0.5, Math.round(z * 10) / 10 - 0.1); localStorage.setItem('banjuan-note-page-zoom', String(v)); return v })}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'inline-flex', alignItems: 'center' }}>
-                <Plus size={14} />
+                <ZoomOut size={15} />
+              </button>
+              <span onClick={() => setPageZoom(() => { localStorage.setItem('banjuan-note-page-zoom', '1'); return 1 })}
+                style={{ fontSize: 11, minWidth: 36, textAlign: 'center', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                {Math.round(pageZoom * 100)}%
+              </span>
+              <button onClick={() => setPageZoom(z => { const v = Math.min(3, Math.round(z * 10) / 10 + 0.1); localStorage.setItem('banjuan-note-page-zoom', String(v)); return v })}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'inline-flex', alignItems: 'center' }}>
+                <ZoomIn size={15} />
               </button>
             </div>
             <button onClick={() => setReadingMode(r => !r)}
@@ -513,17 +613,27 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
           {/* Large bottom padding lets the last lines scroll up to mid-viewport,
               so the [[ / slash suggestion menu always has room to open downward
               instead of being clipped at the bottom edge. */}
-          <div className="note-editor-canvas" style={{ flex: 1, overflow: 'auto', paddingBottom: '80vh', ['--note-font-scale' as any]: noteFontSize / 100 }}>
-            <BlockEditor
-              ref={editorRef}
-              key={note.id}
-              noteId={note.id}
-              initialContent={content!}
-              onChange={saveContent}
-              readOnly={readingMode}
-              onOpenNote={onOpenNote}
-              onHeadingsChange={setHeadings}
-            />
+          <div ref={noteCanvasRef} className="note-editor-canvas" style={{ flex: 1, overflow: 'auto', paddingBottom: '80vh', ['--note-font-scale' as any]: noteFontSize / 100 }}>
+            {/* Sizer reserves the scaled footprint so the canvas scrolls; the inner
+                is magnified with transform:scale (no reflow). At zoom 1 both are
+                pass-through (auto size, no transform) ⇒ identical to before. */}
+            <div style={pageZoom !== 1 && baseW ? { width: baseW * pageZoom, height: naturalH * pageZoom, margin: '0 auto' } : undefined}>
+              <div
+                ref={zoomInnerRef}
+                style={pageZoom !== 1 && baseW ? { width: baseW, transform: `scale(${pageZoom})`, transformOrigin: 'top left' } : undefined}
+              >
+                <BlockEditor
+                  ref={editorRef}
+                  key={note.id}
+                  noteId={note.id}
+                  initialContent={content!}
+                  onChange={saveContent}
+                  readOnly={readingMode}
+                  onOpenNote={onOpenNote}
+                  onHeadingsChange={setHeadings}
+                />
+              </div>
+            </div>
           </div>
         </div>
       )}
