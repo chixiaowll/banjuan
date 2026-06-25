@@ -1,16 +1,30 @@
 import type { PlatformFS } from '../platform/index.js'
+import type { PlatformCrypto } from '../platform/crypto.js'
 import { join, relative, dirname } from '../platform/path.js'
 import type { SyncAdapter } from './adapter.js'
-import type { SyncSnapshot } from '../types.js'
 import type { EventBus } from '../events/bus.js'
 import { PROTECTED_FILES, isExcluded } from './exclusions.js'
+import { mergeTagState, type TagState, type TagEntry, type TagTombstone } from './tag-merge.js'
+import { reconcileFile } from './reconcile.js'
+import { conflictCopyPath, rewriteNoteConflict } from './conflict.js'
+import { v4 as uuid } from 'uuid'
 
-// Files excluded from sync by their FULL relative path (not basename) — these
-// hold per-device identity/settings that must never be overwritten by a peer.
+// Files excluded from the generic mtime-based sync by their FULL relative path.
+// - config.json / paired-devices.json / sync.json: per-device identity & settings
+//   (sync.json holds the WebDAV endpoint + credentials) that must never be
+//   overwritten by a peer.
+// - tags.json / tags-deleted.json: the tag catalog, handled separately by a
+//   last-writer-wins-by-name merge (mergeTags) so neither side loses tags.
 const SYNC_EXCLUDED_PATHS = new Set([
   '.banjuan/config.json',
   '.banjuan/paired-devices.json',
+  '.banjuan/sync.json',
+  '.banjuan/tags.json',
+  '.banjuan/tags-deleted.json',
 ])
+
+const TAGS_REL = '.banjuan/tags.json'
+const TAGS_DELETED_REL = '.banjuan/tags-deleted.json'
 
 export interface SyncResult {
   uploaded: number
@@ -18,7 +32,21 @@ export interface SyncResult {
   deletedLocal: number
   deletedRemote: number
   stubbed: number
+  conflicts: number
   errors: string[]
+}
+
+// Per-file baseline recorded after each successful sync (the Unison "archive").
+interface ArchiveEntry {
+  sig: string         // content signature: 'h:<sha256>' (crypto) or 'a:<size>:<mtime>' fallback
+  size: number        // local size at last sync — cheap re-hash pre-filter
+  mtime: number       // local mtime at last sync — cheap re-hash pre-filter
+  remoteMtime: number // remote mtime at last sync — remote-change signal
+}
+interface SyncArchive {
+  version: number
+  timestamp: number
+  files: Record<string, ArchiveEntry>
 }
 
 export interface SyncProgress {
@@ -35,45 +63,60 @@ export interface SyncOptions {
 
 
 export class SyncService {
-  private snapshotPath: string
+  private archivePath: string
   private remotePath: string
   private createdDirs = new Set<string>()
 
-  constructor(private rootPath: string, private adapter: SyncAdapter, private events: EventBus | undefined, private fs: PlatformFS, remotePath?: string) {
-    this.snapshotPath = join(rootPath, '.banjuan', 'sync-snapshot.json')
+  constructor(
+    private rootPath: string,
+    private adapter: SyncAdapter,
+    private events: EventBus | undefined,
+    private fs: PlatformFS,
+    remotePath?: string,
+    private crypto?: PlatformCrypto,
+    private deviceId: string = 'device',
+  ) {
+    this.archivePath = join(rootPath, '.banjuan', 'sync-archive.json')
     const rp = remotePath || '/'
     this.remotePath = rp.endsWith('/') ? rp : rp + '/'
   }
 
   async sync(onProgress?: (progress: SyncProgress) => void, options?: SyncOptions): Promise<SyncResult> {
     this.events?.emit('sync:started', { timestamp: Date.now() })
-    const result: SyncResult = { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0, stubbed: 0, errors: [] }
+    const result: SyncResult = { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0, stubbed: 0, conflicts: 0, errors: [] }
 
     onProgress?.({ phase: 'scanning', current: 0, total: 0, currentFile: '' })
 
     const localFiles = await this.collectLocalFiles()
-    console.log(`[sync] local files: ${localFiles.length}`, localFiles.map(f => f.relativePath))
     const remoteFiles = await this.collectRemoteFiles()
-    console.log(`[sync] remote files: ${remoteFiles.length}`, remoteFiles.map(f => f.relativePath))
-    const snapshot = await this.readSnapshot()
-    console.log(`[sync] snapshot:`, snapshot?.files)
-
     const localMap = new Map(localFiles.map(f => [f.relativePath, f]))
     const remoteMap = new Map(remoteFiles.map(f => [f.relativePath, f]))
 
-    let snapshotSet: Set<string> | null = null
-    if (snapshot) {
-      const snapshotCount = snapshot.files.length
-      if (remoteFiles.length === 0 && snapshotCount > 0) {
-        snapshotSet = null
-      } else {
-        snapshotSet = new Set(snapshot.files)
+    // Load the archive (state at last successful sync). On first v2 run, seed it
+    // by assuming files present on BOTH sides are already in sync — this stops a
+    // post-upgrade re-upload of everything (the ↓0 ↑24 bug).
+    let archive = await this.readArchive()
+    if (archive.version !== 2) {
+      const seeded: Record<string, ArchiveEntry> = {}
+      for (const f of localFiles) {
+        const r = remoteMap.get(f.relativePath)
+        if (r) seeded[f.relativePath] = { sig: await this.signature(f.absolutePath, f.size, f.mtime), size: f.size, mtime: f.mtime, remoteMtime: r.mtime }
       }
+      archive = { version: 2, timestamp: 0, files: seeded }
+      console.log(`[sync] migrated to v2 archive, seeded ${Object.keys(seeded).length} in-sync files`)
     }
+    const archiveFiles = archive.files
+    const archiveCount = Object.keys(archiveFiles).length
+
+    // A side whose listing is empty while the archive had files can't be trusted
+    // (failed PROPFIND, server not up) — never delete based on such an "absence".
+    const remoteReliable = !(remoteFiles.length === 0 && archiveCount > 0)
+    const localReliable = !(localFiles.length === 0 && archiveCount > 0)
 
     const allPaths = new Set([...localMap.keys(), ...remoteMap.keys()])
     const total = allPaths.size
     let current = 0
+    const nextArchive: Record<string, ArchiveEntry> = {}
 
     for (const path of allPaths) {
       current++
@@ -81,77 +124,132 @@ export class SyncService {
 
       const local = localMap.get(path)
       const remote = remoteMap.get(path)
+      const arc = archiveFiles[path]
 
       try {
-        if (local && remote) {
-          if (remote.mtime > local.mtime + 1000) {
-            await this.adapter.download(this.toRemotePath(path), local.absolutePath)
-            await this.preserveMtime(local.absolutePath, remote.mtime)
-            result.downloaded++
-            this.events?.emit('sync:file:downloaded', { path })
-          } else if (local.mtime > remote.mtime + 1000) {
+        // Local change detection: (size,mtime) pre-filter avoids re-hashing.
+        let localSig: string | undefined
+        let localChanged = false
+        if (local) {
+          if (arc && local.size === arc.size && local.mtime === arc.mtime) {
+            localSig = arc.sig
+          } else {
+            localSig = await this.signature(local.absolutePath, local.size, local.mtime)
+            localChanged = !arc || localSig !== arc.sig
+          }
+        }
+        // Remote mtime comes from WebDAV Last-Modified (second-resolution), so the
+        // uploaded millisecond mtime gets rounded — compare with a ±1s grace.
+        const remoteChanged = !!remote && (!arc || Math.abs(remote.mtime - arc.remoteMtime) > 1000)
+
+        const action = reconcileFile({
+          localPresent: !!local, remotePresent: !!remote,
+          localChanged, remoteChanged,
+          hadArchive: !!arc, remoteReliable, localReliable,
+        })
+
+        switch (action) {
+          case 'skip':
+            if (arc) nextArchive[path] = arc
+            break
+          case 'upload': {
             await this.ensureRemoteDir(path)
-            await this.adapter.upload(local.absolutePath, this.toRemotePath(path), local.mtime)
+            await this.adapter.upload(local!.absolutePath, this.toRemotePath(path), local!.mtime)
             result.uploaded++
             this.events?.emit('sync:file:uploaded', { path })
+            const sig = localSig ?? await this.signature(local!.absolutePath, local!.size, local!.mtime)
+            nextArchive[path] = { sig, size: local!.size, mtime: local!.mtime, remoteMtime: local!.mtime }
+            break
           }
-        } else if (local && !remote) {
-          if (snapshotSet && snapshotSet.has(path) && !PROTECTED_FILES.has(path)) {
-            await this.fs.remove(local.absolutePath)
-            result.deletedLocal++
-          } else {
-            await this.ensureRemoteDir(path)
-            await this.adapter.upload(local.absolutePath, this.toRemotePath(path), local.mtime)
-            result.uploaded++
-            this.events?.emit('sync:file:uploaded', { path })
-          }
-        } else if (!local && remote) {
-          if (snapshotSet && snapshotSet.has(path)) {
-            await this.adapter.delete(this.toRemotePath(path))
-            result.deletedRemote++
-          } else if (options?.stubThreshold && remote.size > options.stubThreshold && options.onStub) {
-            await options.onStub(path, remote.size)
-            result.stubbed++
-          } else {
-            const localPath = join(this.rootPath, path)
+          case 'download':
+          case 'conflict': {
+            if (action === 'conflict') {
+              // False-conflict check (Unison): both sides flagged "changed", but if
+              // the remote content is byte-identical to local it isn't a real
+              // conflict (e.g. remote mtime jitter, or both edited the same way) —
+              // converge silently, no copy, no transfer.
+              const remoteSig = await this.remoteSignature(path)
+              if (remoteSig && localSig && remoteSig === localSig) {
+                nextArchive[path] = { sig: localSig, size: local!.size, mtime: local!.mtime, remoteMtime: remote!.mtime }
+                break
+              }
+              result.conflicts++
+              // Preserve the local edit as a *.sync-conflict-* copy BEFORE the
+              // host's version overwrites it — zero data loss. Notes get a fresh
+              // id + labelled title so the copy surfaces as its own note.
+              try {
+                const conflictRel = await this.makeConflictCopy(path, local!.absolutePath)
+                await this.ensureRemoteDir(conflictRel)
+                const cabs = join(this.rootPath, conflictRel)
+                const cst = await this.fs.stat(cabs)
+                await this.adapter.upload(cabs, this.toRemotePath(conflictRel), cst.mtime)
+                nextArchive[conflictRel] = { sig: await this.signature(cabs, cst.size, cst.mtime), size: cst.size, mtime: cst.mtime, remoteMtime: cst.mtime }
+                this.events?.emit('sync:conflict', { path, conflictPath: conflictRel })
+                console.log(`[sync] CONFLICT "${path}" → kept local as "${conflictRel}", host version takes the name`)
+              } catch (e) {
+                console.log(`[sync] CONFLICT "${path}" — failed to make conflict copy: ${(e as Error).message}`)
+              }
+            }
+            // Stub large brand-new remote-only files instead of downloading.
+            if (action === 'download' && !local && !arc && options?.stubThreshold && remote!.size > options.stubThreshold && options.onStub) {
+              await options.onStub(path, remote!.size)
+              result.stubbed++
+              break
+            }
+            const localPath = local?.absolutePath ?? join(this.rootPath, path)
             await this.fs.mkdir(dirname(localPath), { recursive: true })
             await this.adapter.download(this.toRemotePath(path), localPath)
-            await this.preserveMtime(localPath, remote.mtime)
+            await this.preserveMtime(localPath, remote!.mtime)
             result.downloaded++
             this.events?.emit('sync:file:downloaded', { path })
+            const st = await this.fs.stat(localPath).catch(() => ({ mtime: remote!.mtime, size: remote!.size }))
+            nextArchive[path] = { sig: await this.signature(localPath, st.size, st.mtime), size: st.size, mtime: st.mtime, remoteMtime: remote!.mtime }
+            break
           }
+          case 'deleteLocal':
+            if (!PROTECTED_FILES.has(path)) {
+              await this.fs.remove(local!.absolutePath)
+              result.deletedLocal++
+            }
+            break
+          case 'deleteRemote':
+            await this.adapter.delete(this.toRemotePath(path))
+            result.deletedRemote++
+            break
         }
       } catch (err) {
         console.log(`[sync] ERROR ${path}:`, (err as Error).message)
         result.errors.push(`${path}: ${(err as Error).message}`)
         this.events?.emit('sync:error', { error: (err as Error).message })
+        if (arc) nextArchive[path] = arc // keep baseline across a transient error
       }
     }
     console.log(`[sync] result:`, JSON.stringify(result))
 
-    onProgress?.({ phase: 'finalizing', current: total, total, currentFile: '' })
+    // The tag catalog is merged (not mtime-overwritten) so neither device loses
+    // tags and deletions propagate via tombstones. Failure here must not fail sync.
+    try {
+      await this.mergeTags()
+    } catch (err) {
+      result.errors.push(`tags-merge: ${(err as Error).message}`)
+      this.events?.emit('sync:error', { error: (err as Error).message })
+    }
 
-    const finalFiles = [...allPaths].filter(path => {
-      const local = localMap.get(path)
-      const remote = remoteMap.get(path)
-      if (local && !remote && snapshotSet?.has(path) && !PROTECTED_FILES.has(path)) return false
-      if (!local && remote && snapshotSet?.has(path)) return false
-      return true
-    })
-    await this.writeSnapshot({ timestamp: Date.now(), files: finalFiles })
+    onProgress?.({ phase: 'finalizing', current: total, total, currentFile: '' })
+    await this.writeArchive({ version: 2, timestamp: Date.now(), files: nextArchive })
 
     this.events?.emit('sync:completed', { result })
     return result
   }
 
-  private async collectLocalFiles(): Promise<Array<{ relativePath: string; absolutePath: string; mtime: number }>> {
-    const results: Array<{ relativePath: string; absolutePath: string; mtime: number }> = []
+  private async collectLocalFiles(): Promise<Array<{ relativePath: string; absolutePath: string; mtime: number; size: number }>> {
+    const results: Array<{ relativePath: string; absolutePath: string; mtime: number; size: number }> = []
     await this.walkDir(this.rootPath, async (absPath) => {
       try {
         const rel = relative(this.rootPath, absPath)
         if (SYNC_EXCLUDED_PATHS.has(rel)) return
         const stat = await this.fs.stat(absPath)
-        results.push({ relativePath: rel, absolutePath: absPath, mtime: stat.mtime })
+        results.push({ relativePath: rel, absolutePath: absPath, mtime: stat.mtime, size: stat.size })
       } catch {
         // skip files that can't be stat'd
       }
@@ -223,12 +321,145 @@ export class SyncService {
     }
   }
 
-  private async readSnapshot(): Promise<SyncSnapshot | null> {
-    if (!(await this.fs.exists(this.snapshotPath))) return null
-    return JSON.parse(await this.fs.readTextFile(this.snapshotPath))
+  private async readArchive(): Promise<SyncArchive> {
+    if (await this.fs.exists(this.archivePath)) {
+      try {
+        const a = JSON.parse(await this.fs.readTextFile(this.archivePath))
+        if (a && a.version === 2 && a.files) return a as SyncArchive
+      } catch { /* corrupt → migrate */ }
+    }
+    return { version: 0, timestamp: 0, files: {} } // version 0 ⇒ needs migration seeding
   }
 
-  private async writeSnapshot(snapshot: SyncSnapshot): Promise<void> {
-    await this.fs.writeTextFile(this.snapshotPath, JSON.stringify(snapshot, null, 2))
+  private async writeArchive(archive: SyncArchive): Promise<void> {
+    await this.fs.writeTextFile(this.archivePath, JSON.stringify(archive, null, 2))
   }
+
+  // Content signature: sha256 when crypto is available (robust, clock-independent),
+  // else a (size,mtime) tag. Compared only against THIS device's own archive, so
+  // the fallback is still correct for detecting local changes between syncs.
+  private async signature(absPath: string, size: number, mtime: number): Promise<string> {
+    if (this.crypto) {
+      try { return 'h:' + await this.crypto.sha256(await this.fs.readFile(absPath)) } catch { /* fall back */ }
+    }
+    return `a:${size}:${mtime}`
+  }
+
+  // Signature of the current REMOTE content — downloads it to a temp file, hashes,
+  // then cleans up. Returns undefined when crypto is unavailable (can't compare
+  // content reliably) or the fetch fails. Used only on a (rare) conflict.
+  private async remoteSignature(rel: string): Promise<string | undefined> {
+    if (!this.crypto) return undefined
+    const tmp = join(this.rootPath, '.banjuan', `.sync-tmp-conflict-${rel.replace(/[^a-zA-Z0-9]/g, '_')}`)
+    try {
+      await this.adapter.download(this.toRemotePath(rel), tmp)
+      const st = await this.fs.stat(tmp)
+      const sig = await this.signature(tmp, st.size, st.mtime)
+      await this.fs.remove(tmp).catch(() => {})
+      return sig
+    } catch {
+      await this.fs.remove(tmp).catch(() => {})
+      return undefined
+    }
+  }
+
+  // Write the current local file to a *.sync-conflict-* sibling, preserving the
+  // local edit. Note JSON gets a fresh id + labelled title so it shows as its own
+  // note; anything else is copied byte-for-byte. Returns the conflict relpath.
+  private async makeConflictCopy(rel: string, localAbs: string): Promise<string> {
+    const ts = Date.now()
+    const conflictRel = conflictCopyPath(rel, ts, this.deviceId)
+    const conflictAbs = join(this.rootPath, conflictRel)
+    await this.fs.mkdir(dirname(conflictAbs), { recursive: true })
+
+    if (rel.startsWith('.banjuan/notes/') && rel.endsWith('.json')) {
+      try {
+        const text = await this.fs.readTextFile(localAbs)
+        const rewritten = rewriteNoteConflict(text, { newId: uuid(), ts, deviceId: this.deviceId })
+        if (rewritten !== null) {
+          await this.fs.writeTextFile(conflictAbs, rewritten)
+          return conflictRel
+        }
+      } catch { /* fall back to a raw byte copy */ }
+    }
+    await this.fs.writeFile(conflictAbs, await this.fs.readFile(localAbs))
+    return conflictRel
+  }
+
+  // ── Tag catalog merge ──────────────────────────────────────────────────
+  // tags.json + tags-deleted.json are excluded from the generic file sync and
+  // reconciled here by a last-writer-wins-by-name merge with tombstones, so a
+  // fresh/empty device never clobbers a peer's tags and deletions propagate.
+  private async mergeTags(): Promise<void> {
+    const local = await this.readLocalTagState()
+    const remote = await this.fetchRemoteTagState()
+    const merged = mergeTagState(local, remote)
+
+    const tagsAbs = join(this.rootPath, TAGS_REL)
+    const tombAbs = join(this.rootPath, TAGS_DELETED_REL)
+    await this.fs.writeTextFile(tagsAbs, JSON.stringify(merged.tags, null, 2))
+    await this.fs.writeTextFile(tombAbs, JSON.stringify(merged.tombstones, null, 2))
+
+    await this.ensureRemoteDir(TAGS_REL)
+    await this.adapter.upload(tagsAbs, this.toRemotePath(TAGS_REL))
+    await this.adapter.upload(tombAbs, this.toRemotePath(TAGS_DELETED_REL))
+  }
+
+  private async readLocalTagState(): Promise<TagState> {
+    return {
+      tags: normalizeTags(await this.readJsonArray(join(this.rootPath, TAGS_REL))),
+      tombstones: normalizeTombstones(await this.readJsonArray(join(this.rootPath, TAGS_DELETED_REL))),
+    }
+  }
+
+  private async fetchRemoteTagState(): Promise<TagState> {
+    return {
+      tags: normalizeTags(await this.downloadJsonArray(TAGS_REL)),
+      tombstones: normalizeTombstones(await this.downloadJsonArray(TAGS_DELETED_REL)),
+    }
+  }
+
+  private async readJsonArray(absPath: string): Promise<unknown[]> {
+    try {
+      if (!(await this.fs.exists(absPath))) return []
+      const parsed = JSON.parse(await this.fs.readTextFile(absPath))
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+
+  // Download a remote JSON file to a temp path, read it, then clean up. Returns
+  // [] when the remote file is absent (first sync) or unreadable.
+  private async downloadJsonArray(rel: string): Promise<unknown[]> {
+    const tmp = join(this.rootPath, '.banjuan', `.sync-tmp-${rel.replace(/[^a-zA-Z0-9]/g, '_')}`)
+    try {
+      await this.adapter.download(this.toRemotePath(rel), tmp)
+      const arr = await this.readJsonArray(tmp)
+      await this.fs.remove(tmp).catch(() => {})
+      return arr
+    } catch {
+      await this.fs.remove(tmp).catch(() => {})
+      return []
+    }
+  }
+}
+
+function normalizeTags(raw: unknown[]): TagEntry[] {
+  return raw
+    .filter((t): t is Record<string, unknown> => !!t && typeof t === 'object')
+    .filter(t => typeof t.name === 'string')
+    .map(t => ({
+      id: typeof t.id === 'string' ? t.id : String(t.name),
+      name: t.name as string,
+      color: typeof t.color === 'string' ? t.color : null,
+      updatedAt: typeof t.updatedAt === 'number' ? t.updatedAt : 0,
+    }))
+}
+
+function normalizeTombstones(raw: unknown[]): TagTombstone[] {
+  return raw
+    .filter((t): t is Record<string, unknown> => !!t && typeof t === 'object')
+    .filter(t => typeof t.name === 'string')
+    .map(t => ({ name: t.name as string, deletedAt: typeof t.deletedAt === 'number' ? t.deletedAt : 0 }))
 }

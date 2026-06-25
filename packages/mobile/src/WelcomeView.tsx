@@ -1,9 +1,98 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useBanjuanAPI, PoetryCard, useT } from '@banjuan/shared-ui'
 import { listLibraries, getLibrariesRoot, type LibraryEntry } from './capacitor-api.js'
 
 interface Props {
   onOpen: (path: string, name: string) => void
+}
+
+const REVEAL_WIDTH = 84
+
+// A library row that reveals a red "Delete" button on left-swipe (iOS pattern).
+// A tap opens the library; while the delete button is revealed, a tap closes it.
+function SwipeableLibraryRow({
+  lib, opening, deleteLabel, openingLabel, incompleteLabel, cardStyle, iconStyle, dirLabel,
+  onOpen, onRequestDelete,
+}: {
+  lib: LibraryEntry
+  opening: boolean
+  deleteLabel: string
+  openingLabel: string
+  incompleteLabel: string
+  cardStyle: React.CSSProperties
+  iconStyle: React.CSSProperties
+  dirLabel: string
+  onOpen: () => void
+  onRequestDelete: () => void
+}) {
+  const [offset, setOffset] = useState(0)
+  const startX = useRef(0)
+  const startOffset = useRef(0)
+  const dragging = useRef(false)
+  const moved = useRef(false)
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    startX.current = e.touches[0].clientX
+    startOffset.current = offset
+    dragging.current = true
+    moved.current = false
+  }
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!dragging.current) return
+    const dx = e.touches[0].clientX - startX.current
+    if (Math.abs(dx) > 6) moved.current = true
+    let next = startOffset.current + dx
+    if (next > 0) next = 0
+    if (next < -REVEAL_WIDTH) next = -REVEAL_WIDTH
+    setOffset(next)
+  }
+  const onTouchEnd = () => {
+    dragging.current = false
+    setOffset(offset < -REVEAL_WIDTH / 2 ? -REVEAL_WIDTH : 0)
+  }
+  const handleClick = () => {
+    if (moved.current) return            // it was a swipe, not a tap
+    if (offset !== 0) { setOffset(0); return }  // tap closes the revealed action
+    if (!opening) onOpen()
+  }
+
+  return (
+    <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden' }}>
+      <button
+        onClick={onRequestDelete}
+        style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: REVEAL_WIDTH,
+          border: 'none', background: '#e03131', color: '#fff',
+          fontSize: 14, fontWeight: 600, cursor: 'pointer',
+        }}>
+        {deleteLabel}
+      </button>
+      <div
+        onClick={handleClick}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={{
+          ...cardStyle, position: 'relative',
+          transform: `translateX(${offset}px)`,
+          transition: dragging.current ? 'none' : 'transform 0.2s ease',
+        }}>
+        <div style={{ ...iconStyle, ...(lib.incomplete ? { background: '#adb5bd' } : null) }}>{lib.incomplete ? '⚠️' : '📚'}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{lib.name}</span>
+            {lib.incomplete && (
+              <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: '#e8590c', background: '#fff4e6', borderRadius: 4, padding: '1px 6px' }}>{incompleteLabel}</span>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', marginTop: 2 }}>{dirLabel}</div>
+        </div>
+        {opening && (
+          <div style={{ fontSize: 13, color: 'var(--text-muted, #888)' }}>{openingLabel}</div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 type NearbyShare = { deviceId: string; deviceName: string; libraryName: string; libraryId: string; url: string }
@@ -16,6 +105,8 @@ export function WelcomeView({ onOpen }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState<LibraryEntry | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   // Join from nearby device
   const [nearby, setNearby] = useState<NearbyShare[]>([])
@@ -29,7 +120,25 @@ export function WelcomeView({ onOpen }: Props) {
 
   const refreshLibraries = async () => setLibraries(await listLibraries())
 
+  const handleDelete = async () => {
+    if (!confirmDelete) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await api.library.delete?.(confirmDelete.path)
+      setConfirmDelete(null)
+      await refreshLibraries()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('Failed to delete library:', msg, err)
+      setError(msg)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const handleOpen = async (entry: LibraryEntry) => {
+    if (entry.incomplete) { setError(t('welcome.incompleteHint')); return }
     setLoading(entry.path)
     setError(null)
     try {
@@ -168,17 +277,19 @@ export function WelcomeView({ onOpen }: Props) {
           <h2 style={sectionLabel}>{t('welcome.myLibraries')}</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {libraries.map(lib => (
-              <div key={lib.path} style={cardStyle}
-                onClick={() => loading ? null : handleOpen(lib)}>
-                <div style={iconStyle}>📚</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lib.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', marginTop: 2 }}>{lib.path.split('/').pop()}</div>
-                </div>
-                {loading === lib.path && (
-                  <div style={{ fontSize: 13, color: 'var(--text-muted, #888)' }}>{t('welcome.opening')}</div>
-                )}
-              </div>
+              <SwipeableLibraryRow
+                key={lib.path}
+                lib={lib}
+                opening={loading === lib.path}
+                deleteLabel={t('welcome.delete')}
+                openingLabel={t('welcome.opening')}
+                incompleteLabel={t('welcome.incomplete')}
+                cardStyle={cardStyle}
+                iconStyle={iconStyle}
+                dirLabel={lib.path.split('/').pop() || ''}
+                onOpen={() => handleOpen(lib)}
+                onRequestDelete={() => setConfirmDelete(lib)}
+              />
             ))}
           </div>
         </div>
@@ -290,6 +401,40 @@ export function WelcomeView({ onOpen }: Props) {
               style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#228be6', color: '#fff', fontSize: 14, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
               {loading ? t('welcome.creating') : t('welcome.create')}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      {confirmDelete && (
+        <div
+          onClick={() => !deleting && setConfirmDelete(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24, paddingBottom: 'calc(24px + env(safe-area-inset-bottom))',
+          }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 360, padding: 24, borderRadius: 16,
+              background: 'var(--surface, #fff)', boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+            }}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>{t('welcome.deleteTitle')}</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted, #666)', lineHeight: 1.5, marginBottom: 20 }}>
+              {t('welcome.deleteBody', confirmDelete.name)}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setConfirmDelete(null)} disabled={deleting}
+                style={{ flex: 1, padding: '11px', borderRadius: 8, border: '1px solid var(--border, #e0e0e0)', background: 'transparent', fontSize: 15, cursor: 'pointer' }}>
+                {t('welcome.cancel')}
+              </button>
+              <button onClick={handleDelete} disabled={deleting}
+                style={{ flex: 1, padding: '11px', borderRadius: 8, border: 'none', background: '#e03131', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', opacity: deleting ? 0.6 : 1 }}>
+                {deleting ? t('welcome.deleting') : t('welcome.delete')}
+              </button>
+            </div>
           </div>
         </div>
       )}

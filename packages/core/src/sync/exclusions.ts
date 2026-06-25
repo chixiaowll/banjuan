@@ -2,7 +2,7 @@
 export const EXCLUDED_NAMES = new Set([
   'db.sqlite', 'db.sqlite-wal', 'db.sqlite-shm',
   'library.db', 'db.meta.json',
-  'sync-snapshot.json', '.DS_Store',
+  'sync-snapshot.json', 'sync-archive.json', '.DS_Store',
 ])
 
 // Directory names never synced or served.

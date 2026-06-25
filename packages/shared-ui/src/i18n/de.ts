@@ -26,6 +26,12 @@ const de = {
   'welcome.joining': 'Tritt bei…',
   'welcome.joinFailed': 'Beitritt fehlgeschlagen: {0}',
   'welcome.myLibraries': 'Meine Bibliotheken',
+  'welcome.delete': 'Löschen',
+  'welcome.deleting': 'Wird gelöscht…',
+  'welcome.deleteTitle': 'Bibliothek löschen',
+  'welcome.deleteBody': '„{0}“ und alle darin enthaltenen Notizen werden dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.',
+  'welcome.incomplete': 'Unvollständig',
+  'welcome.incompleteHint': 'Diese Bibliothek ist unvollständig (Überrest eines fehlgeschlagenen Löschens oder Beitritts) und kann nicht geöffnet werden. Zum Löschen nach links wischen.',
 
   'common.save': 'Speichern',
   'common.cancel': 'Abbrechen',
