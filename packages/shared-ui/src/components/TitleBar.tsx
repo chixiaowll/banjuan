@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
-import { X, Library, FileText, StickyNote, Tag, Puzzle } from 'lucide-react'
+import { X, Library, FileText, StickyNote, Tag, Puzzle, PanelRight } from 'lucide-react'
 import { useTheme } from '../theme/index.js'
 
 export interface Tab {
@@ -26,9 +26,13 @@ interface Props {
   pluginViews?: PluginViewInfo[]
   activePanelPlugin?: string | null
   onTogglePluginPanel?: (pluginId: string, viewType: string) => void
+  /** whether the right rail has anything to show (else the toggle is hidden) */
+  railRelevant?: boolean
+  railCollapsed?: boolean
+  onToggleRail?: () => void
 }
 
-export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, onReorderTabs, pluginViews, activePanelPlugin, onTogglePluginPanel }: Props) {
+export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, onReorderTabs, pluginViews, activePanelPlugin, onTogglePluginPanel, railRelevant, railCollapsed, onToggleRail }: Props) {
   const { theme: appTheme } = useTheme()
   const isNotebook = appTheme === 'notebook'
   const tabsRef = useRef<HTMLDivElement>(null)
@@ -199,7 +203,26 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
           </div>
         ))}
       </div>
-      {/* Plugin launchers live in the window-level right rail (TabManager), not here. */}
+      {/* Plugin launchers live in the window-level right rail (TabManager). This
+          toggle shows/hides that rail so the layout isn't lopsided when unused. */}
+      {railRelevant && onToggleRail && (
+        <button
+          className="title-bar-rail-toggle"
+          onClick={onToggleRail}
+          title={railCollapsed ? '显示工具栏' : '隐藏工具栏'}
+          aria-pressed={!railCollapsed}
+          style={{
+            background: 'none', border: 'none', borderRadius: 5, cursor: 'pointer', padding: '5px',
+            marginLeft: 'auto', marginRight: 12, alignSelf: 'center',
+            color: railCollapsed ? 'var(--text-muted)' : 'var(--accent)',
+            display: 'inline-flex', alignItems: 'center',
+            position: 'relative', zIndex: 5,
+            ['WebkitAppRegion' as any]: 'no-drag', // clickable over the title-bar drag region
+          }}
+        >
+          <PanelRight size={16} />
+        </button>
+      )}
     </div>
   )
 }

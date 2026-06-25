@@ -62,6 +62,14 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     setSidePanel(null)
     setDetailOpen(v => { const next = !v; try { localStorage.setItem('banjuan-detail-open', next ? '1' : '0') } catch {} ; return next })
   }, [])
+  // The window-level right rail (detail/plugin launchers) is collapsible so the
+  // layout isn't lopsided when you don't need it.
+  const [railCollapsed, setRailCollapsed] = useState(() => {
+    try { return localStorage.getItem('banjuan-rail-collapsed') === '1' } catch { return false }
+  })
+  const toggleRail = useCallback(() => {
+    setRailCollapsed(v => { const next = !v; try { localStorage.setItem('banjuan-rail-collapsed', next ? '1' : '0') } catch {} ; return next })
+  }, [])
   // DOM node of the shared inspector's detail slot; LibraryView portals its
   // detail content into it so detail + plugins share one resizable container.
   const [inspectorEl, setInspectorEl] = useState<HTMLDivElement | null>(null)
@@ -295,6 +303,9 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
       pluginViews={pluginViews}
       activePanelPlugin={sidePanel?.pluginId ?? null}
       onTogglePluginPanel={togglePluginPanel}
+      railRelevant={activeTabId === LIBRARY_TAB_ID || pluginViews.length > 0}
+      railCollapsed={railCollapsed}
+      onToggleRail={toggleRail}
     />
   )
 
@@ -408,7 +419,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
         )}
         {/* Window-level right rail: switches a single right surface — the library
             detail panel or a plugin view (mutually exclusive). */}
-        {(activeTabId === LIBRARY_TAB_ID || pluginViews.length > 0) && (
+        {(activeTabId === LIBRARY_TAB_ID || pluginViews.length > 0) && !railCollapsed && (
         <div style={{ width: 48, flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 12, gap: 6 }}>
           {activeTabId === LIBRARY_TAB_ID && (
             <button

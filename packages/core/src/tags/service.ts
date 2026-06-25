@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid'
 import type { Tag, TagTarget, DocumentFileData } from '../types.js'
 import type { EventBus } from '../events/bus.js'
 import { JsonStore } from '../storage/json-store.js'
+import type { TagEntry, TagTombstone } from '../sync/tag-merge.js'
 
 
 const TAG_PALETTE = [
@@ -18,20 +19,50 @@ function autoColor(name: string): string {
 
 export class TagService {
   private tagsFilePath: string
+  private tombstonesFilePath: string
   private docStore: JsonStore<DocumentFileData>
 
   constructor(private db: PlatformDatabase, private rootPath: string, private events: EventBus, private fs: PlatformFS) {
     this.tagsFilePath = join(rootPath, '.banjuan', 'tags.json')
+    this.tombstonesFilePath = join(rootPath, '.banjuan', 'tags-deleted.json')
     this.docStore = new JsonStore(join(rootPath, '.banjuan', 'data', 'documents'), fs)
   }
 
-  private async readTagsFile(): Promise<Array<{ id: string; name: string; color: string | null }>> {
+  private async readTagsFile(): Promise<TagEntry[]> {
     if (!(await this.fs.exists(this.tagsFilePath))) return []
-    return JSON.parse(await this.fs.readTextFile(this.tagsFilePath))
+    const raw = JSON.parse(await this.fs.readTextFile(this.tagsFilePath)) as Array<Partial<TagEntry>>
+    // Legacy entries have no updatedAt — default to 0 (oldest), so a later
+    // deletion tombstone can supersede them, while absent tombstones keep them.
+    return raw.map(t => ({ id: t.id!, name: t.name!, color: t.color ?? null, updatedAt: t.updatedAt ?? 0 }))
   }
 
-  private async writeTagsFile(tags: Array<{ id: string; name: string; color: string | null }>): Promise<void> {
+  private async writeTagsFile(tags: TagEntry[]): Promise<void> {
     await this.fs.writeTextFile(this.tagsFilePath, JSON.stringify(tags, null, 2))
+  }
+
+  private async readTombstones(): Promise<TagTombstone[]> {
+    if (!(await this.fs.exists(this.tombstonesFilePath))) return []
+    try { return JSON.parse(await this.fs.readTextFile(this.tombstonesFilePath)) } catch { return [] }
+  }
+
+  private async writeTombstones(tombstones: TagTombstone[]): Promise<void> {
+    await this.fs.writeTextFile(this.tombstonesFilePath, JSON.stringify(tombstones, null, 2))
+  }
+
+  // Record a deletion so it can propagate across devices on sync.
+  private async addTombstone(name: string): Promise<void> {
+    const tombs = await this.readTombstones()
+    const existing = tombs.find(t => t.name === name)
+    if (existing) existing.deletedAt = Date.now()
+    else tombs.push({ name, deletedAt: Date.now() })
+    await this.writeTombstones(tombs)
+  }
+
+  // Re-adding (or renaming to) a name clears any prior deletion of that name.
+  private async clearTombstone(name: string): Promise<void> {
+    const tombs = await this.readTombstones()
+    const filtered = tombs.filter(t => t.name !== name)
+    if (filtered.length !== tombs.length) await this.writeTombstones(filtered)
   }
 
   async create(input: { name: string; color?: string }): Promise<Tag> {
@@ -39,8 +70,9 @@ export class TagService {
     const color = input.color ?? autoColor(input.name)
 
     const tags = await this.readTagsFile()
-    tags.push({ id, name: input.name, color })
+    tags.push({ id, name: input.name, color, updatedAt: Date.now() })
     await this.writeTagsFile(tags)
+    await this.clearTombstone(input.name)
 
     this.db.run('INSERT INTO tags (id, name, color) VALUES (?, ?, ?)', [id, input.name, color])
 
@@ -161,9 +193,10 @@ export class TagService {
       this.db.run('DELETE FROM tags WHERE id = ?', [tagId])
     })
 
-    // Remove from tags.json
+    // Remove from tags.json and record a tombstone so the deletion syncs.
     const tags = await this.readTagsFile()
     await this.writeTagsFile(tags.filter(t => t.id !== tagId))
+    await this.addTombstone(tag.name)
 
     // Remove from document files
     const docRows = this.db.query<{ id: string }>('SELECT id FROM documents')
@@ -204,11 +237,12 @@ export class TagService {
     // Update DB
     this.db.run('UPDATE tags SET name = ? WHERE id = ?', [newName, tagId])
 
-    // Update tags.json
+    // Update tags.json (bump updatedAt; renaming to a name clears its tombstone)
     const tags = await this.readTagsFile()
     const entry = tags.find(t => t.id === tagId)
-    if (entry) entry.name = newName
+    if (entry) { entry.name = newName; entry.updatedAt = Date.now() }
     await this.writeTagsFile(tags)
+    await this.clearTombstone(newName)
 
     // Update document files
     const docRows = this.db.query<{ id: string }>('SELECT id FROM documents')
@@ -244,10 +278,10 @@ export class TagService {
     // Update DB
     this.db.run('UPDATE tags SET color = ? WHERE id = ?', [color, tagId])
 
-    // Update tags.json
+    // Update tags.json (bump updatedAt)
     const tags = await this.readTagsFile()
     const entry = tags.find(t => t.id === tagId)
-    if (entry) entry.color = color
+    if (entry) { entry.color = color; entry.updatedAt = Date.now() }
     await this.writeTagsFile(tags)
   }
 

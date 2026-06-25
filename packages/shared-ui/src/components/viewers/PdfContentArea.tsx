@@ -77,9 +77,14 @@ function getVisibleRange(
 export default function PdfContentArea({ annotations, docId, onTextSelect, onHighlightClick, onAnnotationContextMenu, onAnnotationCreated, onAnnotationDelete, onAnnotationUpdate, onPageSizesComputed }: Props) {
   const t = useT()
   const ctx = usePdfViewer()
-  const { pdfDoc, rawPageSize, rawPageSizes, pageSizes, zoom, scrollRef, setCurrentPage, setPageSizes,
+  const { pdfDoc, rawPageSize, rawPageSizes, pageSizes, zoom, setZoom, scrollRef, setCurrentPage, setPageSizes,
           numPages, searchMatches, currentMatchIndex, pageInfoMap,
           activeTool, activeColor } = ctx
+  // Cursor focal point (viewport-relative) for the last pinch-zoom, so the
+  // content under the fingers stays put while zooming (Zotero-style). Null ⇒
+  // anchor at the viewport top (button zoom).
+  const pinchFocalYRef = useRef<number | null>(null)
+  const pinchFocalXRef = useRef(0)
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null)
 
   const [visibleRange, setVisibleRange] = useState<[number, number]>([0, 5])
@@ -101,6 +106,35 @@ export default function PdfContentArea({ annotations, docId, onTextSelect, onHig
     return () => obs.disconnect()
   }, [scrollRef])
 
+  // Trackpad pinch-to-zoom (Zotero-style). On macOS a trackpad pinch arrives as
+  // a wheel event with ctrlKey set; we swallow it and drive `zoom` ourselves,
+  // anchored at the cursor. rAF-coalesced so a fast pinch doesn't re-render the
+  // canvases on every tick.
+  useEffect(() => {
+    const el = scrollRef.current as HTMLElement | null
+    if (!el) return
+    let raf = 0
+    let pendingDelta = 0
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return // normal scroll — let it through
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      pinchFocalYRef.current = e.clientY - rect.top
+      pinchFocalXRef.current = e.clientX - rect.left
+      pendingDelta += e.deltaY
+      if (!raf) {
+        raf = requestAnimationFrame(() => {
+          raf = 0
+          const factor = Math.exp(-pendingDelta * 0.01)
+          pendingDelta = 0
+          setZoom(z => Math.min(5, Math.max(0.25, z * factor)))
+        })
+      }
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => { el.removeEventListener('wheel', onWheel); if (raf) cancelAnimationFrame(raf) }
+  }, [scrollRef, setZoom])
+
   // Compute page sizes from container width + raw page sizes + zoom,
   // and preserve scroll position across size changes.
   const prevSizesRef = useRef(pageSizes)
@@ -115,18 +149,26 @@ export default function PdfContentArea({ annotations, docId, onTextSelect, onHig
       h: raw.h * scale,
     }))
 
-    // Capture current position before sizes change
+    // Capture current position before sizes change. Anchor at the pinch focal
+    // point if there was one (keep content under the cursor fixed), else at the
+    // viewport top (button zoom).
     const el = scrollRef.current
     const oldSizes = prevSizesRef.current
+    const anchorY = pinchFocalYRef.current ?? 0
+    const focalX = pinchFocalXRef.current
+    const oldScrollLeft = el?.scrollLeft ?? 0
+    const widthRatio = oldSizes.length > 0 && oldSizes[0].h > 0 ? newSizes[0].h / oldSizes[0].h : 1
+    const isPinch = pinchFocalYRef.current !== null
     let savedPage = 0
     let savedFraction = 0
-    if (el && oldSizes.length > 0 && el.scrollTop > 0) {
+    if (el && oldSizes.length > 0) {
+      const contentY = el.scrollTop + anchorY
       let cumTop = 0
       for (let i = 0; i < oldSizes.length; i++) {
         const pageBottom = cumTop + oldSizes[i].h + PAGE_GAP
-        if (pageBottom > el.scrollTop || i === oldSizes.length - 1) {
+        if (pageBottom > contentY || i === oldSizes.length - 1) {
           savedPage = i
-          savedFraction = oldSizes[i].h > 0 ? (el.scrollTop - cumTop) / oldSizes[i].h : 0
+          savedFraction = oldSizes[i].h > 0 ? (contentY - cumTop) / oldSizes[i].h : 0
           break
         }
         cumTop = pageBottom
@@ -138,14 +180,19 @@ export default function PdfContentArea({ annotations, docId, onTextSelect, onHig
     onPageSizesComputed?.(newSizes)
 
     // Restore position after sizes change
-    if (el && savedPage > 0 || savedFraction > 0) {
+    if (el && (savedPage > 0 || savedFraction > 0 || isPinch)) {
       requestAnimationFrame(() => {
-        let newTop = 0
+        let newContentY = 0
         for (let i = 0; i < savedPage && i < newSizes.length; i++) {
-          newTop += newSizes[i].h + PAGE_GAP
+          newContentY += newSizes[i].h + PAGE_GAP
         }
-        newTop += savedFraction * (newSizes[savedPage]?.h ?? 0)
-        el!.scrollTo({ top: newTop, behavior: 'instant' as ScrollBehavior })
+        newContentY += savedFraction * (newSizes[savedPage]?.h ?? 0)
+        el!.scrollTo({ top: Math.max(0, newContentY - anchorY), behavior: 'instant' as ScrollBehavior })
+        if (isPinch) {
+          // Keep the same horizontal content point under the cursor too.
+          el!.scrollLeft = Math.max(0, (oldScrollLeft + focalX) * widthRatio - focalX)
+          pinchFocalYRef.current = null // consume; next non-pinch zoom anchors top
+        }
       })
     }
   }, [rawPageSizes, containerWidth, zoom, numPages, scrollRef, setPageSizes, onPageSizesComputed])

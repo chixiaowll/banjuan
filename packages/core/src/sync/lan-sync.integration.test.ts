@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createServer, type Server } from 'node:http'
-import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { NodeFS } from '@banjuan/platform-node'
+import { NodeFS, NodeCrypto } from '@banjuan/platform-node'
 import { WebDAVAdapter, SyncService } from '../index.js'
 import { handleDavRequest, type DavContext } from './lan-host-handler.js'
 
@@ -121,6 +121,55 @@ describe('LAN sync integration (webdav client ↔ handler)', () => {
     expect(second.uploaded).toBe(0)
     expect(second.downloaded).toBe(0)
     expect(second.errors).toEqual([])
+  })
+
+  it('true conflict keeps both versions: host wins the name, local edit saved as a .sync-conflict copy', async () => {
+    const connect = async () => {
+      const a = new WebDAVAdapter(new NodeFS())
+      await a.connect({ type: 'webdav', url: `http://127.0.0.1:${port}`, username: 'banjuan', password: TOKEN, remotePath: '/' })
+      return new SyncService(clientRoot, a, undefined, new NodeFS(), '/', new NodeCrypto(), 'client')
+    }
+    // Establish a shared baseline (both sides have V1).
+    writeFileSync(join(clientRoot, 'note.md'), 'V1')
+    const first = await (await connect()).sync()
+    expect(first.errors).toEqual([])
+    expect(readFileSync(join(hostRoot, 'note.md'), 'utf-8')).toBe('V1')
+
+    // Both sides edit the same file differently → a genuine conflict.
+    writeFileSync(join(clientRoot, 'note.md'), 'CLIENT_EDIT')
+    writeFileSync(join(hostRoot, 'note.md'), 'HOST_EDIT')
+    const future = new Date(Date.now() + 10_000)
+    utimesSync(join(hostRoot, 'note.md'), future, future) // ensure the remote reads as "changed"
+
+    const second = await (await connect()).sync()
+    expect(second.conflicts).toBe(1)
+    // Host takes the canonical name…
+    expect(readFileSync(join(clientRoot, 'note.md'), 'utf-8')).toBe('HOST_EDIT')
+    // …and the local edit survives in a conflict copy (zero data loss).
+    const copy = readdirSync(clientRoot).find(f => f.startsWith('note.sync-conflict-') && f.endsWith('.md'))
+    expect(copy).toBeTruthy()
+    expect(readFileSync(join(clientRoot, copy!), 'utf-8')).toBe('CLIENT_EDIT')
+  })
+
+  it('false conflict (both ended identical) makes no copy', async () => {
+    const connect = async () => {
+      const a = new WebDAVAdapter(new NodeFS())
+      await a.connect({ type: 'webdav', url: `http://127.0.0.1:${port}`, username: 'banjuan', password: TOKEN, remotePath: '/' })
+      return new SyncService(clientRoot, a, undefined, new NodeFS(), '/', new NodeCrypto(), 'client')
+    }
+    writeFileSync(join(clientRoot, 'note.md'), 'V1')
+    await (await connect()).sync()
+
+    // Local edits to V2; host also ends at the identical V2; bump host mtime so it
+    // reads as "changed" → reconcile flags a conflict, but content is identical.
+    writeFileSync(join(clientRoot, 'note.md'), 'V2')
+    writeFileSync(join(hostRoot, 'note.md'), 'V2')
+    const future = new Date(Date.now() + 10_000)
+    utimesSync(join(hostRoot, 'note.md'), future, future)
+
+    const second = await (await connect()).sync()
+    expect(second.conflicts).toBe(0)
+    expect(readdirSync(clientRoot).some(f => f.includes('.sync-conflict-'))).toBe(false)
   })
 
   it('does not sync .banjuan/config.json (identity stays local)', async () => {

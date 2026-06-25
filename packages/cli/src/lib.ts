@@ -3,6 +3,38 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { execSync } from 'node:child_process'
 import chalk from 'chalk'
+import { resolveFolder } from './folder-resolve.js'
+
+/**
+ * Resolve a user-supplied folder path against the folders that exist, with a
+ * consistent CLI UX across every command that takes a folder:
+ *  - exact / order-prefix match → returns the real path (auto-corrects "[N] ")
+ *  - ambiguous → prints candidates, returns null (caller aborts)
+ *  - not found → if allowCreate returns the typed path (server creates it),
+ *                otherwise prints existing folders and returns null
+ * Returns the path to use, or null when the caller should abort.
+ */
+export function resolveFolderArg(input: string, dirs: string[], opts: { allowCreate: boolean }): string | null {
+  const r = resolveFolder(input, dirs)
+  switch (r.kind) {
+    case 'exact':
+      return r.path
+    case 'normalized':
+      if (r.path !== input) console.log(chalk.dim(`→ matched existing folder: ${r.path}`))
+      return r.path
+    case 'ambiguous':
+      console.error(chalk.red(`✗ Ambiguous folder "${input}" — multiple folders match:`))
+      r.candidates.forEach(c => console.error('   ' + c))
+      console.error(chalk.dim('Re-run with the exact full path.'))
+      return null
+    case 'notFound':
+      if (opts.allowCreate) return input
+      console.error(chalk.red(`✗ Folder not found: "${input}". Existing folders:`))
+      dirs.forEach(d => console.error('   ' + d))
+      console.error(chalk.dim('Use one of the exact paths above, or pass --create to create it.'))
+      return null
+  }
+}
 
 const BANJUAN_DIR = join(homedir(), '.banjuan')
 const PORT_FILE = join(BANJUAN_DIR, 'api-port')

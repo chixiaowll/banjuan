@@ -102,8 +102,15 @@ export function PdfViewerProvider({ pdfDoc, numPages, initialPageSizes, rawPageS
     if (initialPageSizes.length > 0) setPageSizes(initialPageSizes)
   }, [initialPageSizes])
   const [currentPage, setCurrentPage] = useState(1)
-  const [zoom, setZoom] = useState(1.0)
-  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true)
+  // Persist the last zoom globally so reopening a PDF keeps it (instead of 100%).
+  const [zoom, setZoom] = useState(() => {
+    const saved = Number(localStorage.getItem('banjuan-pdf-zoom'))
+    return saved >= 0.25 && saved <= 5 ? saved : 1.0
+  })
+  useEffect(() => {
+    try { localStorage.setItem('banjuan-pdf-zoom', String(zoom)) } catch {}
+  }, [zoom])
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false)
   const [leftSidebarTab, setLeftSidebarTab] = useState<LeftSidebarTab>('outline')
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
   const [activeTool, setActiveTool] = useState<AnnotationTool>('none')

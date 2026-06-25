@@ -26,6 +26,12 @@ const es = {
   'welcome.joining': 'Uniéndose…',
   'welcome.joinFailed': 'Error al unirse: {0}',
   'welcome.myLibraries': 'Mis bibliotecas',
+  'welcome.delete': 'Eliminar',
+  'welcome.deleting': 'Eliminando…',
+  'welcome.deleteTitle': 'Eliminar biblioteca',
+  'welcome.deleteBody': 'Esto eliminará permanentemente «{0}» y todas las notas que contiene. Esta acción no se puede deshacer.',
+  'welcome.incomplete': 'Incompleto',
+  'welcome.incompleteHint': 'Esta biblioteca está incompleta (resto de una eliminación o unión fallida) y no se puede abrir. Desliza a la izquierda para eliminarla.',
 
   'common.save': 'Guardar',
   'common.cancel': 'Cancelar',

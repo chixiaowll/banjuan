@@ -1,5 +1,5 @@
-import { Library, LAN_PREFERRED_PORTS } from '@banjuan/core'
-import type { PlatformDeps, NearbyShare } from '@banjuan/core'
+import { Library, LAN_PREFERRED_PORTS, MAX_LIBRARY_FILES } from '@banjuan/core'
+import type { PlatformDeps, NearbyShare, TagTarget } from '@banjuan/core'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { CapacitorFS, CapacitorDatabaseFactory, WebCrypto } from '@banjuan/platform-capacitor'
 import type { BanjuanAPI } from '@banjuan/shared-ui'
@@ -8,11 +8,13 @@ import { getDeviceIdentity } from './capacitor-device-identity'
 import { scanNearby as mdnsScanNearby } from './capacitor-mdns'
 
 let library: Library | null = null
+let currentLibraryPath: string | null = null
 
 export interface LibraryEntry {
   path: string
   name: string
   id?: string   // book-room identity, for "already joined this host?" dedupe
+  incomplete?: boolean   // dir exists under BanJuanLibrary but has no readable config (leftover/broken)
 }
 
 const LIBRARIES_ROOT = 'BanJuanLibrary'
@@ -22,6 +24,7 @@ export async function listLibraries(): Promise<LibraryEntry[]> {
   try {
     await Filesystem.mkdir({ path: LIBRARIES_ROOT, directory: Directory.Documents, recursive: true }).catch(() => {})
     const result = await Filesystem.readdir({ path: LIBRARIES_ROOT, directory: Directory.Documents })
+    console.log('[lib] listLibraries: dirs under', LIBRARIES_ROOT, '=', result.files.map(f => `${f.name}(${f.type})`))
     for (const item of result.files) {
       if (item.type !== 'directory') continue
       try {
@@ -32,8 +35,12 @@ export async function listLibraries(): Promise<LibraryEntry[]> {
         })
         const config = JSON.parse(configResult.data as string)
         entries.push({ path: `${LIBRARIES_ROOT}/${item.name}`, name: config.name || item.name, id: config.id })
-      } catch {
-        // not a library
+      } catch (e) {
+        // Directory exists under BanJuanLibrary but has no readable config —
+        // surface it as an incomplete/leftover book-room so it can still be
+        // seen and deleted (e.g. residue from a failed join or partial delete).
+        console.log(`[lib] listLibraries: incomplete "${item.name}" — config unreadable: ${(e as Error).message}`)
+        entries.push({ path: `${LIBRARIES_ROOT}/${item.name}`, name: item.name, incomplete: true })
       }
     }
   } catch {
@@ -72,14 +79,18 @@ export function createCapacitorAPI(): BanjuanAPI {
       },
       async init(path, name) {
         library = await Library.init(path, createDeps(path), name)
+        currentLibraryPath = path
+        return { rootPath: library.rootPath, name: await library.getName(), imported: 0, skipped: 0, truncated: false, limit: MAX_LIBRARY_FILES }
       },
       async open(path) {
         library = await Library.open(path, createDeps(path))
-        await library.syncWithDisk()
+        currentLibraryPath = path
+        const synced = await library.syncWithDisk()
         try { await library.notes.syncDisk() } catch {}
         try { await library.tags.syncFromFiles() } catch {}
         const indexSvc = library.createIndexService()
         await indexSvc.rebuildFull()
+        return { rootPath: library.rootPath, name: await library.getName(), imported: synced.imported, removed: synced.removed, truncated: synced.truncated, limit: synced.limit }
       },
       async openNewWindow() {
         // Not supported on mobile
@@ -91,6 +102,40 @@ export function createCapacitorAPI(): BanjuanAPI {
         const lib = getLib()
         await lib.setName(name)
         return { name }
+      },
+      async delete(path: string) {
+        // Safety guard: only delete a directory directly under BanJuanLibrary/,
+        // never an arbitrary path, so a bad value can't wipe unrelated files.
+        const segments = path.split('/').filter(Boolean)
+        if (segments.length !== 2 || segments[0] !== LIBRARIES_ROOT) {
+          throw new Error(`Refusing to delete non-library path: ${path}`)
+        }
+        // If we're deleting the currently-open library, drop our references
+        // WITHOUT closing it. WasmDatabase.close() writes db.sqlite back to disk
+        // via a fire-and-forget async writeFile; that write would land AFTER the
+        // rmdir below and re-create .banjuan/db.sqlite (with recursive:true also
+        // re-creating .banjuan/), leaving a broken residue that can't be listed
+        // or re-joined. Deleting a library must never flush its db.
+        if (currentLibraryPath === path) {
+          library = null
+          currentLibraryPath = null
+        }
+        console.log(`[lib] delete: rmdir "${path}" (recursive)`)
+        await Filesystem.rmdir({ path, directory: Directory.Documents, recursive: true })
+        // Verify the removal actually took — recursive rmdir can leave residue.
+        let dirStillExists = false
+        try { await Filesystem.stat({ path, directory: Directory.Documents }); dirStillExists = true } catch {}
+        console.log(`[lib] delete done: "${path}" dirStillExists=${dirStillExists}`)
+        if (dirStillExists) {
+          // Residue left behind — try once more, then surface it.
+          try { await Filesystem.rmdir({ path, directory: Directory.Documents, recursive: true }) } catch (e) {
+            console.log(`[lib] delete retry failed: ${(e as Error).message}`)
+          }
+          let stillAfterRetry = false
+          try { await Filesystem.stat({ path, directory: Directory.Documents }); stillAfterRetry = true } catch {}
+          console.log(`[lib] delete after retry: "${path}" dirStillExists=${stillAfterRetry}`)
+          if (stillAfterRetry) throw new Error(`Directory not fully removed: ${path}`)
+        }
       },
     },
 
@@ -131,7 +176,7 @@ export function createCapacitorAPI(): BanjuanAPI {
         return getLib().documents.listDirs()
       },
       async update(id, updates) {
-        return getLib().documents.update(id, updates)
+        return (await getLib().documents.update(id, updates))!
       },
       async getFilePath(relativePath) {
         return `${getLib().rootPath}/${relativePath}`
@@ -161,13 +206,13 @@ export function createCapacitorAPI(): BanjuanAPI {
         return getLib().tags.create(input)
       },
       async forTarget(id, type) {
-        return getLib().tags.forTarget(id, type)
+        return getLib().tags.forTarget(id, type as TagTarget)
       },
       async assign(targetId, targetType, tagNames) {
-        return getLib().tags.assign(targetId, targetType, tagNames)
+        return getLib().tags.assign(targetId, targetType as TagTarget, tagNames)
       },
       async unassign(targetId, targetType, tagName) {
-        return getLib().tags.unassign(targetId, targetType, tagName)
+        return getLib().tags.unassign(targetId, targetType as TagTarget, tagName)
       },
       async delete(tagId) {
         return getLib().tags.delete(tagId)
@@ -221,7 +266,7 @@ export function createCapacitorAPI(): BanjuanAPI {
         return getLib().notes.getAnnotations(noteId)
       },
       async move(id, targetFolder) {
-        return getLib().notes.move(id, targetFolder)
+        await getLib().notes.move(id, targetFolder)
       },
       async refresh() {
         return getLib().notes.syncDisk()
@@ -397,7 +442,9 @@ export function createCapacitorAPI(): BanjuanAPI {
         const { CapacitorWebDAVAdapter } = await import('./capacitor-webdav-adapter')
         const adapter = new CapacitorWebDAVAdapter(createDeps(getLib().rootPath).fs)
         await adapter.connect(config)
-        const svc = new SyncService(getLib().rootPath, adapter, getLib().events, createDeps(getLib().rootPath).fs, config.remotePath)
+        const deps = createDeps(getLib().rootPath)
+        const me = await getDeviceIdentity()
+        const svc = new SyncService(getLib().rootPath, adapter, getLib().events, deps.fs, config.remotePath, deps.crypto, me.deviceName)
         const result = await svc.sync(onProgress)
         onProgress?.({ phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
         try {
@@ -524,9 +571,11 @@ export function createCapacitorAPI(): BanjuanAPI {
           }
         }
 
-        const adapter = new CapacitorWebDAVAdapter(createDeps(lib.rootPath).fs)
+        const syncDeps = createDeps(lib.rootPath)
+        const adapter = new CapacitorWebDAVAdapter(syncDeps.fs)
         await adapter.connect({ type: 'webdav', url: base, username: 'banjuan', password: existing.token, remotePath: '/' })
-        const svc = new SyncService(lib.rootPath, adapter, lib.events, createDeps(lib.rootPath).fs, '/')
+        const me = await getDeviceIdentity()
+        const svc = new SyncService(lib.rootPath, adapter, lib.events, syncDeps.fs, '/', syncDeps.crypto, me.deviceName)
         const result = await svc.sync(onProgress)
         onProgress?.({ phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
         await lib.createIndexService().rebuildFull()
@@ -548,7 +597,7 @@ export function createCapacitorAPI(): BanjuanAPI {
     },
 
     search: {
-      async query(query: string, options?: { type?: string; limit?: number }) {
+      async query(query, options) {
         return getLib().search.query(query, options)
       },
     },

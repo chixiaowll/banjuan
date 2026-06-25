@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import chalk from 'chalk'
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
-import { apiGet, apiPost, apiPut, apiDelete } from '../lib.js'
+import { apiGet, apiPost, apiPut, apiDelete, resolveFolderArg } from '../lib.js'
 import { outputJson, outputTable, outputItem } from '../output.js'
 
 export const noteCmd = new Command('note').description('note management')
@@ -57,7 +57,16 @@ to the file. With stdin/--content they resolve relative to the current dir.`)
       const piped = await readStdin()
       if (piped.trim()) { content = piped; contentBaseDir = process.cwd() }
     }
-    const note = await apiPost('/api/notes', { title, docId: opts.doc, folder: opts.folder, content, contentBaseDir })
+    let folder = opts.folder
+    if (folder) {
+      // Auto-correct to an existing folder (e.g. missing "[N] " prefix); a truly
+      // new path is created as typed.
+      const dirs: string[] = await apiGet('/api/notes/dirs')
+      const resolved = resolveFolderArg(folder, dirs, { allowCreate: true })
+      if (resolved === null) { process.exitCode = 1; return }
+      folder = resolved
+    }
+    const note = await apiPost('/api/notes', { title, docId: opts.doc, folder, content, contentBaseDir })
     const withContent = content ? chalk.dim(` (+${content.length} chars of content)`) : ''
     console.log(chalk.green(`✓ Created note: ${note.title} (${note.id})`) + withContent)
   })
@@ -75,7 +84,13 @@ noteCmd
     if (opts.doc) params.set('docId', opts.doc)
     if (opts.type) params.set('type', opts.type)
     if (opts.tag) params.set('tag', opts.tag)
-    if (opts.folder) params.set('folder', opts.folder)
+    if (opts.folder) {
+      // Resolve the filter against real folders so "Projects" matches "[1] Projects".
+      const dirs: string[] = await apiGet('/api/notes/dirs')
+      const resolved = resolveFolderArg(opts.folder, dirs, { allowCreate: false })
+      if (resolved === null) { process.exitCode = 1; return }
+      params.set('folder', resolved)
+    }
     const qs = params.toString()
     const notes = await apiGet(`/api/notes${qs ? '?' + qs : ''}`)
     if (opts.json) {
@@ -152,7 +167,19 @@ noteCmd
   .description('move a note to a folder')
   .argument('<id>', 'note ID')
   .argument('[folder]', 'target folder path (moves to root if omitted)')
-  .action(async (id: string, folder?: string) => {
-    const note = await apiPost(`/api/notes/${encodeURIComponent(id)}/move`, { folder: folder ?? null })
-    console.log(chalk.green(`✓ Moved note: ${note.title}`))
+  .option('--create', 'create the target folder if it does not exist (otherwise error)')
+  .action(async (id: string, folder: string | undefined, opts: { create?: boolean }) => {
+    let target: string | null = folder ?? null
+
+    // Resolve the target against EXISTING folders so we never silently create a
+    // near-duplicate (e.g. "Projects/…" instead of the real "[1] Projects/…").
+    if (target) {
+      const dirs: string[] = await apiGet('/api/notes/dirs')
+      const resolved = resolveFolderArg(target, dirs, { allowCreate: !!opts.create })
+      if (resolved === null) { process.exitCode = 1; return }
+      target = resolved
+    }
+
+    const note = await apiPost(`/api/notes/${encodeURIComponent(id)}/move`, { folder: target })
+    console.log(chalk.green(`✓ Moved note: ${note.title} → ${target ?? '(root)'}`))
   })
