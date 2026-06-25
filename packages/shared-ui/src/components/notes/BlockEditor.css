@@ -296,7 +296,8 @@
   border-collapse: collapse;
   width: 100%;
   margin: 16px 0;
-  font-size: 14px;
+  /* Scale with the font-size % (A−/A+), like the rest of the note body. */
+  font-size: calc(14px * var(--note-font-scale, 1));
 }
 
 .bn-editor th {
