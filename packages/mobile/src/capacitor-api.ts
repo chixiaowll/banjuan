@@ -559,9 +559,11 @@ export function createCapacitorAPI(): BanjuanAPI {
         }))
         await Promise.race([
           Promise.allSettled([mdnsP, localP]),
-          new Promise((r) => setTimeout(r, 4000)),
+          new Promise((r) => setTimeout(r, 7000)),
         ])
-        return [...results.values()]
+        const out = [...results.values()]
+        console.log('[scan] scanNearby returning', out.length, out.map(r => `${r.deviceName}@${r.url}`))
+        return out
       },
 
       async pairDevice(peerUrl: string, pin: string) {
