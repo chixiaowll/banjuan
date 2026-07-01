@@ -157,6 +157,17 @@ export class DocumentService {
   }
 
   /**
+   * Paths already in the index — a single cheap DB read, no file I/O. Lets a
+   * normal open skip re-importing known files: import() otherwise does an
+   * fs.exists() per file, and on mobile each is a Capacitor bridge round-trip,
+   * so a full library re-imports as a visible "scan" on every open.
+   */
+  async listImportedPaths(): Promise<Set<string>> {
+    const rows = this.db.query<{ path: string }>('SELECT path FROM documents')
+    return new Set(rows.map(r => r.path))
+  }
+
+  /**
    * Permanently remove a document's metadata + index entry. Does NOT touch the
    * disk file (callers use this for documents whose file is already gone).
    * Annotations are handled separately by the caller (AnnotationService.deleteByDoc).

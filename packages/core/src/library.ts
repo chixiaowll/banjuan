@@ -322,13 +322,18 @@ export class Library {
     // (purgeDocuments). `removed` is kept at 0 for backward compatibility.
     const missing = await this.documents.reconcileMissing(diskFiles)
 
+    // Only import files not already in the index. import() does an fs.exists()
+    // per call (a Capacitor bridge round-trip on mobile), so skipping known
+    // paths keeps a normal open to just the directory walk above.
+    const known = await this.documents.listImportedPaths()
     let imported = 0
     for (const relPath of diskFiles) {
+      if (known.has(relPath)) continue
       try {
         await this.documents.import(relPath)
         imported++
       } catch {
-        // already imported or unsupported
+        // unsupported or a race — safe to skip
       }
     }
 
@@ -363,6 +368,16 @@ export class Library {
       purged++
     }
     return purged
+  }
+
+  /**
+   * Persist the in-memory DB cache to disk. On mobile (sql.js) the DB only
+   * lives in memory until snapshotted, and close() never runs when iOS kills
+   * the app — so callers flush after building/updating the cache to avoid
+   * rebuilding it from disk on every launch. No-op on file-backed engines.
+   */
+  async flush(): Promise<void> {
+    await this.db.save?.()
   }
 
   async close(): Promise<void> {
