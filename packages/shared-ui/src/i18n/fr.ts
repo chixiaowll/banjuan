@@ -223,6 +223,8 @@ const fr = {
   'sync.saving': 'Enregistrement…',
   'sync.syncNow': 'Synchroniser',
   'sync.syncing': 'Synchronisation…',
+  'sync.scanning': 'Recherche…',
+  'sync.finalizing': 'Finalisation…',
   'sync.configSaved': 'Configuration enregistrée',
   'sync.saveFailed': "Échec de l'enregistrement : {0}",
   'sync.syncSuccess': 'Synchronisation terminée — envoyés {0}, reçus {1}, supprimés localement {2}, supprimés à distance {3}',

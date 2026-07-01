@@ -113,6 +113,7 @@ export function WelcomeView({ onOpen }: Props) {
   const [scanning, setScanning] = useState(false)
   const [joinTarget, setJoinTarget] = useState<NearbyShare | null>(null)
   const [joinPin, setJoinPin] = useState('')
+  const [syncProg, setSyncProg] = useState<{ phase: string; current: number; total: number; currentFile: string } | null>(null)
 
   useEffect(() => {
     listLibraries().then(setLibraries)
@@ -182,8 +183,11 @@ export function WelcomeView({ onOpen }: Props) {
     setScanning(true)
     setError(null)
     try {
-      setNearby(await api.lan.scanNearby())
+      const res = await api.lan.scanNearby()
+      console.log('[scan] WelcomeView got', res.length, JSON.stringify(res))
+      setNearby(res)
     } catch (err) {
+      console.log('[scan] WelcomeView error', err instanceof Error ? err.message : String(err))
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setScanning(false)
@@ -208,14 +212,18 @@ export function WelcomeView({ onOpen }: Props) {
     const path = `${getLibrariesRoot()}/${slugDir(name)}`
     setLoading(path)
     setError(null)
+    setSyncProg({ phase: 'scanning', current: 0, total: 0, currentFile: '' })
     try {
       await api.library.init(path, name)        // create + open an empty local library
       await api.lan.pairDevice(h.url, joinPin)   // store the durable token
-      await api.lan.syncDevice(h.url)            // empty library adopts host's id + pulls content
+      // empty library adopts host's id + pulls content; surface live progress
+      await api.lan.syncDevice(h.url, (p) => setSyncProg(p))
       await refreshLibraries()
+      setSyncProg(null)
       onOpen(path, name)
     } catch (err) {
       setError(t('welcome.joinFailed', err instanceof Error ? err.message : String(err)))
+      setSyncProg(null)
       setLoading(null)
     }
   }
@@ -351,17 +359,42 @@ export function WelcomeView({ onOpen }: Props) {
                 letterSpacing: 4, boxSizing: 'border-box', marginBottom: 12,
               }}
               onKeyDown={e => e.key === 'Enter' && confirmJoin()}
+              disabled={loading !== null}
             />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setJoinTarget(null); setJoinPin('') }} disabled={loading !== null}
-                style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid var(--border, #e0e0e0)', background: 'transparent', fontSize: 14, cursor: 'pointer' }}>
-                {t('welcome.cancel')}
-              </button>
-              <button onClick={confirmJoin} disabled={loading !== null}
-                style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#228be6', color: '#fff', fontSize: 14, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
-                {loading ? t('welcome.joining') : t('welcome.joinAndSync')}
-              </button>
-            </div>
+            {syncProg ? (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+                  <span style={{ color: 'var(--text)' }}>
+                    {syncProg.phase === 'finalizing' ? t('sync.finalizing')
+                      : syncProg.phase === 'scanning' ? t('sync.scanning')
+                      : t('sync.syncing')}
+                    {syncProg.total > 0 ? ` ${syncProg.current}/${syncProg.total}` : ''}
+                  </span>
+                </div>
+                <div style={{ height: 6, borderRadius: 3, background: 'var(--border, #e0e0e0)', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', width: `${syncProg.total > 0 ? Math.round((syncProg.current / syncProg.total) * 100) : 15}%`,
+                    background: '#228be6', transition: 'width 0.2s',
+                  }} />
+                </div>
+                {syncProg.currentFile && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted, #888)', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {syncProg.currentFile}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { setJoinTarget(null); setJoinPin('') }} disabled={loading !== null}
+                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid var(--border, #e0e0e0)', background: 'transparent', fontSize: 14, cursor: 'pointer' }}>
+                  {t('welcome.cancel')}
+                </button>
+                <button onClick={confirmJoin} disabled={loading !== null}
+                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: '#228be6', color: '#fff', fontSize: 14, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+                  {loading ? t('welcome.joining') : t('welcome.joinAndSync')}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
