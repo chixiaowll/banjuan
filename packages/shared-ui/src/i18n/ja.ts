@@ -223,6 +223,8 @@ const ja = {
   'sync.saving': '保存中…',
   'sync.syncNow': '今すぐ同期',
   'sync.syncing': '同期中…',
+  'sync.scanning': 'スキャン中…',
+  'sync.finalizing': '仕上げ中…',
   'sync.configSaved': '設定を保存しました',
   'sync.saveFailed': '保存失敗: {0}',
   'sync.syncSuccess': '同期完了 — アップロード {0}、ダウンロード {1}、ローカル削除 {2}、リモート削除 {3}',

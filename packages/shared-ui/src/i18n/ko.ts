@@ -223,6 +223,8 @@ const ko = {
   'sync.saving': '저장 중…',
   'sync.syncNow': '지금 동기화',
   'sync.syncing': '동기화 중…',
+  'sync.scanning': '검색 중…',
+  'sync.finalizing': '마무리 중…',
   'sync.configSaved': '설정 저장됨',
   'sync.saveFailed': '저장 실패: {0}',
   'sync.syncSuccess': '동기화 완료 — 업로드 {0}, 다운로드 {1}, 로컬 삭제 {2}, 원격 삭제 {3}',
