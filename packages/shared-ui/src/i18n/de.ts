@@ -223,6 +223,8 @@ const de = {
   'sync.saving': 'Speichern…',
   'sync.syncNow': 'Jetzt synchronisieren',
   'sync.syncing': 'Synchronisierung…',
+  'sync.scanning': 'Suche…',
+  'sync.finalizing': 'Abschließen…',
   'sync.configSaved': 'Konfiguration gespeichert',
   'sync.saveFailed': 'Speichern fehlgeschlagen: {0}',
   'sync.syncSuccess': 'Synchronisierung abgeschlossen — hochgeladen {0}, heruntergeladen {1}, lokal gelöscht {2}, remote gelöscht {3}',

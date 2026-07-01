@@ -223,6 +223,8 @@ const es = {
   'sync.saving': 'Guardando…',
   'sync.syncNow': 'Sincronizar ahora',
   'sync.syncing': 'Sincronizando…',
+  'sync.scanning': 'Buscando…',
+  'sync.finalizing': 'Finalizando…',
   'sync.configSaved': 'Configuración guardada',
   'sync.saveFailed': 'Error al guardar: {0}',
   'sync.syncSuccess': 'Sincronización completada — subidos {0}, descargados {1}, eliminados localmente {2}, eliminados remotamente {3}',
