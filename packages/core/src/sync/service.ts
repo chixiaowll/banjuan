@@ -36,6 +36,12 @@ export interface SyncResult {
   errors: string[]
 }
 
+// Files above this size are never read into memory to hash — mobile
+// (CapacitorFS) reads whole files as base64, so hashing a multi-GB video OOMs
+// the app. For these we fall back to a (size,mtime) signature, which is a
+// reliable local-change signal for large media that rarely mutates in place.
+const MAX_HASH_BYTES = 64 * 1024 * 1024
+
 // Per-file baseline recorded after each successful sync (the Unison "archive").
 interface ArchiveEntry {
   sig: string         // content signature: 'h:<sha256>' (crypto) or 'a:<size>:<mtime>' fallback
@@ -164,6 +170,16 @@ export class SyncService {
           case 'download':
           case 'conflict': {
             if (action === 'conflict') {
+              // Large files can't be content-hashed (reading a multi-GB file to
+              // hash OOMs mobile), so their signature is (size,mtime) — and mtime
+              // legitimately differs between replicas (e.g. download time). If both
+              // sides report the same byte length, treat them as identical and
+              // converge: no wasteful remote download, no pointless multi-GB
+              // conflict copy every sync.
+              if (local && remote && local.size === remote.size && local.size > MAX_HASH_BYTES) {
+                nextArchive[path] = { sig: localSig!, size: local.size, mtime: local.mtime, remoteMtime: remote.mtime }
+                break
+              }
               // False-conflict check (Unison): both sides flagged "changed", but if
               // the remote content is byte-identical to local it isn't a real
               // conflict (e.g. remote mtime jitter, or both edited the same way) —
@@ -339,7 +355,7 @@ export class SyncService {
   // else a (size,mtime) tag. Compared only against THIS device's own archive, so
   // the fallback is still correct for detecting local changes between syncs.
   private async signature(absPath: string, size: number, mtime: number): Promise<string> {
-    if (this.crypto) {
+    if (this.crypto && size <= MAX_HASH_BYTES) {
       try { return 'h:' + await this.crypto.sha256(await this.fs.readFile(absPath)) } catch { /* fall back */ }
     }
     return `a:${size}:${mtime}`
@@ -382,7 +398,11 @@ export class SyncService {
         }
       } catch { /* fall back to a raw byte copy */ }
     }
-    await this.fs.writeFile(conflictAbs, await this.fs.readFile(localAbs))
+    // Move (don't read+write) the local file to the conflict name. A raw byte
+    // copy would pull the whole file into memory — fatal for multi-GB media on
+    // mobile. The caller then downloads the remote version back to the original
+    // path, so renaming leaves the correct end state without buffering bytes.
+    await this.fs.rename(localAbs, conflictAbs)
     return conflictRel
   }
 

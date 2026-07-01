@@ -1,6 +1,8 @@
 const ko = {
   'app.name': 'Banjuan',
   'app.slogan': '독서는 삶을 풍요롭게 한다',
+  'video.loadFailed': '이 동영상 형식은 내장 플레이어에서 재생할 수 없습니다.',
+  'video.openNative': '시스템 플레이어로 재생',
 
   'welcome.selectDir': '디렉토리 선택',
   'welcome.opening': '여는 중...',

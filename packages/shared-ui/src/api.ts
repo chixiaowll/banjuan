@@ -102,9 +102,16 @@ export interface BanjuanAPI {
     importFilesDialog?(destDir?: string): Promise<Array<{ title: string; success: boolean; error?: string }> | null>
     update(id: string, updates: DocumentUpdateInput): Promise<Document>
     getFilePath(relativePath: string): Promise<string>
+    /** WebView-loadable URL for <img>/<video>/pdf.js. Optional: desktop falls
+     *  back to a local-file:// URL built from getFilePath. */
+    getFileSrc?(relativePath: string): Promise<string>
     readContent(relativePath: string): Promise<string>
     readFileBuffer(relativePath: string): Promise<ArrayBuffer>
     openInSystem(relativePath: string): Promise<string>
+    /** Play a video with the platform's native player (iOS AVPlayer). Handles
+     *  codecs the WebView <video> element rejects (HEVC 10-bit HDR, E-AC-3).
+     *  Optional: only implemented on mobile. `startAt` resumes from a position. */
+    playVideoNative?(relativePath: string, startAt?: number): Promise<void>
   }
 
   tags: {

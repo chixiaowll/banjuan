@@ -1,6 +1,8 @@
 const es = {
   'app.name': 'Banjuan',
   'app.slogan': 'Leer con sabiduría, vivir plenamente',
+  'video.loadFailed': 'Este formato de vídeo no se puede reproducir en el reproductor integrado.',
+  'video.openNative': 'Reproducir con el reproductor del sistema',
 
   'welcome.selectDir': 'Seleccionar directorio',
   'welcome.opening': 'Abriendo...',

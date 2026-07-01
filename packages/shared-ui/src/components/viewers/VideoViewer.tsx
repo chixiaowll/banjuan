@@ -19,7 +19,9 @@ interface DocInfo {
 }
 
 interface Props {
-  filePath: string
+  /** Ready-to-use streamable URL (local-file:// on desktop, convertFileSrc on mobile).
+   *  Streaming avoids reading the whole (possibly 4K) file into memory. */
+  src: string
   docPath: string
   doc: DocInfo
   onOpenNote?: (note: any) => void
@@ -45,7 +47,7 @@ function saveScreenshots(docId: string, list: Screenshot[]) {
   try { localStorage.setItem(SCREENSHOTS_KEY(docId), JSON.stringify(list)) } catch {}
 }
 
-export default function VideoViewer({ filePath, docPath, doc, onOpenNote }: Props) {
+export default function VideoViewer({ src, docPath, doc, onOpenNote }: Props) {
   const api = useBanjuanAPI()
   const t = useT()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -54,7 +56,6 @@ export default function VideoViewer({ filePath, docPath, doc, onOpenNote }: Prop
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [speed, setSpeed] = useState(1)
-  const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const positionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastTimeRef = useRef(0)
@@ -67,23 +68,6 @@ export default function VideoViewer({ filePath, docPath, doc, onOpenNote }: Prop
 
   const leftResize = useResizable(260, 180, 400, 'left')
   const rightResize = useResizable(320, 200, 600, 'right')
-
-  useEffect(() => {
-    let revoke: string | null = null
-    api.documents.readFileBuffer(docPath).then((buf) => {
-      const ext = docPath.split('.').pop()?.toLowerCase() || 'mp4'
-      const mimeMap: Record<string, string> = {
-        mp4: 'video/mp4', webm: 'video/webm', mkv: 'video/x-matroska',
-        avi: 'video/x-msvideo', mov: 'video/quicktime', m4v: 'video/mp4',
-        ogv: 'video/ogg', flv: 'video/x-flv',
-      }
-      const blob = new Blob([buf], { type: mimeMap[ext] || 'video/mp4' })
-      const url = URL.createObjectURL(blob)
-      revoke = url
-      setBlobUrl(url)
-    }).catch(() => setError('Failed to load video'))
-    return () => { if (revoke) URL.revokeObjectURL(revoke) }
-  }, [docPath])
 
   // Save playback position on unmount via ref (videoRef may be cleared by React)
   useEffect(() => {
@@ -219,13 +203,26 @@ export default function VideoViewer({ filePath, docPath, doc, onOpenNote }: Prop
 
   if (error) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
-        {error}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 16, color: 'var(--text-muted)' }}>
+        <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 320 }}>
+          {t('video.loadFailed')}
+        </div>
+        {api.documents.playVideoNative && (
+          <button
+            onClick={() => api.documents.playVideoNative!(docPath, lastTimeRef.current).catch(() => {})}
+            style={{
+              padding: '8px 20px', fontSize: 13, cursor: 'pointer',
+              border: '1px solid var(--border)', borderRadius: 6,
+              background: 'var(--accent)', color: '#fff',
+            }}
+          >
+            {t('video.openNative')}
+          </button>
+        )}
       </div>
     )
   }
-
-  if (!blobUrl) {
+  if (!src) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
         Loading...
@@ -357,13 +354,14 @@ export default function VideoViewer({ filePath, docPath, doc, onOpenNote }: Prop
           }}>
             <video
               ref={videoRef}
-              src={blobUrl}
+              src={src}
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
               onEnded={() => setPlaying(false)}
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
               onClick={togglePlay}
+              onError={() => setError('Failed to load video')}
               style={{ maxWidth: '100%', maxHeight: '100%', cursor: 'pointer' }}
             />
           </div>

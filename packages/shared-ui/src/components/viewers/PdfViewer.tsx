@@ -45,6 +45,9 @@ interface Props {
   filePath: string
   docPath: string
   fileData?: ArrayBuffer
+  /** WebView-loadable URL; on mobile pdf.js streams from it instead of reading
+   *  the whole file into memory (which fails for large PDFs on iOS). */
+  fileSrc?: string | null
   doc: DocInfo
   onOpenNote?: (note: any) => void
 }
@@ -436,21 +439,22 @@ export default function PdfViewer(props: Props) {
     let cancelled = false
     const load = async () => {
       try {
-        let fileData = props.fileData
-        if (!fileData) {
-          fileData = await api.documents.readFileBuffer(props.docPath)
+        const commonOpts = { cMapUrl, cMapPacked: true, standardFontDataUrl, disableFontFace: true, useSystemFonts: false }
+        // On mobile (getFileSrc present) stream via URL — reading a large PDF
+        // fully into memory with Capacitor's base64 read fails/hangs on iOS.
+        const streamViaUrl = !!props.fileSrc && !!api.documents.getFileSrc && !props.fileData
+        console.log('[PdfViewer] load start', { streamViaUrl, fileSrc: props.fileSrc, hasFileData: !!props.fileData, workerSrc: pdfjsLib.GlobalWorkerOptions.workerSrc, cMapUrl })
+        let doc
+        if (streamViaUrl) {
+          doc = await pdfjsLib.getDocument({ url: props.fileSrc!, ...commonOpts }).promise
+        } else {
+          let fileData = props.fileData
+          if (!fileData) {
+            fileData = await api.documents.readFileBuffer(props.docPath)
+          }
+          if (cancelled) return
+          doc = await pdfjsLib.getDocument({ data: new Uint8Array(fileData), ...commonOpts }).promise
         }
-        if (cancelled) return
-
-        const data = new Uint8Array(fileData)
-        const doc = await pdfjsLib.getDocument({
-          data,
-          cMapUrl,
-          cMapPacked: true,
-          standardFontDataUrl,
-          disableFontFace: true,
-          useSystemFonts: false,
-        }).promise
         if (cancelled) return
 
         setNumPages(doc.numPages)
@@ -466,12 +470,13 @@ export default function PdfViewer(props: Props) {
         setRawPageSize(sizes[0])
         setRawPageSizes(sizes)
       } catch (err) {
-        console.error('[PdfViewer] failed to load PDF:', err)
+        const e = err as any
+        console.error('[PdfViewer] failed to load PDF:', 'name=' + e?.name, 'message=' + e?.message, 'str=' + String(err), 'stack=' + e?.stack)
       }
     }
     load()
     return () => { cancelled = true }
-  }, [props.fileData, props.docPath])
+  }, [props.fileData, props.docPath, props.fileSrc])
 
   return (
     <PdfViewerProvider pdfDoc={pdfDoc} numPages={numPages} initialPageSizes={pageSizes} rawPageSize={rawPageSize} rawPageSizes={rawPageSizes}>
