@@ -64,10 +64,18 @@ function UnsupportedViewer({ doc }: { doc: DocInfo }) {
 export default function DocumentViewer({ doc, onBack, onOpenNote }: Props) {
   const api = useBanjuanAPI()
   const [filePath, setFilePath] = useState<string | null>(null)
+  const [fileSrc, setFileSrc] = useState<string | null>(null)
   const [fileData, setFileData] = useState<ArrayBuffer | null>(null)
 
   useEffect(() => {
     api.documents.getFilePath(doc.path).then(setFilePath)
+    // Platform-correct URL for <img>/<video>/pdf.js: mobile → convertFileSrc
+    // (streamable), desktop → local-file:// (registered protocol).
+    if (api.documents.getFileSrc) {
+      api.documents.getFileSrc(doc.path).then(setFileSrc).catch(() => {})
+    } else {
+      api.documents.getFilePath(doc.path).then(p => setFileSrc(`local-file://${encodeURIComponent(p)}`)).catch(() => {})
+    }
     if (doc.type === 'epub') {
       api.documents.readFileBuffer(doc.path).then((buf: ArrayBuffer | Uint8Array) => {
         if (buf instanceof Uint8Array) {
@@ -84,6 +92,7 @@ export default function DocumentViewer({ doc, onBack, onOpenNote }: Props) {
     return (
       <PdfViewer
         filePath={filePath || ''}
+        fileSrc={fileSrc}
         docPath={doc.path}
         doc={doc}
         onOpenNote={onOpenNote}
@@ -91,7 +100,7 @@ export default function DocumentViewer({ doc, onBack, onOpenNote }: Props) {
     )
   }
 
-  const isLoading = !filePath || (doc.type === 'epub' && !fileData)
+  const isLoading = !fileSrc || (doc.type === 'epub' && !fileData)
   if (isLoading) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
       Loading...
@@ -108,9 +117,9 @@ export default function DocumentViewer({ doc, onBack, onOpenNote }: Props) {
     case 'md':
       return <MarkdownViewer docPath={doc.path} doc={doc} onOpenNote={onOpenNote} />
     case 'image':
-      return <ImageViewer filePath={filePath} />
+      return <ImageViewer src={fileSrc!} />
     case 'video':
-      return <VideoViewer filePath={filePath} docPath={doc.path} doc={doc} onOpenNote={onOpenNote} />
+      return <VideoViewer src={fileSrc!} docPath={doc.path} doc={doc} onOpenNote={onOpenNote} />
     default:
       return <UnsupportedViewer doc={doc} />
   }

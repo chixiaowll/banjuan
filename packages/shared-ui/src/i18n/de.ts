@@ -1,6 +1,8 @@
 const de = {
   'app.name': 'Banjuan',
   'app.slogan': 'Klug lesen, erfüllt leben',
+  'video.loadFailed': 'Dieses Videoformat kann im integrierten Player nicht abgespielt werden.',
+  'video.openNative': 'Mit Systemplayer abspielen',
 
   'welcome.selectDir': 'Verzeichnis wählen',
   'welcome.opening': 'Wird geöffnet...',
