@@ -267,7 +267,36 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
       }
     }
     el.addEventListener('wheel', onWheel, { passive: false })
-    wheelCleanupRef.current = () => { el.removeEventListener('wheel', onWheel); if (raf) cancelAnimationFrame(raf) }
+    // iOS/iPad: a two-finger pinch is a WebKit gesture event (not a wheel), with
+    // e.scale cumulative from the gesture start. Drive the same PAGE zoom.
+    let gestureStartZoom = 1
+    const onGestureStart = (e: any) => {
+      e.preventDefault()
+      gestureStartZoom = prevPageZoomRef.current
+      const rect = el.getBoundingClientRect()
+      pageZoomFocalRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+    }
+    const onGestureChange = (e: any) => {
+      e.preventDefault()
+      if (!raf) {
+        raf = requestAnimationFrame(() => {
+          raf = 0
+          setPageZoom(() => {
+            const v = Math.min(3, Math.max(0.5, gestureStartZoom * e.scale))
+            try { localStorage.setItem('banjuan-note-page-zoom', String(v)) } catch {}
+            return v
+          })
+        })
+      }
+    }
+    el.addEventListener('gesturestart', onGestureStart as any, { passive: false })
+    el.addEventListener('gesturechange', onGestureChange as any, { passive: false })
+    wheelCleanupRef.current = () => {
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('gesturestart', onGestureStart as any)
+      el.removeEventListener('gesturechange', onGestureChange as any)
+      if (raf) cancelAnimationFrame(raf)
+    }
   }, [])
   // After a page-zoom change, keep the content under the cursor fixed.
   useLayoutEffect(() => {
