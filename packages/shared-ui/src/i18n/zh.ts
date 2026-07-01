@@ -2,6 +2,8 @@ const zh = {
   // App name
   'app.name': '半卷闲书',
   'app.slogan': '腹有诗书气自华',
+  'video.loadFailed': '此视频格式无法在内置播放器中播放。',
+  'video.openNative': '用系统播放器播放',
 
   // Welcome
   'welcome.selectDir': '选择目录',

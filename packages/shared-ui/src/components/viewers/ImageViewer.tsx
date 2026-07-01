@@ -3,7 +3,8 @@ import { Minus, Plus, RotateCw, Maximize, Sun, Hand, MousePointer2 } from 'lucid
 import { useEyeProtection } from './useEyeProtection.js'
 
 interface Props {
-  filePath: string
+  /** Ready-to-use, WebView-loadable URL (local-file:// on desktop, convertFileSrc on mobile). */
+  src: string
 }
 
 const btnStyle: React.CSSProperties = {
@@ -17,7 +18,7 @@ const btnStyle: React.CSSProperties = {
   color: 'var(--text-secondary, #6e6e73)',
 }
 
-export default function ImageViewer({ filePath }: Props) {
+export default function ImageViewer({ src }: Props) {
   const { eyeProtection, toggleEyeProtection } = useEyeProtection()
   const [scale, setScale] = useState(1)
   const [rotation, setRotation] = useState(0)
@@ -141,7 +142,7 @@ export default function ImageViewer({ filePath }: Props) {
         }}
       >
         <img
-          src={`local-file://${encodeURIComponent(filePath)}`}
+          src={src}
           onLoad={handleLoad}
           style={{
             maxWidth: '100%',
