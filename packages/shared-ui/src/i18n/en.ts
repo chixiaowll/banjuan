@@ -238,6 +238,8 @@ const en = {
   'sync.saving': 'Saving…',
   'sync.syncNow': 'Sync Now',
   'sync.syncing': 'Syncing…',
+  'sync.scanning': 'Scanning…',
+  'sync.finalizing': 'Finishing up…',
   'sync.configSaved': 'Config saved',
   'sync.saveFailed': 'Save failed: {0}',
   'sync.syncSuccess': 'Sync complete — uploaded {0}, downloaded {1}, deleted local {2}, deleted remote {3}',

@@ -238,6 +238,8 @@ const zh = {
   'sync.saving': '保存中…',
   'sync.syncNow': '立即同步',
   'sync.syncing': '同步中…',
+  'sync.scanning': '扫描中…',
+  'sync.finalizing': '整理中…',
   'sync.configSaved': '配置已保存',
   'sync.saveFailed': '保存失败：{0}',
   'sync.syncSuccess': '同步成功 — 上传 {0}，下载 {1}，本地删除 {2}，远端删除 {3}',
