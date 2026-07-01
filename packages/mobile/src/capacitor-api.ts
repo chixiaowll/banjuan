@@ -3,9 +3,15 @@ import type { PlatformDeps, NearbyShare, TagTarget } from '@banjuan/core'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { CapacitorFS, CapacitorDatabaseFactory, WebCrypto } from '@banjuan/platform-capacitor'
 import type { BanjuanAPI } from '@banjuan/shared-ui'
-import { CapacitorHttp } from '@capacitor/core'
+import { CapacitorHttp, Capacitor, registerPlugin } from '@capacitor/core'
 import { getDeviceIdentity } from './capacitor-device-identity'
 import { scanNearby as mdnsScanNearby } from './capacitor-mdns'
+
+// Native AVPlayer fallback (see NativeVideoPlugin.swift). Plays codecs the
+// WebView <video> element rejects — HEVC 10-bit HDR, E-AC-3 (Dolby DD+).
+const NativeVideo = registerPlugin<{
+  play(options: { url: string; startAt?: number }): Promise<void>
+}>('NativeVideo')
 
 let library: Library | null = null
 let currentLibraryPath: string | null = null
@@ -85,11 +91,25 @@ export function createCapacitorAPI(): BanjuanAPI {
       async open(path) {
         library = await Library.open(path, createDeps(path))
         currentLibraryPath = path
+        const indexSvc = library.createIndexService()
+        // Whether the persisted DB came up populated. Checked BEFORE the syncs
+        // below repopulate it, so we can tell a genuinely-cached open from a
+        // cold one (empty db.sqlite — e.g. first open after enabling flush).
+        const dbWasEmpty = (await library.documents.listImportedPaths()).size === 0
+        // Reconcile disk → DB. Cheap when the DB is already populated: both
+        // skip files already known (no content reads), leaving just directory
+        // listings to discover anything new (in-app edits, LAN-synced files).
         const synced = await library.syncWithDisk()
         try { await library.notes.syncDisk() } catch {}
         try { await library.tags.syncFromFiles() } catch {}
-        const indexSvc = library.createIndexService()
-        await indexSvc.rebuildFull()
+        // Full rebuild only when the index is stale, or the DB loaded empty (so
+        // it isn't left half-built). Once flushed below, later opens hit
+        // neither branch and skip the rebuild entirely.
+        if (dbWasEmpty || await indexSvc.isStale()) await indexSvc.rebuildFull()
+        // Persist the cache. iOS kills the app without running close(), so
+        // without this the sql.js DB is never written back and every launch
+        // rebuilds it from disk — re-reading every note/doc as a visible "scan".
+        try { await library.flush() } catch {}
         return { rootPath: library.rootPath, name: await library.getName(), imported: synced.imported, removed: synced.removed, truncated: synced.truncated, limit: synced.limit }
       },
       async openNewWindow() {
@@ -181,6 +201,16 @@ export function createCapacitorAPI(): BanjuanAPI {
       async getFilePath(relativePath) {
         return `${getLib().rootPath}/${relativePath}`
       },
+      // A WebView-loadable URL for the file. iOS can't load raw file paths /
+      // file:// in <img>/<video>/pdf.js — Capacitor.convertFileSrc turns the
+      // native file URI into a streamable http(s)://…/_capacitor_file_/… URL.
+      async getFileSrc(relativePath) {
+        const { uri } = await Filesystem.getUri({
+          path: `${getLib().rootPath}/${relativePath}`,
+          directory: Directory.Documents,
+        })
+        return Capacitor.convertFileSrc(uri)
+      },
       async readContent(relativePath) {
         const deps = createDeps(getLib().rootPath)
         return deps.fs.readTextFile(`${getLib().rootPath}/${relativePath}`)
@@ -192,6 +222,16 @@ export function createCapacitorAPI(): BanjuanAPI {
       },
       async openInSystem(_relativePath) {
         return ''
+      },
+      // Hand the raw file:// URI to the native AVPlayer. convertFileSrc's
+      // localhost URL is served only inside the WebView, so the native player
+      // needs the real on-disk path instead.
+      async playVideoNative(relativePath, startAt) {
+        const { uri } = await Filesystem.getUri({
+          path: `${getLib().rootPath}/${relativePath}`,
+          directory: Directory.Documents,
+        })
+        await NativeVideo.play({ url: uri, startAt })
       },
     },
 
@@ -456,8 +496,14 @@ export function createCapacitorAPI(): BanjuanAPI {
             const noteFiles = await deps.fs.readdirWithTypes(notesDir)
             console.log('[sync] note files:', noteFiles.map(f => f.name))
           }
+          // Import files the sync just downloaded, then rebuild the index and
+          // persist the DB so a later open loads the cache instead of rescanning.
+          await getLib().syncWithDisk()
+          try { await getLib().notes.syncDisk() } catch {}
+          try { await getLib().tags.syncFromFiles() } catch {}
           const indexSvc = getLib().createIndexService()
           await indexSvc.rebuildFull()
+          await getLib().flush()
           const noteCount = await getLib().notes.list({})
           console.log('[sync] rebuild done, notes in db:', noteCount.length)
           const docCount = await getLib().documents.list({})
