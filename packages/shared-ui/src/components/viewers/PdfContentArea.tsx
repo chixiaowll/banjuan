@@ -132,7 +132,34 @@ export default function PdfContentArea({ annotations, docId, onTextSelect, onHig
       }
     }
     el.addEventListener('wheel', onWheel, { passive: false })
-    return () => { el.removeEventListener('wheel', onWheel); if (raf) cancelAnimationFrame(raf) }
+    // iOS/iPad: two-finger pinch is a WebKit gesture event (e.scale cumulative
+    // from the gesture start), not a wheel. Drive the same zoom, anchored at the
+    // gesture midpoint.
+    let gestureStartZoom = 1
+    const onGestureStart = (e: any) => {
+      e.preventDefault()
+      setZoom(z => { gestureStartZoom = z; return z }) // read current zoom without changing it
+      const rect = el.getBoundingClientRect()
+      pinchFocalYRef.current = e.clientY - rect.top
+      pinchFocalXRef.current = e.clientX - rect.left
+    }
+    const onGestureChange = (e: any) => {
+      e.preventDefault()
+      if (!raf) {
+        raf = requestAnimationFrame(() => {
+          raf = 0
+          setZoom(() => Math.min(5, Math.max(0.25, gestureStartZoom * e.scale)))
+        })
+      }
+    }
+    el.addEventListener('gesturestart', onGestureStart as any, { passive: false })
+    el.addEventListener('gesturechange', onGestureChange as any, { passive: false })
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('gesturestart', onGestureStart as any)
+      el.removeEventListener('gesturechange', onGestureChange as any)
+      if (raf) cancelAnimationFrame(raf)
+    }
   }, [scrollRef, setZoom])
 
   // Compute page sizes from container width + raw page sizes + zoom,

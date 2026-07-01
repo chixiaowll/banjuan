@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Minus, Plus, RotateCw, Maximize, Sun, Hand, MousePointer2 } from 'lucide-react'
 import { useEyeProtection } from './useEyeProtection.js'
 
@@ -65,6 +65,29 @@ export default function ImageViewer({ src }: Props) {
   const resetView = useCallback(() => {
     setScale(1)
     setOffset({ x: 0, y: 0 })
+  }, [])
+
+  // iOS/iPad: two-finger pinch is a WebKit gesture event (e.scale cumulative
+  // from the gesture start), not a ctrlKey wheel — wire it to the same zoom.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    let base = 1
+    const onStart = (e: any) => { e.preventDefault(); setScale(s => { base = s; return s }) }
+    const onChange = (e: any) => {
+      e.preventDefault()
+      setScale(() => {
+        const next = Math.min(5, Math.max(0.1, base * e.scale))
+        if (next <= 1) setOffset({ x: 0, y: 0 })
+        return next
+      })
+    }
+    el.addEventListener('gesturestart', onStart as any, { passive: false })
+    el.addEventListener('gesturechange', onChange as any, { passive: false })
+    return () => {
+      el.removeEventListener('gesturestart', onStart as any)
+      el.removeEventListener('gesturechange', onChange as any)
+    }
   }, [])
 
 
