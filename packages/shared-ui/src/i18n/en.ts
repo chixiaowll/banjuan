@@ -2,6 +2,8 @@ const en = {
   // App name
   'app.name': 'Banjuan',
   'app.slogan': 'Read wisely, live fully',
+  'video.loadFailed': "This video format can't be played in the built-in player.",
+  'video.openNative': 'Play with system player',
 
   // Welcome
   'welcome.selectDir': 'Select Directory',
