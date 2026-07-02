@@ -2,7 +2,6 @@ const es = {
   'app.name': 'Banjuan',
   'app.slogan': 'Leer con sabiduría, vivir plenamente',
   'screenshot.button': 'Captura',
-  'screenshot.permissionNeeded': 'Activa la grabación de pantalla para banjuan en Ajustes del sistema e inténtalo de nuevo.',
   'video.loadFailed': 'Este formato de vídeo no se puede reproducir en el reproductor integrado.',
   'video.openNative': 'Reproducir con el reproductor del sistema',
 

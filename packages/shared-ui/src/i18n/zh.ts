@@ -3,7 +3,6 @@ const zh = {
   'app.name': '半卷闲书',
   'app.slogan': '腹有诗书气自华',
   'screenshot.button': '截图',
-  'screenshot.permissionNeeded': '请在系统设置里给 banjuan 开启"屏幕录制"权限，再试一次。',
   'video.loadFailed': '此视频格式无法在内置播放器中播放。',
   'video.openNative': '用系统播放器播放',
 

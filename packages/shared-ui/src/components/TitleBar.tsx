@@ -213,6 +213,7 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
             title={t('screenshot.button')}
             style={{
               background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+              marginLeft: 'auto', alignSelf: 'center', // anchors the right-side control group
               color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center',
               ['WebkitAppRegion' as any]: 'no-drag',
             }}
@@ -230,7 +231,7 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
           aria-pressed={!railCollapsed}
           style={{
             background: 'none', border: 'none', borderRadius: 5, cursor: 'pointer', padding: '5px',
-            marginLeft: 'auto', marginRight: 12, alignSelf: 'center',
+            marginLeft: api.screenshot ? 0 : 'auto', marginRight: 12, alignSelf: 'center',
             color: railCollapsed ? 'var(--text-muted)' : 'var(--accent)',
             display: 'inline-flex', alignItems: 'center',
             position: 'relative', zIndex: 5,
