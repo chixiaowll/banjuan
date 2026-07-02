@@ -11,7 +11,8 @@
     "bundle-cli": "node scripts/bundle-cli.mjs",
     "pack": "rm -rf dist && vite build && node scripts/bundle-cli.mjs && electron-builder --dir",
     "dist": "rm -rf dist && vite build && node scripts/bundle-cli.mjs && electron-builder",
-    "postinstall": "electron-rebuild -f -w better-sqlite3"
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "test": "vitest run"
   },
   "dependencies": {
     "@banjuan/core": "workspace:*",
