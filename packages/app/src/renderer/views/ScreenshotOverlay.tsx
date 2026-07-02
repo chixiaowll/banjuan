@@ -31,22 +31,38 @@ export default function ScreenshotOverlay() {
   // Receive the captured image from main.
   useEffect(() => el.screenshot.onInit(setInit), [])
 
+  // Make the window truly transparent. body paints the theme background, so a
+  // blank/crashed overlay would otherwise fill the whole screen white — and this
+  // window is always-on-top, which would trap the user. Transparent means any
+  // failure shows the desktop through instead of an unescapable white layer.
+  useEffect(() => {
+    const html = document.documentElement.style.background
+    const body = document.body.style.background
+    document.documentElement.style.background = 'transparent'
+    document.body.style.background = 'transparent'
+    return () => { document.documentElement.style.background = html; document.body.style.background = body }
+  }, [])
+
   const confirm = useCallback(() => {
     if (!init || !sel || sel.w < 2 || sel.h < 2) { el.screenshot.cancel(); return }
     const img = imgRef.current!
     // Derive true device-px-per-CSS-px from the ACTUAL captured image size, not
     // init.scaleFactor: desktopCapturer uses one thumbnail size for all displays,
     // so a non-primary display's image may not equal bounds×scaleFactor.
-    const scale = img.naturalWidth / init.width
-    const dev = toDevicePx(sel, scale)
-    const out = document.createElement('canvas')
-    out.width = Math.round(dev.w); out.height = Math.round(dev.h)
-    const ctx = out.getContext('2d')!
-    ctx.drawImage(img, dev.x, dev.y, dev.w, dev.h, 0, 0, dev.w, dev.h)
-    ctx.save(); ctx.translate(-sel.x * scale, -sel.y * scale)
-    renderOps(ctx, ops, scale)
-    ctx.restore()
-    el.screenshot.confirm(out.toDataURL('image/png'))
+    try {
+      const scale = img.naturalWidth / init.width
+      const dev = toDevicePx(sel, scale)
+      const out = document.createElement('canvas')
+      out.width = Math.round(dev.w); out.height = Math.round(dev.h)
+      const ctx = out.getContext('2d')!
+      ctx.drawImage(img, dev.x, dev.y, dev.w, dev.h, 0, 0, dev.w, dev.h)
+      ctx.save(); ctx.translate(-sel.x * scale, -sel.y * scale)
+      renderOps(ctx, ops, scale)
+      ctx.restore()
+      el.screenshot.confirm(out.toDataURL('image/png'))
+    } catch {
+      el.screenshot.cancel()   // never leave the always-on-top overlay wedged open
+    }
   }, [init, sel, ops])
 
   // Esc cancels; Enter confirms.
@@ -133,11 +149,19 @@ export default function ScreenshotOverlay() {
     >
       <img ref={imgRef} src={init.image} draggable={false}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
-      <div style={{
-        position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)',
-        clipPath: sel ? `polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 ${sel.y}px, ${sel.x}px ${sel.y}px, ${sel.x}px ${sel.y + sel.h}px, ${sel.x + sel.w}px ${sel.y + sel.h}px, ${sel.x + sel.w}px ${sel.y}px, 0 ${sel.y}px)` : undefined,
-        pointerEvents: 'none',
-      }} />
+      {/* Dim mask. Four plain rects around the selection instead of an animated
+          full-screen clip-path: re-rasterizing a screen-sized clip mask every
+          drag frame on a transparent always-on-top window can wedge the macOS
+          compositor. Four positioned divs are cheap and composite-friendly. */}
+      {!sel && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', pointerEvents: 'none' }} />}
+      {sel && (
+        <>
+          <div style={{ position: 'absolute', left: 0, top: 0, right: 0, height: Math.max(0, sel.y), background: 'rgba(0,0,0,0.45)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', left: 0, top: sel.y + sel.h, right: 0, bottom: 0, background: 'rgba(0,0,0,0.45)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', left: 0, top: sel.y, width: Math.max(0, sel.x), height: sel.h, background: 'rgba(0,0,0,0.45)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', left: sel.x + sel.w, top: sel.y, right: 0, height: sel.h, background: 'rgba(0,0,0,0.45)', pointerEvents: 'none' }} />
+        </>
+      )}
       {sel && (
         <>
           <div style={{ position: 'absolute', left: sel.x, top: sel.y, width: sel.w, height: sel.h, border: `1px solid ${STROKE}`, pointerEvents: 'none' }} />

@@ -32,37 +32,42 @@ export async function triggerCapture(): Promise<void> {
   if (!ensureScreenPermission()) return
   capturing = true
   try {
-    const displays = screen.getAllDisplays()
-    const maxW = Math.max(...displays.map(d => d.bounds.width * d.scaleFactor))
-    const maxH = Math.max(...displays.map(d => d.bounds.height * d.scaleFactor))
-    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: maxW, height: maxH } })
+    // Capture only the display under the cursor. One overlay window (not one per
+    // display) keeps memory bounded and avoids stressing the macOS compositor
+    // with several transparent always-on-top full-screen windows at once.
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+    const devW = Math.round(display.bounds.width * display.scaleFactor)
+    const devH = Math.round(display.bounds.height * display.scaleFactor)
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: devW, height: devH } })
     if (sources.length === 0) { capturing = false; dialog.showErrorBox('Screenshot failed', 'No screen source available.'); return }
+    const source = sources.find(s => String(s.display_id) === String(display.id)) ?? sources[0]
+    const image = source.thumbnail.toDataURL()
 
-    for (const display of displays) {
-      const source =
-        sources.find(s => String(s.display_id) === String(display.id)) ??
-        sources[displays.indexOf(display)] ?? sources[0]
-      const image = source.thumbnail.toDataURL()
-      const win = new BrowserWindow({
-        x: display.bounds.x, y: display.bounds.y,
-        width: display.bounds.width, height: display.bounds.height,
-        frame: false, transparent: true, resizable: false, movable: false,
-        skipTaskbar: true, hasShadow: false, enableLargerThanScreen: true,
-        fullscreenable: false, alwaysOnTop: true,
-        webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, nodeIntegration: false },
-      })
-      win.setAlwaysOnTop(true, 'screen-saver')
-      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-      const payload = { image, width: display.bounds.width, height: display.bounds.height, scaleFactor: display.scaleFactor }
-      win.webContents.once('did-finish-load', () => win.webContents.send('screenshot:init', payload))
-      if (process.env.VITE_DEV_SERVER_URL) win.loadURL(`${process.env.VITE_DEV_SERVER_URL}#screenshot-overlay`)
-      else win.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'screenshot-overlay' })
-      // Reset the session flag if the last overlay disappears by any path (OS
-      // close, renderer load failure) — otherwise `capturing` latches true and
-      // silently disables every future trigger.
-      win.on('closed', () => { overlays = overlays.filter(w => w !== win); if (overlays.length === 0) capturing = false })
-      overlays.push(win)
-    }
+    const win = new BrowserWindow({
+      x: display.bounds.x, y: display.bounds.y,
+      width: display.bounds.width, height: display.bounds.height,
+      frame: false, transparent: true, resizable: false, movable: false,
+      skipTaskbar: true, hasShadow: false, enableLargerThanScreen: true,
+      fullscreenable: false, alwaysOnTop: true, backgroundColor: '#00000000',
+      webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, nodeIntegration: false },
+    })
+    // 'floating' (not 'screen-saver') stays above normal windows but does NOT
+    // cover the menu bar or block Mission Control / Cmd-Tab — so a glitch can
+    // never trap the user. No all-workspaces takeover for the same reason.
+    win.setAlwaysOnTop(true, 'floating')
+    const payload = { image, width: display.bounds.width, height: display.bounds.height, scaleFactor: display.scaleFactor }
+    win.webContents.once('did-finish-load', () => win.webContents.send('screenshot:init', payload))
+    // If the overlay renderer crashes or hangs, tear it down instead of leaving
+    // a blank always-on-top window on screen.
+    win.webContents.on('render-process-gone', () => closeOverlays())
+    win.on('unresponsive', () => closeOverlays())
+    if (process.env.VITE_DEV_SERVER_URL) win.loadURL(`${process.env.VITE_DEV_SERVER_URL}#screenshot-overlay`)
+    else win.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'screenshot-overlay' })
+    // Reset the session flag if the last overlay disappears by any path (OS
+    // close, renderer load failure) — otherwise `capturing` latches true and
+    // silently disables every future trigger.
+    win.on('closed', () => { overlays = overlays.filter(w => w !== win); if (overlays.length === 0) capturing = false })
+    overlays.push(win)
   } catch (err) {
     capturing = false
     dialog.showErrorBox('Screenshot failed', String(err))
