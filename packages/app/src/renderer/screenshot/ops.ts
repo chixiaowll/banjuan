@@ -26,6 +26,7 @@ export function renderOps(ctx: CanvasRenderingContext2D, ops: AnnotationOp[], sc
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   for (const op of ops) {
+    if (!op) continue   // defensive: never let a stray null op crash the whole render
     if (op.kind === 'rect') {
       ctx.strokeRect(op.rect.x * scale, op.rect.y * scale, op.rect.w * scale, op.rect.h * scale)
     } else if (op.kind === 'arrow') {

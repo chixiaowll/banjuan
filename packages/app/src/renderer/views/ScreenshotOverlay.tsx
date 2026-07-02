@@ -160,7 +160,11 @@ function OverlayInner() {
     force(n => n + 1)
   }
   const onUpDraw = () => {
-    if (drawing.current) { setOps(o => [...o, drawing.current!]); drawing.current = null }
+    // Capture the op BEFORE clearing the ref: setOps' updater runs later, so
+    // reading drawing.current inside it would see the null we set below and push
+    // null into ops (→ renderOps reads null.kind → crash).
+    const d = drawing.current
+    if (d) { setOps(o => [...o, d]); drawing.current = null }
   }
 
   const commitText = () => {
