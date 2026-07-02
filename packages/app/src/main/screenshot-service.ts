@@ -46,9 +46,12 @@ export async function triggerCapture(): Promise<void> {
     const win = new BrowserWindow({
       x: display.bounds.x, y: display.bounds.y,
       width: display.bounds.width, height: display.bounds.height,
-      frame: false, transparent: true, resizable: false, movable: false,
+      // OPAQUE window (not transparent): the overlay fills the screen with the
+      // captured image anyway, so transparency bought nothing — and transparent
+      // windows + heavy canvas compositing are a known macOS GPU-crash combo.
+      frame: false, resizable: false, movable: false,
       skipTaskbar: true, hasShadow: false, enableLargerThanScreen: true,
-      fullscreenable: false, alwaysOnTop: true, backgroundColor: '#00000000',
+      fullscreenable: false, alwaysOnTop: true, backgroundColor: '#000000',
       webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, nodeIntegration: false },
     })
     // 'floating' (not 'screen-saver') stays above normal windows but does NOT
@@ -59,7 +62,10 @@ export async function triggerCapture(): Promise<void> {
     win.webContents.once('did-finish-load', () => win.webContents.send('screenshot:init', payload))
     // If the overlay renderer crashes or hangs, tear it down instead of leaving
     // a blank always-on-top window on screen.
-    win.webContents.on('render-process-gone', () => closeOverlays())
+    win.webContents.on('render-process-gone', (_e, details) => {
+      closeOverlays()
+      dialog.showErrorBox('Screenshot overlay crashed', `reason: ${details.reason}, exitCode: ${details.exitCode}`)
+    })
     win.on('unresponsive', () => closeOverlays())
     if (process.env.VITE_DEV_SERVER_URL) win.loadURL(`${process.env.VITE_DEV_SERVER_URL}#screenshot-overlay`)
     else win.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'screenshot-overlay' })

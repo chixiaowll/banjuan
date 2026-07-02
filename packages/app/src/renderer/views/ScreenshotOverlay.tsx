@@ -14,8 +14,36 @@ const el = (window as any).electronAPI as {
   }
 }
 
+/** Full-screen error panel: turns a blank crash into a readable message the
+ *  user can screenshot, and always offers a way out (tap / Esc). */
+function ErrorPanel({ text }: { text: string }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') el.screenshot.cancel() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  return (
+    <div onClick={() => el.screenshot.cancel()}
+      style={{ position: 'fixed', inset: 0, background: '#111', color: '#fff', padding: 24, zIndex: 99999,
+        font: '12px ui-monospace, monospace', whiteSpace: 'pre-wrap', overflow: 'auto', cursor: 'pointer' }}>
+      {'[screenshot overlay error — tap or Esc to close]\n\n' + text}
+    </div>
+  )
+}
+
+class OverlayBoundary extends React.Component<{ children: React.ReactNode }, { err: string | null }> {
+  state = { err: null as string | null }
+  static getDerivedStateFromError(e: any) { return { err: String(e?.stack || e?.message || e) } }
+  render() { return this.state.err ? <ErrorPanel text={this.state.err} /> : this.props.children }
+}
+
 export default function ScreenshotOverlay() {
+  return <OverlayBoundary><OverlayInner /></OverlayBoundary>
+}
+
+function OverlayInner() {
   const [init, setInit] = useState<Init | null>(null)
+  const [asyncErr, setAsyncErr] = useState<string | null>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
   const [sel, setSel] = useState<Rect | null>(null)         // selected region, CSS px
   const [selecting, setSelecting] = useState(false)
@@ -30,6 +58,16 @@ export default function ScreenshotOverlay() {
 
   // Receive the captured image from main.
   useEffect(() => el.screenshot.onInit(setInit), [])
+
+  // Surface async / event-handler errors (which React error boundaries do NOT
+  // catch) on screen instead of leaving a blank overlay.
+  useEffect(() => {
+    const onErr = (e: ErrorEvent) => setAsyncErr(String(e.error?.stack || e.message))
+    const onRej = (e: PromiseRejectionEvent) => setAsyncErr(String((e.reason && (e.reason.stack || e.reason.message)) || e.reason))
+    window.addEventListener('error', onErr)
+    window.addEventListener('unhandledrejection', onRej)
+    return () => { window.removeEventListener('error', onErr); window.removeEventListener('unhandledrejection', onRej) }
+  }, [])
 
   // Make the window truly transparent. body paints the theme background, so a
   // blank/crashed overlay would otherwise fill the whole screen white — and this
@@ -132,6 +170,7 @@ export default function ScreenshotOverlay() {
     setTextDraft(null)
   }
 
+  if (asyncErr) return <ErrorPanel text={asyncErr} />
   if (!init) return null
 
   const stage = sel && !selecting                            // region locked -> annotate mode
