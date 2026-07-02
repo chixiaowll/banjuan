@@ -2,7 +2,6 @@ const ja = {
   'app.name': '半巻閑書',
   'app.slogan': '読書は人生を豊かにする',
   'screenshot.button': 'スクリーンショット',
-  'screenshot.permissionNeeded': 'システム設定で banjuan の画面収録を許可してから、もう一度お試しください。',
   'video.loadFailed': 'この動画形式は内蔵プレーヤーで再生できません。',
   'video.openNative': 'システムプレーヤーで再生',
 

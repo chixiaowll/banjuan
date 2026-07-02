@@ -57,7 +57,10 @@ export async function triggerCapture(): Promise<void> {
       win.webContents.once('did-finish-load', () => win.webContents.send('screenshot:init', payload))
       if (process.env.VITE_DEV_SERVER_URL) win.loadURL(`${process.env.VITE_DEV_SERVER_URL}#screenshot-overlay`)
       else win.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'screenshot-overlay' })
-      win.on('closed', () => { overlays = overlays.filter(w => w !== win) })
+      // Reset the session flag if the last overlay disappears by any path (OS
+      // close, renderer load failure) — otherwise `capturing` latches true and
+      // silently disables every future trigger.
+      win.on('closed', () => { overlays = overlays.filter(w => w !== win); if (overlays.length === 0) capturing = false })
       overlays.push(win)
     }
   } catch (err) {

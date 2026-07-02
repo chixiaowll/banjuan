@@ -2,7 +2,6 @@ const de = {
   'app.name': 'Banjuan',
   'app.slogan': 'Klug lesen, erfüllt leben',
   'screenshot.button': 'Screenshot',
-  'screenshot.permissionNeeded': 'Aktiviere die Bildschirmaufnahme für banjuan in den Systemeinstellungen und versuche es erneut.',
   'video.loadFailed': 'Dieses Videoformat kann im integrierten Player nicht abgespielt werden.',
   'video.openNative': 'Mit Systemplayer abspielen',
 
