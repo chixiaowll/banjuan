@@ -1,6 +1,8 @@
 const fr = {
   'app.name': 'Banjuan',
   'app.slogan': 'Lire avec sagesse, vivre pleinement',
+  'screenshot.button': 'Capture',
+  'screenshot.permissionNeeded': "Activez l'enregistrement de l'écran pour banjuan dans les Réglages système, puis réessayez.",
   'video.loadFailed': 'Ce format vidéo ne peut pas être lu dans le lecteur intégré.',
   'video.openNative': 'Lire avec le lecteur système',
 
