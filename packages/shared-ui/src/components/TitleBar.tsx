@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
-import { X, Library, FileText, StickyNote, Tag, Puzzle, PanelRight } from 'lucide-react'
+import { X, Library, FileText, StickyNote, Tag, Puzzle, PanelRight, Camera } from 'lucide-react'
 import { useTheme } from '../theme/index.js'
+import { useBanjuanAPI } from '../api.js'
+import { useT } from '../i18n/index.js'
 
 export interface Tab {
   id: string
@@ -33,6 +35,8 @@ interface Props {
 }
 
 export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, onReorderTabs, pluginViews, activePanelPlugin, onTogglePluginPanel, railRelevant, railCollapsed, onToggleRail }: Props) {
+  const api = useBanjuanAPI()
+  const t = useT()
   const { theme: appTheme } = useTheme()
   const isNotebook = appTheme === 'notebook'
   const tabsRef = useRef<HTMLDivElement>(null)
@@ -203,6 +207,19 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
           </div>
         ))}
       </div>
+      {api.screenshot && (
+          <button
+            onClick={() => api.screenshot!.trigger()}
+            title={t('screenshot.button')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+              color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center',
+              ['WebkitAppRegion' as any]: 'no-drag',
+            }}
+          >
+            <Camera size={16} />
+          </button>
+        )}
       {/* Plugin launchers live in the window-level right rail (TabManager). This
           toggle shows/hides that rail so the layout isn't lopsided when unused. */}
       {railRelevant && onToggleRail && (
