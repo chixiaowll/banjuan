@@ -161,6 +161,14 @@ interface ElectronAPI {
     onRequest: (handler: (noteId: string, requestId: string) => void) => () => void
     sendResult: (requestId: string, dataUrl: string | null) => void
   }
+  screenshot: {
+    trigger: () => Promise<void>
+    onInit: (cb: (p: { image: string; width: number; height: number; scaleFactor: number }) => void) => () => void
+    confirm: (dataUrl: string) => void
+    cancel: () => void
+    getHotkey: () => Promise<string>
+    setHotkey: (accel: string) => Promise<string>
+  }
 }
 
 declare global {
