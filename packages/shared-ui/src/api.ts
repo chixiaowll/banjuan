@@ -317,6 +317,11 @@ export interface BanjuanAPI {
     onRequest(handler: (noteId: string, requestId: string) => void): () => void
     sendResult(requestId: string, dataUrl: string | null): void
   }
+
+  /** Desktop only: Feishu-style screen capture. Absent on mobile. */
+  screenshot?: {
+    trigger: () => Promise<void>
+  }
 }
 
 // ---------------------------------------------------------------------------
