@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService, ExportWorkerApp } from '@banjuan/shared-ui'
 import WelcomeView from './views/WelcomeView.js'
+import ScreenshotOverlay from './views/ScreenshotOverlay.js'
 import { electronAPI } from './electron-api.js'
 
 interface LibraryInfo {
@@ -14,6 +15,7 @@ interface LibraryInfo {
  * visible window's open library to this window before dispatching a job.
  */
 const IS_EXPORT_WORKER = window.location.hash === '#export-worker'
+const IS_SCREENSHOT_OVERLAY = window.location.hash === '#screenshot-overlay'
 
 function ExportWorkerRoot() {
   return (
@@ -29,6 +31,7 @@ function ExportWorkerRoot() {
 
 export default function App() {
   if (IS_EXPORT_WORKER) return <ExportWorkerRoot />
+  if (IS_SCREENSHOT_OVERLAY) return <ScreenshotOverlay />
   return <MainApp />
 }
 
