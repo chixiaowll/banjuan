@@ -223,6 +223,9 @@ export default function HandwritingEditor({
   })
   const penOnlyRef = useRef(penOnly)
   penOnlyRef.current = penOnly
+  // Active touch points (finger navigation): 1 finger pans, 2 fingers pinch-zoom.
+  const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map())
+  const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null)
   const togglePenOnly = useCallback(() => {
     setPenOnly(v => { const n = !v; try { localStorage.setItem('banjuan-hw-pen-only', String(n)) } catch { /* ignore */ } return n })
   }, [])
@@ -732,9 +735,19 @@ export default function HandwritingEditor({
     if (penOnlyRef.current && e.pointerType === 'touch') {
       if (isDrawingRef.current) return
       e.preventDefault()
-      isPanningRef.current = true
-      panStartRef.current = { cx: e.clientX, cy: e.clientY, px: panRef.current.x, py: panRef.current.y }
       e.currentTarget.setPointerCapture(e.pointerId)
+      const cache = activeTouchesRef.current
+      cache.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (cache.size >= 2) {
+        // Two fingers → pinch-zoom. Cancel any single-finger pan.
+        isPanningRef.current = false
+        const [a, b] = [...cache.values()]
+        pinchRef.current = { startDist: Math.hypot(a.x - b.x, a.y - b.y) || 1, startZoom: zoomRef.current }
+      } else {
+        // One finger → pan.
+        isPanningRef.current = true
+        panStartRef.current = { cx: e.clientX, cy: e.clientY, px: panRef.current.x, py: panRef.current.y }
+      }
       return
     }
 
@@ -850,9 +863,29 @@ export default function HandwritingEditor({
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     updateCursor(e.clientX, e.clientY)
 
-    // Pen-only: a touch that isn't an active pan (i.e. a palm during a pen
-    // stroke) must not feed the stroke.
-    if (penOnlyRef.current && e.pointerType === 'touch' && !isPanningRef.current) return
+    // Pen-only touch navigation: 2 fingers pinch-zoom, 1 finger pans, anything
+    // else (a palm during a pen stroke) is ignored so it can't feed the stroke.
+    if (penOnlyRef.current && e.pointerType === 'touch') {
+      const cache = activeTouchesRef.current
+      if (cache.has(e.pointerId)) cache.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (pinchRef.current && cache.size >= 2) {
+        const [a, b] = [...cache.values()]
+        const d = Math.hypot(a.x - b.x, a.y - b.y) || 1
+        const oldZ = zoomRef.current
+        const nz = clampZoom(pinchRef.current.startZoom * (d / pinchRef.current.startDist))
+        const vp = viewportRef.current
+        if (vp) {
+          const rect = vp.getBoundingClientRect()
+          const cx = (a.x + b.x) / 2 - rect.left
+          const cy = (a.y + b.y) / 2 - rect.top
+          setZoom(nz)
+          setPanOffset({ x: cx - (cx - panRef.current.x) * (nz / oldZ), y: cy - (cy - panRef.current.y) * (nz / oldZ) })
+        }
+        return
+      }
+      if (!isPanningRef.current) return   // palm / stray touch → ignore
+      // single finger → fall through to the pan block below
+    }
 
     if (isPanningRef.current) {
       const dx = e.clientX - panStartRef.current.cx
@@ -953,9 +986,22 @@ export default function HandwritingEditor({
   }, [getCanvasPoint, pageWidth, pageHeight, redraw, redrawWithSelection, pushSnapshot, updateCursor])
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    // Pen-only touch: a finger/palm lift never finalizes a stroke. Update the
+    // touch cache and transition pinch → pan → idle as fingers lift.
+    if (penOnlyRef.current && e.pointerType === 'touch') {
+      const cache = activeTouchesRef.current
+      cache.delete(e.pointerId)
+      if (cache.size < 2) pinchRef.current = null
+      if (cache.size === 1) {
+        const [p] = [...cache.values()]
+        isPanningRef.current = true
+        panStartRef.current = { cx: p.x, cy: p.y, px: panRef.current.x, py: panRef.current.y }
+      } else if (cache.size === 0) {
+        isPanningRef.current = false
+      }
+      return
+    }
     if (isPanningRef.current) { isPanningRef.current = false; return }
-    // Pen-only: a finger/palm lift never finalizes a stroke.
-    if (penOnlyRef.current && e.pointerType === 'touch') return
 
     // Finalize image interaction
     if (imageActionRef.current !== 'none') {
@@ -1143,6 +1189,7 @@ export default function HandwritingEditor({
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
               onPointerLeave={handlePointerLeave}
             />
           </div>
