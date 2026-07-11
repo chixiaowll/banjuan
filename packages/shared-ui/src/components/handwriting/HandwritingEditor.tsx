@@ -292,9 +292,10 @@ export default function HandwritingEditor({
     if (!ctx) return
     const dpr = window.devicePixelRatio || 1
     const z = Math.max(1, zoomRef.current)
-    canvas.width = pageWidth * dpr * z
-    canvas.height = pageHeight * dpr * z
-    ctx.scale(dpr * z, dpr * z)
+    const wantW = Math.round(pageWidth * dpr * z)
+    const wantH = Math.round(pageHeight * dpr * z)
+    if (canvas.width !== wantW || canvas.height !== wantH) { canvas.width = wantW; canvas.height = wantH }
+    ctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
     ctx.clearRect(0, 0, pageWidth, pageHeight)
 
     for (const img of imagesRef.current) {
@@ -319,9 +320,10 @@ export default function HandwritingEditor({
     if (!ctx) return
     const dpr = window.devicePixelRatio || 1
     const z = Math.max(1, zoomRef.current)
-    canvas.width = pageWidth * dpr * z
-    canvas.height = pageHeight * dpr * z
-    ctx.scale(dpr * z, dpr * z)
+    const wantW = Math.round(pageWidth * dpr * z)
+    const wantH = Math.round(pageHeight * dpr * z)
+    if (canvas.width !== wantW || canvas.height !== wantH) { canvas.width = wantW; canvas.height = wantH }
+    ctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
     ctx.clearRect(0, 0, pageWidth, pageHeight)
 
     for (const img of imagesRef.current) {
@@ -955,16 +957,25 @@ export default function HandwritingEditor({
       return
     }
 
-    currentPointsRef.current.push(getCanvasPoint(e))
+    // Capture every coalesced move the browser merged into this event, so a
+    // fast stroke keeps its shape instead of collapsing to a couple of points.
+    const native = e.nativeEvent as PointerEvent
+    const coalesced = native.getCoalescedEvents ? native.getCoalescedEvents() : []
+    if (coalesced.length) { for (const ce of coalesced) currentPointsRef.current.push(getCanvasPoint(ce)) }
+    else currentPointsRef.current.push(getCanvasPoint(e))
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     const dpr = window.devicePixelRatio || 1
     const z = Math.max(1, zoomRef.current)
-    canvas.width = pageWidth * dpr * z
-    canvas.height = pageHeight * dpr * z
-    ctx.scale(dpr * z, dpr * z)
+    // Resize (which reallocates + clears the whole bitmap) ONLY when the size
+    // actually changed. Doing it on every move stalled fast handwriting — the
+    // per-move reallocation starved the input queue and dropped whole strokes.
+    const wantW = Math.round(pageWidth * dpr * z)
+    const wantH = Math.round(pageHeight * dpr * z)
+    if (canvas.width !== wantW || canvas.height !== wantH) { canvas.width = wantW; canvas.height = wantH }
+    ctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
     ctx.clearRect(0, 0, pageWidth, pageHeight)
 
     for (const img of imagesRef.current) {
@@ -1027,6 +1038,9 @@ export default function HandwritingEditor({
     if (!isDrawingRef.current) return
     isDrawingRef.current = false
     if (tool.tool === 'eraser') return
+    // Include the release position so a quick stroke with few/no move events
+    // still has enough points to render as a line rather than vanishing.
+    currentPointsRef.current.push(getCanvasPoint(e))
     if (currentPointsRef.current.length === 0) return
 
     const opacity = tool.tool === 'highlighter' ? 0.3 : 1
@@ -1041,7 +1055,7 @@ export default function HandwritingEditor({
     currentPointsRef.current = []
     redraw()
     pushSnapshot()
-  }, [redraw, pushSnapshot, applyDragOffset, selectStrokesInLasso])
+  }, [redraw, pushSnapshot, applyDragOffset, selectStrokesInLasso, getCanvasPoint])
 
   const handlePointerLeave = useCallback((_e: React.PointerEvent) => {
     const tool = toolRef.current
