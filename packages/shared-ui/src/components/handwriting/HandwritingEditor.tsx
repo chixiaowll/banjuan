@@ -215,6 +215,17 @@ export default function HandwritingEditor({
   const isPanningRef = useRef(false)
   const panStartRef = useRef({ cx: 0, cy: 0, px: 0, py: 0 })
   const spaceHeldRef = useRef(false)
+  // Pen-only (palm rejection): when on, finger/palm touches never draw — they
+  // only pan — so a resting palm can't leave marks while writing with a pen.
+  // Default on; user-toggleable. A pen (Apple Pencil) and mouse always draw.
+  const [penOnly, setPenOnly] = useState(() => {
+    try { return localStorage.getItem('banjuan-hw-pen-only') !== 'false' } catch { return true }
+  })
+  const penOnlyRef = useRef(penOnly)
+  penOnlyRef.current = penOnly
+  const togglePenOnly = useCallback(() => {
+    setPenOnly(v => { const n = !v; try { localStorage.setItem('banjuan-hw-pen-only', String(n)) } catch { /* ignore */ } return n })
+  }, [])
 
   // Image state
   const imagesRef = useRef<CanvasImage[]>(snapshot.images ?? [])
@@ -716,6 +727,17 @@ export default function HandwritingEditor({
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0 && e.button !== 1) return
 
+    // Pen-only palm rejection: a finger/palm never draws — it pans the canvas.
+    // While a pen stroke is in progress, ignore touches entirely (a resting palm).
+    if (penOnlyRef.current && e.pointerType === 'touch') {
+      if (isDrawingRef.current) return
+      e.preventDefault()
+      isPanningRef.current = true
+      panStartRef.current = { cx: e.clientX, cy: e.clientY, px: panRef.current.x, py: panRef.current.y }
+      e.currentTarget.setPointerCapture(e.pointerId)
+      return
+    }
+
     if (spaceHeldRef.current || e.button === 1 || toolRef.current.tool === 'hand') {
       e.preventDefault()
       isPanningRef.current = true
@@ -725,6 +747,7 @@ export default function HandwritingEditor({
     }
 
     e.currentTarget.setPointerCapture(e.pointerId)
+    isPanningRef.current = false   // a pen/mouse draw overrides any palm-started pan
     const tool = toolRef.current
 
     // --- Lasso tool ---
@@ -827,6 +850,10 @@ export default function HandwritingEditor({
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     updateCursor(e.clientX, e.clientY)
 
+    // Pen-only: a touch that isn't an active pan (i.e. a palm during a pen
+    // stroke) must not feed the stroke.
+    if (penOnlyRef.current && e.pointerType === 'touch' && !isPanningRef.current) return
+
     if (isPanningRef.current) {
       const dx = e.clientX - panStartRef.current.cx
       const dy = e.clientY - panStartRef.current.cy
@@ -925,8 +952,10 @@ export default function HandwritingEditor({
     renderStroke(ctx, tempStroke)
   }, [getCanvasPoint, pageWidth, pageHeight, redraw, redrawWithSelection, pushSnapshot, updateCursor])
 
-  const handlePointerUp = useCallback((_e: React.PointerEvent) => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (isPanningRef.current) { isPanningRef.current = false; return }
+    // Pen-only: a finger/palm lift never finalizes a stroke.
+    if (penOnlyRef.current && e.pointerType === 'touch') return
 
     // Finalize image interaction
     if (imageActionRef.current !== 'none') {
@@ -1080,6 +1109,8 @@ export default function HandwritingEditor({
         onZoomFit={fitToViewport}
         onClearPage={handleClearPage}
         onImportImage={handleImportImage}
+        penOnly={penOnly}
+        onTogglePenOnly={togglePenOnly}
       />
       <div
         ref={viewportRef}
