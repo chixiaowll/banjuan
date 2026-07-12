@@ -26,7 +26,10 @@ export function renderStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
       thinning: 0.5,
       smoothing: 0.5,
       streamline: 0.5,
-      simulatePressure: !stroke.points.some(p => p.pressure !== undefined),
+      // Never simulate pressure from velocity: it spikes as the stroke slows to
+      // a stop, leaving a fat blob at every stroke end. Use real pen pressure
+      // when present (nice taper), otherwise a constant width.
+      simulatePressure: false,
     }
   )
   if (outlinePoints.length === 0) return
