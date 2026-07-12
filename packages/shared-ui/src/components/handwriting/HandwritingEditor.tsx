@@ -1063,7 +1063,7 @@ export default function HandwritingEditor({
       width: tool.tool === 'highlighter' ? tool.width * 3 : tool.width,
       opacity,
     }
-    renderStroke(ctx, tempStroke)
+    renderStroke(ctx, tempStroke, false)   // in-progress: not yet finalized
   }, [getCanvasPoint, pageWidth, pageHeight, redraw, redrawWithSelection, pushSnapshot, updateCursor, renderCache])
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
