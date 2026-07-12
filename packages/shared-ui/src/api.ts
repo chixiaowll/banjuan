@@ -322,6 +322,11 @@ export interface BanjuanAPI {
   screenshot?: {
     trigger: () => Promise<void>
   }
+
+  /** Mobile (iPad) only: toggle "drawing mode", which disables the WebView's
+   *  text-selection gesture recognizers so they don't swallow handwriting
+   *  strokes. The handwriting editor turns it on while open, off when closed. */
+  setDrawingMode?: (enabled: boolean) => Promise<void>
 }
 
 // ---------------------------------------------------------------------------
