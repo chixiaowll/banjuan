@@ -553,7 +553,8 @@ import { renderOps, popOp, STROKE, type AnnotationOp } from '../screenshot/ops.j
 type Tool = 'rect' | 'arrow' | 'pen' | 'text'
 interface Init { image: string; width: number; height: number; scaleFactor: number }
 
-const el = (window as any).electron as {
+// The preload bridge is exposed as `window.electronAPI` (see electron-api.ts).
+const el = (window as any).electronAPI as {
   screenshot: {
     onInit: (cb: (p: Init) => void) => () => void
     confirm: (dataUrl: string) => void
@@ -647,13 +648,17 @@ export default function ScreenshotOverlay() {
 
   const confirm = useCallback(() => {
     if (!init || !sel || sel.w < 2 || sel.h < 2) { el.screenshot.cancel(); return }
-    const scale = init.scaleFactor
+    const img = imgRef.current!
+    // Derive the true device-px-per-CSS-px from the ACTUAL captured image size,
+    // not init.scaleFactor. desktopCapturer uses one thumbnail size for all
+    // displays, so a non-primary display's image may not equal bounds×scaleFactor;
+    // naturalWidth/init.width is always exact.
+    const scale = img.naturalWidth / init.width
     const dev = toDevicePx(sel, scale)
     const out = document.createElement('canvas')
     out.width = Math.round(dev.w); out.height = Math.round(dev.h)
     const ctx = out.getContext('2d')!
     // draw the captured image, cropped to the selection (device px)
-    const img = imgRef.current!
     ctx.drawImage(img, dev.x, dev.y, dev.w, dev.h, 0, 0, dev.w, dev.h)
     // draw annotations, translated into the crop's space, scaled to device px
     ctx.save(); ctx.translate(-sel.x * scale, -sel.y * scale)
