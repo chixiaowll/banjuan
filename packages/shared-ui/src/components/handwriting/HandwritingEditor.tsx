@@ -528,7 +528,6 @@ export default function HandwritingEditor({
     // between strokes while writing. A new stroke (pointer down) cancels it.
     persistTimerRef.current = setTimeout(() => {
       persistTimerRef.current = null
-      console.log('[hw] persist firing (idle) — strokes:', strokesRef.current.length)
       onSnapshotChange({ strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) })
       generateThumbnail()
     }, 2000)
@@ -1064,10 +1063,7 @@ export default function HandwritingEditor({
       width: tool.tool === 'highlighter' ? tool.width * 3 : tool.width,
       opacity,
     }
-    const _t = performance.now()
     renderStroke(ctx, tempStroke)
-    const _dt = performance.now() - _t
-    if (_dt > 10) console.log('[hw] move frame slow:', _dt.toFixed(1), 'ms, tempPts:', currentPointsRef.current.length)
   }, [getCanvasPoint, pageWidth, pageHeight, redraw, redrawWithSelection, pushSnapshot, updateCursor, renderCache])
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
@@ -1124,14 +1120,9 @@ export default function HandwritingEditor({
     }
     strokesRef.current = [...strokesRef.current, newStroke]
     currentPointsRef.current = []
-    const _t = performance.now()
     appendStrokeToCache(newStroke)   // O(1): draw only the new stroke onto the cache
-    const _tCache = performance.now()
     blitMain()
-    const _tBlit = performance.now()
     pushSnapshot()
-    const _tSnap = performance.now()
-    console.log('[hw] pointerUp: appendCache', (_tCache - _t).toFixed(1), 'blit', (_tBlit - _tCache).toFixed(1), 'snapshot', (_tSnap - _tBlit).toFixed(1), 'ms; strokes:', strokesRef.current.length)
   }, [redraw, pushSnapshot, applyDragOffset, selectStrokesInLasso, getCanvasPoint, appendStrokeToCache, blitMain])
 
   const handlePointerLeave = useCallback((_e: React.PointerEvent) => {
