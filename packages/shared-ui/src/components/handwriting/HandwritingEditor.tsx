@@ -483,11 +483,14 @@ export default function HandwritingEditor({
   }, [onSnapshotChange])
   const schedulePersist = useCallback(() => {
     if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
+    // 2s idle: longer than a normal inter-stroke pause, so a save never fires
+    // between strokes while writing. A new stroke (pointer down) cancels it.
     persistTimerRef.current = setTimeout(() => {
       persistTimerRef.current = null
+      console.log('[hw] persist firing (idle) — strokes:', strokesRef.current.length)
       onSnapshotChange({ strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) })
       generateThumbnail()
-    }, 600)
+    }, 2000)
   }, [onSnapshotChange, generateThumbnail])
   const pushSnapshot = useCallback(() => {
     const snap: CanvasSnapshot = { strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) }
@@ -498,6 +501,14 @@ export default function HandwritingEditor({
   }, [schedulePersist])
   // Flush any pending save on unmount so closing the note never loses the last strokes.
   useEffect(() => () => { if (persistTimerRef.current) flushPersist() }, [flushPersist])
+  // Also flush when the app is backgrounded / the page is hidden (safe boundary,
+  // since we defer routine saves for 2s during writing).
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden' && persistTimerRef.current) flushPersist() }
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('pagehide', onHide)
+    return () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide) }
+  }, [flushPersist])
 
   // --- Canvas coordinate from pointer ---
   const getCanvasPoint = useCallback((e: React.PointerEvent | PointerEvent): StrokePoint => {
