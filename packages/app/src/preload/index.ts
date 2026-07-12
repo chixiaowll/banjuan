@@ -286,6 +286,18 @@ const api = {
       ipcRenderer.send(`note-render-result:${requestId}`, dataUrl)
     },
   },
+  screenshot: {
+    trigger: () => ipcRenderer.invoke('screenshot:trigger'),
+    onInit: (cb: (p: { image: string; width: number; height: number; scaleFactor: number }) => void) => {
+      const handler = (_e: any, p: any) => cb(p)
+      ipcRenderer.on('screenshot:init', handler)
+      return () => ipcRenderer.removeListener('screenshot:init', handler)
+    },
+    confirm: (dataUrl: string) => ipcRenderer.send('screenshot:confirm', dataUrl),
+    cancel: () => ipcRenderer.send('screenshot:cancel'),
+    getHotkey: () => ipcRenderer.invoke('settings:getScreenshotHotkey') as Promise<string>,
+    setHotkey: (accel: string) => ipcRenderer.invoke('settings:setScreenshotHotkey', accel) as Promise<string>,
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

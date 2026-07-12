@@ -317,6 +317,16 @@ export interface BanjuanAPI {
     onRequest(handler: (noteId: string, requestId: string) => void): () => void
     sendResult(requestId: string, dataUrl: string | null): void
   }
+
+  /** Desktop only: Feishu-style screen capture. Absent on mobile. */
+  screenshot?: {
+    trigger: () => Promise<void>
+  }
+
+  /** Mobile (iPad) only: toggle "drawing mode", which disables the WebView's
+   *  text-selection gesture recognizers so they don't swallow handwriting
+   *  strokes. The handwriting editor turns it on while open, off when closed. */
+  setDrawingMode?: (enabled: boolean) => Promise<void>
 }
 
 // ---------------------------------------------------------------------------
