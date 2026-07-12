@@ -18,7 +18,7 @@ function getSvgPathFromStroke(strokePoints: number[][]): string {
   return d
 }
 
-export function renderStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
+export function renderStroke(ctx: CanvasRenderingContext2D, stroke: Stroke, complete = true) {
   const outlinePoints = getStroke(
     stroke.points.map(p => [p.x, p.y, p.pressure ?? 0.5]),
     {
@@ -27,9 +27,14 @@ export function renderStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
       smoothing: 0.5,
       streamline: 0.5,
       // Never simulate pressure from velocity: it spikes as the stroke slows to
-      // a stop, leaving a fat blob at every stroke end. Use real pen pressure
-      // when present (nice taper), otherwise a constant width.
+      // a stop, leaving a fat blob at every stroke end.
       simulatePressure: false,
+      // A finished stroke must be marked complete so perfect-freehand finalizes
+      // the end; otherwise it caps the last point with a round "still-drawing"
+      // dot — the blob at every stroke end. Taper the end to a clean point.
+      last: complete,
+      start: { cap: true, taper: 0 },
+      end: { cap: !complete, taper: complete ? stroke.width * 2 : 0 },
     }
   )
   if (outlinePoints.length === 0) return
