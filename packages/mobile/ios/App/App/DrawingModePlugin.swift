@@ -1,14 +1,15 @@
 import Capacitor
 import UIKit
 
-/// Toggles the WKWebView's text-selection gesture recognizers.
+/// Toggles the WKWebView's Pencil/text interactions for handwriting.
 ///
-/// On iPad the web view's text-interaction recognizers (tap-to-select,
-/// long-press loupe, edit menu) compete for touches with handwriting strokes and
-/// sometimes win — swallowing a whole quick stroke before it ever reaches the
-/// canvas. The handwriting editor turns "drawing mode" on while it is open
-/// (disabling those recognizers) and off when it closes (restoring them), so
-/// text selection in normal notes is unaffected.
+/// The dropped strokes were Apple-Pencil-only (finger was fine): iPadOS
+/// **Scribble** (and the text-selection / edit-menu interactions) intercept
+/// Pencil input over a web view to convert handwriting to text, swallowing whole
+/// strokes. Scribble and the edit menu are `UIInteraction`s (not gesture
+/// recognizers), so they must be removed, not just disabled. The handwriting
+/// editor turns "drawing mode" on while open — removing those interactions — and
+/// off when it closes, restoring normal text behavior in other notes.
 @objc(DrawingModePlugin)
 public class DrawingModePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "DrawingModePlugin"
@@ -17,36 +18,42 @@ public class DrawingModePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "setEnabled", returnType: CAPPluginReturnPromise)
     ]
 
-    /// Recognizers we disabled, so we can re-enable exactly those on exit.
     private var disabledRecognizers: [UIGestureRecognizer] = []
+    private var removedInteractions: [(UIView, UIInteraction)] = []
 
     @objc func setEnabled(_ call: CAPPluginCall) {
         let enabled = call.getBool("enabled") ?? false
         DispatchQueue.main.async {
             guard let webView = self.bridge?.webView else { call.resolve(); return }
             if enabled {
-                self.disableTextGestures(in: webView)
+                self.disable(in: webView)
             } else {
                 for g in self.disabledRecognizers { g.isEnabled = true }
                 self.disabledRecognizers.removeAll()
+                for (view, interaction) in self.removedInteractions { view.addInteraction(interaction) }
+                self.removedInteractions.removeAll()
             }
             call.resolve()
         }
     }
 
-    private func disableTextGestures(in root: UIView) {
-        func matchesText(_ g: UIGestureRecognizer) -> Bool {
-            let name = String(describing: type(of: g))
-            // WKWebView text interaction recognizers (names vary by iOS version):
-            // e.g. UITextTapRecognizer, *TextSelectionGestureRecognizer, loupe/forcePress.
-            return name.contains("Text") || name.contains("Loupe") || name.contains("ForcePress")
-                || name.contains("Selection") || g is UILongPressGestureRecognizer
-        }
+    private func disable(in root: UIView) {
         func walk(_ v: UIView) {
+            // Interactions grab the Pencil (Scribble) and pop the edit menu.
+            for interaction in v.interactions {
+                let name = String(describing: type(of: interaction))
+                if name.contains("Scribble") || name.contains("TextContextMenu")
+                    || name.contains("EditMenu") || name.contains("TextInteraction") {
+                    v.removeInteraction(interaction)
+                    removedInteractions.append((v, interaction))
+                }
+            }
+            // Text-selection gesture recognizers (loupe, long-press select).
             v.gestureRecognizers?.forEach { g in
-                if matchesText(g) && g.isEnabled {
-                    g.isEnabled = false
-                    self.disabledRecognizers.append(g)
+                let name = String(describing: type(of: g))
+                if name.contains("Text") || name.contains("Loupe") || name.contains("Selection")
+                    || g is UILongPressGestureRecognizer {
+                    if g.isEnabled { g.isEnabled = false; disabledRecognizers.append(g) }
                 }
             }
             v.subviews.forEach(walk)
