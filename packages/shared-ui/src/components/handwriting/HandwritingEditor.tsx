@@ -468,16 +468,33 @@ export default function HandwritingEditor({
   }, [onThumbnailGenerated, pageWidth, pageHeight])
 
   // --- Push snapshot ---
+  // Persisting (onSnapshotChange) and the full-page toDataURL thumbnail are
+  // expensive and were running synchronously on every stroke — during fast
+  // multi-stroke writing that blocked the main thread and dropped strokes.
+  // Undo capture stays immediate (cheap array copies); the heavy save/thumbnail
+  // is debounced to after the user pauses.
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flushPersist = useCallback(() => {
+    if (persistTimerRef.current) { clearTimeout(persistTimerRef.current); persistTimerRef.current = null }
+    onSnapshotChange({ strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) })
+  }, [onSnapshotChange])
+  const schedulePersist = useCallback(() => {
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
+    persistTimerRef.current = setTimeout(() => {
+      persistTimerRef.current = null
+      onSnapshotChange({ strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) })
+      generateThumbnail()
+    }, 600)
+  }, [onSnapshotChange, generateThumbnail])
   const pushSnapshot = useCallback(() => {
-    const strokes = [...strokesRef.current]
-    const images = imagesRef.current.map(img => ({ ...img }))
-    const snap: CanvasSnapshot = { strokes, images }
-    onSnapshotChange(snap)
+    const snap: CanvasSnapshot = { strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) }
     const idx = undoIndexRef.current
     setUndoStack(prev => [...prev.slice(0, idx + 1), snap])
     setUndoIndex(idx + 1)
-    generateThumbnail()
-  }, [onSnapshotChange, generateThumbnail])
+    schedulePersist()
+  }, [schedulePersist])
+  // Flush any pending save on unmount so closing the note never loses the last strokes.
+  useEffect(() => () => { if (persistTimerRef.current) flushPersist() }, [flushPersist])
 
   // --- Canvas coordinate from pointer ---
   const getCanvasPoint = useCallback((e: React.PointerEvent | PointerEvent): StrokePoint => {
@@ -957,12 +974,7 @@ export default function HandwritingEditor({
       return
     }
 
-    // Capture every coalesced move the browser merged into this event, so a
-    // fast stroke keeps its shape instead of collapsing to a couple of points.
-    const native = e.nativeEvent as PointerEvent
-    const coalesced = native.getCoalescedEvents ? native.getCoalescedEvents() : []
-    if (coalesced.length) { for (const ce of coalesced) currentPointsRef.current.push(getCanvasPoint(ce)) }
-    else currentPointsRef.current.push(getCanvasPoint(e))
+    currentPointsRef.current.push(getCanvasPoint(e))
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -1038,9 +1050,6 @@ export default function HandwritingEditor({
     if (!isDrawingRef.current) return
     isDrawingRef.current = false
     if (tool.tool === 'eraser') return
-    // Include the release position so a quick stroke with few/no move events
-    // still has enough points to render as a line rather than vanishing.
-    currentPointsRef.current.push(getCanvasPoint(e))
     if (currentPointsRef.current.length === 0) return
 
     const opacity = tool.tool === 'highlighter' ? 0.3 : 1
