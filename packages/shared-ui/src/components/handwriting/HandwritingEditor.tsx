@@ -1257,6 +1257,14 @@ export default function HandwritingEditor({
           flex: 1, overflow: 'hidden', position: 'relative',
           background: '#e8e8e8',
           cursor: getCursorStyle(),
+          // Stop iOS from running text-selection / long-press callout gestures on
+          // the drawing surface — they intercept and delay pen/touch events (the
+          // "edit menu ... TextSelectionMenu" spam), causing hitches and dropped
+          // strokes while writing.
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          ['WebkitTouchCallout' as any]: 'none',
         }}
       >
         <div style={{
@@ -1276,6 +1284,7 @@ export default function HandwritingEditor({
               style={{
                 position: 'absolute', inset: 0, width: pageWidth, height: pageHeight,
                 touchAction: 'none', cursor: 'inherit',
+                userSelect: 'none', WebkitUserSelect: 'none', ['WebkitTouchCallout' as any]: 'none',
               }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
