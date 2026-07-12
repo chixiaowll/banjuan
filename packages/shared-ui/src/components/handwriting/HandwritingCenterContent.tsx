@@ -27,6 +27,14 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
   const cancelPendingSave = useHandwritingStore(s => s.cancelPendingSave)
   const updateThumbnail = useHandwritingStore(s => s.updateThumbnail)
 
+  // iPad: while a handwriting note is open, disable the WebView's text-selection
+  // gesture recognizers so they can't intercept/swallow pen or finger strokes.
+  // Restore normal selection behavior when leaving the note.
+  useEffect(() => {
+    api.setDrawingMode?.(true)
+    return () => { api.setDrawingMode?.(false) }
+  }, [api])
+
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
 
   const renderPageToDataUrl = useCallback((pageData: any, format: 'png' | 'jpeg' = 'png') => {

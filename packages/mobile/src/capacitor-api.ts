@@ -13,6 +13,12 @@ const NativeVideo = registerPlugin<{
   play(options: { url: string; startAt?: number }): Promise<void>
 }>('NativeVideo')
 
+// Toggles WKWebView text-selection gestures so they don't swallow handwriting
+// strokes (see DrawingModePlugin.swift).
+const DrawingMode = registerPlugin<{
+  setEnabled(options: { enabled: boolean }): Promise<void>
+}>('DrawingMode')
+
 let library: Library | null = null
 let currentLibraryPath: string | null = null
 
@@ -655,6 +661,10 @@ export function createCapacitorAPI(): BanjuanAPI {
         const indexSvc = getLib().createIndexService()
         await indexSvc.rebuildFull()
       },
+    },
+
+    async setDrawingMode(enabled: boolean) {
+      try { await DrawingMode.setEnabled({ enabled }) } catch { /* native plugin unavailable */ }
     },
   }
 }
