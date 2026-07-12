@@ -314,9 +314,9 @@ export default function HandwritingEditor({
     }
   }, [pageWidth, pageHeight])
 
-  // --- Redraw --- (rebuild cache, blit it, then draw the transient image selection)
-  const redraw = useCallback(() => {
-    renderCache()
+  // Blit the committed-content cache to the visible canvas + the transient image
+  // selection. Does NOT rebuild the cache — cheap, used after an incremental change.
+  const blitMain = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -329,13 +329,32 @@ export default function HandwritingEditor({
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     if (strokeCacheRef.current) ctx.drawImage(strokeCacheRef.current, 0, 0)
-
     const selIdx = selectedImageIdxRef.current
     if (selIdx !== null && imagesRef.current[selIdx]) {
       ctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
       renderImageSelection(ctx, imagesRef.current[selIdx])
     }
-  }, [renderCache, pageWidth, pageHeight])
+  }, [pageWidth, pageHeight])
+
+  // Draw a single just-committed stroke onto the cache — O(1), avoids re-rendering
+  // every existing stroke when a stroke ends.
+  const appendStrokeToCache = useCallback((stroke: Stroke) => {
+    const cache = strokeCacheRef.current
+    if (!cache) { renderCache(); return }
+    const cctx = cache.getContext('2d')
+    if (!cctx) return
+    const dpr = window.devicePixelRatio || 1
+    const z = Math.max(1, zoomRef.current)
+    cctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
+    renderStroke(cctx, stroke)
+  }, [renderCache])
+
+  // --- Redraw --- (full rebuild of the cache, then blit). Use for non-additive
+  // changes: undo/redo, erase, zoom, load, image edits.
+  const redraw = useCallback(() => {
+    renderCache()
+    blitMain()
+  }, [renderCache, blitMain])
 
   // --- Redraw with stroke selection overlays ---
   const redrawWithSelection = useCallback(() => {
@@ -1102,9 +1121,10 @@ export default function HandwritingEditor({
     }
     strokesRef.current = [...strokesRef.current, newStroke]
     currentPointsRef.current = []
-    redraw()
+    appendStrokeToCache(newStroke)   // O(1): draw only the new stroke onto the cache
+    blitMain()
     pushSnapshot()
-  }, [redraw, pushSnapshot, applyDragOffset, selectStrokesInLasso, getCanvasPoint])
+  }, [redraw, pushSnapshot, applyDragOffset, selectStrokesInLasso, getCanvasPoint, appendStrokeToCache, blitMain])
 
   const handlePointerLeave = useCallback((_e: React.PointerEvent) => {
     const tool = toolRef.current
