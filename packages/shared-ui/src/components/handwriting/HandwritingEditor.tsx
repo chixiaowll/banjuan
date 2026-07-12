@@ -287,8 +287,36 @@ export default function HandwritingEditor({
     if (pending === 0) onLoaded?.()
   }, [])
 
-  // --- Redraw ---
+  // --- Committed-content cache ---
+  // All committed images + strokes are rendered ONCE into this offscreen canvas
+  // and only re-rendered when they actually change. Live drawing then just blits
+  // this cache + the single in-progress stroke, so a move costs O(1) instead of
+  // re-running perfect-freehand over every existing stroke each frame (which made
+  // a 100-stroke page unwritable).
+  const strokeCacheRef = useRef<HTMLCanvasElement | null>(null)
+  const renderCache = useCallback(() => {
+    let cache = strokeCacheRef.current
+    if (!cache) { cache = document.createElement('canvas'); strokeCacheRef.current = cache }
+    const dpr = window.devicePixelRatio || 1
+    const z = Math.max(1, zoomRef.current)
+    const W = Math.round(pageWidth * dpr * z)
+    const H = Math.round(pageHeight * dpr * z)
+    if (cache.width !== W || cache.height !== H) { cache.width = W; cache.height = H }
+    const cctx = cache.getContext('2d')
+    if (!cctx) return
+    cctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
+    cctx.clearRect(0, 0, pageWidth, pageHeight)
+    for (const img of imagesRef.current) {
+      renderCanvasImage(cctx, img, imageElementsRef.current.get(img.id))
+    }
+    for (const s of strokesRef.current) {
+      renderStroke(cctx, s)
+    }
+  }, [pageWidth, pageHeight])
+
+  // --- Redraw --- (rebuild cache, blit it, then draw the transient image selection)
   const redraw = useCallback(() => {
+    renderCache()
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -298,22 +326,16 @@ export default function HandwritingEditor({
     const wantW = Math.round(pageWidth * dpr * z)
     const wantH = Math.round(pageHeight * dpr * z)
     if (canvas.width !== wantW || canvas.height !== wantH) { canvas.width = wantW; canvas.height = wantH }
-    ctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
-    ctx.clearRect(0, 0, pageWidth, pageHeight)
-
-    for (const img of imagesRef.current) {
-      renderCanvasImage(ctx, img, imageElementsRef.current.get(img.id))
-    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    if (strokeCacheRef.current) ctx.drawImage(strokeCacheRef.current, 0, 0)
 
     const selIdx = selectedImageIdxRef.current
     if (selIdx !== null && imagesRef.current[selIdx]) {
+      ctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
       renderImageSelection(ctx, imagesRef.current[selIdx])
     }
-
-    for (const s of strokesRef.current) {
-      renderStroke(ctx, s)
-    }
-  }, [pageWidth, pageHeight])
+  }, [renderCache, pageWidth, pageHeight])
 
   // --- Redraw with stroke selection overlays ---
   const redrawWithSelection = useCallback(() => {
@@ -1006,15 +1028,14 @@ export default function HandwritingEditor({
     const wantW = Math.round(pageWidth * dpr * z)
     const wantH = Math.round(pageHeight * dpr * z)
     if (canvas.width !== wantW || canvas.height !== wantH) { canvas.width = wantW; canvas.height = wantH }
+    // Ensure the committed-content cache exists (first stroke after mount).
+    if (!strokeCacheRef.current) renderCache()
+    // O(1) frame: blit all committed content from the cache, then draw only the
+    // single in-progress stroke on top — no re-rendering of existing strokes.
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    if (strokeCacheRef.current) ctx.drawImage(strokeCacheRef.current, 0, 0)
     ctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
-    ctx.clearRect(0, 0, pageWidth, pageHeight)
-
-    for (const img of imagesRef.current) {
-      renderCanvasImage(ctx, img, imageElementsRef.current.get(img.id))
-    }
-    for (const s of strokesRef.current) {
-      renderStroke(ctx, s)
-    }
 
     const opacity = tool.tool === 'highlighter' ? 0.3 : 1
     const tempStroke: Stroke = {
@@ -1025,7 +1046,7 @@ export default function HandwritingEditor({
       opacity,
     }
     renderStroke(ctx, tempStroke)
-  }, [getCanvasPoint, pageWidth, pageHeight, redraw, redrawWithSelection, pushSnapshot, updateCursor])
+  }, [getCanvasPoint, pageWidth, pageHeight, redraw, redrawWithSelection, pushSnapshot, updateCursor, renderCache])
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     // Pen-only touch: a finger/palm lift never finalizes a stroke. Update the
