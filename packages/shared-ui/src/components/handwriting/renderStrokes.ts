@@ -19,11 +19,21 @@ function getSvgPathFromStroke(strokePoints: number[][]): string {
 }
 
 export function renderStroke(ctx: CanvasRenderingContext2D, stroke: Stroke, complete = true) {
+  // Smooth pressure over a small window so a single spiky reading from the pen
+  // doesn't blow the line width up for one point (the occasional sudden swell).
+  const pts = stroke.points
+  const input: number[][] = pts.map((p, i) => {
+    let sum = 0, n = 0
+    for (let j = Math.max(0, i - 2); j <= Math.min(pts.length - 1, i + 2); j++) {
+      sum += pts[j].pressure ?? 0.5; n++
+    }
+    return [p.x, p.y, n ? sum / n : 0.5]
+  })
   const outlinePoints = getStroke(
-    stroke.points.map(p => [p.x, p.y, p.pressure ?? 0.5]),
+    input,
     {
       size: stroke.width,
-      thinning: 0.5,
+      thinning: 0.4,
       smoothing: 0.5,
       streamline: 0.5,
       // Never simulate pressure from velocity: it spikes as the stroke slows to
