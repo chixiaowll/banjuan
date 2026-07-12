@@ -12,6 +12,9 @@ interface Props {
   pageHeight: number
   onSnapshotChange: (snapshot: CanvasSnapshot) => void
   onThumbnailGenerated: (dataUrl: string) => void
+  /** Called when the user starts interacting (stroke down). Lets the host cancel
+   *  any pending debounced save so it can't fire mid-stroke and drop it. */
+  onInteractionStart?: () => void
 }
 
 export type DrawingTool = 'pen' | 'highlighter' | 'eraser' | 'lasso' | 'hand'
@@ -203,7 +206,7 @@ function loadAndResizeImage(dataUrl: string): Promise<{ dataUrl: string; width: 
 }
 
 export default function HandwritingEditor({
-  pageId, snapshot, template, pageWidth, pageHeight, onSnapshotChange, onThumbnailGenerated,
+  pageId, snapshot, template, pageWidth, pageHeight, onSnapshotChange, onThumbnailGenerated, onInteractionStart,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -215,6 +218,20 @@ export default function HandwritingEditor({
   const isPanningRef = useRef(false)
   const panStartRef = useRef({ cx: 0, cy: 0, px: 0, py: 0 })
   const spaceHeldRef = useRef(false)
+  // Pen-only (palm rejection): when on, finger/palm touches never draw — they
+  // only pan — so a resting palm can't leave marks while writing with a pen.
+  // Default on; user-toggleable. A pen (Apple Pencil) and mouse always draw.
+  const [penOnly, setPenOnly] = useState(() => {
+    try { return localStorage.getItem('banjuan-hw-pen-only') !== 'false' } catch { return true }
+  })
+  const penOnlyRef = useRef(penOnly)
+  penOnlyRef.current = penOnly
+  // Active touch points (finger navigation): 1 finger pans, 2 fingers pinch-zoom.
+  const activeTouchesRef = useRef<Map<number, { x: number; y: number }>>(new Map())
+  const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null)
+  const togglePenOnly = useCallback(() => {
+    setPenOnly(v => { const n = !v; try { localStorage.setItem('banjuan-hw-pen-only', String(n)) } catch { /* ignore */ } return n })
+  }, [])
 
   // Image state
   const imagesRef = useRef<CanvasImage[]>(snapshot.images ?? [])
@@ -270,32 +287,74 @@ export default function HandwritingEditor({
     if (pending === 0) onLoaded?.()
   }, [])
 
-  // --- Redraw ---
-  const redraw = useCallback(() => {
+  // --- Committed-content cache ---
+  // All committed images + strokes are rendered ONCE into this offscreen canvas
+  // and only re-rendered when they actually change. Live drawing then just blits
+  // this cache + the single in-progress stroke, so a move costs O(1) instead of
+  // re-running perfect-freehand over every existing stroke each frame (which made
+  // a 100-stroke page unwritable).
+  const strokeCacheRef = useRef<HTMLCanvasElement | null>(null)
+  const renderCache = useCallback(() => {
+    let cache = strokeCacheRef.current
+    if (!cache) { cache = document.createElement('canvas'); strokeCacheRef.current = cache }
+    const dpr = window.devicePixelRatio || 1
+    const z = Math.max(1, zoomRef.current)
+    const W = Math.round(pageWidth * dpr * z)
+    const H = Math.round(pageHeight * dpr * z)
+    if (cache.width !== W || cache.height !== H) { cache.width = W; cache.height = H }
+    const cctx = cache.getContext('2d')
+    if (!cctx) return
+    cctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
+    cctx.clearRect(0, 0, pageWidth, pageHeight)
+    for (const img of imagesRef.current) {
+      renderCanvasImage(cctx, img, imageElementsRef.current.get(img.id))
+    }
+    for (const s of strokesRef.current) {
+      renderStroke(cctx, s)
+    }
+  }, [pageWidth, pageHeight])
+
+  // Blit the committed-content cache to the visible canvas + the transient image
+  // selection. Does NOT rebuild the cache — cheap, used after an incremental change.
+  const blitMain = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     const dpr = window.devicePixelRatio || 1
     const z = Math.max(1, zoomRef.current)
-    canvas.width = pageWidth * dpr * z
-    canvas.height = pageHeight * dpr * z
-    ctx.scale(dpr * z, dpr * z)
-    ctx.clearRect(0, 0, pageWidth, pageHeight)
-
-    for (const img of imagesRef.current) {
-      renderCanvasImage(ctx, img, imageElementsRef.current.get(img.id))
-    }
-
+    const wantW = Math.round(pageWidth * dpr * z)
+    const wantH = Math.round(pageHeight * dpr * z)
+    if (canvas.width !== wantW || canvas.height !== wantH) { canvas.width = wantW; canvas.height = wantH }
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    if (strokeCacheRef.current) ctx.drawImage(strokeCacheRef.current, 0, 0)
     const selIdx = selectedImageIdxRef.current
     if (selIdx !== null && imagesRef.current[selIdx]) {
+      ctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
       renderImageSelection(ctx, imagesRef.current[selIdx])
     }
-
-    for (const s of strokesRef.current) {
-      renderStroke(ctx, s)
-    }
   }, [pageWidth, pageHeight])
+
+  // Draw a single just-committed stroke onto the cache — O(1), avoids re-rendering
+  // every existing stroke when a stroke ends.
+  const appendStrokeToCache = useCallback((stroke: Stroke) => {
+    const cache = strokeCacheRef.current
+    if (!cache) { renderCache(); return }
+    const cctx = cache.getContext('2d')
+    if (!cctx) return
+    const dpr = window.devicePixelRatio || 1
+    const z = Math.max(1, zoomRef.current)
+    cctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
+    renderStroke(cctx, stroke)
+  }, [renderCache])
+
+  // --- Redraw --- (full rebuild of the cache, then blit). Use for non-additive
+  // changes: undo/redo, erase, zoom, load, image edits.
+  const redraw = useCallback(() => {
+    renderCache()
+    blitMain()
+  }, [renderCache, blitMain])
 
   // --- Redraw with stroke selection overlays ---
   const redrawWithSelection = useCallback(() => {
@@ -305,9 +364,10 @@ export default function HandwritingEditor({
     if (!ctx) return
     const dpr = window.devicePixelRatio || 1
     const z = Math.max(1, zoomRef.current)
-    canvas.width = pageWidth * dpr * z
-    canvas.height = pageHeight * dpr * z
-    ctx.scale(dpr * z, dpr * z)
+    const wantW = Math.round(pageWidth * dpr * z)
+    const wantH = Math.round(pageHeight * dpr * z)
+    if (canvas.width !== wantW || canvas.height !== wantH) { canvas.width = wantW; canvas.height = wantH }
+    ctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
     ctx.clearRect(0, 0, pageWidth, pageHeight)
 
     for (const img of imagesRef.current) {
@@ -452,16 +512,43 @@ export default function HandwritingEditor({
   }, [onThumbnailGenerated, pageWidth, pageHeight])
 
   // --- Push snapshot ---
+  // Persisting (onSnapshotChange) and the full-page toDataURL thumbnail are
+  // expensive and were running synchronously on every stroke — during fast
+  // multi-stroke writing that blocked the main thread and dropped strokes.
+  // Undo capture stays immediate (cheap array copies); the heavy save/thumbnail
+  // is debounced to after the user pauses.
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flushPersist = useCallback(() => {
+    if (persistTimerRef.current) { clearTimeout(persistTimerRef.current); persistTimerRef.current = null }
+    onSnapshotChange({ strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) })
+  }, [onSnapshotChange])
+  const schedulePersist = useCallback(() => {
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
+    // 2s idle: longer than a normal inter-stroke pause, so a save never fires
+    // between strokes while writing. A new stroke (pointer down) cancels it.
+    persistTimerRef.current = setTimeout(() => {
+      persistTimerRef.current = null
+      onSnapshotChange({ strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) })
+      generateThumbnail()
+    }, 2000)
+  }, [onSnapshotChange, generateThumbnail])
   const pushSnapshot = useCallback(() => {
-    const strokes = [...strokesRef.current]
-    const images = imagesRef.current.map(img => ({ ...img }))
-    const snap: CanvasSnapshot = { strokes, images }
-    onSnapshotChange(snap)
+    const snap: CanvasSnapshot = { strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) }
     const idx = undoIndexRef.current
     setUndoStack(prev => [...prev.slice(0, idx + 1), snap])
     setUndoIndex(idx + 1)
-    generateThumbnail()
-  }, [onSnapshotChange, generateThumbnail])
+    schedulePersist()
+  }, [schedulePersist])
+  // Flush any pending save on unmount so closing the note never loses the last strokes.
+  useEffect(() => () => { if (persistTimerRef.current) flushPersist() }, [flushPersist])
+  // Also flush when the app is backgrounded / the page is hidden (safe boundary,
+  // since we defer routine saves for 2s during writing).
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden' && persistTimerRef.current) flushPersist() }
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('pagehide', onHide)
+    return () => { document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide) }
+  }, [flushPersist])
 
   // --- Canvas coordinate from pointer ---
   const getCanvasPoint = useCallback((e: React.PointerEvent | PointerEvent): StrokePoint => {
@@ -716,6 +803,32 @@ export default function HandwritingEditor({
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0 && e.button !== 1) return
 
+    // A new interaction begins → cancel any pending save so the synchronous
+    // serialize+write can't fire mid-stroke and drop it.
+    if (persistTimerRef.current) { clearTimeout(persistTimerRef.current); persistTimerRef.current = null }
+    onInteractionStart?.()
+
+    // Pen-only palm rejection: a finger/palm never draws — it pans the canvas.
+    // While a pen stroke is in progress, ignore touches entirely (a resting palm).
+    if (penOnlyRef.current && e.pointerType === 'touch') {
+      if (isDrawingRef.current) return
+      e.preventDefault()
+      e.currentTarget.setPointerCapture(e.pointerId)
+      const cache = activeTouchesRef.current
+      cache.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (cache.size >= 2) {
+        // Two fingers → pinch-zoom. Cancel any single-finger pan.
+        isPanningRef.current = false
+        const [a, b] = [...cache.values()]
+        pinchRef.current = { startDist: Math.hypot(a.x - b.x, a.y - b.y) || 1, startZoom: zoomRef.current }
+      } else {
+        // One finger → pan.
+        isPanningRef.current = true
+        panStartRef.current = { cx: e.clientX, cy: e.clientY, px: panRef.current.x, py: panRef.current.y }
+      }
+      return
+    }
+
     if (spaceHeldRef.current || e.button === 1 || toolRef.current.tool === 'hand') {
       e.preventDefault()
       isPanningRef.current = true
@@ -725,6 +838,7 @@ export default function HandwritingEditor({
     }
 
     e.currentTarget.setPointerCapture(e.pointerId)
+    isPanningRef.current = false   // a pen/mouse draw overrides any palm-started pan
     const tool = toolRef.current
 
     // --- Lasso tool ---
@@ -822,10 +936,34 @@ export default function HandwritingEditor({
     // --- Pen / Highlighter ---
     isDrawingRef.current = true
     currentPointsRef.current = [getCanvasPoint(e)]
-  }, [getCanvasPoint, redraw, pushSnapshot, clearSelection, deselectImage])
+  }, [getCanvasPoint, redraw, pushSnapshot, clearSelection, deselectImage, onInteractionStart])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     updateCursor(e.clientX, e.clientY)
+
+    // Pen-only touch navigation: 2 fingers pinch-zoom, 1 finger pans, anything
+    // else (a palm during a pen stroke) is ignored so it can't feed the stroke.
+    if (penOnlyRef.current && e.pointerType === 'touch') {
+      const cache = activeTouchesRef.current
+      if (cache.has(e.pointerId)) cache.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (pinchRef.current && cache.size >= 2) {
+        const [a, b] = [...cache.values()]
+        const d = Math.hypot(a.x - b.x, a.y - b.y) || 1
+        const oldZ = zoomRef.current
+        const nz = clampZoom(pinchRef.current.startZoom * (d / pinchRef.current.startDist))
+        const vp = viewportRef.current
+        if (vp) {
+          const rect = vp.getBoundingClientRect()
+          const cx = (a.x + b.x) / 2 - rect.left
+          const cy = (a.y + b.y) / 2 - rect.top
+          setZoom(nz)
+          setPanOffset({ x: cx - (cx - panRef.current.x) * (nz / oldZ), y: cy - (cy - panRef.current.y) * (nz / oldZ) })
+        }
+        return
+      }
+      if (!isPanningRef.current) return   // palm / stray touch → ignore
+      // single finger → fall through to the pan block below
+    }
 
     if (isPanningRef.current) {
       const dx = e.clientX - panStartRef.current.cx
@@ -902,17 +1040,20 @@ export default function HandwritingEditor({
     if (!ctx) return
     const dpr = window.devicePixelRatio || 1
     const z = Math.max(1, zoomRef.current)
-    canvas.width = pageWidth * dpr * z
-    canvas.height = pageHeight * dpr * z
-    ctx.scale(dpr * z, dpr * z)
-    ctx.clearRect(0, 0, pageWidth, pageHeight)
-
-    for (const img of imagesRef.current) {
-      renderCanvasImage(ctx, img, imageElementsRef.current.get(img.id))
-    }
-    for (const s of strokesRef.current) {
-      renderStroke(ctx, s)
-    }
+    // Resize (which reallocates + clears the whole bitmap) ONLY when the size
+    // actually changed. Doing it on every move stalled fast handwriting — the
+    // per-move reallocation starved the input queue and dropped whole strokes.
+    const wantW = Math.round(pageWidth * dpr * z)
+    const wantH = Math.round(pageHeight * dpr * z)
+    if (canvas.width !== wantW || canvas.height !== wantH) { canvas.width = wantW; canvas.height = wantH }
+    // Ensure the committed-content cache exists (first stroke after mount).
+    if (!strokeCacheRef.current) renderCache()
+    // O(1) frame: blit all committed content from the cache, then draw only the
+    // single in-progress stroke on top — no re-rendering of existing strokes.
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    if (strokeCacheRef.current) ctx.drawImage(strokeCacheRef.current, 0, 0)
+    ctx.setTransform(dpr * z, 0, 0, dpr * z, 0, 0)
 
     const opacity = tool.tool === 'highlighter' ? 0.3 : 1
     const tempStroke: Stroke = {
@@ -922,10 +1063,25 @@ export default function HandwritingEditor({
       width: tool.tool === 'highlighter' ? tool.width * 3 : tool.width,
       opacity,
     }
-    renderStroke(ctx, tempStroke)
-  }, [getCanvasPoint, pageWidth, pageHeight, redraw, redrawWithSelection, pushSnapshot, updateCursor])
+    renderStroke(ctx, tempStroke, false)   // in-progress: not yet finalized
+  }, [getCanvasPoint, pageWidth, pageHeight, redraw, redrawWithSelection, pushSnapshot, updateCursor, renderCache])
 
-  const handlePointerUp = useCallback((_e: React.PointerEvent) => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    // Pen-only touch: a finger/palm lift never finalizes a stroke. Update the
+    // touch cache and transition pinch → pan → idle as fingers lift.
+    if (penOnlyRef.current && e.pointerType === 'touch') {
+      const cache = activeTouchesRef.current
+      cache.delete(e.pointerId)
+      if (cache.size < 2) pinchRef.current = null
+      if (cache.size === 1) {
+        const [p] = [...cache.values()]
+        isPanningRef.current = true
+        panStartRef.current = { cx: p.x, cy: p.y, px: panRef.current.x, py: panRef.current.y }
+      } else if (cache.size === 0) {
+        isPanningRef.current = false
+      }
+      return
+    }
     if (isPanningRef.current) { isPanningRef.current = false; return }
 
     // Finalize image interaction
@@ -964,9 +1120,10 @@ export default function HandwritingEditor({
     }
     strokesRef.current = [...strokesRef.current, newStroke]
     currentPointsRef.current = []
-    redraw()
+    appendStrokeToCache(newStroke)   // O(1): draw only the new stroke onto the cache
+    blitMain()
     pushSnapshot()
-  }, [redraw, pushSnapshot, applyDragOffset, selectStrokesInLasso])
+  }, [redraw, pushSnapshot, applyDragOffset, selectStrokesInLasso, getCanvasPoint, appendStrokeToCache, blitMain])
 
   const handlePointerLeave = useCallback((_e: React.PointerEvent) => {
     const tool = toolRef.current
@@ -1080,6 +1237,8 @@ export default function HandwritingEditor({
         onZoomFit={fitToViewport}
         onClearPage={handleClearPage}
         onImportImage={handleImportImage}
+        penOnly={penOnly}
+        onTogglePenOnly={togglePenOnly}
       />
       <div
         ref={viewportRef}
@@ -1089,6 +1248,14 @@ export default function HandwritingEditor({
           flex: 1, overflow: 'hidden', position: 'relative',
           background: '#e8e8e8',
           cursor: getCursorStyle(),
+          // Stop iOS from running text-selection / long-press callout gestures on
+          // the drawing surface — they intercept and delay pen/touch events (the
+          // "edit menu ... TextSelectionMenu" spam), causing hitches and dropped
+          // strokes while writing.
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          ['WebkitTouchCallout' as any]: 'none',
         }}
       >
         <div style={{
@@ -1108,10 +1275,12 @@ export default function HandwritingEditor({
               style={{
                 position: 'absolute', inset: 0, width: pageWidth, height: pageHeight,
                 touchAction: 'none', cursor: 'inherit',
+                userSelect: 'none', WebkitUserSelect: 'none', ['WebkitTouchCallout' as any]: 'none',
               }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
               onPointerLeave={handlePointerLeave}
             />
           </div>

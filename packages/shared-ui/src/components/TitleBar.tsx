@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
-import { X, Library, FileText, StickyNote, Tag, Puzzle, PanelRight } from 'lucide-react'
+import { X, Library, FileText, StickyNote, Tag, Puzzle, PanelRight, Camera } from 'lucide-react'
 import { useTheme } from '../theme/index.js'
+import { useBanjuanAPI } from '../api.js'
+import { useT } from '../i18n/index.js'
 
 export interface Tab {
   id: string
@@ -33,6 +35,8 @@ interface Props {
 }
 
 export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, onReorderTabs, pluginViews, activePanelPlugin, onTogglePluginPanel, railRelevant, railCollapsed, onToggleRail }: Props) {
+  const api = useBanjuanAPI()
+  const t = useT()
   const { theme: appTheme } = useTheme()
   const isNotebook = appTheme === 'notebook'
   const tabsRef = useRef<HTMLDivElement>(null)
@@ -203,6 +207,20 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
           </div>
         ))}
       </div>
+      {api.screenshot && (
+          <button
+            onClick={() => api.screenshot!.trigger()}
+            title={t('screenshot.button')}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+              marginLeft: 'auto', alignSelf: 'center', // anchors the right-side control group
+              color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center',
+              ['WebkitAppRegion' as any]: 'no-drag',
+            }}
+          >
+            <Camera size={16} />
+          </button>
+        )}
       {/* Plugin launchers live in the window-level right rail (TabManager). This
           toggle shows/hides that rail so the layout isn't lopsided when unused. */}
       {railRelevant && onToggleRail && (
@@ -213,7 +231,7 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
           aria-pressed={!railCollapsed}
           style={{
             background: 'none', border: 'none', borderRadius: 5, cursor: 'pointer', padding: '5px',
-            marginLeft: 'auto', marginRight: 12, alignSelf: 'center',
+            marginLeft: api.screenshot ? 0 : 'auto', marginRight: 12, alignSelf: 'center',
             color: railCollapsed ? 'var(--text-muted)' : 'var(--accent)',
             display: 'inline-flex', alignItems: 'center',
             position: 'relative', zIndex: 5,

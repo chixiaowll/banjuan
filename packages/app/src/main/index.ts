@@ -4,6 +4,7 @@ import { registerExportWindowHandlers } from './export-window.js'
 import { startApiServer, stopApiServer } from './api-server.js'
 import { installCli } from './install-cli.js'
 import { createWindow, getWindowCount } from './windows.js'
+import { initScreenshot, disposeScreenshot } from './screenshot-service.js'
 import { join } from 'node:path'
 
 protocol.registerSchemesAsPrivileged([
@@ -53,11 +54,14 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 
   createWindow()
+  initScreenshot()
 })
 
 app.on('activate', () => {
   if (getWindowCount() === 0) createWindow()
 })
+
+app.on('will-quit', () => { disposeScreenshot() })
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Eraser, Lasso, Trash2, Undo2, Redo2, Minus, Plus, ChevronLeft, ChevronRight, Pen, Highlighter, ImagePlus, Hand } from 'lucide-react'
+import { Eraser, Lasso, Trash2, Undo2, Redo2, Minus, Plus, ChevronLeft, ChevronRight, Pen, Highlighter, ImagePlus, Hand, PenTool } from 'lucide-react'
 import { useHandwritingStore } from './useHandwritingStore.js'
 import { useT } from '../../i18n/index.js'
 import type { DrawingTool, ToolState, ToolPreset } from './HandwritingEditor.js'
@@ -31,6 +31,8 @@ interface Props {
   onZoomFit: () => void
   onClearPage: () => void
   onImportImage?: () => void
+  penOnly?: boolean
+  onTogglePenOnly?: () => void
 }
 
 export default function HandwritingToolbar({
@@ -38,7 +40,10 @@ export default function HandwritingToolbar({
   presets, activePresetIndex, onSelectPreset,
   onUndo, onRedo, canUndo, canRedo,
   zoom, onZoomIn, onZoomOut, onZoomFit, onClearPage, onImportImage,
+  penOnly, onTogglePenOnly,
 }: Props) {
+  // Palm rejection is only meaningful on a touch device (iPad); hide on desktop.
+  const isTouch = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0
   const t = useT()
   const pages = useHandwritingStore(s => s.pages)
   const currentPageIndex = useHandwritingStore(s => s.currentPageIndex)
@@ -171,6 +176,14 @@ export default function HandwritingToolbar({
           () => { onToolStateChange({ ...toolState, tool: 'hand' }); closePopups() },
           <Hand size={18} />,
           isHandActive,
+        )}
+
+        {/* Pen-only / palm rejection (touch devices): when active, fingers pan
+            and only a pen draws, so a resting palm can't leave marks. */}
+        {isTouch && onTogglePenOnly && toolBtn(
+          () => { onTogglePenOnly(); closePopups() },
+          <PenTool size={18} />,
+          !!penOnly,
         )}
       </div>
 

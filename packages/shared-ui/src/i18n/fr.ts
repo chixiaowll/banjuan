@@ -1,6 +1,7 @@
 const fr = {
   'app.name': 'Banjuan',
   'app.slogan': 'Lire avec sagesse, vivre pleinement',
+  'screenshot.button': 'Capture',
   'video.loadFailed': 'Ce format vidéo ne peut pas être lu dans le lecteur intégré.',
   'video.openNative': 'Lire avec le lecteur système',
 
