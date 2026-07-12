@@ -138,6 +138,8 @@ export function createHandwritingStore(api: BanjuanAPI): HandwritingStoreApi {
     save: async () => {
       const { noteId, pages, currentPageIndex } = get()
       if (!noteId) return
+      const strokeCount = pages.reduce((n, p) => n + (p.snapshot?.strokes?.length ?? 0), 0)
+      console.log('[hw] store.save() writing note — pages:', pages.length, 'strokes:', strokeCount)
       set({ saving: true })
       try {
         await api.notes.update(noteId, {
