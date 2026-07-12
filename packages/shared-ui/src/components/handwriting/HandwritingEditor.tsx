@@ -12,6 +12,9 @@ interface Props {
   pageHeight: number
   onSnapshotChange: (snapshot: CanvasSnapshot) => void
   onThumbnailGenerated: (dataUrl: string) => void
+  /** Called when the user starts interacting (stroke down). Lets the host cancel
+   *  any pending debounced save so it can't fire mid-stroke and drop it. */
+  onInteractionStart?: () => void
 }
 
 export type DrawingTool = 'pen' | 'highlighter' | 'eraser' | 'lasso' | 'hand'
@@ -203,7 +206,7 @@ function loadAndResizeImage(dataUrl: string): Promise<{ dataUrl: string; width: 
 }
 
 export default function HandwritingEditor({
-  pageId, snapshot, template, pageWidth, pageHeight, onSnapshotChange, onThumbnailGenerated,
+  pageId, snapshot, template, pageWidth, pageHeight, onSnapshotChange, onThumbnailGenerated, onInteractionStart,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -749,6 +752,11 @@ export default function HandwritingEditor({
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0 && e.button !== 1) return
 
+    // A new interaction begins → cancel any pending save so the synchronous
+    // serialize+write can't fire mid-stroke and drop it.
+    if (persistTimerRef.current) { clearTimeout(persistTimerRef.current); persistTimerRef.current = null }
+    onInteractionStart?.()
+
     // Pen-only palm rejection: a finger/palm never draws — it pans the canvas.
     // While a pen stroke is in progress, ignore touches entirely (a resting palm).
     if (penOnlyRef.current && e.pointerType === 'touch') {
@@ -877,7 +885,7 @@ export default function HandwritingEditor({
     // --- Pen / Highlighter ---
     isDrawingRef.current = true
     currentPointsRef.current = [getCanvasPoint(e)]
-  }, [getCanvasPoint, redraw, pushSnapshot, clearSelection, deselectImage])
+  }, [getCanvasPoint, redraw, pushSnapshot, clearSelection, deselectImage, onInteractionStart])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     updateCursor(e.clientX, e.clientY)

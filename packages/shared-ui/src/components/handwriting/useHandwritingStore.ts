@@ -20,6 +20,9 @@ export interface HandwritingState {
   movePage: (fromIndex: number, toIndex: number) => void
   setPageTemplate: (index: number, template: HandwritingTemplate) => void
   saveCurrentPageSnapshot: (snapshot: CanvasSnapshot) => void
+  /** Cancel a pending debounced save (called when a new stroke starts, so the
+   *  synchronous serialize+write never fires mid-stroke and drops it). */
+  cancelPendingSave: () => void
   save: () => Promise<void>
   updateThumbnail: (pageId: string, dataUrl: string) => void
 }
@@ -127,6 +130,9 @@ export function createHandwritingStore(api: BanjuanAPI): HandwritingStoreApi {
 
       if (saveTimer) clearTimeout(saveTimer)
       saveTimer = setTimeout(() => get().save(), 500)
+    },
+    cancelPendingSave: () => {
+      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
     },
 
     save: async () => {
