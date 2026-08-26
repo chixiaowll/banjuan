@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs'
 import { createTempDir, cleanupTempDir } from './helpers.js'
 import { serializeFrontmatter } from '../src/storage/frontmatter.js'
-import { migrateNotesToJson } from '../src/notes/migration.js'
+import { migrateNotesToJsonAsync } from '../src/notes/migration.js'
+import { NodeFS } from '@banjuan/platform-node'
 
 describe('migrateNotesToJson', () => {
   let tempDir: string
@@ -19,7 +20,7 @@ describe('migrateNotesToJson', () => {
     cleanupTempDir(tempDir)
   })
 
-  it('migrates .md files to .json and creates backup', () => {
+  it('migrates .md files to .json and creates backup', async () => {
     const md = serializeFrontmatter(
       {
         id: 'note-1',
@@ -36,7 +37,7 @@ describe('migrateNotesToJson', () => {
     )
     writeFileSync(join(notesDir, 'note-1.md'), md)
 
-    const result = migrateNotesToJson(notesDir)
+    const result = await migrateNotesToJsonAsync(notesDir, new NodeFS())
 
     expect(result.migrated).toBe(1)
     expect(result.errors).toEqual([])
@@ -58,7 +59,8 @@ describe('migrateNotesToJson', () => {
     expect(parsed.blocks[0]).toEqual({
       type: 'heading',
       props: { level: 1 },
-      content: [{ type: 'text', text: 'Hello' }],
+      content: [{ type: 'text', text: 'Hello', styles: {} }],
+      children: [],
     })
 
     // bullet list items
@@ -82,7 +84,7 @@ describe('migrateNotesToJson', () => {
     expect(existsSync(join(notesDir, 'note-1.md'))).toBe(false)
   })
 
-  it('skips files that already have a .json counterpart', () => {
+  it('skips files that already have a .json counterpart', async () => {
     const md = serializeFrontmatter(
       { id: 'note-2', title: 'Existing' },
       'Some content',
@@ -90,7 +92,7 @@ describe('migrateNotesToJson', () => {
     writeFileSync(join(notesDir, 'note-2.md'), md)
     writeFileSync(join(notesDir, 'note-2.json'), '{}')
 
-    const result = migrateNotesToJson(notesDir)
+    const result = await migrateNotesToJsonAsync(notesDir, new NodeFS())
 
     expect(result.migrated).toBe(0)
     expect(result.errors).toEqual([])
@@ -98,19 +100,19 @@ describe('migrateNotesToJson', () => {
     expect(existsSync(join(notesDir, 'note-2.md'))).toBe(true)
   })
 
-  it('returns empty result for non-existent directory', () => {
-    const result = migrateNotesToJson(join(tempDir, 'nonexistent'))
+  it('returns empty result for non-existent directory', async () => {
+    const result = await migrateNotesToJsonAsync(join(tempDir, 'nonexistent'), new NodeFS())
     expect(result.migrated).toBe(0)
     expect(result.errors).toEqual([])
   })
 
-  it('handles multiple files and reports errors', () => {
+  it('handles multiple files and reports errors', async () => {
     const md1 = serializeFrontmatter({ id: 'a', title: 'A' }, 'content A')
     const md2 = serializeFrontmatter({ id: 'b', title: 'B' }, '## Sub heading\n\ntext')
     writeFileSync(join(notesDir, 'a.md'), md1)
     writeFileSync(join(notesDir, 'b.md'), md2)
 
-    const result = migrateNotesToJson(notesDir)
+    const result = await migrateNotesToJsonAsync(notesDir, new NodeFS())
 
     expect(result.migrated).toBe(2)
     expect(result.errors).toEqual([])
@@ -121,7 +123,8 @@ describe('migrateNotesToJson', () => {
     expect(parsed.blocks[0]).toEqual({
       type: 'heading',
       props: { level: 2 },
-      content: [{ type: 'text', text: 'Sub heading' }],
+      content: [{ type: 'text', text: 'Sub heading', styles: {} }],
+      children: [],
     })
   })
 })
