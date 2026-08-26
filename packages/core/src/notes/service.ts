@@ -7,7 +7,7 @@ import type { EventBus } from '../events/bus.js'
 import type { TemplateService } from './template-service.js'
 import type { NoteLinkService } from './link-service.js'
 import type { DocLinkService } from './doc-link-service.js'
-import { extractNoteLinks, extractDocumentLinks } from './extract-links.js'
+import { extractNoteLinks, extractDocumentLinks, resolveNoteLinks } from './extract-links.js'
 import { markdownToBlocks } from './migration.js'
 import { AttachmentService } from './attachment-service.js'
 import { importMarkdownImages } from './import-images.js'
@@ -114,7 +114,17 @@ export class NoteService {
    */
   private async syncLinksFromBlocks(noteId: string, blocks: unknown[]): Promise<void> {
     const arr = Array.isArray(blocks) ? blocks : []
-    if (this.linkService) await this.linkService.sync(noteId, extractNoteLinks(arr))
+    if (this.linkService) {
+      // Markdown-imported links carry only a title — resolve them against the
+      // notes table so CLI-written notes get forward/backlinks without needing
+      // an editor save or a full index rebuild.
+      const titleMap = new Map<string, string>()
+      for (const r of this.db.query<{ id: string; title: string }>('SELECT id, title FROM notes')) {
+        if (!titleMap.has(r.title)) titleMap.set(r.title, r.id)
+      }
+      const links = resolveNoteLinks(extractNoteLinks(arr), noteId, t => titleMap.get(t))
+      await this.linkService.sync(noteId, links)
+    }
     if (this.docLinkService) await this.docLinkService.sync(noteId, extractDocumentLinks(arr))
   }
 

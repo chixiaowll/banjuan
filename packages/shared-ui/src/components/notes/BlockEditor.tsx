@@ -122,18 +122,27 @@ function extractHeadings(blocks: any[]): HeadingItem[] {
   return headings
 }
 
-function extractNoteLinks(blocks: any[]): Array<{ targetId: string; context: string }> {
+function extractNoteLinks(
+  blocks: any[],
+  resolveTitle?: (title: string) => string | undefined,
+): Array<{ targetId: string; context: string }> {
   const links: Array<{ targetId: string; context: string }> = []
   const walk = (node: any) => {
     if (!node) return
-    if (node.type === 'noteLink' && node.props?.noteId) {
-      const text = node.props.title || (Array.isArray(node.content)
-        ? node.content.map((c: any) => (typeof c === 'string' ? c : c.text || '')).join('')
-        : '')
-      links.push({ targetId: node.props.noteId, context: text })
+    if (node.type === 'noteLink') {
+      // Markdown-imported links carry only a title (noteId '') — resolve by
+      // title so an in-app save doesn't wipe them from the links table.
+      const id = node.props?.noteId || (node.props?.title ? resolveTitle?.(node.props.title) : undefined)
+      if (id) {
+        const text = node.props.title || (Array.isArray(node.content)
+          ? node.content.map((c: any) => (typeof c === 'string' ? c : c.text || '')).join('')
+          : '')
+        links.push({ targetId: id, context: text })
+      }
     }
-    if (node.type === 'noteEmbed' && node.props?.noteId) {
-      links.push({ targetId: node.props.noteId, context: node.props.noteTitle || '' })
+    if (node.type === 'noteEmbed') {
+      const id = node.props?.noteId || (node.props?.noteTitle ? resolveTitle?.(node.props.noteTitle) : undefined)
+      if (id) links.push({ targetId: id, context: node.props.noteTitle || '' })
     }
     if (Array.isArray(node.content)) node.content.forEach(walk)
     if (Array.isArray(node.children)) node.children.forEach(walk)
@@ -378,7 +387,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     if (parsedContent) {
       prevAttachmentsRef.current = new Set(extractExportAttachmentPaths(parsedContent))
       if (noteId && !skipLinkSync) {
-        const links = extractNoteLinks(parsedContent)
+        const links = extractNoteLinks(parsedContent, t => allNotesRef.current.find(n => n.title === t)?.id)
         api.noteLinks.sync(noteId, links).then(() => {
           document.dispatchEvent(new Event('note-links-synced'))
         })
@@ -396,7 +405,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     const json = JSON.stringify(blocks)
     onChange(json)
     if (noteId && !skipLinkSync) {
-      const links = extractNoteLinks(blocks)
+      const links = extractNoteLinks(blocks, t => allNotesRef.current.find(n => n.title === t)?.id)
       api.noteLinks.sync(noteId, links).then(() => {
         document.dispatchEvent(new Event('note-links-synced'))
       })

@@ -55,8 +55,16 @@ export class IndexService {
     }
 
     const { noteLinks: pendingLinks, docLinks: pendingDocLinks } = await this.indexAllNotes()
+    // Title-only links (markdown-imported) resolve here, after every note row
+    // exists — first note wins on duplicate titles, same as click-to-open.
+    const titleToId = new Map<string, string>()
+    for (const r of this.db.query<{ id: string; title: string }>('SELECT id, title FROM notes')) {
+      if (!titleToId.has(r.title)) titleToId.set(r.title, r.id)
+    }
     for (const link of pendingLinks) {
-      this.db.run('INSERT OR IGNORE INTO note_links (source_id, target_id, context) VALUES (?, ?, ?)', [link.sourceId, link.targetId, link.context])
+      const targetId = link.targetId || (link.targetTitle ? titleToId.get(link.targetTitle) ?? '' : '')
+      if (!targetId || targetId === link.sourceId) continue
+      this.db.run('INSERT OR IGNORE INTO note_links (source_id, target_id, context) VALUES (?, ?, ?)', [link.sourceId, targetId, link.context])
     }
     for (const link of pendingDocLinks) {
       this.db.run('INSERT OR IGNORE INTO doc_links (source_id, target_id, context) VALUES (?, ?, ?)', [link.sourceId, link.targetId, link.context])
@@ -115,8 +123,8 @@ export class IndexService {
     )
   }
 
-  private async indexAllNotes(): Promise<{ noteLinks: Array<{ sourceId: string; targetId: string; context: string }>; docLinks: Array<{ sourceId: string; targetId: string; context: string }> }> {
-    const noteLinks: Array<{ sourceId: string; targetId: string; context: string }> = []
+  private async indexAllNotes(): Promise<{ noteLinks: Array<{ sourceId: string; targetId: string; targetTitle?: string; context: string }>; docLinks: Array<{ sourceId: string; targetId: string; context: string }> }> {
+    const noteLinks: Array<{ sourceId: string; targetId: string; targetTitle?: string; context: string }> = []
     const docLinks: Array<{ sourceId: string; targetId: string; context: string }> = []
     if (!(await this.fs.exists(this.notesDir))) {
       return { noteLinks, docLinks }
@@ -125,7 +133,7 @@ export class IndexService {
     return { noteLinks, docLinks }
   }
 
-  private async scanNotesDir(dir: string, prefix: string, pendingLinks: Array<{ sourceId: string; targetId: string; context: string }>, pendingDocLinks: Array<{ sourceId: string; targetId: string; context: string }>): Promise<void> {
+  private async scanNotesDir(dir: string, prefix: string, pendingLinks: Array<{ sourceId: string; targetId: string; targetTitle?: string; context: string }>, pendingDocLinks: Array<{ sourceId: string; targetId: string; context: string }>): Promise<void> {
     const entries = await this.fs.readdirWithTypes(dir)
     for (const entry of entries) {
       if (entry.isDirectory) {
@@ -141,7 +149,7 @@ export class IndexService {
     }
   }
 
-  private async indexNoteJsonFile(relPath: string, pendingLinks: Array<{ sourceId: string; targetId: string; context: string }>, pendingDocLinks: Array<{ sourceId: string; targetId: string; context: string }>): Promise<void> {
+  private async indexNoteJsonFile(relPath: string, pendingLinks: Array<{ sourceId: string; targetId: string; targetTitle?: string; context: string }>, pendingDocLinks: Array<{ sourceId: string; targetId: string; context: string }>): Promise<void> {
     const filePath = join(this.notesDir, relPath)
     let raw: { meta: NoteFileData; blocks?: unknown[]; nodes?: any[]; edges?: any[]; boundaries?: any[]; summaries?: any[] }
     try {
@@ -192,7 +200,7 @@ export class IndexService {
 
     const noteLinks = extractNoteLinks(Array.isArray(raw.blocks) ? raw.blocks : [])
     for (const link of noteLinks) {
-      pendingLinks.push({ sourceId: data.id, targetId: link.targetId, context: link.context })
+      pendingLinks.push({ sourceId: data.id, targetId: link.targetId, targetTitle: link.targetTitle, context: link.context })
     }
 
     const docLinksFound = extractDocumentLinks(Array.isArray(raw.blocks) ? raw.blocks : [])
