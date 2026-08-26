@@ -125,3 +125,48 @@ describe('migrateNotesToJson', () => {
     })
   })
 })
+
+describe('markdownToBlocks link parsing', () => {
+  it('parses [[Title]] with brackets in the title (e.g. "[3] ..." prefixes)', async () => {
+    const { markdownToBlocks } = await import('../src/notes/migration.js')
+    const blocks = markdownToBlocks('- 新写 [[[3] P2P3 增量写作 · 技术方案]] （对标 P4 格式）') as any[]
+    const content = blocks[0].content
+    const link = content.find((c: any) => c.type === 'noteLink')
+    expect(link).toBeDefined()
+    expect(link.props.title).toBe('[3] P2P3 增量写作 · 技术方案')
+    expect(link.props.noteId).toBe('')
+  })
+
+  it('parses multiple noteLinks in one line without cross-bleeding', async () => {
+    const { markdownToBlocks } = await import('../src/notes/migration.js')
+    const blocks = markdownToBlocks('[[[2] 调研进展报告]] 增补 [[[3] P1 门控路由 · 设计]] 两章') as any[]
+    const links = blocks[0].content.filter((c: any) => c.type === 'noteLink')
+    expect(links.map((l: any) => l.props.title)).toEqual(['[2] 调研进展报告', '[3] P1 门控路由 · 设计'])
+  })
+
+  it('still parses plain [[Title]] and markdown links', async () => {
+    const { markdownToBlocks } = await import('../src/notes/migration.js')
+    const blocks = markdownToBlocks('见 [[调研计划]] 与 [飞书](https://example.com/x)') as any[]
+    const c = blocks[0].content
+    expect(c.find((x: any) => x.type === 'noteLink')?.props.title).toBe('调研计划')
+    expect(c.find((x: any) => x.type === 'link')?.href).toBe('https://example.com/x')
+  })
+
+  it('parses ![[Title]] note embeds with bracketed titles', async () => {
+    const { markdownToBlocks } = await import('../src/notes/migration.js')
+    const blocks = markdownToBlocks('![[[0] 进展总览]]') as any[]
+    expect(blocks[0].type).toBe('noteEmbed')
+    expect(blocks[0].props.noteTitle).toBe('[0] 进展总览')
+  })
+
+  it('round-trips a bracketed noteLink through export and re-import', async () => {
+    const { markdownToBlocks } = await import('../src/notes/migration.js')
+    const { blocksToMarkdown } = await import('../src/notes/export-markdown.js')
+    const md = '本周更新 [[[3] P4 冷启动聚合 · 技术方案]] 的召回率结论'
+    const once = markdownToBlocks(md)
+    const exported = blocksToMarkdown(once as any)
+    const twice = markdownToBlocks(exported) as any[]
+    const link = twice[0].content.find((c: any) => c.type === 'noteLink')
+    expect(link.props.title).toBe('[3] P4 冷启动聚合 · 技术方案')
+  })
+})

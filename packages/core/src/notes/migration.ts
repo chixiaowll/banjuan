@@ -15,7 +15,10 @@ interface MigrationResult {
 
 function parseInline(text: string): unknown[] {
   const result: unknown[] = []
-  const re = /(\*\*(.+?)\*\*|__(.+?)__|`(.+?)`|\*(.+?)\*|_(.+?)_|~~(.+?)~~|\[([^\]]+)\]\(([^)]+)\)|\[\[([^\]]+)\]\])/g
+  // noteLink branch uses lazy (.+?) rather than [^\]]+ so titles containing
+  // brackets (e.g. "[3] P4 冷启动聚合 · 技术方案") still parse; it must sit
+  // before the md-link branch so "[[x]](y)"-free inputs never misbind.
+  const re = /(\*\*(.+?)\*\*|__(.+?)__|`(.+?)`|\*(.+?)\*|_(.+?)_|~~(.+?)~~|\[\[(.+?)\]\]|\[([^\]]+)\]\(([^)]+)\))/g
   let last = 0
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
@@ -28,12 +31,12 @@ function parseInline(text: string): unknown[] {
       result.push({ type: 'text', text: m[5] || m[6], styles: { italic: true } })
     } else if (m[7]) {
       result.push({ type: 'text', text: m[7], styles: { strikethrough: true } })
-    } else if (m[8] && m[9]) {
-      result.push({ type: 'link', href: m[9], content: [{ type: 'text', text: m[8], styles: {} }] })
-    } else if (m[10]) {
+    } else if (m[8]) {
       // [[Title]] — atomic note reference; title carried in props (id resolved by
       // title at click time, since this pure parser has no notes list).
-      result.push({ type: 'noteLink', props: { noteId: '', title: m[10] } })
+      result.push({ type: 'noteLink', props: { noteId: '', title: m[8] } })
+    } else if (m[9] && m[10]) {
+      result.push({ type: 'link', href: m[10], content: [{ type: 'text', text: m[9], styles: {} }] })
     }
     last = m.index + m[0].length
   }
@@ -87,7 +90,7 @@ function markdownLineToBlock(line: string): unknown | null {
   }
 
   // ![[noteTitle]] — note embed
-  const noteEmbedMatch = line.match(/^!\[\[([^\]]+)\]\]$/)
+  const noteEmbedMatch = line.match(/^!\[\[(.+?)\]\]$/)
   if (noteEmbedMatch) {
     return { type: 'noteEmbed', props: { noteTitle: noteEmbedMatch[1] }, content: undefined, children: [] }
   }
