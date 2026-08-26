@@ -386,7 +386,12 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   useEffect(() => {
     if (parsedContent) {
       prevAttachmentsRef.current = new Set(extractExportAttachmentPaths(parsedContent))
-      if (noteId && !skipLinkSync) {
+      // Gate on allNotes: title-only links resolve against the notes list, and
+      // syncing before it loads would resolve nothing and wipe existing rows
+      // (sync is delete-then-insert). The list always contains at least the
+      // open note, so length > 0 is a reliable "loaded" signal; the allNotes
+      // dep re-runs this effect once the list arrives.
+      if (noteId && !skipLinkSync && allNotes.length > 0) {
         const links = extractNoteLinks(parsedContent, t => allNotesRef.current.find(n => n.title === t)?.id)
         api.noteLinks.sync(noteId, links).then(() => {
           document.dispatchEvent(new Event('note-links-synced'))
@@ -398,13 +403,13 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       }
       onHeadingsChange?.(extractHeadings(editor.document))
     }
-  }, [noteId, parsedContent])
+  }, [noteId, parsedContent, allNotes])
 
   const handleChange = useCallback(() => {
     const blocks = editor.document
     const json = JSON.stringify(blocks)
     onChange(json)
-    if (noteId && !skipLinkSync) {
+    if (noteId && !skipLinkSync && allNotesRef.current.length > 0) {
       const links = extractNoteLinks(blocks, t => allNotesRef.current.find(n => n.title === t)?.id)
       api.noteLinks.sync(noteId, links).then(() => {
         document.dispatchEvent(new Event('note-links-synced'))
