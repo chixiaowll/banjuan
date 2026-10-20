@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { normalizeRect, toDevicePx, isUsableSelection, type Point, type Rect } from '../screenshot/geometry.js'
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import { normalizeRect, toDevicePx, isUsableSelection, placeToolbar, type Point, type Rect } from '../screenshot/geometry.js'
 import { renderOps, popOp, STROKE, type AnnotationOp } from '../screenshot/ops.js'
 
 type Tool = 'rect' | 'arrow' | 'pen' | 'text'
-interface Init { image: string; width: number; height: number; scaleFactor: number }
+interface Init { image: string; width: number; height: number; scaleFactor: number; workArea?: Rect }
 
 // The preload bridge is exposed as `window.electronAPI` (see electron-api.ts).
 const el = (window as any).electronAPI as {
@@ -55,6 +55,8 @@ function OverlayInner() {
   const [, force] = useState(0)                              // repaint tick during a drag
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [textDraft, setTextDraft] = useState<{ at: Point; value: string } | null>(null)
+  const toolbarRef = useRef<HTMLDivElement | null>(null)
+  const [barSize, setBarSize] = useState({ w: 260, h: 40 })   // measured after first paint
 
   // Receive the captured image from main.
   useEffect(() => el.screenshot.onInit(setInit), [])
@@ -125,6 +127,12 @@ function OverlayInner() {
     ctx.restore()
   })
 
+  // Measure the toolbar so placement can keep all of it on screen.
+  useLayoutEffect(() => {
+    const el = toolbarRef.current
+    if (el && (el.offsetWidth !== barSize.w || el.offsetHeight !== barSize.h)) setBarSize({ w: el.offsetWidth, h: el.offsetHeight })
+  })
+
   const pt = (e: React.PointerEvent): Point => ({ x: e.clientX, y: e.clientY })
 
   // --- region selection (before a region exists, or re-select before annotating) ---
@@ -191,6 +199,7 @@ function OverlayInner() {
   if (!init) return null
 
   const stage = sel && !selecting                            // region locked -> annotate mode
+  const barPos = sel && placeToolbar(sel, barSize, init.workArea ?? { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight })
   const toolBtn = (t: Tool, label: string) => (
     <button onClick={() => setTool(t)} style={{
       padding: '4px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 13,
@@ -241,8 +250,8 @@ function OverlayInner() {
               style={{ position: 'absolute', left: textDraft.at.x, top: textDraft.at.y, font: '18px sans-serif', color: STROKE, background: 'transparent', border: `1px dashed ${STROKE}`, outline: 'none' }} />
           )}
           {stage && (
-            <div style={{
-              position: 'absolute', left: sel.x, top: Math.min(sel.y + sel.h + 8, window.innerHeight - 44),
+            <div ref={toolbarRef} style={{
+              position: 'absolute', left: barPos!.x, top: barPos!.y,
               display: 'flex', gap: 6, padding: 6, borderRadius: 8, background: '#fff', boxShadow: '0 2px 12px #0004',
             }} onPointerDown={e => e.stopPropagation()}>   {/* clicks here must not start a re-select */}
               {toolBtn('rect', '▭')}{toolBtn('arrow', '↗')}{toolBtn('pen', '✎')}{toolBtn('text', 'T')}

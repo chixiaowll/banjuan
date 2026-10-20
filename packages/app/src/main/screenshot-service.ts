@@ -58,7 +58,10 @@ export async function triggerCapture(): Promise<void> {
     // cover the menu bar or block Mission Control / Cmd-Tab — so a glitch can
     // never trap the user. No all-workspaces takeover for the same reason.
     win.setAlwaysOnTop(true, 'floating')
-    const payload = { image, width: display.bounds.width, height: display.bounds.height, scaleFactor: display.scaleFactor }
+    // Work area relative to the overlay (excludes menu bar / Dock) so the toolbar never hides under them.
+    const wa = display.workArea
+    const workArea = { x: wa.x - display.bounds.x, y: wa.y - display.bounds.y, w: wa.width, h: wa.height }
+    const payload = { image, width: display.bounds.width, height: display.bounds.height, scaleFactor: display.scaleFactor, workArea }
     win.webContents.once('did-finish-load', () => win.webContents.send('screenshot:init', payload))
     // If the overlay renderer crashes or hangs, tear it down instead of leaving
     // a blank always-on-top window on screen.

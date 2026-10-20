@@ -33,3 +33,22 @@ export function arrowHead(tail: Point, head: Point, size: number): [Point, Point
     { x: head.x - size * Math.cos(angle + spread), y: head.y - size * Math.sin(angle + spread) },
   ]
 }
+
+/**
+ * Where to put the toolbar (top-left, overlay CSS px): below the selection and
+ * right-aligned with it; above when there's no room below; pinned to the bottom
+ * of the work area when neither fits (e.g. a full-screen selection). `area` is
+ * the display's work area, so the bar never sits under the menu bar or Dock.
+ */
+export function placeToolbar(sel: Rect, bar: { w: number; h: number }, area: Rect, gap = 8): Point {
+  const minX = area.x + gap
+  const maxX = area.x + area.w - bar.w - gap
+  const x = Math.max(minX, Math.min(sel.x + sel.w - bar.w, maxX))
+  const below = sel.y + sel.h + gap
+  const above = sel.y - gap - bar.h
+  const bottom = area.y + area.h - gap
+  const y = below + bar.h <= bottom ? below
+    : above >= area.y + gap ? above
+    : bottom - bar.h
+  return { x, y }
+}
