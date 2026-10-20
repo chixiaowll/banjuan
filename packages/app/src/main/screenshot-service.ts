@@ -11,6 +11,10 @@ function closeOverlays(): void {
   capturing = false
 }
 
+function revealOverlay(win: BrowserWindow): void {
+  if (!win.isDestroyed() && !win.isVisible()) win.show()
+}
+
 /** macOS Screen Recording permission gate. Returns true if capture may proceed. */
 function ensureScreenPermission(): boolean {
   if (process.platform !== 'darwin') return true
@@ -52,6 +56,10 @@ export async function triggerCapture(): Promise<void> {
       frame: false, resizable: false, movable: false,
       skipTaskbar: true, hasShadow: false, enableLargerThanScreen: true,
       fullscreenable: false, alwaysOnTop: true, backgroundColor: '#000000',
+      // Hidden until the renderer reports the capture is painted (screenshot:ready),
+      // the same show-when-rendered pattern as 'ready-to-show'. Shown right away it
+      // sits as a black full-screen rectangle while the page and image load.
+      show: false,
       webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, nodeIntegration: false },
     })
     // 'floating' (not 'screen-saver') stays above normal windows but does NOT
@@ -70,6 +78,9 @@ export async function triggerCapture(): Promise<void> {
       dialog.showErrorBox('Screenshot overlay crashed', `reason: ${details.reason}, exitCode: ${details.exitCode}`)
     })
     win.on('unresponsive', () => closeOverlays())
+    // Fallback: if `ready` never arrives (renderer error), reveal anyway so the
+    // on-screen error panel is visible and Esc works.
+    setTimeout(() => revealOverlay(win), 3000)
     if (process.env.VITE_DEV_SERVER_URL) win.loadURL(`${process.env.VITE_DEV_SERVER_URL}#screenshot-overlay`)
     else win.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'screenshot-overlay' })
     // Reset the session flag if the last overlay disappears by any path (OS
@@ -117,6 +128,10 @@ export function initScreenshot(): void {
     closeOverlays()
   })
   ipcMain.on('screenshot:cancel', () => closeOverlays())
+  ipcMain.on('screenshot:ready', (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (win && overlays.includes(win)) revealOverlay(win)
+  })
   ipcMain.handle('settings:getScreenshotHotkey', () => hotkeyState())
   // An empty accelerator resets to the default.
   ipcMain.handle('settings:setScreenshotHotkey', (_e, accel: string) => {

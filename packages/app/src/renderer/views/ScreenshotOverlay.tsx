@@ -9,6 +9,7 @@ interface Init { image: string; width: number; height: number; scaleFactor: numb
 const el = (window as any).electronAPI as {
   screenshot: {
     onInit: (cb: (p: Init) => void) => () => void
+    ready: () => void
     confirm: (dataUrl: string) => void
     cancel: () => void
   }
@@ -213,6 +214,13 @@ function OverlayInner() {
       onPointerDown={onDownSelect} onPointerMove={onMoveSelect} onPointerUp={onUpSelect} onPointerCancel={onUpSelect}
     >
       <img ref={imgRef} src={init.image} draggable={false}
+        // Main keeps the window hidden until the capture is on screen (no black
+        // flash). Decoded alone isn't enough — wait until a frame with it has
+        // been produced (two rAFs) before asking main to show the window.
+        onLoad={e => {
+          e.currentTarget.decode().catch(() => {})
+            .then(() => requestAnimationFrame(() => requestAnimationFrame(() => el.screenshot.ready())))
+        }}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
       {/* Dim mask. Four plain rects around the selection instead of an animated
           full-screen clip-path: re-rasterizing a screen-sized clip mask every

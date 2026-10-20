@@ -293,6 +293,7 @@ const api = {
       ipcRenderer.on('screenshot:init', handler)
       return () => ipcRenderer.removeListener('screenshot:init', handler)
     },
+    ready: () => ipcRenderer.send('screenshot:ready'),
     confirm: (dataUrl: string) => ipcRenderer.send('screenshot:confirm', dataUrl),
     cancel: () => ipcRenderer.send('screenshot:cancel'),
     getHotkey: () => ipcRenderer.invoke('settings:getScreenshotHotkey') as Promise<{ hotkey: string; registered: boolean }>,
