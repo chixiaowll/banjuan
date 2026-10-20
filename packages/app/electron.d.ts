@@ -166,8 +166,8 @@ interface ElectronAPI {
     onInit: (cb: (p: { image: string; width: number; height: number; scaleFactor: number }) => void) => () => void
     confirm: (dataUrl: string) => void
     cancel: () => void
-    getHotkey: () => Promise<string>
-    setHotkey: (accel: string) => Promise<string>
+    getHotkey: () => Promise<{ hotkey: string; registered: boolean }>
+    setHotkey: (accel: string) => Promise<{ ok: boolean; hotkey: string; registered: boolean }>
   }
 }
 

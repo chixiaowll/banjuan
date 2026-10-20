@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain, desktopCapturer, screen, clipboard, nativeImage, globalShortcut, systemPreferences, dialog, shell } from 'electron'
 import { join } from 'node:path'
-import { getScreenshotHotkey, setScreenshotHotkey } from './settings-store.js'
+import { getScreenshotHotkey, setScreenshotHotkey, DEFAULT_SCREENSHOT_HOTKEY } from './settings-store.js'
 
 let overlays: BrowserWindow[] = []
 let capturing = false
@@ -82,22 +82,45 @@ export async function triggerCapture(): Promise<void> {
 
 let registeredHotkey: string | null = null
 
-function registerHotkey(): void {
-  if (registeredHotkey) { globalShortcut.unregister(registeredHotkey); registeredHotkey = null }
-  const accel = getScreenshotHotkey()
-  try { if (globalShortcut.register(accel, () => { void triggerCapture() })) registeredHotkey = accel } catch { /* invalid accelerator */ }
+function tryRegister(accel: string): boolean {
+  try { return globalShortcut.register(accel, () => { void triggerCapture() }) } catch { return false /* invalid accelerator */ }
+}
+
+/**
+ * Swap the global hotkey to `accel`. If it can't be registered (invalid, or
+ * reserved by the system / another app), the previous hotkey stays active.
+ * Note: macOS hotkeys are non-exclusive, so a clash with an app that registered
+ * the same keys (e.g. Feishu ⌘⇧A) still "succeeds" here — both apps fire.
+ */
+function applyHotkey(accel: string): boolean {
+  if (accel === registeredHotkey) return true
+  const prev = registeredHotkey
+  if (prev) globalShortcut.unregister(prev)
+  if (tryRegister(accel)) { registeredHotkey = accel; return true }
+  registeredHotkey = prev && tryRegister(prev) ? prev : null
+  return false
+}
+
+function hotkeyState(): { hotkey: string; registered: boolean } {
+  const hotkey = getScreenshotHotkey()
+  return { hotkey, registered: registeredHotkey === hotkey }
 }
 
 export function initScreenshot(): void {
-  registerHotkey()
+  applyHotkey(getScreenshotHotkey())
   ipcMain.handle('screenshot:trigger', () => triggerCapture())
   ipcMain.on('screenshot:confirm', (_e, dataUrl: string) => {
     clipboard.writeImage(nativeImage.createFromDataURL(dataUrl))
     closeOverlays()
   })
   ipcMain.on('screenshot:cancel', () => closeOverlays())
-  ipcMain.handle('settings:getScreenshotHotkey', () => getScreenshotHotkey())
-  ipcMain.handle('settings:setScreenshotHotkey', (_e, accel: string) => { setScreenshotHotkey(accel); registerHotkey(); return getScreenshotHotkey() })
+  ipcMain.handle('settings:getScreenshotHotkey', () => hotkeyState())
+  // An empty accelerator resets to the default.
+  ipcMain.handle('settings:setScreenshotHotkey', (_e, accel: string) => {
+    const ok = applyHotkey(accel || DEFAULT_SCREENSHOT_HOTKEY)
+    if (ok) setScreenshotHotkey(accel)
+    return { ok, ...hotkeyState() }
+  })
 }
 
 export function disposeScreenshot(): void {

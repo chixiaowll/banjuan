@@ -241,6 +241,13 @@ const fr = {
 
   'settings.title': 'Paramètres',
   'settings.language': 'Langue',
+  'settings.screenshotHotkey': 'Raccourci de capture',
+  'settings.hotkeyChange': 'Modifier',
+  'settings.hotkeyReset': 'Rétablir par défaut',
+  'settings.hotkeyRecording': 'Appuyez sur le nouveau raccourci… (Échap pour annuler)',
+  'settings.hotkeyHint': 'Actif dans tout le système. Si une autre app utilise les mêmes touches pour ses captures (ex. Feishu/Lark ⌘⇧A), les deux outils s\'ouvrent en même temps : choisissez une autre combinaison.',
+  'settings.hotkeyFailed': 'Ce raccourci est indisponible (il est peut-être réservé par le système ou une autre app). L\'ancien raccourci a été conservé.',
+  'settings.hotkeyNotRegistered': 'Le raccourci actuel n\'a pas pu être enregistré ; une autre app l\'utilise peut-être. Choisissez-en un autre.',
   'settings.appTheme': "Thème de l'application",
   'settings.noteTheme': 'Thème des notes',
   'pdf.eyeProtection': 'Protection des yeux',

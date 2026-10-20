@@ -295,8 +295,8 @@ const api = {
     },
     confirm: (dataUrl: string) => ipcRenderer.send('screenshot:confirm', dataUrl),
     cancel: () => ipcRenderer.send('screenshot:cancel'),
-    getHotkey: () => ipcRenderer.invoke('settings:getScreenshotHotkey') as Promise<string>,
-    setHotkey: (accel: string) => ipcRenderer.invoke('settings:setScreenshotHotkey', accel) as Promise<string>,
+    getHotkey: () => ipcRenderer.invoke('settings:getScreenshotHotkey') as Promise<{ hotkey: string; registered: boolean }>,
+    setHotkey: (accel: string) => ipcRenderer.invoke('settings:setScreenshotHotkey', accel) as Promise<{ ok: boolean; hotkey: string; registered: boolean }>,
   },
 }
 

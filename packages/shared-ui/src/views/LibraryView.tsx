@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, FilePlus, Download, Upload, Trash2, FolderPl
 import { PoetryCard } from '../components/PoetryCard.js'
 import type { NoteType } from '../components/notes/TemplatePicker.js'
 import SyncConfigPanel from '../components/sync/SyncConfigPanel.js'
+import { ScreenshotHotkeySetting } from '../components/ScreenshotHotkeySetting.js'
 import TagManagerView from './TagManagerView.js'
 import TemplatePicker from '../components/notes/TemplatePicker.js'
 import TagInput from '../components/tags/TagInput.js'
@@ -3291,6 +3292,8 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
           <option value="es">Español</option>
         </select>
       </div>
+
+      <ScreenshotHotkeySetting />
 
       <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600 }}>{t('settings.appTheme')}</div>
       <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>

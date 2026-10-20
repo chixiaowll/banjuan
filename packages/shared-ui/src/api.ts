@@ -321,6 +321,10 @@ export interface BanjuanAPI {
   /** Desktop only: Feishu-style screen capture. Absent on mobile. */
   screenshot?: {
     trigger: () => Promise<void>
+    /** Current global hotkey (Electron accelerator) and whether it is registered. */
+    getHotkey?: () => Promise<{ hotkey: string; registered: boolean }>
+    /** Set the global hotkey ('' = default). On failure `ok` is false and the previous one is kept. */
+    setHotkey?: (accel: string) => Promise<{ ok: boolean; hotkey: string; registered: boolean }>
   }
 
   /** Mobile (iPad) only: toggle "drawing mode", which disables the WebView's
