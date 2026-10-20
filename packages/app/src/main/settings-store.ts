@@ -4,9 +4,12 @@ import { homedir } from 'node:os'
 
 const SETTINGS_FILE = join(homedir(), '.banjuan', 'settings.json')
 
-/** Default screenshot hotkey per platform (Electron accelerator syntax). */
-export const DEFAULT_SCREENSHOT_HOTKEY =
-  process.platform === 'darwin' ? 'Command+Shift+A' : 'Control+Shift+A'
+/**
+ * Default screenshot hotkey (Electron accelerator syntax). Not Command+Shift+A
+ * on macOS: that is Feishu/Lark's default screenshot key, and macOS global
+ * hotkeys are non-exclusive — both overlays open and Feishu's covers ours.
+ */
+export const DEFAULT_SCREENSHOT_HOTKEY = 'Control+Shift+A'
 
 interface Settings { screenshotHotkey?: string }
 
