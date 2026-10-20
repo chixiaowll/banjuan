@@ -130,6 +130,9 @@ function OverlayInner() {
   // --- region selection (before a region exists) ---
   const onDownSelect = (e: React.PointerEvent) => {
     if (sel) return
+    // Capture so the drag keeps tracking (and its release is seen) even if the
+    // pointer leaves the window, e.g. onto another display.
+    e.currentTarget.setPointerCapture(e.pointerId)
     dragStart.current = pt(e); setSelecting(true)
   }
   const onMoveSelect = (e: React.PointerEvent) => {
@@ -145,6 +148,9 @@ function OverlayInner() {
     const p = pt(e)
     // The open draft won't blur (canvas mousedown is prevented), so commit it here.
     if (tool === 'text') { commitText(); setTextDraft({ at: p, value: '' }); return }
+    // Capture so a stroke dragged past the selection edge still gets its
+    // pointerup; otherwise the shape stays live and follows the bare cursor.
+    e.currentTarget.setPointerCapture(e.pointerId)
     drawAnchor.current = p
     if (tool === 'rect') drawing.current = { kind: 'rect', rect: { x: p.x, y: p.y, w: 0, h: 0 } }
     else if (tool === 'arrow') drawing.current = { kind: 'arrow', tail: p, head: p }
@@ -189,7 +195,7 @@ function OverlayInner() {
   return (
     <div
       style={{ position: 'fixed', inset: 0, cursor: sel ? 'default' : 'crosshair', userSelect: 'none' }}
-      onPointerDown={onDownSelect} onPointerMove={onMoveSelect} onPointerUp={onUpSelect}
+      onPointerDown={onDownSelect} onPointerMove={onMoveSelect} onPointerUp={onUpSelect} onPointerCancel={onUpSelect}
     >
       <img ref={imgRef} src={init.image} draggable={false}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
@@ -211,7 +217,7 @@ function OverlayInner() {
           <div style={{ position: 'absolute', left: sel.x, top: sel.y, width: sel.w, height: sel.h, border: `1px solid ${STROKE}`, pointerEvents: 'none' }} />
           <canvas ref={canvasRef}
             style={{ position: 'absolute', left: sel.x, top: sel.y, width: sel.w, height: sel.h, cursor: 'crosshair' }}
-            onPointerDown={onDownDraw} onPointerMove={onMoveDraw} onPointerUp={onUpDraw}
+            onPointerDown={onDownDraw} onPointerMove={onMoveDraw} onPointerUp={onUpDraw} onPointerCancel={onUpDraw}
             // mousedown on the non-focusable canvas would move focus to <body>,
             // blurring the text input the same click just opened (→ empty commit).
             onMouseDown={e => e.preventDefault()}
