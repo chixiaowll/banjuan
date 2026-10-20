@@ -143,7 +143,8 @@ function OverlayInner() {
     if (!sel) return
     e.stopPropagation()
     const p = pt(e)
-    if (tool === 'text') { setTextDraft({ at: p, value: '' }); return }
+    // The open draft won't blur (canvas mousedown is prevented), so commit it here.
+    if (tool === 'text') { commitText(); setTextDraft({ at: p, value: '' }); return }
     drawAnchor.current = p
     if (tool === 'rect') drawing.current = { kind: 'rect', rect: { x: p.x, y: p.y, w: 0, h: 0 } }
     else if (tool === 'arrow') drawing.current = { kind: 'arrow', tail: p, head: p }
@@ -211,11 +212,19 @@ function OverlayInner() {
           <canvas ref={canvasRef}
             style={{ position: 'absolute', left: sel.x, top: sel.y, width: sel.w, height: sel.h, cursor: 'crosshair' }}
             onPointerDown={onDownDraw} onPointerMove={onMoveDraw} onPointerUp={onUpDraw}
+            // mousedown on the non-focusable canvas would move focus to <body>,
+            // blurring the text input the same click just opened (→ empty commit).
+            onMouseDown={e => e.preventDefault()}
           />
           {textDraft && (
             <input autoFocus value={textDraft.value}
               onChange={e => setTextDraft({ ...textDraft, value: e.target.value })}
-              onBlur={commitText} onKeyDown={e => { if (e.key === 'Enter') commitText(); if (e.key === 'Escape') setTextDraft(null) }}
+              // Enter/Esc act on the draft only; stop them reaching the window
+              // handler, which would confirm / cancel the whole screenshot.
+              onBlur={commitText} onKeyDown={e => {
+                if (e.key === 'Enter') { e.stopPropagation(); commitText() }
+                if (e.key === 'Escape') { e.stopPropagation(); setTextDraft(null) }
+              }}
               style={{ position: 'absolute', left: textDraft.at.x, top: textDraft.at.y, font: '18px sans-serif', color: STROKE, background: 'transparent', border: `1px dashed ${STROKE}`, outline: 'none' }} />
           )}
           {stage && (
