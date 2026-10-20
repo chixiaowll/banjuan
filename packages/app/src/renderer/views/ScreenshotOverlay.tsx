@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { normalizeRect, toDevicePx, type Point, type Rect } from '../screenshot/geometry.js'
+import { normalizeRect, toDevicePx, isUsableSelection, type Point, type Rect } from '../screenshot/geometry.js'
 import { renderOps, popOp, STROKE, type AnnotationOp } from '../screenshot/ops.js'
 
 type Tool = 'rect' | 'arrow' | 'pen' | 'text'
@@ -82,7 +82,7 @@ function OverlayInner() {
   }, [])
 
   const confirm = useCallback(() => {
-    if (!init || !sel || sel.w < 2 || sel.h < 2) { el.screenshot.cancel(); return }
+    if (!init || !isUsableSelection(sel)) { el.screenshot.cancel(); return }
     const img = imgRef.current!
     // Derive true device-px-per-CSS-px from the ACTUAL captured image size, not
     // init.scaleFactor: desktopCapturer uses one thumbnail size for all displays,
@@ -127,9 +127,11 @@ function OverlayInner() {
 
   const pt = (e: React.PointerEvent): Point => ({ x: e.clientX, y: e.clientY })
 
-  // --- region selection (before a region exists) ---
+  // --- region selection (before a region exists, or re-select before annotating) ---
   const onDownSelect = (e: React.PointerEvent) => {
-    if (sel) return
+    // Once something is drawn the region is locked, so annotations aren't lost.
+    if (sel && (ops.length > 0 || textDraft)) return
+    setSel(null)
     // Capture so the drag keeps tracking (and its release is seen) even if the
     // pointer leaves the window, e.g. onto another display.
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -139,7 +141,11 @@ function OverlayInner() {
     if (!selecting || !dragStart.current) return
     setSel(normalizeRect(dragStart.current, pt(e)))
   }
-  const onUpSelect = () => { setSelecting(false); dragStart.current = null }
+  const onUpSelect = () => {
+    setSelecting(false); dragStart.current = null
+    // A click or jitter-sized drag would otherwise lock in a useless 1px region.
+    setSel(s => (isUsableSelection(s) ? s : null))
+  }
 
   // --- annotation (after a region exists) ---
   const onDownDraw = (e: React.PointerEvent) => {
@@ -224,6 +230,7 @@ function OverlayInner() {
           />
           {textDraft && (
             <input autoFocus value={textDraft.value}
+              onPointerDown={e => e.stopPropagation()}   // don't start a re-select
               onChange={e => setTextDraft({ ...textDraft, value: e.target.value })}
               // Enter/Esc act on the draft only; stop them reaching the window
               // handler, which would confirm / cancel the whole screenshot.
@@ -237,7 +244,7 @@ function OverlayInner() {
             <div style={{
               position: 'absolute', left: sel.x, top: Math.min(sel.y + sel.h + 8, window.innerHeight - 44),
               display: 'flex', gap: 6, padding: 6, borderRadius: 8, background: '#fff', boxShadow: '0 2px 12px #0004',
-            }}>
+            }} onPointerDown={e => e.stopPropagation()}>   {/* clicks here must not start a re-select */}
               {toolBtn('rect', '▭')}{toolBtn('arrow', '↗')}{toolBtn('pen', '✎')}{toolBtn('text', 'T')}
               <button onClick={() => setOps(popOp)} style={{ padding: '4px 8px', borderRadius: 6, cursor: 'pointer', border: '1px solid #0003', background: '#fff' }}>↶</button>
               <button onClick={() => el.screenshot.cancel()} style={{ padding: '4px 8px', borderRadius: 6, cursor: 'pointer', border: '1px solid #0003', background: '#fff' }}>✕</button>

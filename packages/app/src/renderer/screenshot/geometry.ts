@@ -8,6 +8,14 @@ export function normalizeRect(a: Point, b: Point): Rect {
   return { x, y, w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) }
 }
 
+/** Smallest selection (CSS px, each axis) treated as intentional rather than click jitter. */
+export const MIN_SELECTION = 4
+
+/** True when `r` is big enough to annotate / copy. */
+export function isUsableSelection(r: Rect | null): r is Rect {
+  return !!r && r.w >= MIN_SELECTION && r.h >= MIN_SELECTION
+}
+
 /** Scale a rect from CSS px to device px (multiply by scaleFactor). */
 export function toDevicePx(r: Rect, scale: number): Rect {
   return { x: r.x * scale, y: r.y * scale, w: r.w * scale, h: r.h * scale }

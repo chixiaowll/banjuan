@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeRect, arrowHead, toDevicePx, type Rect } from './geometry.js'
+import { normalizeRect, arrowHead, toDevicePx, isUsableSelection, type Rect } from './geometry.js'
 
 describe('normalizeRect', () => {
   it('orders corners so width/height are positive when dragged up-left', () => {
@@ -25,5 +25,17 @@ describe('arrowHead', () => {
     expect(b.x).toBeLessThan(100)
     expect(Math.sign(a.y)).toBe(-Math.sign(b.y))
     expect(Math.abs(a.y)).toBeGreaterThan(0)
+  })
+})
+
+describe('isUsableSelection', () => {
+  it('rejects a missing selection and accidental jitter-sized drags', () => {
+    expect(isUsableSelection(null)).toBe(false)
+    expect(isUsableSelection({ x: 100, y: 100, w: 1, h: 1 })).toBe(false)
+    expect(isUsableSelection({ x: 100, y: 100, w: 300, h: 3 })).toBe(false)
+  })
+  it('accepts a selection at least the minimum size on both axes', () => {
+    expect(isUsableSelection({ x: 0, y: 0, w: 4, h: 4 })).toBe(true)
+    expect(isUsableSelection({ x: 0, y: 0, w: 300, h: 200 })).toBe(true)
   })
 })
