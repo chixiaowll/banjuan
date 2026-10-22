@@ -6,8 +6,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "node ../../scripts/vitest-electron.mjs",
+    "test:watch": "node ../../scripts/vitest-electron.mjs watch"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
