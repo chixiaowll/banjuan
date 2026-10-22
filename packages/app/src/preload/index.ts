@@ -288,15 +288,16 @@ const api = {
   },
   screenshot: {
     trigger: () => ipcRenderer.invoke('screenshot:trigger'),
-    onInit: (cb: (p: { image: string; width: number; height: number; scaleFactor: number }) => void) => {
+    onInit: (cb: (p: { image: string; width: number; height: number; scaleFactor: number; workArea?: { x: number; y: number; w: number; h: number } }) => void) => {
       const handler = (_e: any, p: any) => cb(p)
       ipcRenderer.on('screenshot:init', handler)
       return () => ipcRenderer.removeListener('screenshot:init', handler)
     },
+    ready: () => ipcRenderer.send('screenshot:ready'),
     confirm: (dataUrl: string) => ipcRenderer.send('screenshot:confirm', dataUrl),
     cancel: () => ipcRenderer.send('screenshot:cancel'),
-    getHotkey: () => ipcRenderer.invoke('settings:getScreenshotHotkey') as Promise<string>,
-    setHotkey: (accel: string) => ipcRenderer.invoke('settings:setScreenshotHotkey', accel) as Promise<string>,
+    getHotkey: () => ipcRenderer.invoke('settings:getScreenshotHotkey') as Promise<{ hotkey: string; registered: boolean }>,
+    setHotkey: (accel: string) => ipcRenderer.invoke('settings:setScreenshotHotkey', accel) as Promise<{ ok: boolean; hotkey: string; registered: boolean }>,
   },
 }
 

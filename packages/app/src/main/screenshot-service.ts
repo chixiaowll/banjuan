@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain, desktopCapturer, screen, clipboard, nativeImage, globalShortcut, systemPreferences, dialog, shell } from 'electron'
 import { join } from 'node:path'
-import { getScreenshotHotkey, setScreenshotHotkey } from './settings-store.js'
+import { getScreenshotHotkey, setScreenshotHotkey, DEFAULT_SCREENSHOT_HOTKEY } from './settings-store.js'
 
 let overlays: BrowserWindow[] = []
 let capturing = false
@@ -9,6 +9,10 @@ function closeOverlays(): void {
   for (const w of overlays) { if (!w.isDestroyed()) w.close() }
   overlays = []
   capturing = false
+}
+
+function revealOverlay(win: BrowserWindow): void {
+  if (!win.isDestroyed() && !win.isVisible()) win.show()
 }
 
 /** macOS Screen Recording permission gate. Returns true if capture may proceed. */
@@ -52,13 +56,20 @@ export async function triggerCapture(): Promise<void> {
       frame: false, resizable: false, movable: false,
       skipTaskbar: true, hasShadow: false, enableLargerThanScreen: true,
       fullscreenable: false, alwaysOnTop: true, backgroundColor: '#000000',
+      // Hidden until the renderer reports the capture is painted (screenshot:ready),
+      // the same show-when-rendered pattern as 'ready-to-show'. Shown right away it
+      // sits as a black full-screen rectangle while the page and image load.
+      show: false,
       webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, nodeIntegration: false },
     })
     // 'floating' (not 'screen-saver') stays above normal windows but does NOT
     // cover the menu bar or block Mission Control / Cmd-Tab — so a glitch can
     // never trap the user. No all-workspaces takeover for the same reason.
     win.setAlwaysOnTop(true, 'floating')
-    const payload = { image, width: display.bounds.width, height: display.bounds.height, scaleFactor: display.scaleFactor }
+    // Work area relative to the overlay (excludes menu bar / Dock) so the toolbar never hides under them.
+    const wa = display.workArea
+    const workArea = { x: wa.x - display.bounds.x, y: wa.y - display.bounds.y, w: wa.width, h: wa.height }
+    const payload = { image, width: display.bounds.width, height: display.bounds.height, scaleFactor: display.scaleFactor, workArea }
     win.webContents.once('did-finish-load', () => win.webContents.send('screenshot:init', payload))
     // If the overlay renderer crashes or hangs, tear it down instead of leaving
     // a blank always-on-top window on screen.
@@ -67,6 +78,9 @@ export async function triggerCapture(): Promise<void> {
       dialog.showErrorBox('Screenshot overlay crashed', `reason: ${details.reason}, exitCode: ${details.exitCode}`)
     })
     win.on('unresponsive', () => closeOverlays())
+    // Fallback: if `ready` never arrives (renderer error), reveal anyway so the
+    // on-screen error panel is visible and Esc works.
+    setTimeout(() => revealOverlay(win), 3000)
     if (process.env.VITE_DEV_SERVER_URL) win.loadURL(`${process.env.VITE_DEV_SERVER_URL}#screenshot-overlay`)
     else win.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'screenshot-overlay' })
     // Reset the session flag if the last overlay disappears by any path (OS
@@ -82,22 +96,49 @@ export async function triggerCapture(): Promise<void> {
 
 let registeredHotkey: string | null = null
 
-function registerHotkey(): void {
-  if (registeredHotkey) { globalShortcut.unregister(registeredHotkey); registeredHotkey = null }
-  const accel = getScreenshotHotkey()
-  try { if (globalShortcut.register(accel, () => { void triggerCapture() })) registeredHotkey = accel } catch { /* invalid accelerator */ }
+function tryRegister(accel: string): boolean {
+  try { return globalShortcut.register(accel, () => { void triggerCapture() }) } catch { return false /* invalid accelerator */ }
+}
+
+/**
+ * Swap the global hotkey to `accel`. If it can't be registered (invalid, or
+ * reserved by the system / another app), the previous hotkey stays active.
+ * Note: macOS hotkeys are non-exclusive, so a clash with an app that registered
+ * the same keys (e.g. Feishu ⌘⇧A) still "succeeds" here — both apps fire.
+ */
+function applyHotkey(accel: string): boolean {
+  if (accel === registeredHotkey) return true
+  const prev = registeredHotkey
+  if (prev) globalShortcut.unregister(prev)
+  if (tryRegister(accel)) { registeredHotkey = accel; return true }
+  registeredHotkey = prev && tryRegister(prev) ? prev : null
+  return false
+}
+
+function hotkeyState(): { hotkey: string; registered: boolean } {
+  const hotkey = getScreenshotHotkey()
+  return { hotkey, registered: registeredHotkey === hotkey }
 }
 
 export function initScreenshot(): void {
-  registerHotkey()
+  applyHotkey(getScreenshotHotkey())
   ipcMain.handle('screenshot:trigger', () => triggerCapture())
   ipcMain.on('screenshot:confirm', (_e, dataUrl: string) => {
     clipboard.writeImage(nativeImage.createFromDataURL(dataUrl))
     closeOverlays()
   })
   ipcMain.on('screenshot:cancel', () => closeOverlays())
-  ipcMain.handle('settings:getScreenshotHotkey', () => getScreenshotHotkey())
-  ipcMain.handle('settings:setScreenshotHotkey', (_e, accel: string) => { setScreenshotHotkey(accel); registerHotkey(); return getScreenshotHotkey() })
+  ipcMain.on('screenshot:ready', (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (win && overlays.includes(win)) revealOverlay(win)
+  })
+  ipcMain.handle('settings:getScreenshotHotkey', () => hotkeyState())
+  // An empty accelerator resets to the default.
+  ipcMain.handle('settings:setScreenshotHotkey', (_e, accel: string) => {
+    const ok = applyHotkey(accel || DEFAULT_SCREENSHOT_HOTKEY)
+    if (ok) setScreenshotHotkey(accel)
+    return { ok, ...hotkeyState() }
+  })
 }
 
 export function disposeScreenshot(): void {

@@ -258,6 +258,13 @@ const en = {
   // Settings
   'settings.title': 'Settings',
   'settings.language': 'Language / 语言',
+  'settings.screenshotHotkey': 'Screenshot shortcut',
+  'settings.hotkeyChange': 'Change',
+  'settings.hotkeyReset': 'Reset to default',
+  'settings.hotkeyRecording': 'Press the new shortcut… (Esc to cancel)',
+  'settings.hotkeyHint': 'Works system-wide. If another app uses the same keys for screenshots (e.g. Feishu/Lark ⌘⇧A), both capture tools open at once — pick a different combination.',
+  'settings.hotkeyFailed': 'That shortcut can\'t be used (it may be reserved by the system or another app). The previous shortcut was kept.',
+  'settings.hotkeyNotRegistered': 'The current shortcut couldn\'t be registered — another app may be using it. Please choose a different one.',
   'settings.appTheme': 'App Theme',
   'settings.noteTheme': 'Note Theme',
   'pdf.eyeProtection': 'Eye Protection',

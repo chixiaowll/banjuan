@@ -241,6 +241,13 @@ const es = {
 
   'settings.title': 'Ajustes',
   'settings.language': 'Idioma',
+  'settings.screenshotHotkey': 'Atajo de captura',
+  'settings.hotkeyChange': 'Cambiar',
+  'settings.hotkeyReset': 'Restablecer',
+  'settings.hotkeyRecording': 'Pulsa el nuevo atajo… (Esc para cancelar)',
+  'settings.hotkeyHint': 'Funciona en todo el sistema. Si otra app usa las mismas teclas para capturas (p. ej. Feishu/Lark ⌘⇧A), se abrirán las dos herramientas a la vez: elige otra combinación.',
+  'settings.hotkeyFailed': 'No se puede usar ese atajo (puede estar reservado por el sistema u otra app). Se mantuvo el anterior.',
+  'settings.hotkeyNotRegistered': 'No se pudo registrar el atajo actual; puede que otra app lo esté usando. Elige otro.',
   'settings.appTheme': 'Tema de la app',
   'settings.noteTheme': 'Tema de notas',
   'pdf.eyeProtection': 'Protección ocular',

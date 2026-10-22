@@ -1,14 +1,15 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { normalizeRect, toDevicePx, type Point, type Rect } from '../screenshot/geometry.js'
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import { normalizeRect, toDevicePx, isUsableSelection, placeToolbar, type Point, type Rect } from '../screenshot/geometry.js'
 import { renderOps, popOp, STROKE, type AnnotationOp } from '../screenshot/ops.js'
 
 type Tool = 'rect' | 'arrow' | 'pen' | 'text'
-interface Init { image: string; width: number; height: number; scaleFactor: number }
+interface Init { image: string; width: number; height: number; scaleFactor: number; workArea?: Rect }
 
 // The preload bridge is exposed as `window.electronAPI` (see electron-api.ts).
 const el = (window as any).electronAPI as {
   screenshot: {
     onInit: (cb: (p: Init) => void) => () => void
+    ready: () => void
     confirm: (dataUrl: string) => void
     cancel: () => void
   }
@@ -55,6 +56,8 @@ function OverlayInner() {
   const [, force] = useState(0)                              // repaint tick during a drag
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [textDraft, setTextDraft] = useState<{ at: Point; value: string } | null>(null)
+  const toolbarRef = useRef<HTMLDivElement | null>(null)
+  const [barSize, setBarSize] = useState({ w: 260, h: 40 })   // measured after first paint
 
   // Receive the captured image from main.
   useEffect(() => el.screenshot.onInit(setInit), [])
@@ -82,7 +85,7 @@ function OverlayInner() {
   }, [])
 
   const confirm = useCallback(() => {
-    if (!init || !sel || sel.w < 2 || sel.h < 2) { el.screenshot.cancel(); return }
+    if (!init || !isUsableSelection(sel)) { el.screenshot.cancel(); return }
     const img = imgRef.current!
     // Derive true device-px-per-CSS-px from the ACTUAL captured image size, not
     // init.scaleFactor: desktopCapturer uses one thumbnail size for all displays,
@@ -125,25 +128,44 @@ function OverlayInner() {
     ctx.restore()
   })
 
+  // Measure the toolbar so placement can keep all of it on screen.
+  useLayoutEffect(() => {
+    const el = toolbarRef.current
+    if (el && (el.offsetWidth !== barSize.w || el.offsetHeight !== barSize.h)) setBarSize({ w: el.offsetWidth, h: el.offsetHeight })
+  })
+
   const pt = (e: React.PointerEvent): Point => ({ x: e.clientX, y: e.clientY })
 
-  // --- region selection (before a region exists) ---
+  // --- region selection (before a region exists, or re-select before annotating) ---
   const onDownSelect = (e: React.PointerEvent) => {
-    if (sel) return
+    // Once something is drawn the region is locked, so annotations aren't lost.
+    if (sel && (ops.length > 0 || textDraft)) return
+    setSel(null)
+    // Capture so the drag keeps tracking (and its release is seen) even if the
+    // pointer leaves the window, e.g. onto another display.
+    e.currentTarget.setPointerCapture(e.pointerId)
     dragStart.current = pt(e); setSelecting(true)
   }
   const onMoveSelect = (e: React.PointerEvent) => {
     if (!selecting || !dragStart.current) return
     setSel(normalizeRect(dragStart.current, pt(e)))
   }
-  const onUpSelect = () => { setSelecting(false); dragStart.current = null }
+  const onUpSelect = () => {
+    setSelecting(false); dragStart.current = null
+    // A click or jitter-sized drag would otherwise lock in a useless 1px region.
+    setSel(s => (isUsableSelection(s) ? s : null))
+  }
 
   // --- annotation (after a region exists) ---
   const onDownDraw = (e: React.PointerEvent) => {
     if (!sel) return
     e.stopPropagation()
     const p = pt(e)
-    if (tool === 'text') { setTextDraft({ at: p, value: '' }); return }
+    // The open draft won't blur (canvas mousedown is prevented), so commit it here.
+    if (tool === 'text') { commitText(); setTextDraft({ at: p, value: '' }); return }
+    // Capture so a stroke dragged past the selection edge still gets its
+    // pointerup; otherwise the shape stays live and follows the bare cursor.
+    e.currentTarget.setPointerCapture(e.pointerId)
     drawAnchor.current = p
     if (tool === 'rect') drawing.current = { kind: 'rect', rect: { x: p.x, y: p.y, w: 0, h: 0 } }
     else if (tool === 'arrow') drawing.current = { kind: 'arrow', tail: p, head: p }
@@ -178,6 +200,7 @@ function OverlayInner() {
   if (!init) return null
 
   const stage = sel && !selecting                            // region locked -> annotate mode
+  const barPos = sel && placeToolbar(sel, barSize, init.workArea ?? { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight })
   const toolBtn = (t: Tool, label: string) => (
     <button onClick={() => setTool(t)} style={{
       padding: '4px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 13,
@@ -188,9 +211,16 @@ function OverlayInner() {
   return (
     <div
       style={{ position: 'fixed', inset: 0, cursor: sel ? 'default' : 'crosshair', userSelect: 'none' }}
-      onPointerDown={onDownSelect} onPointerMove={onMoveSelect} onPointerUp={onUpSelect}
+      onPointerDown={onDownSelect} onPointerMove={onMoveSelect} onPointerUp={onUpSelect} onPointerCancel={onUpSelect}
     >
       <img ref={imgRef} src={init.image} draggable={false}
+        // Main keeps the window hidden until the capture is on screen (no black
+        // flash). Decoded alone isn't enough — wait until a frame with it has
+        // been produced (two rAFs) before asking main to show the window.
+        onLoad={e => {
+          e.currentTarget.decode().catch(() => {})
+            .then(() => requestAnimationFrame(() => requestAnimationFrame(() => el.screenshot.ready())))
+        }}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
       {/* Dim mask. Four plain rects around the selection instead of an animated
           full-screen clip-path: re-rasterizing a screen-sized clip mask every
@@ -210,19 +240,28 @@ function OverlayInner() {
           <div style={{ position: 'absolute', left: sel.x, top: sel.y, width: sel.w, height: sel.h, border: `1px solid ${STROKE}`, pointerEvents: 'none' }} />
           <canvas ref={canvasRef}
             style={{ position: 'absolute', left: sel.x, top: sel.y, width: sel.w, height: sel.h, cursor: 'crosshair' }}
-            onPointerDown={onDownDraw} onPointerMove={onMoveDraw} onPointerUp={onUpDraw}
+            onPointerDown={onDownDraw} onPointerMove={onMoveDraw} onPointerUp={onUpDraw} onPointerCancel={onUpDraw}
+            // mousedown on the non-focusable canvas would move focus to <body>,
+            // blurring the text input the same click just opened (→ empty commit).
+            onMouseDown={e => e.preventDefault()}
           />
           {textDraft && (
             <input autoFocus value={textDraft.value}
+              onPointerDown={e => e.stopPropagation()}   // don't start a re-select
               onChange={e => setTextDraft({ ...textDraft, value: e.target.value })}
-              onBlur={commitText} onKeyDown={e => { if (e.key === 'Enter') commitText(); if (e.key === 'Escape') setTextDraft(null) }}
+              // Enter/Esc act on the draft only; stop them reaching the window
+              // handler, which would confirm / cancel the whole screenshot.
+              onBlur={commitText} onKeyDown={e => {
+                if (e.key === 'Enter') { e.stopPropagation(); commitText() }
+                if (e.key === 'Escape') { e.stopPropagation(); setTextDraft(null) }
+              }}
               style={{ position: 'absolute', left: textDraft.at.x, top: textDraft.at.y, font: '18px sans-serif', color: STROKE, background: 'transparent', border: `1px dashed ${STROKE}`, outline: 'none' }} />
           )}
           {stage && (
-            <div style={{
-              position: 'absolute', left: sel.x, top: Math.min(sel.y + sel.h + 8, window.innerHeight - 44),
+            <div ref={toolbarRef} style={{
+              position: 'absolute', left: barPos!.x, top: barPos!.y,
               display: 'flex', gap: 6, padding: 6, borderRadius: 8, background: '#fff', boxShadow: '0 2px 12px #0004',
-            }}>
+            }} onPointerDown={e => e.stopPropagation()}>   {/* clicks here must not start a re-select */}
               {toolBtn('rect', '▭')}{toolBtn('arrow', '↗')}{toolBtn('pen', '✎')}{toolBtn('text', 'T')}
               <button onClick={() => setOps(popOp)} style={{ padding: '4px 8px', borderRadius: 6, cursor: 'pointer', border: '1px solid #0003', background: '#fff' }}>↶</button>
               <button onClick={() => el.screenshot.cancel()} style={{ padding: '4px 8px', borderRadius: 6, cursor: 'pointer', border: '1px solid #0003', background: '#fff' }}>✕</button>

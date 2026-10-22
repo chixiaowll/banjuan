@@ -16,7 +16,7 @@ select a region, annotate it, and copy the result to the clipboard.
 | Output | **Clipboard only** (`clipboard.writeImage`) |
 | Annotation tools | **Rectangle, Arrow, Pen (freehand), Text** + Undo |
 | Trigger | **Global hotkey + in-app button** |
-| Default hotkey | `⌘⇧A` (macOS) / `Ctrl+Shift+A` (Windows/Linux), configurable |
+| Default hotkey | `Ctrl+Shift+A` (`⌃⇧A` on macOS — `⌘⇧A` clashes with Feishu's screenshot key), configurable |
 | Capture method | `desktopCapturer` + transparent overlay window (Approach A) |
 
 ### Explicitly out of scope (YAGNI)

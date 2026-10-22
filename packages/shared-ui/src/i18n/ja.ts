@@ -241,6 +241,13 @@ const ja = {
 
   'settings.title': '設定',
   'settings.language': '言語',
+  'settings.screenshotHotkey': 'スクリーンショットのショートカット',
+  'settings.hotkeyChange': '変更',
+  'settings.hotkeyReset': 'デフォルトに戻す',
+  'settings.hotkeyRecording': '新しいショートカットを押してください…（Esc でキャンセル）',
+  'settings.hotkeyHint': 'システム全体で有効です。他のアプリのスクリーンショットと同じキー（例：Feishu/Lark の ⌘⇧A）だと両方が同時に開くので、別の組み合わせにしてください。',
+  'settings.hotkeyFailed': 'このショートカットは使用できません（システムまたは他のアプリが使用中の可能性があります）。以前のショートカットを維持しました。',
+  'settings.hotkeyNotRegistered': '現在のショートカットを登録できませんでした。他のアプリが使用している可能性があります。別のものを選んでください。',
   'settings.appTheme': 'アプリテーマ',
   'settings.noteTheme': 'ノートテーマ',
   'pdf.eyeProtection': '目の保護',
