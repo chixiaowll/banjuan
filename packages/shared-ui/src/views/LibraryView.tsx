@@ -19,6 +19,7 @@ import { exportToDirectory, newRunId } from '../utils/exportToDirectory.js'
 import { listExportNotes, buildExportEntries } from '../utils/exportEntries.js'
 import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 import { notifyNotesChanged, notifyDocumentsChanged } from '../utils/libraryEvents.js'
+import { toast, alertDialog, confirmDialog } from '../components/feedback.js'
 
 interface Document {
   id: string
@@ -668,7 +669,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
       })
       await loadDocuments()
     } catch (err: any) {
-      alert(`${t('detail.downloadFailed')}: ${err.message}`)
+      toast.error(`${t('detail.downloadFailed')}: ${err.message}`)
     } finally {
       setDownloadProgress(prev => ({ ...prev, [docId]: null }))
     }
@@ -676,7 +677,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
   const handleUpload = async (docId: string) => {
     try { await api.sync.stubUpload(docId); await loadDocuments() }
-    catch (err: any) { alert(`${t('detail.uploadFailed')}: ${err.message}`) }
+    catch (err: any) { toast.error(`${t('detail.uploadFailed')}: ${err.message}`) }
   }
 
   const handleSelectItem = useCallback(async (id: string, type: 'document' | 'note') => {
@@ -2123,7 +2124,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           if (!results) return
                           const failed = results.filter((r: any) => !r.success && r.error !== 'NOT_MARKDOWN')
                           if (failed.length > 0) {
-                            alert(failed.map((r: any) => `${r.title}: ${r.error}`).join('\n'))
+                            void alertDialog({ title: t('import.someFailed'), message: failed.map((r: any) => `${r.title}: ${r.error}`).join('\n') })
                           }
                           await loadNotes()
                           await loadNoteDirs()
@@ -2450,7 +2451,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   const results = await api.notes.importMarkdown(paths, selectedNoteDir)
                   const failed = results.filter((r: any) => !r.success && r.error !== 'NOT_MARKDOWN')
                   if (failed.length > 0) {
-                    alert(failed.map((r: any) => `${r.title}: ${r.error}`).join('\n'))
+                    void alertDialog({ title: t('import.someFailed'), message: failed.map((r: any) => `${r.title}: ${r.error}`).join('\n') })
                   }
                   await loadNotes()
                   await loadNoteDirs()
@@ -2458,7 +2459,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   const results = await api.documents.importFiles(paths, selectedDir || undefined)
                   const failed = results.filter((r: any) => !r.success)
                   if (failed.length > 0) {
-                    alert(failed.map((r: any) => `${r.title}: ${r.error}`).join('\n'))
+                    void alertDialog({ title: t('import.someFailed'), message: failed.map((r: any) => `${r.title}: ${r.error}`).join('\n') })
                   }
                   await loadDocuments()
                 }
@@ -2876,8 +2877,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   <TagInput targetId={selectedItemId!} targetType={item.type === 'mindmap' ? 'mindmap' : 'note'} />
                 </div>
                 <div style={{ marginTop: 16 }}>
-                  <button onClick={() => {
-                    if (window.confirm(t('folderTree.confirmDeleteNote', item.title))) handleDelete(selectedItemId)
+                  <button onClick={async () => {
+                    if (await confirmDialog({ message: t('folderTree.confirmDeleteNote', item.title), danger: true, confirmText: t('common.delete') })) handleDelete(selectedItemId)
                   }} style={{ fontSize: 12, padding: '4px 10px', width: '100%', color: '#ff3b30', borderColor: 'rgba(255,59,48,0.3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Trash2 size={14} />{t('common.delete')}</button>
                 </div>
               </>
@@ -3146,7 +3147,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 <div onClick={async () => {
                   const dirPath = contextMenu.dirPath!
                   setContextMenu(null)
-                  if (!confirm(locale === 'zh' ? `确定删除文件夹「${dirPath.split('/').pop()}」及其所有文档？` : `Delete folder "${dirPath.split('/').pop()}" and all documents inside?`)) return
+                  if (!await confirmDialog({ message: t('library.confirmDeleteDocFolder', dirPath.split('/').pop() ?? dirPath), danger: true, confirmText: t('common.delete') })) return
                   if (api.documents.deleteDir) await api.documents.deleteDir(dirPath)
                   await loadDocuments()
                   notifyDocumentsChanged()
@@ -3169,7 +3170,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 const results = await api.notes.importMarkdownDialog!(contextMenu.dirPath || selectedNoteDir)
                 if (results) {
                   const failed = results.filter((r: any) => !r.success && r.error !== 'NOT_MARKDOWN')
-                  if (failed.length > 0) alert(failed.map((r: any) => `${r.title}: ${r.error}`).join('\n'))
+                  if (failed.length > 0) void alertDialog({ title: t('import.someFailed'), message: failed.map((r: any) => `${r.title}: ${r.error}`).join('\n') })
                 }
                 await loadNotes()
                 await loadNoteDirs()
@@ -3197,7 +3198,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 <div onClick={async () => {
                   const dirPath = contextMenu.dirPath!
                   setContextMenu(null)
-                  if (!confirm(locale === 'zh' ? `确定删除文件夹「${dirPath.split('/').pop()}」及其所有笔记？` : `Delete folder "${dirPath.split('/').pop()}" and all notes inside?`)) return
+                  if (!await confirmDialog({ message: t('library.confirmDeleteNoteFolder', dirPath.split('/').pop() ?? dirPath), danger: true, confirmText: t('common.delete') })) return
                   if (api.notes.deleteDir) await api.notes.deleteDir(dirPath)
                   await loadNotes()
                   await loadNoteDirs()
@@ -3223,11 +3224,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><FolderOutput size={14} />{t('library.move') || '移动到...'}</div>
-              <div onClick={() => {
-                if (contextMenu.docId && window.confirm(t('library.confirmDeleteDoc', contextMenu.docTitle || ''))) {
-                  handleDelete(contextMenu.docId)
-                }
+              <div onClick={async () => {
+                const { docId, docTitle } = contextMenu
                 setContextMenu(null)
+                if (docId && await confirmDialog({ message: t('library.confirmDeleteDoc', docTitle || ''), danger: true, confirmText: t('common.delete') })) {
+                  handleDelete(docId)
+                }
               }} style={{ ...ctxItemStyle, color: '#c44040', display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -3240,7 +3242,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><Pencil size={14} />{t('library.rename')}</div>
-              <div onClick={() => { if (contextMenu.noteId) { const title = notes.find((n: any) => n.id === contextMenu.noteId)?.title || ''; if (window.confirm(t('folderTree.confirmDeleteNote', title))) { handleDelete(contextMenu.noteId) } setContextMenu(null) } }} style={{ ...ctxItemStyle, color: '#c44040', display: 'flex', alignItems: 'center', gap: 6 }}
+              <div onClick={async () => { const noteId = contextMenu.noteId; if (!noteId) return; setContextMenu(null); const title = notes.find((n: any) => n.id === noteId)?.title || ''; if (await confirmDialog({ message: t('folderTree.confirmDeleteNote', title), danger: true, confirmText: t('common.delete') })) handleDelete(noteId) }} style={{ ...ctxItemStyle, color: '#c44040', display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><Trash2 size={14} />{t('common.delete')}</div>
@@ -3274,20 +3276,16 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
     setRebuilding(true)
     try {
       const r = await api.library.rebuild?.(purgeIds)
-      window.alert(zh
-        ? `重建完成：重新导入 ${r?.reimported ?? 0} 个文档，彻底清理 ${r?.purged ?? 0} 个，标记缺失 ${r?.markedMissing ?? 0} 个。\n\n将刷新以加载最新数据。`
-        : `Rebuild done: ${r?.reimported ?? 0} reimported, ${r?.purged ?? 0} purged, ${r?.markedMissing ?? 0} marked missing.\n\nReloading to refresh.`)
+      await alertDialog({ message: t('settings.rebuildDone', r?.reimported ?? 0, r?.purged ?? 0, r?.markedMissing ?? 0) })
       window.location.reload()
     } catch (e) {
-      window.alert((zh ? '重建失败：' : 'Rebuild failed: ') + String(e))
+      toast.error(t('settings.rebuildFailed', String(e)))
       setRebuilding(false)
     }
-  }, [api, zh])
+  }, [api, t])
 
   const startRebuild = useCallback(async () => {
-    if (!window.confirm(zh
-      ? '彻底重建会清空索引并从磁盘重新读取、重算哈希、重建所有索引，可能耗时较长。是否继续？'
-      : 'Full rebuild re-reads every file from disk, re-hashes, and rebuilds all indexes. This may take a while. Continue?')) return
+    if (!await confirmDialog({ message: t('settings.rebuildConfirm') })) return
     setRebuilding(true)
     try {
       const missing = (await api.library.detectMissing?.()) ?? []
@@ -3299,10 +3297,10 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
         setMissingDocs(missing)
       }
     } catch (e) {
-      window.alert((zh ? '检测失败：' : 'Detection failed: ') + String(e))
+      toast.error(t('settings.detectFailed', String(e)))
       setRebuilding(false)
     }
-  }, [api, zh, runRebuild])
+  }, [api, t, runRebuild])
 
   return (
     <div style={{ padding: 24, overflow: 'auto', flex: 1 }}>

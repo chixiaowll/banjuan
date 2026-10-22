@@ -40,6 +40,7 @@ const es = {
   'common.save': 'Guardar',
   'common.cancel': 'Cancelar',
   'common.confirm': 'Confirmar',
+  'common.ok': 'Aceptar',
   'common.copy': 'Copiar texto',
   'common.delete': 'Eliminar',
   'common.edit': 'Editar',
@@ -321,6 +322,22 @@ const es = {
   'tags.sortByCount': 'Ordenar por cantidad',
 
   'plugin.openPanel': 'Abrir',
+
+  // Dialogs & notices
+  'welcome.tooManyFilesImported': 'Esta carpeta supera el límite de {0} archivos, así que no se importó nada. Elige una carpeta con menos archivos (o una subcarpeta).',
+  'welcome.tooManyFiles': 'Esta carpeta supera el límite de {0} archivos y no puede usarse como biblioteca. Elige una carpeta con menos archivos (o una subcarpeta).',
+  'welcome.forgetMissing': '«{0}» ya no existe o no es una biblioteca (puede que se haya movido o eliminado). ¿Quitarla de «Recientes»?',
+  'welcome.removeFromRecent': 'Quitar',
+  'import.someFailed': 'No se pudieron importar estos archivos',
+  'sync.mergeLibrariesTitle': '¿Fusionar dos bibliotecas distintas?',
+  'sync.mergeLibrariesMessage': 'El otro dispositivo tiene la biblioteca «{0}» y esta es «{1}». Continuar fusionará su contenido, algo que normalmente no se desea.',
+  'sync.mergeContinue': 'Fusionar de todos modos',
+  'library.confirmDeleteDocFolder': '¿Eliminar la carpeta «{0}» y todos sus documentos? Los archivos se borrarán del disco.',
+  'library.confirmDeleteNoteFolder': '¿Eliminar la carpeta «{0}» y todas sus notas?',
+  'settings.rebuildConfirm': 'Una reconstrucción completa vacía el índice, vuelve a leer todos los archivos, recalcula los hashes y rehace los índices. Puede tardar. ¿Continuar?',
+  'settings.rebuildDone': 'Reconstrucción terminada: {0} reimportados, {1} purgados, {2} marcados como faltantes. Recargando para mostrar los datos actuales.',
+  'settings.rebuildFailed': 'Error al reconstruir: {0}',
+  'settings.detectFailed': 'Error en la detección: {0}',
 } as const
 
 export default es

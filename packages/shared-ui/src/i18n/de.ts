@@ -40,6 +40,7 @@ const de = {
   'common.save': 'Speichern',
   'common.cancel': 'Abbrechen',
   'common.confirm': 'Bestätigen',
+  'common.ok': 'OK',
   'common.copy': 'Text kopieren',
   'common.delete': 'Löschen',
   'common.edit': 'Bearbeiten',
@@ -321,6 +322,22 @@ const de = {
   'tags.sortByCount': 'Nach Anzahl sortieren',
 
   'plugin.openPanel': 'Öffnen',
+
+  // Dialogs & notices
+  'welcome.tooManyFilesImported': 'Dieser Ordner überschreitet das Limit von {0} Dateien, daher wurde nichts importiert. Bitte wähle einen Ordner mit weniger Dateien (oder einen Unterordner).',
+  'welcome.tooManyFiles': 'Dieser Ordner überschreitet das Limit von {0} Dateien und kann nicht als Bibliothek verwendet werden. Bitte wähle einen Ordner mit weniger Dateien (oder einen Unterordner).',
+  'welcome.forgetMissing': '„{0}“ existiert nicht mehr oder ist keine Bibliothek mehr (evtl. verschoben oder gelöscht). Aus „Zuletzt geöffnet“ entfernen?',
+  'welcome.removeFromRecent': 'Entfernen',
+  'import.someFailed': 'Diese Dateien konnten nicht importiert werden',
+  'sync.mergeLibrariesTitle': 'Zwei verschiedene Bibliotheken zusammenführen?',
+  'sync.mergeLibrariesMessage': 'Das andere Gerät hat die Bibliothek „{0}“, dieses „{1}“. Fortfahren führt ihre Inhalte zusammen – meist nicht gewollt.',
+  'sync.mergeContinue': 'Trotzdem zusammenführen',
+  'library.confirmDeleteDocFolder': 'Ordner „{0}“ und alle darin enthaltenen Dokumente löschen? Die Dateien werden von der Festplatte entfernt.',
+  'library.confirmDeleteNoteFolder': 'Ordner „{0}“ und alle darin enthaltenen Notizen löschen?',
+  'settings.rebuildConfirm': 'Ein vollständiger Neuaufbau leert den Index, liest alle Dateien neu ein, berechnet Hashes neu und baut alle Indizes neu auf. Das kann dauern. Fortfahren?',
+  'settings.rebuildDone': 'Neuaufbau fertig: {0} neu importiert, {1} bereinigt, {2} als fehlend markiert. Wird neu geladen, um die aktuellen Daten zu zeigen.',
+  'settings.rebuildFailed': 'Neuaufbau fehlgeschlagen: {0}',
+  'settings.detectFailed': 'Prüfung fehlgeschlagen: {0}',
 } as const
 
 export default de

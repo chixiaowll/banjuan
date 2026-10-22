@@ -40,6 +40,7 @@ const fr = {
   'common.save': 'Enregistrer',
   'common.cancel': 'Annuler',
   'common.confirm': 'Confirmer',
+  'common.ok': 'OK',
   'common.copy': 'Copier le texte',
   'common.delete': 'Supprimer',
   'common.edit': 'Modifier',
@@ -321,6 +322,22 @@ const fr = {
   'tags.sortByCount': 'Trier par nombre',
 
   'plugin.openPanel': 'Ouvrir',
+
+  // Dialogs & notices
+  'welcome.tooManyFilesImported': 'Ce dossier dépasse la limite de {0} fichiers : rien n’a été importé. Choisissez un dossier contenant moins de fichiers (ou un sous-dossier).',
+  'welcome.tooManyFiles': 'Ce dossier dépasse la limite de {0} fichiers et ne peut pas servir de bibliothèque. Choisissez un dossier contenant moins de fichiers (ou un sous-dossier).',
+  'welcome.forgetMissing': '« {0} » n’existe plus ou n’est plus une bibliothèque (elle a peut-être été déplacée ou supprimée). La retirer des « Récents » ?',
+  'welcome.removeFromRecent': 'Retirer',
+  'import.someFailed': 'Ces fichiers n’ont pas pu être importés',
+  'sync.mergeLibrariesTitle': 'Fusionner deux bibliothèques différentes ?',
+  'sync.mergeLibrariesMessage': 'L’autre appareil a la bibliothèque « {0} », celle-ci est « {1} ». Continuer fusionnera leur contenu, ce qui n’est généralement pas souhaité.',
+  'sync.mergeContinue': 'Fusionner quand même',
+  'library.confirmDeleteDocFolder': 'Supprimer le dossier « {0} » et tous ses documents ? Les fichiers seront supprimés du disque.',
+  'library.confirmDeleteNoteFolder': 'Supprimer le dossier « {0} » et toutes ses notes ?',
+  'settings.rebuildConfirm': 'Une reconstruction complète vide l’index, relit tous les fichiers, recalcule les empreintes et reconstruit les index. Cela peut prendre du temps. Continuer ?',
+  'settings.rebuildDone': 'Reconstruction terminée : {0} réimportés, {1} purgés, {2} marqués manquants. Rechargement pour afficher les dernières données.',
+  'settings.rebuildFailed': 'Échec de la reconstruction : {0}',
+  'settings.detectFailed': 'Échec de la détection : {0}',
 } as const
 
 export default fr

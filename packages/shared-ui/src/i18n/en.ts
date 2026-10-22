@@ -43,6 +43,7 @@ const en = {
   'common.save': 'Save',
   'common.cancel': 'Cancel',
   'common.confirm': 'Confirm',
+  'common.ok': 'OK',
   'common.copy': 'Copy Text',
   'common.delete': 'Delete',
   'common.edit': 'Edit',
@@ -350,6 +351,22 @@ const en = {
 
   // Plugins
   'plugin.openPanel': 'Open',
+
+  // Dialogs & notices
+  'welcome.tooManyFilesImported': 'This folder exceeds the {0}-file limit, so nothing was imported. Please pick a folder with fewer files (or a smaller subfolder).',
+  'welcome.tooManyFiles': 'This folder exceeds the {0}-file limit and can’t be used as a library. Please pick a folder with fewer files (or a smaller subfolder).',
+  'welcome.forgetMissing': '"{0}" no longer exists or isn’t a library (it may have been moved or deleted). Remove it from "Recent"?',
+  'welcome.removeFromRecent': 'Remove',
+  'import.someFailed': 'These files could not be imported',
+  'sync.mergeLibrariesTitle': 'Merge two different libraries?',
+  'sync.mergeLibrariesMessage': 'The other device has the library "{0}"; this one is "{1}". Continuing merges their contents, which is usually not what you want.',
+  'sync.mergeContinue': 'Merge anyway',
+  'library.confirmDeleteDocFolder': 'Delete the folder "{0}" and all documents in it? The files will be removed from disk.',
+  'library.confirmDeleteNoteFolder': 'Delete the folder "{0}" and all notes in it?',
+  'settings.rebuildConfirm': 'A full rebuild clears the index, re-reads every file from disk, re-hashes and rebuilds all indexes. This may take a while. Continue?',
+  'settings.rebuildDone': 'Rebuild done: {0} reimported, {1} purged, {2} marked missing. Reloading to show the latest data.',
+  'settings.rebuildFailed': 'Rebuild failed: {0}',
+  'settings.detectFailed': 'Detection failed: {0}',
 } as const
 
 export default en

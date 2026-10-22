@@ -40,6 +40,7 @@ const ja = {
   'common.save': '保存',
   'common.cancel': 'キャンセル',
   'common.confirm': '確認',
+  'common.ok': 'OK',
   'common.copy': 'テキストをコピー',
   'common.delete': '削除',
   'common.edit': '編集',
@@ -321,6 +322,22 @@ const ja = {
   'tags.sortByCount': '数順',
 
   'plugin.openPanel': '開く',
+
+  // Dialogs & notices
+  'welcome.tooManyFilesImported': 'このフォルダーはファイル数の上限（{0}）を超えているため、何も取り込みませんでした。ファイルの少ないフォルダー（またはサブフォルダー）を選んでください。',
+  'welcome.tooManyFiles': 'このフォルダーはファイル数の上限（{0}）を超えているため、書斎として使えません。ファイルの少ないフォルダー（またはサブフォルダー）を選んでください。',
+  'welcome.forgetMissing': '「{0}」は存在しないか、書斎ではなくなりました（移動または削除された可能性があります）。「最近使った項目」から削除しますか？',
+  'welcome.removeFromRecent': '削除',
+  'import.someFailed': '次のファイルを取り込めませんでした',
+  'sync.mergeLibrariesTitle': '別々の書斎を統合しますか？',
+  'sync.mergeLibrariesMessage': '相手の書斎は「{0}」、こちらは「{1}」です。続けると両方の内容が統合されます。通常は意図しない操作です。',
+  'sync.mergeContinue': 'それでも統合',
+  'library.confirmDeleteDocFolder': 'フォルダー「{0}」とその中のすべてのドキュメントを削除しますか？ファイルはディスクから削除されます。',
+  'library.confirmDeleteNoteFolder': 'フォルダー「{0}」とその中のすべてのノートを削除しますか？',
+  'settings.rebuildConfirm': '完全な再構築ではインデックスを消去し、すべてのファイルを読み直して再ハッシュし、索引を作り直します。時間がかかる場合があります。続けますか？',
+  'settings.rebuildDone': '再構築完了：{0} 件を再取り込み、{1} 件を完全削除、{2} 件を欠落として記録しました。最新データを表示するため再読み込みします。',
+  'settings.rebuildFailed': '再構築に失敗しました：{0}',
+  'settings.detectFailed': '検出に失敗しました：{0}',
 } as const
 
 export default ja

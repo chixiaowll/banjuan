@@ -1,5 +1,6 @@
 // API context
 export { BanjuanAPIProvider, useBanjuanAPI } from './api.js'
+export { FeedbackHost, toast, confirmDialog, alertDialog, promptDialog } from './components/feedback.js'
 export type { BanjuanAPI } from './api.js'
 
 // i18n

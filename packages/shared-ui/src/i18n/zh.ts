@@ -43,6 +43,7 @@ const zh = {
   'common.save': '保存',
   'common.cancel': '取消',
   'common.confirm': '确定',
+  'common.ok': '好的',
   'common.copy': '复制文字',
   'common.delete': '删除',
   'common.edit': '编辑',
@@ -350,6 +351,22 @@ const zh = {
 
   // Plugins
   'plugin.openPanel': '打开',
+
+  // Dialogs & notices
+  'welcome.tooManyFilesImported': '该目录文件数超过上限（{0}），未导入任何文件。请选择文件更少的目录或更小的子目录重新打开。',
+  'welcome.tooManyFiles': '该目录文件数超过上限（{0}），不能作为书房。请选择文件更少的目录，或更小的子目录。',
+  'welcome.forgetMissing': '「{0}」已不存在或不再是一个书房（可能已被移动或删除）。是否从“最近打开”中移除？',
+  'welcome.removeFromRecent': '移除',
+  'import.someFailed': '以下文件导入失败',
+  'sync.mergeLibrariesTitle': '要合并两个不同的书房吗？',
+  'sync.mergeLibrariesMessage': '对方是书房「{0}」，当前是「{1}」。继续会把两个书房的内容合并到一起，通常你并不想这样。',
+  'sync.mergeContinue': '仍然合并',
+  'library.confirmDeleteDocFolder': '确定删除文件夹「{0}」及其中所有文档？文件将从磁盘上删除。',
+  'library.confirmDeleteNoteFolder': '确定删除文件夹「{0}」及其中所有笔记？',
+  'settings.rebuildConfirm': '彻底重建会清空索引并从磁盘重新读取、重算哈希、重建所有索引，可能耗时较长。是否继续？',
+  'settings.rebuildDone': '重建完成：重新导入 {0} 个文档，彻底清理 {1} 个，标记缺失 {2} 个。将刷新以加载最新数据。',
+  'settings.rebuildFailed': '重建失败：{0}',
+  'settings.detectFailed': '检测失败：{0}',
 } as const
 
 export default zh

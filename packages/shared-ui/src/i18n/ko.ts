@@ -40,6 +40,7 @@ const ko = {
   'common.save': '저장',
   'common.cancel': '취소',
   'common.confirm': '확인',
+  'common.ok': '확인',
   'common.copy': '텍스트 복사',
   'common.delete': '삭제',
   'common.edit': '편집',
@@ -321,6 +322,22 @@ const ko = {
   'tags.sortByCount': '개수순',
 
   'plugin.openPanel': '열기',
+
+  // Dialogs & notices
+  'welcome.tooManyFilesImported': '이 폴더는 파일 수 제한({0}개)을 초과하여 아무것도 가져오지 않았습니다. 파일이 더 적은 폴더(또는 하위 폴더)를 선택하세요.',
+  'welcome.tooManyFiles': '이 폴더는 파일 수 제한({0}개)을 초과하여 서재로 사용할 수 없습니다. 파일이 더 적은 폴더(또는 하위 폴더)를 선택하세요.',
+  'welcome.forgetMissing': '"{0}"이(가) 더 이상 존재하지 않거나 서재가 아닙니다(이동되었거나 삭제되었을 수 있음). "최근 항목"에서 제거할까요?',
+  'welcome.removeFromRecent': '제거',
+  'import.someFailed': '다음 파일을 가져오지 못했습니다',
+  'sync.mergeLibrariesTitle': '서로 다른 서재를 병합할까요?',
+  'sync.mergeLibrariesMessage': '상대 기기의 서재는 "{0}", 현재 서재는 "{1}"입니다. 계속하면 두 서재의 내용이 합쳐지며, 보통은 원하지 않는 동작입니다.',
+  'sync.mergeContinue': '그래도 병합',
+  'library.confirmDeleteDocFolder': '폴더 "{0}"와(과) 그 안의 모든 문서를 삭제할까요? 파일이 디스크에서 삭제됩니다.',
+  'library.confirmDeleteNoteFolder': '폴더 "{0}"와(과) 그 안의 모든 노트를 삭제할까요?',
+  'settings.rebuildConfirm': '전체 재구성은 색인을 비우고 모든 파일을 디스크에서 다시 읽어 해시를 다시 계산하고 색인을 다시 만듭니다. 시간이 걸릴 수 있습니다. 계속할까요?',
+  'settings.rebuildDone': '재구성 완료: {0}개 다시 가져옴, {1}개 정리, {2}개 누락으로 표시. 최신 데이터를 보려면 새로고침합니다.',
+  'settings.rebuildFailed': '재구성 실패: {0}',
+  'settings.detectFailed': '검사 실패: {0}',
 } as const
 
 export default ko

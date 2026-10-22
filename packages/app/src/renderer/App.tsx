@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
-import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService } from '@banjuan/shared-ui'
+import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService, FeedbackHost } from '@banjuan/shared-ui'
 import WelcomeView from './views/WelcomeView.js'
 import ScreenshotOverlay from './views/ScreenshotOverlay.js'
 import { electronAPI } from './electron-api.js'
@@ -96,6 +96,7 @@ function MainApp() {
               onLibraryRenamed={(name) => setLibrary(prev => prev ? { ...prev, name } : prev)}
             />}
         <NoteRenderService />
+        <FeedbackHost />
       </I18nProvider>
       </ThemeProvider>
     </BanjuanAPIProvider>

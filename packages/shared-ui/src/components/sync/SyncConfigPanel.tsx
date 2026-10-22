@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import { Save, RefreshCw, Wifi } from 'lucide-react'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
+import { confirmDialog } from '../feedback.js'
 
 interface SyncConfig {
   url: string
@@ -109,7 +110,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
       let r = await api.lan.syncDevice(url, onProgress)
       if ('needsPair' in r) { setLanMsg('尚未连接该设备,请先点"连接"'); return }
       if ('needsConfirm' in r) {
-        const ok = confirm(`对方是不同的书房「${r.peerName}」,当前是「${r.localName}」。继续会把两个书房合并,通常你不想这样。确定继续吗?`)
+        const ok = await confirmDialog({ title: t('sync.mergeLibrariesTitle'), message: t('sync.mergeLibrariesMessage', r.peerName, r.localName), confirmText: t('sync.mergeContinue'), danger: true })
         if (!ok) { setLanMsg('已取消'); return }
         setLanMsg('合并中…')
         const r2 = await api.lan.syncDevice(url, onProgress, true)
