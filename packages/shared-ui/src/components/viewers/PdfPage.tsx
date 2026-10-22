@@ -233,52 +233,52 @@ export default function PdfPage({
         const getLocalWidth = (el: HTMLElement) => parseFloat(getComputedStyle(el).width) || el.offsetWidth
 
 
-        // Pass 1: calculate pure character width ratio from space-free spans
-        const measurements: Array<{ el: HTMLElement, expectedWidth: number, restTransform: string, originalTransform: string }> = []
-        let charRatioSum = 0, charRatioCount = 0
+        // Calibrate each span's width to the canvas glyph widths. Writes and
+        // reads are batched (write all → read all → write all …): interleaving
+        // them per span forced a synchronous layout for every span on the page.
+        type Measure = { el: HTMLElement; expectedWidth: number; restTransform: string; originalTransform: string; text: string; natural: number }
+        const measurements: Measure[] = []
+        // Write 1: strip scaleX so natural widths can be measured.
         for (let i = 0; i < allSpans.length && i < textItems.length; i++) {
           const el = allSpans[i] as HTMLElement
-          const item = textItems[i]
-          const canvasWidth = item.width || 0
-          if (canvasWidth <= 0) { measurements.push({ el, expectedWidth: 0, restTransform: '', originalTransform: '' }); continue }
-          const expectedWidth = canvasWidth * scale
+          const canvasWidth = textItems[i].width || 0
           const currentTransform = el.style.transform || ''
-          if (!currentTransform.includes('scaleX(')) { measurements.push({ el, expectedWidth: 0, restTransform: '', originalTransform: '' }); continue }
+          if (canvasWidth <= 0 || !currentTransform.includes('scaleX(')) continue
           const restTransform = currentTransform.replace(/scaleX\([^)]+\)\s*/, '').trim()
           el.style.transform = restTransform || 'none'
-          const naturalWidth = getLocalWidth(el)
-          const text = el.textContent || ''
-          if (naturalWidth > 0 && !text.includes(' ')) {
-            charRatioSum += expectedWidth / naturalWidth
+          measurements.push({ el, expectedWidth: canvasWidth * scale, restTransform, originalTransform: currentTransform, text: el.textContent || '', natural: 0 })
+        }
+        // Read 1: natural widths → pure character width ratio from space-free spans.
+        let charRatioSum = 0, charRatioCount = 0
+        for (const m of measurements) {
+          m.natural = getLocalWidth(m.el)
+          if (m.natural > 0 && !m.text.includes(' ')) {
+            charRatioSum += m.expectedWidth / m.natural
             charRatioCount++
           }
-          measurements.push({ el, expectedWidth, restTransform, originalTransform: currentTransform })
         }
         const charRatio = charRatioCount > 0 ? charRatioSum / charRatioCount : 1.0
-
-        // Pass 2: apply scaleX for characters + word-spacing for spaces
-        for (let i = 0; i < measurements.length && i < textItems.length; i++) {
-          const { el, expectedWidth, restTransform, originalTransform } = measurements[i]
-          if (expectedWidth <= 0) continue
-          const text = el.textContent || ''
-          const spaceCount = (text.match(/ /g) || []).length
-
-          if (spaceCount > 0) {
-            el.style.transform = `${restTransform ? restTransform + ' ' : ''}scaleX(${charRatio})`
-            const widthAfterCharScale = getLocalWidth(el)
-            if (widthAfterCharScale > 0) {
-              const spaceDiff = (expectedWidth / charRatio - widthAfterCharScale) / spaceCount
-              el.style.wordSpacing = `${spaceDiff}px`
-            }
+        // Write 2: scaleX for characters (spans with spaces get the shared ratio).
+        const spaced: Measure[] = []
+        for (const m of measurements) {
+          const prefix = m.restTransform ? m.restTransform + ' ' : ''
+          if (m.text.includes(' ')) {
+            m.el.style.transform = `${prefix}scaleX(${charRatio})`
+            spaced.push(m)
+          } else if (m.natural > 0) {
+            m.el.style.transform = `${prefix}scaleX(${m.expectedWidth / m.natural})`
           } else {
-            const naturalWidth = getLocalWidth(el)
-            if (naturalWidth > 0) {
-              el.style.transform = `${restTransform ? restTransform + ' ' : ''}scaleX(${expectedWidth / naturalWidth})`
-            } else {
-              el.style.transform = originalTransform
-            }
+            m.el.style.transform = m.originalTransform
           }
         }
+        // Read 2 + write 3: word-spacing makes up the rest for spans with spaces.
+        const scaledWidths = spaced.map(m => getLocalWidth(m.el))
+        spaced.forEach((m, i) => {
+          if (scaledWidths[i] > 0) {
+            const spaceCount = (m.text.match(/ /g) || []).length
+            m.el.style.wordSpacing = `${(m.expectedWidth / charRatio - scaledWidths[i]) / spaceCount}px`
+          }
+        })
 
         for (const el of textLayerEl.querySelectorAll('span, br')) {
           ;(el as HTMLElement).style.color = 'transparent'
