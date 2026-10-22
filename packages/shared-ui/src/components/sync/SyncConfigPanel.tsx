@@ -30,6 +30,8 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
   const api = useBanjuanAPI()
   const canHost = api.lan.canHost !== false   // undefined (older desktop) treated as can-host; mobile sets false
   const { t, locale } = useI18n()
+  // Wide enough for the placeholder in every language ("6-stellige PIN" was cut off at 100px).
+  const pinInputWidth = `calc(${Math.max(8, t('welcome.pinPlaceholder').length + 1)}ch + 28px)`
   const lanUrlKey = `banjuan.lan.peerUrl:${libraryKey ?? ''}`
   const lanPinKey = `banjuan.lan.peerPin:${libraryKey ?? ''}`
   const [config, setConfig] = useState<SyncConfig>({
@@ -427,7 +429,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
             {/* PIN input — only show when there are unpaired nearby devices to connect */}
             {nearby.some(s => !pairedIds.has(s.deviceId)) && (
               <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input style={{ ...inputStyle, width: 120, flex: 'none' }} type="text" inputMode="numeric" placeholder={t('welcome.pinPlaceholder')}
+                <input style={{ ...inputStyle, width: pinInputWidth, flex: 'none' }} type="text" inputMode="numeric" placeholder={t('welcome.pinPlaceholder')}
                   value={peerPin} onChange={(e) => setPeerPin(e.target.value.replace(/\D/g, '').slice(0, 6))} disabled={lanBusy} autoFocus />
                 <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>{t('sync.pinHint')}</span>
               </div>
@@ -440,7 +442,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
             <div style={{ display: 'flex', gap: 8 }}>
               <input style={{ ...inputStyle, flex: 1 }} type="text" placeholder={t('sync.peerUrlPlaceholder')}
                 value={peerUrl} onChange={(e) => setPeerUrl(e.target.value)} disabled={lanBusy} />
-              <input style={{ ...inputStyle, width: 100, flex: 'none' }} type="text" inputMode="numeric" placeholder={t('welcome.pinPlaceholder')}
+              <input style={{ ...inputStyle, width: pinInputWidth, flex: 'none' }} type="text" inputMode="numeric" placeholder={t('welcome.pinPlaceholder')}
                 value={peerPin} onChange={(e) => setPeerPin(e.target.value.replace(/\D/g, '').slice(0, 6))} disabled={lanBusy} />
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

@@ -6,6 +6,7 @@ import ko from './ko.js'
 import fr from './fr.js'
 import de from './de.js'
 import es from './es.js'
+import { formatMessage } from './format.js'
 
 export type Locale = 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es'
 
@@ -54,11 +55,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const t = useCallback((key: keyof Messages, ...args: Array<string | number>): string => {
-    let msg: string = locales[locale][key] ?? locales.zh[key] ?? key
-    for (let i = 0; i < args.length; i++) {
-      msg = msg.replace(`{${i}}`, String(args[i]))
-    }
-    return msg
+    const msg: string = locales[locale][key] ?? locales.zh[key] ?? key
+    return formatMessage(msg, args, LOCALE_TAGS[locale])
   }, [locale])
 
   return React.createElement(I18nContext.Provider, { value: { locale, setLocale, t } }, children)

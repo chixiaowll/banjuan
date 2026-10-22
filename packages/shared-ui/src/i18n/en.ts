@@ -80,8 +80,8 @@ const en = {
   'library.untitledMindmap': 'Untitled Mindmap',
   'library.colTitle': 'Title',
   'library.colType': 'Type',
-  'library.docCount': '{0} documents',
-  'library.noteCount': '{0} notes',
+  'library.docCount': '{0, plural, one {# document} other {# documents}}',
+  'library.noteCount': '{0, plural, one {# note} other {# notes}}',
   'library.totalCount': '{0} total',
   'library.sortAsc': 'Ascending',
   'library.sortDesc': 'Descending',
@@ -289,7 +289,7 @@ const en = {
 
   // Graph
   'graph.title': 'Knowledge Graph',
-  'graph.stats': '{0} nodes · {1} edges',
+  'graph.stats': '{0, plural, one {# node} other {# nodes}} · {1, plural, one {# edge} other {# edges}}',
   'graph.empty': 'Knowledge graph will be generated after adding documents and notes',
 
   // PDF info sidebar
@@ -390,7 +390,7 @@ const en = {
   'library.yesterdayAt': 'Yesterday {0}',
   'library.daysAgo': '{0}d ago',
   'library.missing': 'missing',
-  'library.itemCount': '{0} items',
+  'library.itemCount': '{0, plural, one {# item} other {# items}}',
   'library.tagEmpty': 'No items with this tag',
   'library.allDocs': 'All',
   'library.filterNotes': 'Filter notes…',
@@ -401,7 +401,7 @@ const en = {
   'library.exportNotesDesc': 'Choose a format. Notes will be exported one by one to a folder.',
   'home.dailyPick': 'Daily Pick',
   'home.myNotes': 'My Notes',
-  'home.annotationCount': '{0} annotations',
+  'home.annotationCount': '{0, plural, one {# annotation} other {# annotations}}',
   'home.pageShort': 'P. {0}',
   'detail.fileMissing': 'File missing',
   'detail.fileMissingDesc': 'The file is gone from disk; metadata and annotations are kept.',
@@ -523,10 +523,10 @@ const en = {
   'embed.emptyNote': 'Empty note',
   'embed.jumpToSource': 'Go to source',
   'embed.loadingMindmap': 'Loading mindmap...',
-  'embed.morePages': '+{0} more pages',
+  'embed.morePages': '{0, plural, one {+# more page} other {+# more pages}}',
   'embed.noNotesFound': 'No notes found',
   'embed.openDocument': 'Open document',
-  'embed.pageCount': '{0} pages',
+  'embed.pageCount': '{0, plural, one {# page} other {# pages}}',
   'embed.pageShort': 'p.{0}',
   'embed.remove': 'Remove embed',
   'embed.searchNotes': 'Search notes...',
@@ -605,7 +605,7 @@ const en = {
   'trash.subtitle': 'Deleted documents, notes and folders stay here for 30 days, then are removed automatically.',
   'trash.empty': 'Trash is empty',
   'trash.emptyBin': 'Empty Trash',
-  'trash.emptyConfirm': 'Permanently delete {0} items in the Trash? This can\'t be undone.',
+  'trash.emptyConfirm': 'Permanently delete {0, plural, one {# item} other {all # items}} in the Trash? This can\'t be undone.',
   'trash.restore': 'Restore',
   'trash.purge': 'Delete forever',
   'trash.purgeConfirm': '"{0}" will be permanently deleted. This can\'t be undone.',
@@ -652,7 +652,7 @@ const en = {
   'readingNote.title': 'Reading notes: {0}',
   'readingNote.annotations': 'Annotations',
   'readingNote.empty': 'This document has no annotations to collect yet (highlights, underlines or notes).',
-  'readingNote.created': 'Reading notes created from {0} annotations',
+  'readingNote.created': 'Reading notes created from {0, plural, one {# annotation} other {# annotations}}',
 
   // screenshot
   'screenshot.toolRect': 'Rectangle',
