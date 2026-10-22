@@ -4,7 +4,9 @@
   "scripts": {
     "test": "pnpm -r test",
     "build": "pnpm -r build",
-    "dev": "pnpm --filter @banjuan/app dev"
+    "dev": "pnpm --filter @banjuan/app dev",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "verify": "pnpm -r --if-present typecheck && pnpm -r --no-bail test"
   },
   "engines": {
     "node": ">=20"
