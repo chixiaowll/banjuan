@@ -10,7 +10,8 @@ import { extractNoteLinks, extractDocumentLinks } from '../notes/extract-links.j
  * open, a persisted DB whose stamped version differs (or is absent) triggers a
  * one-time full rebuild; matching versions skip rebuildFull entirely.
  */
-export const INDEX_VERSION = 1
+// 2: search_index switched to the trigram tokenizer (Chinese substring search).
+export const INDEX_VERSION = 2
 
 export class IndexService {
   private docStore: JsonStore<DocumentFileData>

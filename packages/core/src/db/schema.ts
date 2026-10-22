@@ -184,11 +184,7 @@ export function initSchema(db: PlatformDatabase): void {
   db.execute(SCHEMA_SQL)
   db.execute(INDEX_SQL)
 
-  try {
-    db.execute(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(title, content, type, tokenize='unicode61')`)
-  } catch {
-    // FTS5 not available (e.g. sql.js on mobile)
-  }
+  ensureSearchIndex(db)
 
   // Migrate mindmap_nodes: add new columns if missing
   const nodeColumns = db.pragma('table_info(mindmap_nodes)') as Array<{ name: string }>
@@ -211,5 +207,29 @@ export function initSchema(db: PlatformDatabase): void {
   const docColumns = db.pragma('table_info(documents)') as Array<{ name: string }>
   if (!docColumns.some(c => c.name === 'last_read_at')) {
     db.execute('ALTER TABLE documents ADD COLUMN last_read_at TEXT')
+  }
+}
+
+/**
+ * Full-text index of note text. The trigram tokenizer matches any substring of
+ * 3+ characters in any script — unicode61 treated a run of Chinese as one
+ * "word", so 学习 never matched inside 机器学习. An existing unicode61 table is
+ * replaced (its rows are refilled by the full rebuild that INDEX_VERSION 2
+ * triggers). SQLite without trigram (< 3.34) keeps / creates unicode61, and
+ * search falls back to substring scans; no FTS5 at all leaves search on titles.
+ */
+function ensureSearchIndex(db: PlatformDatabase): void {
+  let trigram = false
+  try {
+    db.execute(`CREATE VIRTUAL TABLE temp.trigram_probe USING fts5(x, tokenize='trigram')`)
+    db.execute('DROP TABLE temp.trigram_probe')
+    trigram = true
+  } catch { /* trigram tokenizer (or FTS5) unavailable */ }
+  try {
+    const existing = db.queryOne<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'search_index'")
+    if (trigram && existing && !/trigram/i.test(existing.sql)) db.execute('DROP TABLE search_index')
+    db.execute(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(title, content, type, tokenize='${trigram ? 'trigram' : 'unicode61'}')`)
+  } catch {
+    // FTS5 not available (e.g. sql.js on mobile)
   }
 }
