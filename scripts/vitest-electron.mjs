@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const electron = createRequire(join(root, 'packages/app/package.json'))('electron')   // binary path
 const vitest = join(process.cwd(), 'node_modules', 'vitest', 'vitest.mjs')
-const args = process.argv.slice(2)
+const args = process.argv.slice(2).filter((a, i) => !(i === 0 && a === '--'))   // `pnpm test -- file` passes a literal --
 const r = spawnSync(electron, [vitest, ...(args[0] === 'watch' ? args : ['run', ...args])], {
   stdio: 'inherit',
   env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
