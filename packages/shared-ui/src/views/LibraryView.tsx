@@ -156,30 +156,28 @@ function formatRelativeTime(dateStr: string, locale: string): { relative: string
   } catch { return { relative: dateStr, absolute: dateStr } }
 }
 
-function groupByDate(items: any[], locale: string): { label: string; items: any[] }[] {
+/** Group (already sorted) items into day buckets by `field`, labelled in the UI locale. */
+function groupByDate(items: any[], locale: string, field: 'updatedAt' | 'createdAt' = 'updatedAt'): { label: string; items: any[] }[] {
   const now = new Date()
   const today = now.toDateString()
   const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1)
   const yesterdayStr = yesterday.toDateString()
-  const isZh = locale === 'zh'
+  const rel = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
+  const monthDay = (d: Date) => d.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
   const groups: Map<string, any[]> = new Map()
   const groupLabels: Map<string, string> = new Map()
 
   for (const item of items) {
-    const d = new Date(item.updatedAt || item.createdAt || '')
+    const d = new Date((field === 'createdAt' ? item.createdAt : item.updatedAt || item.createdAt) || '')
     const ds = d.toDateString()
     const key = ds
     if (!groups.has(key)) {
       groups.set(key, [])
       let label: string
-      if (ds === today) {
-        label = isZh ? `今天 · ${d.getMonth() + 1}月 ${d.getDate()}` : `Today · ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-      } else if (ds === yesterdayStr) {
-        label = isZh ? `昨天 · ${d.getMonth() + 1}月 ${d.getDate()}` : `Yesterday · ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-      } else {
-        const weekday = isZh ? ['日','一','二','三','四','五','六'][d.getDay()] : ''
-        label = isZh ? `${d.getMonth() + 1}月 ${d.getDate()} · 周${weekday}` : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' })
-      }
+      if (ds === today) label = `${cap(rel.format(0, 'day'))} · ${monthDay(d)}`
+      else if (ds === yesterdayStr) label = `${cap(rel.format(-1, 'day'))} · ${monthDay(d)}`
+      else label = `${monthDay(d)} · ${d.toLocaleDateString(locale, { weekday: 'short' })}`
       groupLabels.set(key, label)
     }
     groups.get(key)!.push(item)
@@ -335,8 +333,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   // match the MIND pill.
   const [searchQueryMap, setSearchQueryMap] = useState<Record<string, string>>({})
   const [typeFilterMap, setTypeFilterMap] = useState<Record<string, string>>({})
-  const [sortKey, setSortKey] = useState<'type' | 'title' | 'createdAt' | 'updatedAt' | null>(null)
-  const [sortAsc, setSortAsc] = useState(true)
+  const [sortKey, setSortKey] = useState<'type' | 'title' | 'createdAt' | 'updatedAt' | null>('updatedAt')
+  const [sortAsc, setSortAsc] = useState(false)   // newest first
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [showNotePicker, setShowNotePicker] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: string; dirPath?: string; noteId?: string; noteTitle?: string; docId?: string; docTitle?: string } | null>(null)
@@ -751,7 +749,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
           va = a.createdAt || ''
           vb = b.createdAt || ''
         }
-        const cmp = va.localeCompare(vb, 'zh-CN')
+        const cmp = va.localeCompare(vb, 'zh-CN') ||
+          (a.title || a.name || '').localeCompare(b.title || b.name || '', 'zh-CN')
         return sortAsc ? cmp : -cmp
       })
     }
@@ -760,6 +759,25 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   }
 
   const displayItems = getDisplayItems()
+  // The folder being browsed in this section — shown in the breadcrumb and as the page title.
+  const currentDir = selectedSection === 'documents' ? selectedDir : selectedSection === 'notes' ? selectedNoteDir : null
+  const dirSegments = currentDir ? currentDir.split('/').filter(Boolean) : []
+  const sectionLabel = selectedSection === 'documents' ? t('library.documents') : t('library.notes')
+  const setCurrentDir = (dir: string | null) => {
+    if (selectedSection === 'documents') setSelectedDir(dir); else setSelectedNoteDir(dir)
+    setSelectedItemId(null)
+    setSelectedItemDetail(null)
+  }
+  // Day headers only make sense when sorted by a date; title/type sorts are one flat list.
+  const groupItems = (items: any[]) =>
+    sortKey === 'title' || sortKey === 'type'
+      ? [{ label: '', items }]
+      : groupByDate(items, locale, sortKey === 'createdAt' ? 'createdAt' : 'updatedAt')
+  // "{0} notes" with the number emphasised, whatever the word order of the locale.
+  const countLabel = (key: 'library.docCount' | 'library.noteCount' | 'library.totalCount', n: number) => {
+    const [pre, post] = t(key, '\u0000').split('\u0000')
+    return <>{pre}<strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{n}</strong>{post}</>
+  }
 
   const sb = layout.sidebar
   const sidebarStyle: React.CSSProperties = {
@@ -2030,11 +2048,19 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 }}>
                   <span style={{ cursor: 'pointer' }} onClick={() => handleSectionChange('home')}>{libraryName}</span>
                   <ChevronRight size={12} style={{ color: 'var(--ink-ghost)' }} />
-                  <span style={{ color: 'var(--ink)' }}>{selectedSection === 'documents' ? (locale === 'zh' ? '文档' : 'Documents') : (locale === 'zh' ? '笔记' : 'Notes')}</span>
-                  {selectedSection === 'documents' && selectedDir && (<>
-                    <ChevronRight size={12} style={{ color: 'var(--ink-ghost)' }} />
-                    <span style={{ color: 'var(--ink)' }}>{selectedDir.split('/').pop()}</span>
-                  </>)}
+                  <span
+                    style={{ color: currentDir ? undefined : 'var(--ink)', cursor: currentDir ? 'pointer' : undefined }}
+                    onClick={() => currentDir && setCurrentDir(null)}
+                  >{sectionLabel}</span>
+                  {dirSegments.map((seg, i) => (
+                    <React.Fragment key={i}>
+                      <ChevronRight size={12} style={{ color: 'var(--ink-ghost)' }} />
+                      <span
+                        style={i === dirSegments.length - 1 ? { color: 'var(--ink)' } : { cursor: 'pointer' }}
+                        onClick={() => { if (i < dirSegments.length - 1) setCurrentDir(dirSegments.slice(0, i + 1).join('/')) }}
+                      >{seg}</span>
+                    </React.Fragment>
+                  ))}
                 </div>
                 {/* Title + buttons */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -2042,7 +2068,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                     fontSize: 30, fontWeight: 600, color: 'var(--ink)',
                     letterSpacing: '-0.02em', lineHeight: 1.2, margin: 0,
                     display: 'inline-flex', alignItems: 'center', gap: 14,
-                  }}>{selectedSection === 'documents' ? (locale === 'zh' ? '文档' : 'Documents') : (locale === 'zh' ? '笔记' : 'Notes')}
+                  }}>{dirSegments.length ? dirSegments[dirSegments.length - 1] : sectionLabel}
                   </h1>
                   <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                     {selectedSection === 'documents' && (<>
@@ -2121,13 +2147,13 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 {/* Stats */}
                 <div style={{ fontSize: 13, color: 'var(--ink-mute)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
                   {selectedSection === 'documents' ? (<>
-                    <span><strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{displayItems.length}</strong>&nbsp;{locale === 'zh' ? '个文档' : 'documents'}</span>
+                    <span>{countLabel('library.docCount', displayItems.length)}</span>
                     {selectedDir && (<>
                       <span style={{ color: 'var(--ink-ghost)' }}>·</span>
-                      <span>{locale === 'zh' ? '共' : 'total'} {documents.length} {locale === 'zh' ? '个' : ''}</span>
+                      <span>{t('library.totalCount', documents.length)}</span>
                     </>)}
                   </>) : (<>
-                    <span><strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{displayItems.length}</strong>&nbsp;{locale === 'zh' ? '个笔记' : 'notes'}</span>
+                    <span>{countLabel('library.noteCount', displayItems.length)}</span>
                   </>)}
                 </div>
               </div>
@@ -2299,17 +2325,18 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                     <span style={{ fontSize: 11 }}>⇅</span>
                     <select
                       value={sortKey ?? 'updatedAt'}
-                      onChange={e => { setSortKey(e.target.value as any); setSortAsc(false) }}
+                      // Dates default to newest first, text to A→Z.
+                      onChange={e => { const k = e.target.value as any; setSortKey(k); setSortAsc(k === 'title' || k === 'type') }}
                       style={{
                         appearance: 'none', border: 'none', outline: 'none', background: 'transparent',
                         fontSize: 12, color: 'var(--ink-soft)', fontWeight: 500, cursor: 'pointer',
                         paddingRight: 16,
                       }}
                     >
-                      <option value="updatedAt">{locale === 'zh' ? '更新时间' : 'Updated'}</option>
-                      <option value="createdAt">{locale === 'zh' ? '创建时间' : 'Created'}</option>
-                      <option value="title">{locale === 'zh' ? '标题' : 'Title'}</option>
-                      <option value="type">{locale === 'zh' ? '类型' : 'Type'}</option>
+                      <option value="updatedAt">{t('detail.updatedAt')}</option>
+                      <option value="createdAt">{t('detail.createdAt')}</option>
+                      <option value="title">{t('library.colTitle')}</option>
+                      <option value="type">{t('library.colType')}</option>
                     </select>
                     <ChevronDown size={11} style={{ color: 'var(--ink-mute)', position: 'absolute', right: 8, pointerEvents: 'none' }} />
                   </div>
@@ -2322,7 +2349,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                       cursor: 'pointer', boxShadow: '0 1px 3px rgba(60,40,20,.06)',
                       fontSize: 12, color: 'var(--ink-soft)',
                     }}
-                    title={sortAsc ? (locale === 'zh' ? '升序' : 'Ascending') : (locale === 'zh' ? '降序' : 'Descending')}
+                    title={sortAsc ? t('library.sortAsc') : t('library.sortDesc')}
                   >
                     {sortAsc ? '↑' : '↓'}
                   </div>
@@ -2440,23 +2467,19 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 </div>
               )}
               {layout.home.sectionCardStyle === 'card' && selectedSection === 'documents' ? (() => {
-                const sorted = [...displayItems].sort((a: any, b: any) => {
-                  const va = a.updatedAt || a.createdAt || ''
-                  const vb = b.updatedAt || b.createdAt || ''
-                  return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
-                })
-                const groups = groupByDate(sorted, locale)
+                // displayItems is already sorted by the chosen key (getDisplayItems).
+                const groups = groupItems(displayItems)
                 return groups.map((group, gi) => (
                   <div key={gi} style={{ marginBottom: 12 }}>
                     {/* Date group header */}
-                    <div style={{
+                    {group.label && <div style={{
                       display: 'flex', alignItems: 'center', gap: 12,
                       padding: gi === 0 ? '10px 12px 8px' : '14px 12px 8px',
                     }}>
                       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em', flexShrink: 0 }}>{group.label}</span>
                       <span style={{ flex: 1, height: 1, background: 'var(--paper-edge)' }} />
-                      <span style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{group.items.length} {locale === 'zh' ? '个文档' : 'docs'}</span>
-                    </div>
+                      <span style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{t('library.docCount', group.items.length)}</span>
+                    </div>}
                     {group.items.map((item: any) => {
                       const isSelected = selectedItemId === item.id
                       const pill = TYPE_PILLS[item.type]
@@ -2594,22 +2617,18 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   let h = 0; for (let i = 0; i < (title || '').length; i++) h = ((h << 5) - h + (title || '').charCodeAt(i)) | 0
                   return palette[Math.abs(h) % palette.length]
                 }
-                const sorted = [...displayItems].sort((a: any, b: any) => {
-                  const va = a.updatedAt || a.createdAt || ''
-                  const vb = b.updatedAt || b.createdAt || ''
-                  return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
-                })
-                const groups = groupByDate(sorted, locale)
+                // displayItems is already sorted by the chosen key (getDisplayItems).
+                const groups = groupItems(displayItems)
                 return groups.map((group, gi) => (
                   <div key={gi} style={{ marginBottom: 12 }}>
-                    <div style={{
+                    {group.label && <div style={{
                       display: 'flex', alignItems: 'center', gap: 12,
                       padding: gi === 0 ? '10px 12px 8px' : '14px 12px 8px',
                     }}>
                       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.06em', flexShrink: 0 }}>{group.label}</span>
                       <span style={{ flex: 1, height: 1, background: 'var(--paper-edge)' }} />
-                      <span style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{group.items.length} {locale === 'zh' ? '篇笔记' : 'notes'}</span>
-                    </div>
+                      <span style={{ fontSize: 11, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{t('library.noteCount', group.items.length)}</span>
+                    </div>}
                     {group.items.map((item: any) => {
                       const isSelected = selectedItemId === item.id
                       const pill = TYPE_PILLS[item.type]
