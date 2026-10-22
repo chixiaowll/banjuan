@@ -236,107 +236,91 @@ export async function exportHandwritingToHTML(api: BanjuanAPI, noteId: string, t
 // Block-based note export (markdown notes)
 // ---------------------------------------------------------------------------
 
-export async function exportBlocksToMarkdown(editor: any, blocks: any[], api: BanjuanAPI): Promise<{ markdown: string; files: Array<{ name: string; dataUrl: string }> }> {
-  const segments: string[] = []
-  const files: Array<{ name: string; dataUrl: string }> = []
-  let stdBatch: any[] = []
-  let imgCounter = 0
+/** Our own block types, which BlockNote's serializers don't understand. */
+const CUSTOM_BLOCKS = new Set(['mermaidBlock', 'noteEmbed', 'documentEmbed', 'annotationEmbed', 'fileEmbed'])
 
-  const flushStd = async () => {
-    if (stdBatch.length === 0) return
-    try {
-      let md = await editor.blocksToMarkdownLossy(stdBatch)
-      md = md.replace(/!\[[^\]]*\]\(banjuan-attachment:\/\/attachments\/[^/]+\/([^\s)]+)\)/g,
-        (_match: string, fileName: string) => `![${decodeURIComponent(fileName)}](attachments/${fileName})`)
-      md = md.replace(/banjuan-attachment:\/\/attachments\/[^/]+\/([^\s)]+)/g, 'attachments/$1')
-      segments.push(md)
-    } catch { /* skip */ }
-    stdBatch = []
-  }
+/**
+ * Replace every custom block — at any depth, e.g. a note embed indented under a
+ * list item — with a paragraph holding a unique token. The whole document then
+ * goes through BlockNote's serializer in one call (keeping list nesting), and
+ * each token is swapped for the custom block's own rendering. Custom blocks used
+ * to be handled only at the top level; nested ones reached the serializer,
+ * which could throw and take the surrounding blocks down with it.
+ */
+function swapCustomBlocks(blocks: any[]): { blocks: any[]; custom: Array<{ token: string; block: any }> } {
+  const custom: Array<{ token: string; block: any }> = []
+  const nonce = Math.random().toString(36).slice(2, 8).toUpperCase()
+  const swap = (list: any[]): any[] => list.map(b => {
+    const children = Array.isArray(b?.children) && b.children.length ? swap(b.children) : b?.children
+    if (b && CUSTOM_BLOCKS.has(b.type)) {
+      const token = `BANJUANEMBED${custom.length}X${nonce}`
+      custom.push({ token, block: b })
+      return { type: 'paragraph', content: token, children: children ?? [] }
+    }
+    return children === b?.children ? b : { ...b, children }
+  })
+  return { blocks: swap(blocks), custom }
+}
 
-  for (const block of blocks) {
-    const p = block.props || {}
-    if (block.type === 'mermaidBlock' && p.code) {
-      await flushStd()
-      segments.push(`\`\`\`mermaid\n${p.code}\n\`\`\``)
-    } else if (block.type === 'noteEmbed') {
-      await flushStd()
+const escapeHtml = (s: unknown) => String(s ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+function pageIndexOf(p: any): number | undefined {
+  return p.pageIndex !== '' && p.pageIndex != null ? parseInt(p.pageIndex, 10) : undefined
+}
+
+async function customBlockToMarkdown(
+  block: any, api: BanjuanAPI, addImage: (title: string, dataUrl: string) => string,
+): Promise<string> {
+  const p = block.props || {}
+  switch (block.type) {
+    case 'mermaidBlock':
+      return p.code ? `\`\`\`mermaid\n${p.code}\n\`\`\`` : ''
+    case 'noteEmbed': {
       const noteTitle = p.noteTitle || 'Untitled'
-      const safeNoteTitle = noteTitle.replace(/[/\\:*?"<>|]/g, '_')
-      if (p.noteId) {
-        try {
-          const note = await api.notes.get(p.noteId)
-          if (note?.type === 'mindmap') {
-            const imgDataUrl = await renderMindmapToImage(p.noteId)
-            if (imgDataUrl) {
-              const imgName = `${safeNoteTitle}-${++imgCounter}.png`
-              files.push({ name: imgName, dataUrl: imgDataUrl })
-              segments.push(`🧠 **${noteTitle}**\n\n![${noteTitle}](images/${imgName})`)
-            } else {
-              const nodes = await api.mindmaps.getNodes(p.noteId)
-              segments.push(renderMindmapTreeMd(noteTitle, nodes))
-            }
-          } else if (note?.type === 'handwriting') {
-            const pi = p.pageIndex !== '' && p.pageIndex != null ? parseInt(p.pageIndex, 10) : undefined
-            const imgDataUrl = await screenshotHandwritingEmbed(api, p.noteId, pi)
-            if (imgDataUrl) {
-              const imgName = `${safeNoteTitle}-${++imgCounter}.png`
-              files.push({ name: imgName, dataUrl: imgDataUrl })
-              segments.push(`✏️ **${noteTitle}**\n\n![${noteTitle}](images/${imgName})`)
-            } else {
-              segments.push(`> ✏️ **${noteTitle}**`)
-            }
-          } else {
-            segments.push(`> 📝 **${noteTitle}**`)
-          }
-        } catch {
-          segments.push(`> 📝 **${noteTitle}**`)
+      if (!p.noteId) return `> 📝 **${noteTitle}**`
+      try {
+        const note = await api.notes.get(p.noteId)
+        if (note?.type === 'mindmap') {
+          const imgDataUrl = await renderMindmapToImage(p.noteId)
+          if (imgDataUrl) return `🧠 **${noteTitle}**\n\n![${noteTitle}](images/${addImage(noteTitle, imgDataUrl)})`
+          return renderMindmapTreeMd(noteTitle, await api.mindmaps.getNodes(p.noteId))
         }
-      } else {
-        segments.push(`> 📝 **${noteTitle}**`)
-      }
-    } else if (block.type === 'documentEmbed') {
-      await flushStd()
+        if (note?.type === 'handwriting') {
+          const imgDataUrl = await screenshotHandwritingEmbed(api, p.noteId, pageIndexOf(p))
+          if (imgDataUrl) return `✏️ **${noteTitle}**\n\n![${noteTitle}](images/${addImage(noteTitle, imgDataUrl)})`
+          return `> ✏️ **${noteTitle}**`
+        }
+      } catch { /* fall through to the plain reference */ }
+      return `> 📝 **${noteTitle}**`
+    }
+    case 'documentEmbed': {
       const parts = [`📄 **${p.docTitle || 'Document'}**`]
       if (p.authors) parts.push(p.authors)
       if (p.pageCount > 0) parts.push(`${p.pageCount} pages`)
-      segments.push(`> ${parts.join(' · ')}`)
-    } else if (block.type === 'annotationEmbed') {
-      await flushStd()
+      return `> ${parts.join(' · ')}`
+    }
+    case 'annotationEmbed': {
       const lines = [`> 📄 ${p.docTitle || 'Document'}${p.page ? ` p.${p.page}` : ''}`]
       if (p.quote) lines.push(`> "${p.quote}"`)
       if (p.comment) lines.push(`> ${p.comment}`)
-      segments.push(lines.join('\n'))
-    } else if (block.type === 'fileEmbed' && p.src) {
-      await flushStd()
+      return lines.join('\n')
+    }
+    case 'fileEmbed': {
+      if (!p.src) return ''
       const fileName = p.fileName || p.src.split('/').pop() || 'attachment'
       const safeName = p.src.split('/').pop() || fileName
-      segments.push(`[${fileName}](attachments/${safeName})`)
-    } else {
-      stdBatch.push(block)
+      return `[${fileName}](attachments/${safeName})`
     }
   }
-  await flushStd()
-
-  return { markdown: segments.join('\n\n'), files }
+  return ''
 }
 
-export async function exportBlocksToHTML(editor: any, blocks: any[], api: BanjuanAPI): Promise<string> {
-  const segments: string[] = []
-  let stdBatch: any[] = []
-
-  const flushStd = async () => {
-    if (stdBatch.length === 0) return
-    try {
-      segments.push(await editor.blocksToHTMLLossy(stdBatch))
-    } catch { /* skip */ }
-    stdBatch = []
-  }
-
-  for (const block of blocks) {
-    const p = block.props || {}
-    if (block.type === 'mermaidBlock' && p.code) {
-      await flushStd()
+async function customBlockToHTML(block: any, api: BanjuanAPI): Promise<string> {
+  const p = block.props || {}
+  switch (block.type) {
+    case 'mermaidBlock': {
+      if (!p.code) return ''
       try {
         const mermaid = (await import('mermaid')).default
         mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: (p.theme as any) || 'neutral' })
@@ -347,63 +331,87 @@ export async function exportBlocksToHTML(editor: any, blocks: any[], api: Banjua
         tempDiv.style.position = 'absolute'
         tempDiv.style.left = '-9999px'
         document.body.appendChild(tempDiv)
-        const { svg } = await mermaid.render(id, p.code, tempDiv)
-        document.body.removeChild(tempDiv)
-        segments.push(`<div class="mermaid-diagram">${svg}</div>`)
+        try {
+          const { svg } = await mermaid.render(id, p.code, tempDiv)
+          return `<div class="mermaid-diagram">${svg}</div>`
+        } finally {
+          tempDiv.remove()
+        }
       } catch {
-        segments.push(`<pre><code class="language-mermaid">${p.code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`)
+        return `<pre><code class="language-mermaid">${escapeHtml(p.code)}</code></pre>`
       }
-    } else if (block.type === 'noteEmbed') {
-      await flushStd()
-      const noteTitle = p.noteTitle || 'Untitled'
+    }
+    case 'noteEmbed': {
+      const noteTitle = escapeHtml(p.noteTitle || 'Untitled')
       if (p.noteId) {
         try {
           const note = await api.notes.get(p.noteId)
           if (note?.type === 'mindmap') {
             const imgDataUrl = await renderMindmapToImage(p.noteId)
-            if (imgDataUrl) {
-              segments.push(`<div class="mindmap-export"><p>🧠 <strong>${noteTitle}</strong></p><img src="${imgDataUrl}" style="max-width:100%" /></div>`)
-            } else {
-              const nodes = await api.mindmaps.getNodes(p.noteId)
-              segments.push(renderMindmapTreeHtml(noteTitle, nodes))
-            }
-          } else if (note?.type === 'handwriting') {
-            const pi = p.pageIndex !== '' && p.pageIndex != null ? parseInt(p.pageIndex, 10) : undefined
-            const imgDataUrl = await screenshotHandwritingEmbed(api, p.noteId, pi)
-            if (imgDataUrl) {
-              segments.push(`<div class="handwriting-export"><p>✏️ <strong>${noteTitle}</strong></p><img src="${imgDataUrl}" style="max-width:100%" /></div>`)
-            } else {
-              segments.push(`<blockquote><p>✏️ <strong>${noteTitle}</strong></p></blockquote>`)
-            }
-          } else {
-            segments.push(`<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`)
+            if (imgDataUrl) return `<div class="mindmap-export"><p>🧠 <strong>${noteTitle}</strong></p><img src="${imgDataUrl}" style="max-width:100%" /></div>`
+            return renderMindmapTreeHtml(p.noteTitle || 'Untitled', await api.mindmaps.getNodes(p.noteId))
           }
-        } catch {
-          segments.push(`<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`)
-        }
-      } else {
-        segments.push(`<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`)
+          if (note?.type === 'handwriting') {
+            const imgDataUrl = await screenshotHandwritingEmbed(api, p.noteId, pageIndexOf(p))
+            if (imgDataUrl) return `<div class="handwriting-export"><p>✏️ <strong>${noteTitle}</strong></p><img src="${imgDataUrl}" style="max-width:100%" /></div>`
+            return `<blockquote><p>✏️ <strong>${noteTitle}</strong></p></blockquote>`
+          }
+        } catch { /* fall through to the plain reference */ }
       }
-    } else if (block.type === 'documentEmbed') {
-      await flushStd()
-      const parts = [`📄 <strong>${p.docTitle || 'Document'}</strong>`]
-      if (p.authors) parts.push(p.authors)
+      return `<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`
+    }
+    case 'documentEmbed': {
+      const parts = [`📄 <strong>${escapeHtml(p.docTitle || 'Document')}</strong>`]
+      if (p.authors) parts.push(escapeHtml(p.authors))
       if (p.pageCount > 0) parts.push(`${p.pageCount} pages`)
-      segments.push(`<blockquote><p>${parts.join(' · ')}</p></blockquote>`)
-    } else if (block.type === 'annotationEmbed') {
-      await flushStd()
-      let inner = `<p>📄 ${p.docTitle || 'Document'}${p.page ? ` p.${p.page}` : ''}</p>`
-      if (p.quote) inner += `<p><em>"${p.quote}"</em></p>`
-      if (p.comment) inner += `<p>${p.comment}</p>`
-      segments.push(`<blockquote>${inner}</blockquote>`)
-    } else if (block.type === 'fileEmbed' && p.src) {
-      await flushStd()
-      const fileName = p.fileName || p.src.split('/').pop() || 'attachment'
-      segments.push(`<p>📎 <strong>${fileName}</strong></p>`)
-    } else {
-      stdBatch.push(block)
+      return `<blockquote><p>${parts.join(' · ')}</p></blockquote>`
+    }
+    case 'annotationEmbed': {
+      let inner = `<p>📄 ${escapeHtml(p.docTitle || 'Document')}${p.page ? ` p.${escapeHtml(p.page)}` : ''}</p>`
+      if (p.quote) inner += `<p><em>"${escapeHtml(p.quote)}"</em></p>`
+      if (p.comment) inner += `<p>${escapeHtml(p.comment)}</p>`
+      return `<blockquote>${inner}</blockquote>`
+    }
+    case 'fileEmbed': {
+      if (!p.src) return ''
+      return `<p>📎 <strong>${escapeHtml(p.fileName || p.src.split('/').pop() || 'attachment')}</strong></p>`
     }
   }
-  await flushStd()
-  return segments.join('\n')
+  return ''
+}
+
+export async function exportBlocksToMarkdown(editor: any, blocks: any[], api: BanjuanAPI): Promise<{ markdown: string; files: Array<{ name: string; dataUrl: string }> }> {
+  const files: Array<{ name: string; dataUrl: string }> = []
+  let imgCounter = 0
+  const addImage = (title: string, dataUrl: string) => {
+    const name = `${title.replace(/[/\\:*?"<>|]/g, '_')}-${++imgCounter}.png`
+    files.push({ name, dataUrl })
+    return name
+  }
+
+  const { blocks: plain, custom } = swapCustomBlocks(blocks)
+  let md: string = await editor.blocksToMarkdownLossy(plain)
+  md = md.replace(/!\[[^\]]*\]\(banjuan-attachment:\/\/attachments\/[^/]+\/([^\s)]+)\)/g,
+    (_match: string, fileName: string) => `![${decodeURIComponent(fileName)}](attachments/${fileName})`)
+  md = md.replace(/banjuan-attachment:\/\/attachments\/[^/]+\/([^\s)]+)/g, 'attachments/$1')
+
+  for (const { token, block } of custom) {
+    const rendered = await customBlockToMarkdown(block, api, addImage)
+    // Indent every line like the token's line, so an embed under a list item stays under it.
+    md = md.replace(new RegExp(`^([ \\t]*)${token}[ \\t]*$`, 'm'),
+      (_m: string, indent: string) => rendered.split('\n').map(l => (l ? indent + l : l)).join('\n'))
+    md = md.split(token).join(rendered)
+  }
+  return { markdown: md, files }
+}
+
+export async function exportBlocksToHTML(editor: any, blocks: any[], api: BanjuanAPI): Promise<string> {
+  const { blocks: plain, custom } = swapCustomBlocks(blocks)
+  let html: string = await editor.blocksToHTMLLossy(plain)
+  for (const { token, block } of custom) {
+    const rendered = await customBlockToHTML(block, api)
+    html = html.replace(new RegExp(`<p[^>]*>${token}</p>`), () => rendered)
+    html = html.split(token).join(rendered)
+  }
+  return html
 }
