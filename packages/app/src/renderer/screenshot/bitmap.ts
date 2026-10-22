@@ -4,7 +4,7 @@
  * (one op per pixel) when the buffer is 4-byte aligned — an IPC-delivered
  * Uint8Array can start at any offset, so fall back to bytes otherwise.
  */
-export function bgraToRgba(src: Uint8Array): Uint8ClampedArray {
+export function bgraToRgba(src: Uint8Array): Uint8ClampedArray<ArrayBuffer> {
   const out = new Uint8ClampedArray(src.length)
   if (src.byteOffset % 4 === 0 && src.length % 4 === 0) {
     const s = new Uint32Array(src.buffer, src.byteOffset, src.length / 4)

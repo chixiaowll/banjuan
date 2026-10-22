@@ -42,5 +42,11 @@ export default defineConfig({
   ],
   build: {
     outDir: resolve(__dirname, 'dist/renderer'),
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'src/renderer/index.html'),
+        screenshot: resolve(__dirname, 'src/renderer/screenshot.html'),
+      },
+    },
   },
 })

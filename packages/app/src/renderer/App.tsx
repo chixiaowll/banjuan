@@ -1,7 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService, FeedbackHost, useT, flushAll } from '@banjuan/shared-ui'
 import WelcomeView from './views/WelcomeView.js'
-import ScreenshotOverlay from './views/ScreenshotOverlay.js'
 import { electronAPI } from './electron-api.js'
 
 interface LibraryInfo {
@@ -15,7 +14,6 @@ interface LibraryInfo {
  * visible window's open library to this window before dispatching a job.
  */
 const IS_EXPORT_WORKER = window.location.hash === '#export-worker'
-const IS_SCREENSHOT_OVERLAY = window.location.hash === '#screenshot-overlay'
 
 // Only the hidden export window runs the worker (BlockNote + mind-map export):
 // load it on demand so the main window's startup bundle doesn't carry it.
@@ -40,7 +38,6 @@ function LoadingLabel() {
 
 export default function App() {
   if (IS_EXPORT_WORKER) return <ExportWorkerRoot />
-  if (IS_SCREENSHOT_OVERLAY) return <ScreenshotOverlay />
   return <MainApp />
 }
 
