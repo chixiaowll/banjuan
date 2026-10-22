@@ -94,16 +94,23 @@ export default function PdfContentArea({ annotations, docId, onTextSelect, onHig
     setScrollEl(scrollRef.current as HTMLElement | null)
   }, [scrollRef])
 
-  // Track container width via ResizeObserver
+  // Track container width via ResizeObserver. A new width re-renders every
+  // visible page at a new scale, and while a window or sidebar is being dragged
+  // the observer fires every frame — so take the first width at once, then only
+  // the width the drag settles on.
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
+    let settle: ReturnType<typeof setTimeout> | null = null
+    let first = true
     const obs = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width ?? 0
-      setContainerWidth(w)
+      if (first) { first = false; setContainerWidth(w); return }
+      if (settle) clearTimeout(settle)
+      settle = setTimeout(() => setContainerWidth(w), 150)
     })
     obs.observe(el)
-    return () => obs.disconnect()
+    return () => { obs.disconnect(); if (settle) clearTimeout(settle) }
   }, [scrollRef])
 
   // Trackpad pinch-to-zoom (Zotero-style). On macOS a trackpad pinch arrives as

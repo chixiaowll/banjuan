@@ -10,6 +10,9 @@ import EraserTool from './EraserTool.js'
 import { useBanjuanAPI } from '../../api.js'
 import { useEyeProtection, EYE_PROTECTION_TINT, useEinkMode, EINK_FILTER } from './useEyeProtection.js'
 
+// Max canvas backing-store pixels per page (pdf.js viewer default, 2^24).
+const MAX_CANVAS_PIXELS = 16_777_216
+
 export interface TextSelectInfo {
   page: number
   rects: Array<{ x: number; y: number; w: number; h: number }>
@@ -156,11 +159,22 @@ export default function PdfPage({
     return uc
   }, [])
 
+  // Virtualized-away pages: release the canvas bitmap right away (an
+  // off-screen canvas otherwise holds its full backing store until GC).
+  useEffect(() => () => {
+    const c = canvasRef.current
+    if (c) { c.width = 0; c.height = 0 }
+  }, [])
+
   // Render canvas + text layer + extract chars[] when mounted or scale changes.
   useEffect(() => {
     if (renderedScaleRef.current === scale && ready) return
 
     let cancelled = false
+    // Kept so a scale change / unmount cancels the in-flight render instead of
+    // letting it race the next one on the same canvas.
+    let renderTask: ReturnType<pdfjsLib.PDFPageProxy['render']> | null = null
+    let textLayer: InstanceType<typeof pdfjsLib.TextLayer> | null = null
     setReady(false)
 
     const init = async () => {
@@ -175,13 +189,19 @@ export default function PdfPage({
       const dpr = window.devicePixelRatio || 1
       let ctx: CanvasRenderingContext2D | null = null
       if (canvas) {
-        canvas.width = Math.floor(viewport.width * dpr)
-        canvas.height = Math.floor(viewport.height * dpr)
+        // Cap the backing store like pdf.js's own viewer (maxCanvasPixels): at
+        // high zoom a page at full devicePixelRatio can reach hundreds of
+        // megapixels and exhaust memory. Above the cap, render at a lower
+        // resolution and let CSS stretch it.
+        const outputScale = Math.min(dpr, Math.sqrt(MAX_CANVAS_PIXELS / (viewport.width * viewport.height)))
+        canvas.width = Math.floor(viewport.width * outputScale)
+        canvas.height = Math.floor(viewport.height * outputScale)
         canvas.style.width = viewport.width + 'px'
         canvas.style.height = viewport.height + 'px'
         ctx = canvas.getContext('2d')!
-        const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] as [number, number, number, number, number, number] : undefined
-        await page.render({ canvasContext: ctx, viewport, transform }).promise.catch(() => {})
+        const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] as [number, number, number, number, number, number] : undefined
+        renderTask = page.render({ canvasContext: ctx, viewport, transform })
+        await renderTask.promise.catch(() => {})   // RenderingCancelledException when superseded
       }
       if (cancelled) return
 
@@ -200,12 +220,13 @@ export default function PdfPage({
             )
           ),
         }
-        const textLayer = new pdfjsLib.TextLayer({
+        textLayer = new pdfjsLib.TextLayer({
           textContentSource: patchedContent,
           container: textLayerEl,
           viewport,
         })
         await textLayer.render()
+        if (cancelled) return
 
         const textItems = (patchedContent.items as any[]).filter((it: any) => it.str !== undefined && it.str !== '')
         const allSpans = textLayerEl.querySelectorAll('span[role="presentation"]')
@@ -283,9 +304,9 @@ export default function PdfPage({
       }
     }
 
-    init().catch((err) => console.error('[PdfPage] init error:', err))
+    init().catch((err) => { if (!cancelled) console.error('[PdfPage] init error:', err) })
 
-    return () => { cancelled = true }
+    return () => { cancelled = true; renderTask?.cancel(); textLayer?.cancel() }
   }, [pdfDoc, pageNum, scale])
 
   const handleAreaResized = useCallback(async (annId: string, newRect: { x: number; y: number; w: number; h: number }, imageData: string | undefined) => {
