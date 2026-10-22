@@ -219,7 +219,6 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   const allNotesRef = useRef(allNotes)
   const allDocsRef = useRef(allDocs)
   const editorRef = useRef<any>(null)
-  const prevAttachmentsRef = useRef<Set<string>>(new Set())
   onOpenNoteRef.current = onOpenNote
   allNotesRef.current = allNotes
   allDocsRef.current = allDocs
@@ -385,7 +384,6 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
 
   useEffect(() => {
     if (parsedContent) {
-      prevAttachmentsRef.current = new Set(extractExportAttachmentPaths(parsedContent))
       // Gate on allNotes: title-only links resolve against the notes list, and
       // syncing before it loads would resolve nothing and wipe existing rows
       // (sync is delete-then-insert). The list always contains at least the
@@ -417,13 +415,9 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       const docLinks = extractDocumentLinks(blocks)
       api.docLinks.sync(noteId, docLinks)
     }
-    const currentAttachments = new Set(extractExportAttachmentPaths(blocks))
-    for (const path of prevAttachmentsRef.current) {
-      if (!currentAttachments.has(path)) {
-        api.attachments.delete(path)
-      }
-    }
-    prevAttachmentsRef.current = currentAttachments
+    // Never delete attachment files here: an image block leaving the document
+    // is also what undo, cut→paste and moving a block look like mid-edit, and a
+    // block copied into another note still points at this note's file.
     onHeadingsChange?.(extractHeadings(blocks))
   }, [editor, onChange, noteId, onHeadingsChange])
 
