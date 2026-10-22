@@ -2,7 +2,7 @@ import type { PlatformDatabase, PlatformFS } from '../platform/index.js'
 import { join } from '../platform/path.js'
 import { JsonStore } from '../storage/json-store.js'
 import { parseFrontmatter } from '../storage/frontmatter.js'
-import type { DocumentFileData, AnnotationFileData, MindmapFileData, NoteFileData } from '../types.js'
+import type { DocumentFileData, AnnotationFileData, NoteFileData } from '../types.js'
 import { extractNoteLinks, extractDocumentLinks } from '../notes/extract-links.js'
 
 /**
@@ -18,7 +18,6 @@ export class IndexService {
   private metaPath: string
   private tagsPath: string
   private notesDir: string
-  private mindmapsDir: string
   private ftsAvailable: boolean
 
   constructor(private db: PlatformDatabase, private rootPath: string, private fs: PlatformFS) {
@@ -34,7 +33,6 @@ export class IndexService {
     this.metaPath = join(banjuanDir, 'db.meta.json')
     this.tagsPath = join(banjuanDir, 'tags.json')
     this.notesDir = join(rootPath, '.banjuan', 'notes')
-    this.mindmapsDir = join(rootPath, '.banjuan', 'mindmaps')
   }
 
   async rebuildFull(): Promise<void> {
@@ -69,8 +67,6 @@ export class IndexService {
     for (const link of pendingDocLinks) {
       this.db.run('INSERT OR IGNORE INTO doc_links (source_id, target_id, context) VALUES (?, ?, ?)', [link.sourceId, link.targetId, link.context])
     }
-
-    await this.indexAllMindmaps()
 
     await this.writeMetaTimestamp()
     } finally {
@@ -285,62 +281,6 @@ export class IndexService {
     return texts.join(' ')
   }
 
-  private async indexAllMindmaps(): Promise<void> {
-    if (!(await this.fs.exists(this.mindmapsDir))) return
-    await this.scanMindmapsDir(this.mindmapsDir, '')
-  }
-
-  private async scanMindmapsDir(dir: string, prefix: string): Promise<void> {
-    const entries = await this.fs.readdirWithTypes(dir)
-    for (const entry of entries) {
-      if (entry.isDirectory) {
-        await this.scanMindmapsDir(join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name)
-      } else if (entry.name.endsWith('.json')) {
-        const relPath = prefix ? `${prefix}/${entry.name}` : entry.name
-        await this.indexMindmapFile(relPath)
-      }
-    }
-  }
-
-  private async indexMindmapFile(relPath: string): Promise<void> {
-    const filePath = join(this.mindmapsDir, relPath)
-    let mm: MindmapFileData
-    try { mm = JSON.parse(await this.fs.readTextFile(filePath)) } catch { return }
-    if (!mm.id) return
-
-    this.db.run(
-      `INSERT OR REPLACE INTO mindmaps (id, title, path, doc_id, layout, theme, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [mm.id, mm.title, relPath, mm.docId, mm.layout, mm.theme ?? 'classic', mm.createdAt, mm.updatedAt],
-    )
-
-    for (const node of mm.nodes ?? []) {
-      this.db.run(
-        `INSERT OR REPLACE INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, floating, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [node.id, mm.id, node.parentId, node.title, node.content, node.hyperlink, node.imageUrl, node.color, node.notes, node.shape, node.styleOverrides, node.positionX, node.positionY, node.sortOrder, node.collapsed ? 1 : 0, node.floating ? 1 : 0, mm.createdAt],
-      )
-    }
-
-    for (const edge of mm.edges ?? []) {
-      this.db.run(
-        `INSERT OR REPLACE INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)`,
-        [edge.id, mm.id, edge.sourceId, edge.targetId, edge.label, edge.style],
-      )
-    }
-
-    if (mm.tags?.length) {
-      for (const tagName of mm.tags) {
-        const tag = this.db.queryOne<{ id: string }>('SELECT id FROM tags WHERE name = ?', [tagName])
-        if (tag) this.db.run('INSERT OR IGNORE INTO mindmap_tags (mindmap_id, tag_id) VALUES (?, ?)', [mm.id, tag.id])
-      }
-    }
-  }
-
-  /**
-   * Empty every table rebuildFull repopulates from the on-disk source of truth.
-   * Preserves `folders` and `note_templates`, which have no JSON source and are
-   * maintained only via their services. Call with foreign_keys OFF.
-   */
   private clearDerivedTables(): void {
     const tables = [
       'documents', 'annotations', 'notes', 'note_links', 'doc_links',
