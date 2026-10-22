@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { createTempDir, cleanupTempDir, createTestFile } from './helpers.js'
+import { createTempDir, cleanupTempDir, createTestFile, testDeps } from './helpers.js'
 import { Library } from '../src/library.js'
 
 const DIST_PATH = join(import.meta.dirname, '..', 'dist', 'index.js')
@@ -10,9 +10,9 @@ describe('EventBus', () => {
   let tempDir: string
   let lib: Library
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTempDir()
-    lib = Library.init(join(tempDir, 'lib'))
+    lib = await Library.init(join(tempDir, 'lib'), testDeps())
   })
 
   afterEach(async () => {
@@ -61,12 +61,15 @@ describe('EventBus', () => {
     expect(received.note.id).toBe(note.id)
   })
 
-  it('emits mindmap:created events', async () => {
+  // Mind maps are now notes (type='mindmap') created via NoteService, so their
+  // creation is announced as note:created (MindmapService has no create()).
+  it('emits note:created events for mind maps', async () => {
     let received: any = null
-    lib.events.on('mindmap:created', (data) => { received = data })
-    const mm = await lib.mindmaps.create({ title: 'Test Map' })
+    lib.events.on('note:created', (data) => { received = data })
+    const mm = await lib.notes.create({ title: 'Test Map', type: 'mindmap' })
     expect(received).not.toBeNull()
-    expect(received.mindmap.id).toBe(mm.id)
+    expect(received.note.id).toBe(mm.id)
+    expect(received.note.type).toBe('mindmap')
   })
 
   it('removes listener with off()', () => {
@@ -93,9 +96,9 @@ describe('PluginManager', () => {
   let tempDir: string
   let lib: Library
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTempDir()
-    lib = Library.init(join(tempDir, 'lib'))
+    lib = await Library.init(join(tempDir, 'lib'), testDeps())
   })
 
   afterEach(async () => {
@@ -267,7 +270,10 @@ describe('PluginManager', () => {
     mkdirSync(pluginDir, { recursive: true })
     writeFileSync(join(pluginDir, 'index.js'), 'export default class {}')
 
-    await expect(lib.plugins.load('bad-plugin')).rejects.toThrow('No manifest.json')
+    // load() now resolves the plugin across all plugin dirs (local + global) by
+    // its manifest.json, so a dir without one is reported as not found.
+    await expect(lib.plugins.load('bad-plugin')).rejects.toThrow('Plugin not found: bad-plugin')
+    expect(lib.plugins.list()).toEqual([])
   })
 
   it('throws when loading duplicate plugin', async () => {
