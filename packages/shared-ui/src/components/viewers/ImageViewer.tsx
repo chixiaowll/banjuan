@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Minus, Plus, RotateCw, Maximize, Sun, Hand, MousePointer2 } from 'lucide-react'
 import { useEyeProtection } from './useEyeProtection.js'
+import { useT } from '../../i18n/index.js'
 
 interface Props {
   /** Ready-to-use, WebView-loadable URL (local-file:// on desktop, convertFileSrc on mobile). */
@@ -19,6 +20,7 @@ const btnStyle: React.CSSProperties = {
 }
 
 export default function ImageViewer({ src }: Props) {
+  const t = useT()
   const { eyeProtection, toggleEyeProtection } = useEyeProtection()
   const [scale, setScale] = useState(1)
   const [rotation, setRotation] = useState(0)
@@ -105,14 +107,14 @@ export default function ImageViewer({ src }: Props) {
         <button
           style={{ ...btnStyle, ...(panMode ? {} : { background: 'var(--selected, #eee)' }) }}
           onClick={() => setPanMode(false)}
-          title="Select"
+          title={t('image.select')}
         >
           <MousePointer2 size={14} />
         </button>
         <button
           style={{ ...btnStyle, ...(panMode ? { background: 'var(--selected, #eee)' } : {}) }}
           onClick={() => setPanMode(true)}
-          title="Pan"
+          title={t('image.pan')}
         >
           <Hand size={14} />
         </button>
@@ -126,7 +128,7 @@ export default function ImageViewer({ src }: Props) {
         <button style={btnStyle} onClick={() => setScale(s => Math.min(5, +(s + 0.1).toFixed(2)))}>
           <Plus size={14} />
         </button>
-        <button style={btnStyle} onClick={resetView} title="Fit to window">
+        <button style={btnStyle} onClick={resetView} title={t('image.fitToWindow')}>
           <Maximize size={14} />
         </button>
         <button style={btnStyle} onClick={() => setRotation(r => (r + 90) % 360)}>
@@ -135,7 +137,7 @@ export default function ImageViewer({ src }: Props) {
         <button
           style={{ ...btnStyle, color: eyeProtection ? '#d69e2e' : 'var(--text-secondary, #6e6e73)' }}
           onClick={toggleEyeProtection}
-          title="Eye Protection"
+          title={t('pdf.eyeProtection')}
         >
           <Sun size={14} />
         </button>

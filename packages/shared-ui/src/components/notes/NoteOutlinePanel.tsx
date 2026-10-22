@@ -1,4 +1,5 @@
 import React from 'react'
+import { useT } from '../../i18n/index.js'
 
 export interface HeadingItem {
   id: string
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function NoteOutlinePanel({ headings, activeId }: Props) {
+  const t = useT()
   const handleClick = (id: string) => {
     const el = document.querySelector(`[data-id="${id}"]`) as HTMLElement | null
     if (!el) return
@@ -32,7 +34,7 @@ export default function NoteOutlinePanel({ headings, activeId }: Props) {
   if (headings.length === 0) {
     return (
       <div style={{ padding: 16, fontSize: 13, color: 'var(--text-muted)' }}>
-        暂无标题
+        {t('outline.empty')}
       </div>
     )
   }
@@ -58,7 +60,7 @@ export default function NoteOutlinePanel({ headings, activeId }: Props) {
           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           title={h.text}
         >
-          {h.text || '(空标题)'}
+          {h.text || t('outline.emptyHeading')}
         </div>
       ))}
     </div>

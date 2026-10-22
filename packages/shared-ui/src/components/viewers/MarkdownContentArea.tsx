@@ -6,6 +6,7 @@ import MarkdownInkLassoTool from './MarkdownInkLassoTool.js'
 import MarkdownInkToolbar from './MarkdownInkToolbar.js'
 import BlockEditor from '../notes/BlockEditor.js'
 import type { HeadingItem } from '../notes/NoteOutlinePanel.js'
+import { useT } from '../../i18n/index.js'
 
 interface AnnotationData {
   id: string
@@ -122,6 +123,7 @@ function applyHighlightMarks(container: HTMLElement, annotations: AnnotationData
 }
 
 export default function MarkdownContentArea({ content, docId, annotations, onHighlightCreated, onNoteCreated, onAnnotationClick, onHeadingsChange, onInkCreated, onClearAllInk, scrollContainerRef }: Props) {
+  const t = useT()
   const ctx = useMarkdownViewer()
   const { eyeProtection } = useEyeProtection()
   const { einkMode } = useEinkMode()
@@ -327,7 +329,7 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
           <button
             style={toolbarBtnStyle}
             onClick={handleHighlight}
-            title="Highlight"
+            title={t('tool.highlight')}
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >
@@ -336,7 +338,7 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
           <button
             style={toolbarBtnStyle}
             onClick={handleShowNote}
-            title="Add note"
+            title={t('selection.annotate')}
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--hover)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >
@@ -370,7 +372,7 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleNoteSubmit()
               if (e.key === 'Escape') handleNoteCancel()
             }}
-            placeholder="Add note..."
+            placeholder={t('tool.noteInput')}
             style={{
               width: '100%',
               height: 60,
@@ -393,7 +395,7 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
                 padding: '3px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--text)',
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               onClick={handleNoteSubmit}
@@ -404,7 +406,7 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
                 opacity: noteText.trim() ? 1 : 0.5,
               }}
             >
-              Save
+              {t('common.save')}
             </button>
           </div>
         </div>

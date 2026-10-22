@@ -1,6 +1,7 @@
 import React from 'react'
 import { createReactBlockSpec } from '@blocknote/react'
 import { useBanjuanAPI } from '../../../api.js'
+import { useT } from '../../../i18n/index.js'
 
 const FILE_ICONS: Record<string, string> = {
   xlsx: '📊', xls: '📊', csv: '📊',
@@ -34,6 +35,7 @@ export const FileEmbed = createReactBlockSpec(
   {
     render: (props) => {
       const api = useBanjuanAPI()
+      const t = useT()
       const { src, fileName } = props.block.props
       const [resolvedUrl, setResolvedUrl] = React.useState<string>('')
 
@@ -78,7 +80,7 @@ export const FileEmbed = createReactBlockSpec(
         >
           <span style={{ fontSize: 20 }}>{getIcon(fileName)}</span>
           <span style={{ fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {fileName || 'Attachment'}
+            {fileName || t('embed.attachment')}
           </span>
         </div>
       )

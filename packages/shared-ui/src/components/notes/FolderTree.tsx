@@ -395,7 +395,7 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
   }, [load])
 
   const children = buildFileTree(dirs, notes)
-  const rootNode: TreeNode = { type: 'dir', name: 'Notes', path: '__root', children }
+  const rootNode: TreeNode = { type: 'dir', name: t('note.notes'), path: '__root', children }
 
   const handleToggle = (path: string) => {
     setExpandedSet(prev => {

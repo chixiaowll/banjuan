@@ -394,6 +394,11 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
         if (!data) continue
         const exists = tab.type === 'note' ? await api.notes.get(data.id) : await api.documents.get(data.id)
         if (!exists) closeTab(tab.id)
+        // Moved, or its folder renamed: viewers read the file by path, so hand
+        // them the current document instead of the stale path.
+        else if (tab.type === 'document' && (exists as any).path !== data.path) {
+          setTabData(prev => new Map(prev).set(tab.id, exists))
+        }
       }
     }
     document.addEventListener('notes-changed', prune)
@@ -425,7 +430,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
       {isNarrow ? (
         <>
           <div style={{ display: 'flex', alignItems: 'center', padding: '4px 8px', borderBottom: '1px solid var(--border, #dee2e6)' }}>
-            <button onClick={() => setSidebarOpen(true)} aria-label="Open tabs"
+            <button onClick={() => setSidebarOpen(true)} aria-label={t('tabs.showTabs')}
               style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
               <Menu size={20} />
             </button>
@@ -449,7 +454,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
                   <div style={{ padding: '12px 8px', borderTop: '1px solid var(--border, #e0e0e0)' }}>
                     <button onClick={() => { setSidebarOpen(false); onSwitchLibrary() }}
                       style={{ width: '100%', padding: '10px', borderRadius: 8, border: '1px solid var(--border, #e0e0e0)', background: 'transparent', fontSize: 14, cursor: 'pointer' }}>
-                      Switch Library
+                      {t('library.switchLibrary')}
                     </button>
                   </div>
                 )}

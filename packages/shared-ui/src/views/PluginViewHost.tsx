@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useBanjuanAPI } from '../api.js'
+import { useT } from '../i18n/index.js'
 
 interface Props {
   pluginId: string
@@ -8,6 +9,7 @@ interface Props {
 
 export default function PluginViewHost({ pluginId, viewType }: Props) {
   const api = useBanjuanAPI()
+  const t = useT()
   const containerRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
@@ -25,7 +27,7 @@ export default function PluginViewHost({ pluginId, viewType }: Props) {
         if (cancelled) return
 
         if (!source) {
-          setError(`Plugin "${pluginId}" has no renderer.js`)
+          setError(t('plugin.noRenderer', pluginId))
           return
         }
 
@@ -57,7 +59,7 @@ export default function PluginViewHost({ pluginId, viewType }: Props) {
           mod.default(pluginApi)
         }
       } catch (err: any) {
-        if (!cancelled) setError(err.message || 'Failed to load plugin view')
+        if (!cancelled) setError(err.message || t('plugin.viewLoadFailed'))
       }
     }
 
@@ -97,7 +99,7 @@ export default function PluginViewHost({ pluginId, viewType }: Props) {
   if (error) {
     return (
       <div style={{ padding: 24, color: 'var(--text-muted)', fontSize: 13 }}>
-        <p>Plugin view failed to load:</p>
+        <p>{t('plugin.viewLoadFailedLabel')}</p>
         <pre style={{ color: '#c44040', fontSize: 12 }}>{error}</pre>
       </div>
     )

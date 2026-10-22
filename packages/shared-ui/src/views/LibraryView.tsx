@@ -9,9 +9,9 @@ import TemplatePicker from '../components/notes/TemplatePicker.js'
 import TagInput from '../components/tags/TagInput.js'
 import TagPill from '../components/tags/TagPill.js'
 import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
-import { useI18n } from '../i18n/index.js'
+import { useI18n, LOCALE_TAGS } from '../i18n/index.js'
 import { NOTE_THEMES, NOTE_THEME_KEYS, applyNoteTheme, getStoredNoteTheme } from '../components/notes/noteThemes.js'
-import type { Locale } from '../i18n/index.js'
+import type { Locale, MessageKey } from '../i18n/index.js'
 import { useTheme, useThemeLayout, APP_THEMES } from '../theme/index.js'
 import type { AppTheme } from '../theme/index.js'
 import { useBanjuanAPI } from '../api.js'
@@ -19,7 +19,7 @@ import { exportToDirectory, newRunId } from '../utils/exportToDirectory.js'
 import { listExportNotes, buildExportEntries } from '../utils/exportEntries.js'
 import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 import { notifyNotesChanged, notifyDocumentsChanged } from '../utils/libraryEvents.js'
-import { toast, alertDialog, confirmDialog } from '../components/feedback.js'
+import { toast, alertDialog, confirmDialog, errorMessage } from '../components/feedback.js'
 
 interface Document {
   id: string
@@ -120,36 +120,35 @@ const TYPE_PILLS: Record<string, { bg: string; color: string; label: string }> =
   other:       { bg: 'var(--tag-txt-bg)', color: 'var(--tag-txt-color)', label: 'OTHER' },
 }
 
-function formatDate(dateStr: string, locale: string): string {
+function formatDate(dateStr: string, locale: Locale): string {
   try {
-    return new Date(dateStr).toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
+    return new Date(dateStr).toLocaleDateString(LOCALE_TAGS[locale], {
       year: 'numeric', month: '2-digit', day: '2-digit',
     })
   } catch { return dateStr }
 }
 
-function formatRelativeTime(dateStr: string, locale: string): { relative: string; absolute: string } {
+function formatRelativeTime(dateStr: string, locale: Locale, t: (key: MessageKey, ...args: Array<string | number>) => string): { relative: string; absolute: string } {
   try {
     const d = new Date(dateStr)
     const now = new Date()
     const diffMs = now.getTime() - d.getTime()
     const diffMin = Math.floor(diffMs / 60000)
     const diffHr = Math.floor(diffMs / 3600000)
-    const isZh = locale === 'zh'
-    const absolute = d.toLocaleDateString(isZh ? 'zh-CN' : 'en-US', { year: 'numeric', month: '2-digit', day: '2-digit' })
+    const absolute = d.toLocaleDateString(LOCALE_TAGS[locale], { year: 'numeric', month: '2-digit', day: '2-digit' })
     const isToday = d.toDateString() === now.toDateString()
     const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1)
     const isYesterday = d.toDateString() === yesterday.toDateString()
-    const timeStr = d.toLocaleTimeString(isZh ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit' })
+    const timeStr = d.toLocaleTimeString(LOCALE_TAGS[locale], { hour: '2-digit', minute: '2-digit' })
 
     let relative: string
-    if (diffMin < 1) relative = isZh ? '刚刚' : 'just now'
-    else if (diffMin < 60) relative = isZh ? `${diffMin} 分钟前` : `${diffMin}m ago`
-    else if (diffHr < 24 && isToday) relative = isZh ? `${diffHr} 小时前` : `${diffHr}h ago`
-    else if (isYesterday) relative = isZh ? `昨天 ${timeStr}` : `Yesterday ${timeStr}`
+    if (diffMin < 1) relative = t('library.justNow')
+    else if (diffMin < 60) relative = t('library.minutesAgo', diffMin)
+    else if (diffHr < 24 && isToday) relative = t('library.hoursAgo', diffHr)
+    else if (isYesterday) relative = t('library.yesterdayAt', timeStr)
     else {
       const diffDay = Math.floor(diffMs / 86400000)
-      relative = isZh ? `${diffDay} 天前` : `${diffDay}d ago`
+      relative = t('library.daysAgo', diffDay)
     }
     return { relative, absolute }
   } catch { return { relative: dateStr, absolute: dateStr } }
@@ -344,7 +343,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [showRenameInput, setShowRenameInput] = useState(false)
   const [renameInputValue, setRenameInputValue] = useState('')
   const renameInputElRef = useRef<HTMLInputElement>(null)
-  const [renameTarget, setRenameTarget] = useState<{ type: 'dir' | 'note' | 'library'; dirPath?: string; noteId?: string } | null>(null)
+  const [renameTarget, setRenameTarget] = useState<{ type: 'dir' | 'docDir' | 'note' | 'library'; dirPath?: string; noteId?: string } | null>(null)
   const [noteDirs, setNoteDirs] = useState<string[]>([])
   const [selectedNoteDir, setSelectedNoteDir] = useState<string | null>(null)
 
@@ -480,9 +479,20 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     catch { setNoteDirs([]) }
   }
 
+  // "View all" expands the home list in place (there is no separate annotations
+  // page); the limit lives in a ref so background reloads keep the expansion.
+  const [showAllAnnotations, setShowAllAnnotations] = useState(false)
+  const annotationLimitRef = useRef(8)
+  const toggleAllAnnotations = () => {
+    const next = !showAllAnnotations
+    setShowAllAnnotations(next)
+    annotationLimitRef.current = next ? 100 : 8
+    if (next) void loadRecentAnnotations()
+  }
+
   const loadRecentAnnotations = async () => {
     try {
-      const list = await api.annotations.listRecent?.(8) ?? []
+      const list = await api.annotations.listRecent?.(annotationLimitRef.current) ?? []
       setRecentAnnotations(list as any)
     } catch { setRecentAnnotations([]) }
   }
@@ -559,7 +569,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const handleRenameDir = () => {
     if (!contextMenu?.dirPath) return
     const dirName = contextMenu.dirPath.split('/').pop() || ''
-    setRenameTarget({ type: 'dir', dirPath: contextMenu.dirPath })
+    // Document folders live in the library root, note folders under .banjuan/notes.
+    setRenameTarget({ type: contextMenu.type === 'docDir' ? 'docDir' : 'dir', dirPath: contextMenu.dirPath })
     setRenameInputValue(dirName)
     setContextMenu(null)
     setShowRenameInput(true)
@@ -577,14 +588,31 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     const name = (renameInputElRef.current?.value ?? renameInputValue).trim()
     setShowRenameInput(false)
     if (!name || !renameTarget) return
-    if (renameTarget.type === 'dir' && renameTarget.dirPath) {
-      const parts = renameTarget.dirPath.split('/')
+    if ((renameTarget.type === 'dir' || renameTarget.type === 'docDir') && renameTarget.dirPath) {
+      const oldPath = renameTarget.dirPath
+      const parts = oldPath.split('/')
       parts[parts.length - 1] = name
       const newPath = parts.join('/')
-      if (newPath !== renameTarget.dirPath) {
-        await api.notes.renameDir(renameTarget.dirPath, newPath)
-        await loadNoteDirs()
-        await loadNotes()
+      if (newPath !== oldPath) {
+        // Keep the folder being browsed selected under its new name.
+        const follow = (p: string | null) => p === oldPath || p?.startsWith(oldPath + '/') ? newPath + p.slice(oldPath.length) : p
+        try {
+          if (renameTarget.type === 'docDir') {
+            if (!api.documents.renameDir) return
+            await api.documents.renameDir(oldPath, newPath)
+            setSelectedDir(follow(selectedDir))
+            await loadDocuments()
+            notifyDocumentsChanged()
+          } else {
+            await api.notes.renameDir(oldPath, newPath)
+            setSelectedNoteDir(follow(selectedNoteDir))
+            await loadNoteDirs()
+            await loadNotes()
+            notifyNotesChanged()
+          }
+        } catch (e) {
+          toast.error(errorMessage(e) === 'DIR_EXISTS' ? t('library.folderExists', name) : t('library.renameFailed', errorMessage(e)))
+        }
       }
     } else if (renameTarget.type === 'note' && renameTarget.noteId) {
       await api.notes.update(renameTarget.noteId, { title: name })
@@ -669,7 +697,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
       })
       await loadDocuments()
     } catch (err: any) {
-      toast.error(`${t('detail.downloadFailed')}: ${err.message}`)
+      toast.error(t('detail.downloadFailedReason', err.message))
     } finally {
       setDownloadProgress(prev => ({ ...prev, [docId]: null }))
     }
@@ -677,7 +705,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
   const handleUpload = async (docId: string) => {
     try { await api.sync.stubUpload(docId); await loadDocuments() }
-    catch (err: any) { toast.error(`${t('detail.uploadFailed')}: ${err.message}`) }
+    catch (err: any) { toast.error(t('detail.uploadFailedReason', err.message)) }
   }
 
   const handleSelectItem = useCallback(async (id: string, type: 'document' | 'note') => {
@@ -780,7 +808,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
       ? [{ label: '', items }]
       : groupByDate(items, locale, sortKey === 'createdAt' ? 'createdAt' : 'updatedAt')
   // "{0} notes" with the number emphasised, whatever the word order of the locale.
-  const countLabel = (key: 'library.docCount' | 'library.noteCount' | 'library.totalCount', n: number) => {
+  const countLabel = (key: 'library.docCount' | 'library.noteCount' | 'library.totalCount' | 'home.annotationCount', n: number) => {
     const [pre, post] = t(key, '\u0000').split('\u0000')
     return <>{pre}<strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{n}</strong>{post}</>
   }
@@ -936,10 +964,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             onClick={() => handleSectionChange('home')}
             onMouseEnter={e => { if (selectedSection !== 'home') e.currentTarget.style.background = sb.hoverBackground }}
             onMouseLeave={e => { if (selectedSection !== 'home') e.currentTarget.style.background = 'transparent' }}
-            title={sidebarCollapsed ? (t('library.home') ?? 'Home') : undefined}
+            title={sidebarCollapsed ? t('library.home') : undefined}
           >
             <Home size={sb.iconSize} style={{ flexShrink: 0 }} />
-            {!sidebarCollapsed && (t('library.home') ?? 'Home')}
+            {!sidebarCollapsed && t('library.home')}
           </div>
 
           {/* Documents */}
@@ -1147,10 +1175,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              title={sidebarCollapsed ? (t('library.switchLibrary') ?? 'Switch Library') : undefined}
+              title={sidebarCollapsed ? t('library.switchLibrary') : undefined}
             >
               <ArrowLeftRight size={13} />
-              {!sidebarCollapsed && (t('library.switchLibrary') ?? 'Switch Library')}
+              {!sidebarCollapsed && t('library.switchLibrary')}
             </div>
           </div>
         )}
@@ -1218,7 +1246,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                     padding: '3px 10px', borderRadius: 12,
                     background: '#E8F1FB', color: '#4A90E2',
                     fontSize: 11, fontWeight: 600,
-                  }}><span style={{ width: 6, height: 6, background: '#4A90E2', borderRadius: '50%' }} />{locale === 'zh' ? '已同步' : 'Synced'}</span>}
+                  }}><span style={{ width: 6, height: 6, background: '#4A90E2', borderRadius: '50%' }} />{t('detail.synced')}</span>}
                 </h1>}
                 {layout.home.showSealChar && <div style={{
                   marginTop: 8, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)',
@@ -1276,11 +1304,11 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 fontSize: 13, color: 'var(--ink-mute)', marginBottom: layout.home.statsMarginBottom,
                 display: 'flex', alignItems: 'center', gap: 14,
               }}>
-                <span><strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{documents.length}</strong>&nbsp;{locale === 'zh' ? '文档' : 'docs'}</span>
+                <span>{countLabel('library.docCount', documents.length)}</span>
                 <span style={{ color: 'var(--ink-ghost)' }}>·</span>
-                <span><strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{notes.length}</strong>&nbsp;{locale === 'zh' ? '笔记' : 'notes'}</span>
+                <span>{countLabel('library.noteCount', notes.length)}</span>
                 <span style={{ color: 'var(--ink-ghost)' }}>·</span>
-                <span><strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{recentAnnotations.length}</strong>&nbsp;{locale === 'zh' ? '批注' : 'annotations'}</span>
+                <span>{countLabel('home.annotationCount', recentAnnotations.length)}</span>
               </div>
             )}
 
@@ -1289,7 +1317,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>
                   <span style={{ fontSize: 18 }}>📅</span>
-                  {locale === 'zh' ? '今日卷' : 'Daily Pick'}
+                  {t('home.dailyPick')}
                 </div>
               </div>
             )}
@@ -1309,7 +1337,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                         <span style={{ fontSize: 18 }}>📚</span>
                         {t('library.recentDocs')}
                       </span>
-                      <span style={{ fontSize: 12, color: 'var(--ink-mute)', background: '#fff', padding: '2px 10px', borderRadius: 11, border: '1px solid var(--paper-edge, #F0EBE0)' }}>{documents.length} {locale === 'zh' ? '个文档' : 'docs'}</span>
+                      <span style={{ fontSize: 12, color: 'var(--ink-mute)', background: '#fff', padding: '2px 10px', borderRadius: 11, border: '1px solid var(--paper-edge, #F0EBE0)' }}>{t('library.docCount', documents.length)}</span>
                     </div>
                     <span onClick={() => handleSectionChange('documents')} style={{ fontSize: 13, color: layout.home.linkColor, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
                   </div>
@@ -1376,9 +1404,9 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 18 }}>✎</span>
-                      {locale === 'zh' ? '我的笔记' : 'My Notes'}
+                      {t('home.myNotes')}
                     </span>
-                    <span style={{ fontSize: 12, color: 'var(--ink-mute)', background: '#fff', padding: '2px 10px', borderRadius: 11, border: '1px solid var(--paper-edge, #F0EBE0)' }}>{notes.length} {locale === 'zh' ? '个' : ''}</span>
+                    <span style={{ fontSize: 12, color: 'var(--ink-mute)', background: '#fff', padding: '2px 10px', borderRadius: 11, border: '1px solid var(--paper-edge, #F0EBE0)' }}>{t('library.noteCount', notes.length)}</span>
                   </div>
                   <span onClick={() => handleSectionChange('notes')} style={{ fontSize: 13, color: layout.home.linkColor, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
                 </div>
@@ -1445,10 +1473,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                       </span>
                       <span style={{ fontSize: 12, color: 'var(--ink-mute)', background: '#fff', padding: '2px 10px', borderRadius: 11, border: '1px solid var(--paper-edge, #F0EBE0)' }}>{recentAnnotations.length > 3 ? `3 / ${recentAnnotations.length}` : recentAnnotations.length}</span>
                     </div>
-                    <span onClick={() => handleSectionChange('annotations' as any)} style={{ fontSize: 13, color: layout.home.linkColor, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
+                    <span onClick={toggleAllAnnotations} style={{ fontSize: 13, color: layout.home.linkColor, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>{showAllAnnotations ? t('detail.collapse') : t('library.viewAll')}<ChevronRight size={11} /></span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
-                    {recentAnnotations.slice(0, 8).map((ann, i) => {
+                    {(showAllAnnotations ? recentAnnotations : recentAnnotations.slice(0, 8)).map((ann, i) => {
                       const stickyColors = ['#FFFDF0', '#FFF0F2', '#F0F6FE']
                       const tapeColors = ['rgba(255,225,150,0.65)', 'rgba(240,190,200,0.45)', 'rgba(180,210,240,0.45)']
                       const stickyBg = stickyColors[i % stickyColors.length]
@@ -1476,7 +1504,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <span style={{ width: 6, height: 6, borderRadius: '50%', background: ann.color || '#4CAF50' }} />
                               <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'rgba(0,0,0,0.45)' }}>
-                                {ann.type === 'highlight' ? 'HIGHLIGHT' : ann.type === 'note' ? 'NOTE' : ann.type.toUpperCase()}
+                                {ann.type === 'highlight' ? t('annotation.highlight') : ann.type === 'note' ? t('annotation.note') : ann.type.toUpperCase()}
                               </span>
                             </div>
                             <div style={{
@@ -1491,7 +1519,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                             }}>
                               <span style={{ fontSize: 11, color: 'rgba(0,0,0,0.5)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{ann.docTitle}</span>
                               <span style={{ fontSize: 10, color: 'rgba(0,0,0,0.35)', flexShrink: 0, marginLeft: 6 }}>
-                                {ann.page != null ? `P. ${String(ann.page + 1).padStart(2, '0')}` : ''}
+                                {ann.page != null ? t('home.pageShort', String(ann.page + 1).padStart(2, '0')) : ''}
                               </span>
                             </div>
                           </div>
@@ -1662,7 +1690,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           {(doc.metadata as any)?.fileMissing && <span style={{
                             flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#c0392b',
                             border: '1px solid #c0392b', borderRadius: 3, padding: '0 5px', lineHeight: '16px',
-                          }}>{locale === 'zh' ? '缺失' : 'missing'}</span>}
+                          }}>{t('library.missing')}</span>}
                           {!layout.home.showSealChar && (doc as any).author && <span style={{
                             color: 'var(--ink-faint)', fontSize: 12, flexShrink: 0,
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140,
@@ -1706,12 +1734,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                         color: 'var(--ink-faint)',
                       }}>{recentAnnotations.slice(0, 6).length} / {recentAnnotations.length}</span>
                     </div>
-                    <span onClick={() => handleSectionChange('annotations' as any)}
+                    <span onClick={toggleAllAnnotations}
                       style={{
                         fontSize: 12, color: 'var(--ink-mute)', cursor: 'pointer',
                         display: 'inline-flex', alignItems: 'center', gap: 3,
                       }}>
-                      {t('library.viewAll')}
+                      {showAllAnnotations ? t('detail.collapse') : t('library.viewAll')}
                       <ChevronRight size={11} />
                     </span>
                   </div>
@@ -1720,7 +1748,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                     gridTemplateColumns: layout.home.annotationGridColumns,
                     gap: layout.home.annotationLayout === 'grid-card' ? 16 : 20,
                   }}>
-                    {recentAnnotations.slice(0, layout.home.annotationSlice).map((ann, i) => {
+                    {(showAllAnnotations ? recentAnnotations : recentAnnotations.slice(0, layout.home.annotationSlice)).map((ann, i) => {
                       const markerColors = ['var(--ink)', '#10B981', '#F59E0B', '#3B82F6']
                       const markerColor = ann.color || markerColors[i % markerColors.length]
                       return (
@@ -1744,7 +1772,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                               <span style={{
                                 fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)',
                                 letterSpacing: '0.06em', textTransform: 'uppercase',
-                              }}>{ann.type === 'highlight' ? 'Highlight' : ann.type === 'note' ? 'Note' : ann.type}</span>
+                              }}>{ann.type === 'highlight' ? t('annotation.highlight') : ann.type === 'note' ? t('annotation.note') : ann.type}</span>
                             </div>
                           )}
                           {ann.selectedText ? (
@@ -1788,7 +1816,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                                 fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)',
                                 marginLeft: 8, flexShrink: 0,
                               }}>
-                                {ann.page != null ? `P. ${String(ann.page + 1).padStart(2, '0')}` : ''}
+                                {ann.page != null ? t('home.pageShort', String(ann.page + 1).padStart(2, '0')) : ''}
                               </span>
                             </div>
                           ) : (
@@ -1800,7 +1828,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                                 fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-faint)',
                                 letterSpacing: '0.08em',
                               }}>
-                                {ann.page != null ? `P. ${ann.page + 1}` : ''}
+                                {ann.page != null ? t('home.pageShort', ann.page + 1) : ''}
                               </div>
                             </>
                           )}
@@ -1932,7 +1960,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   {tagsWithCounts.find(t => t.id === selectedTag)?.name || ''}
                 </h1>
                 <span style={{ fontSize: 13, color: 'var(--ink-mute)', background: 'var(--hover)', padding: '2px 10px', borderRadius: 11 }}>
-                  {tagFilteredDocs.length + tagFilteredNotes.length} {locale === 'zh' ? '项' : 'items'}
+                  {t('library.itemCount', tagFilteredDocs.length + tagFilteredNotes.length)}
                 </span>
               </div>
 
@@ -1945,7 +1973,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   >
                     {tagDocSectionExpanded ? <ChevronDown size={16} style={{ color: 'var(--ink-mute)' }} /> : <ChevronRight size={16} style={{ color: 'var(--ink-mute)' }} />}
                     <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-soft)' }}>
-                      {locale === 'zh' ? '文档' : 'Documents'}
+                      {t('library.documents')}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>({tagFilteredDocs.length})</span>
                   </div>
@@ -1995,7 +2023,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   >
                     {tagNoteSectionExpanded ? <ChevronDown size={16} style={{ color: 'var(--ink-mute)' }} /> : <ChevronRight size={16} style={{ color: 'var(--ink-mute)' }} />}
                     <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-soft)' }}>
-                      {locale === 'zh' ? '笔记' : 'Notes'}
+                      {t('library.notes')}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>({tagFilteredNotes.length})</span>
                   </div>
@@ -2036,7 +2064,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               {tagFilteredDocs.length === 0 && tagFilteredNotes.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--ink-mute)' }}>
                   <Tag size={32} style={{ opacity: 0.3, marginBottom: 12 }} />
-                  <div style={{ fontSize: 14 }}>{locale === 'zh' ? '该标签下暂无内容' : 'No items with this tag'}</div>
+                  <div style={{ fontSize: 14 }}>{t('library.tagEmpty')}</div>
                 </div>
               )}
             </div>
@@ -2087,7 +2115,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           color: 'var(--ink-soft)', border: '1px solid var(--border-solid)',
                           background: 'var(--surface-raised)', cursor: 'pointer',
                         }}
-                      ><RefreshCw size={14} />{locale === 'zh' ? '刷新' : 'Refresh'}</button>
+                      ><RefreshCw size={14} />{t('library.refresh')}</button>
                       <button
                         onClick={async () => {
                           if (api.documents.importFilesDialog) {
@@ -2116,7 +2144,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           color: 'var(--ink-soft)', border: '1px solid var(--border-solid)',
                           background: 'var(--surface-raised)', cursor: 'pointer',
                         }}
-                      ><RefreshCw size={14} />{locale === 'zh' ? '刷新' : 'Refresh'}</button>
+                      ><RefreshCw size={14} />{t('library.refresh')}</button>
                       <button
                         onClick={async () => {
                           if (!api.notes.importMarkdownDialog) return
@@ -2136,7 +2164,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                           color: 'var(--ink-soft)', border: '1px solid var(--border-solid)',
                           background: 'var(--surface-raised)', cursor: 'pointer',
                         }}
-                      ><Upload size={14} />{locale === 'zh' ? '导入' : 'Import'}</button>
+                      ><Upload size={14} />{t('common.import')}</button>
                       <button
                         onClick={() => setShowNotePicker(true)}
                         style={{
@@ -2192,7 +2220,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                             border: 'none', cursor: 'pointer',
                             boxShadow: !typeFilter ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
                           }}>
-                            {locale === 'zh' ? '全部' : 'All'}
+                            {t('library.allNotes')}
                             <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, opacity: 0.7, fontWeight: 400 }}>{baseItems.length}</span>
                           </button>
                           {types.map(tp => {
@@ -2248,7 +2276,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                             border: 'none', cursor: 'pointer',
                             boxShadow: !typeFilter ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
                           }}>
-                            {locale === 'zh' ? '全部' : 'All'}
+                            {t('library.allDocs')}
                             <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, opacity: 0.7, fontWeight: 400 }}>{baseItems.length}</span>
                           </button>
                           {types.map(tp => {
@@ -2312,7 +2340,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   }}>
                     <Search size={13} style={{ color: 'var(--ink-mute)', flexShrink: 0 }} />
                     <input
-                      type="text" placeholder={locale === 'zh' ? (selectedSection === 'notes' ? '在笔记中筛选…' : '在文档中筛选…') : 'Filter…'}
+                      type="text" placeholder={t(selectedSection === 'notes' ? 'library.filterNotes' : 'library.filterDocs')}
                       value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                       style={{
                         flex: 1, border: 'none', outline: 'none', background: 'transparent',
@@ -2369,7 +2397,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                         cursor: 'pointer', boxShadow: '0 1px 3px rgba(60,40,20,.06)',
                         color: 'var(--ink-soft)',
                       }}
-                      title={locale === 'zh' ? '刷新' : 'Refresh'}
+                      title={t('library.refresh')}
                     >
                       <RefreshCw size={13} />
                     </div>
@@ -2379,7 +2407,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                     background: '#4A90E2', color: '#fff', border: 'none',
                     cursor: 'pointer', boxShadow: '0 2px 6px rgba(74,144,226,.3)',
                     whiteSpace: 'nowrap',
-                  }}><Upload size={13} />{locale === 'zh' ? '导入' : 'Import'}</button>
+                  }}><Upload size={13} />{t('common.import')}</button>
                   </>}
                   {selectedSection === 'notes' && layout.toolbar.showSectionButtons && <>
                     <div
@@ -2391,7 +2419,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                         cursor: 'pointer', boxShadow: '0 1px 3px rgba(60,40,20,.06)',
                         color: 'var(--ink-soft)',
                       }}
-                      title={locale === 'zh' ? '刷新' : 'Refresh'}
+                      title={t('library.refresh')}
                     >
                       <RefreshCw size={13} />
                     </div>
@@ -2401,7 +2429,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                       background: '#4A90E2', color: '#fff', border: 'none',
                       cursor: 'pointer', boxShadow: '0 2px 6px rgba(74,144,226,.3)',
                       whiteSpace: 'nowrap',
-                    }}><FilePlus size={13} />{locale === 'zh' ? '新建' : 'New'}</button>
+                    }}><FilePlus size={13} />{t('common.new')}</button>
                   </>}
                 </div>
               ) : (
@@ -2497,7 +2525,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                       const progressPct = rp?.percentage != null ? Math.round(rp.percentage * 100)
                         : rp?.page != null && rp?.totalPages ? Math.round((rp.page / rp.totalPages) * 100)
                         : 0
-                      const { relative, absolute } = formatRelativeTime(item.updatedAt || item.createdAt, locale)
+                      const { relative, absolute } = formatRelativeTime(item.updatedAt || item.createdAt, locale, t)
                       const pathParts = item.path?.split('/').filter(Boolean) || []
                       const itemTags = (item as any).tags || []
                       const isFavorite = !!(item as any).favorite || !!(item as any).starred
@@ -2547,7 +2575,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                                 {item.title || item.name}
                               </span>
                               {isFavorite && <Star size={13} style={{ color: '#E6C84A', fill: '#E6C84A', flexShrink: 0 }} />}
-                              {(item as any).metadata?.fileMissing && <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#c0392b', border: '1px solid #c0392b', borderRadius: 3, padding: '0 5px', lineHeight: '16px' }}>{locale === 'zh' ? '缺失' : 'missing'}</span>}
+                              {(item as any).metadata?.fileMissing && <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#c0392b', border: '1px solid #c0392b', borderRadius: 3, padding: '0 5px', lineHeight: '16px' }}>{t('library.missing')}</span>}
                             </div>
                             <div style={{
                               display: 'flex', alignItems: 'center', gap: 6, marginTop: 3,
@@ -2598,7 +2626,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                                 }} />
                               </div>
                               <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, color: 'var(--ink-mute)', fontWeight: 500, minWidth: 30, textAlign: 'right' }}>
-                                {progressPct >= 100 ? (locale === 'zh' ? '完成' : 'Done') : progressPct === 0 ? (locale === 'zh' ? '未读' : 'New') : `${progressPct}%`}
+                                {progressPct >= 100 ? t('library.progressDone') : progressPct === 0 ? t('library.progressUnread') : `${progressPct}%`}
                               </span>
                             </>) : null}
                           </div>
@@ -2640,7 +2668,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                       const pill = TYPE_PILLS[item.type]
                       const typeLabel = pill?.label ?? item.type
                       const coverColor = noteColorFor(item.type, item.title || '')
-                      const { relative, absolute } = formatRelativeTime(item.updatedAt || item.createdAt, locale)
+                      const { relative, absolute } = formatRelativeTime(item.updatedAt || item.createdAt, locale, t)
                       const pathParts = item.path?.split('/').filter(Boolean) || []
                       return (
                         <div
@@ -2809,8 +2837,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
           !(selectedItemId && selectedItemDetail) ? detailEmptyState : (<>
           {selectedItemDetail.metadata?.fileMissing && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 12, borderRadius: 8, background: 'rgba(192,57,43,0.08)', border: '1px solid rgba(192,57,43,0.25)', color: '#c0392b', fontSize: 12, lineHeight: 1.5 }}>
-              <span style={{ fontWeight: 700 }}>{locale === 'zh' ? '文件缺失' : 'File missing'}</span>
-              <span style={{ color: 'var(--ink-mute)' }}>{locale === 'zh' ? '磁盘上已找不到该文件，元数据与批注已保留。' : 'The file is gone from disk; metadata and annotations are kept.'}</span>
+              <span style={{ fontWeight: 700 }}>{t('detail.fileMissing')}</span>
+              <span style={{ color: 'var(--ink-mute)' }}>{t('detail.fileMissingDesc')}</span>
             </div>
           )}
           <DetailField label={t('detail.docTitle')} value={selectedItemDetail.title} />
@@ -3018,9 +3046,9 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             background: 'var(--surface, #fff)', borderRadius: 10, padding: 24, width: 300,
             boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
           }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>{locale === 'zh' ? '导出笔记' : 'Export Notes'}</h3>
+            <h3 style={{ margin: '0 0 16px', fontSize: 16 }}>{t('library.exportNotes')}</h3>
             <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-muted)' }}>
-              {locale === 'zh' ? '选择导出格式，将逐个导出到目录' : 'Choose format, files will be exported one by one'}
+              {t('library.exportNotesDesc')}
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
               {(['markdown', 'pdf'] as const).map(fmt => (
@@ -3155,7 +3183,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6, color: '#f38ba8' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                ><Trash2 size={14} />{locale === 'zh' ? '删除' : 'Delete'}</div>
+                ><Trash2 size={14} />{t('common.delete')}</div>
               </>)}
             </>
           )}
@@ -3185,7 +3213,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              ><FolderOutput size={14} />{locale === 'zh' ? '导出' : 'Export'}</div>}
+              ><FolderOutput size={14} />{t('note.export')}</div>}
               <div onClick={handleCreateFolder} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -3207,7 +3235,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6, color: '#f38ba8' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                ><Trash2 size={14} />{locale === 'zh' ? '删除' : 'Delete'}</div>
+                ><Trash2 size={14} />{t('common.delete')}</div>
               </>)}
             </>
           )}
@@ -3223,7 +3251,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
               }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              ><FolderOutput size={14} />{t('library.move') || '移动到...'}</div>
+              ><FolderOutput size={14} />{t('library.move')}</div>
               <div onClick={async () => {
                 const { docId, docTitle } = contextMenu
                 setContextMenu(null)
@@ -3256,7 +3284,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 }
 
 
-function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l: Locale) => void; t: (...args: any[]) => string }) {
+function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l: Locale) => void; t: (key: MessageKey, ...args: Array<string | number>) => string }) {
   const { theme: appTheme, setTheme: setAppTheme } = useTheme()
   const [noteTheme, setNoteTheme] = React.useState(getStoredNoteTheme)
 
@@ -3266,7 +3294,6 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
   }, [])
 
   const api = useBanjuanAPI()
-  const zh = locale === 'zh'
   const [rebuilding, setRebuilding] = React.useState(false)
   const [missingDocs, setMissingDocs] = React.useState<Array<{ id: string; title: string; path: string }> | null>(null)
   const [purgeSel, setPurgeSel] = React.useState<Set<string>>(new Set())
@@ -3368,7 +3395,7 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
                 </div>
               </div>
               <span style={{ fontSize: 12, color: active ? 'var(--accent)' : 'var(--text-muted)', fontWeight: active ? 600 : 400 }}>
-                {locale === 'zh' ? th.labelZh : th.label}
+                {t(th.labelKey)}
               </span>
             </div>
           )
@@ -3406,11 +3433,9 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
         })}
       </div>
 
-      <div style={{ marginTop: 28, marginBottom: 12, fontSize: 14, fontWeight: 600 }}>{zh ? '数据维护' : 'Maintenance'}</div>
+      <div style={{ marginTop: 28, marginBottom: 12, fontSize: 14, fontWeight: 600 }}>{t('settings.maintenance')}</div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6, maxWidth: 560 }}>
-        {zh
-          ? '从磁盘与 .banjuan 元数据彻底重建整个库的索引（重读、重算哈希、重建全部索引）。在文件被外部删除/移动后出现数据异常时使用。'
-          : 'Rebuild the entire library index from disk and .banjuan metadata (re-read, re-hash, rebuild all indexes). Use this if files were deleted/moved outside the app.'}
+        {t('settings.rebuildDesc')}
       </div>
       <button
         onClick={startRebuild}
@@ -3420,17 +3445,15 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
           border: '1px solid #c0392b', color: '#c0392b', background: 'transparent', opacity: rebuilding ? 0.5 : 1,
         }}
       >
-        {rebuilding ? (zh ? '重建中…' : 'Rebuilding…') : (zh ? '彻底重建库' : 'Rebuild Library')}
+        {rebuilding ? t('settings.rebuilding') : t('settings.rebuildLibrary')}
       </button>
 
       {missingDocs && (
         <div onClick={() => setMissingDocs(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', color: 'var(--text)', borderRadius: 10, padding: 20, width: 520, maxWidth: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-            <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>{zh ? '检测到文件缺失' : 'Missing files detected'}</h3>
+            <h3 style={{ fontSize: 15, margin: '0 0 8px' }}>{t('settings.missingTitle')}</h3>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.6 }}>
-              {zh
-                ? '以下文档的文件已不在磁盘上。勾选要彻底清理的（连同其批注一并永久删除）；不勾选的将保留并标记为「文件缺失」，文件恢复后会自动重新关联。'
-                : 'These documents no longer have a file on disk. Check the ones to permanently purge (with their annotations); unchecked ones are kept and marked "missing".'}
+              {t('settings.missingDesc')}
             </p>
             <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 6, marginBottom: 14 }}>
               {missingDocs.map(d => (
@@ -3448,12 +3471,12 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
               <button onClick={() => setPurgeSel(prev => prev.size === missingDocs.length ? new Set() : new Set(missingDocs.map(d => d.id)))}
                 style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer' }}>
-                {purgeSel.size === missingDocs.length ? (zh ? '全不选' : 'Select none') : (zh ? '全选' : 'Select all')}
+                {purgeSel.size === missingDocs.length ? t('settings.selectNone') : t('settings.selectAll')}
               </button>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => setMissingDocs(null)} style={{ fontSize: 13, padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer' }}>{zh ? '取消' : 'Cancel'}</button>
+                <button onClick={() => setMissingDocs(null)} style={{ fontSize: 13, padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer' }}>{t('common.cancel')}</button>
                 <button onClick={() => runRebuild(Array.from(purgeSel))} style={{ fontSize: 13, padding: '6px 14px', borderRadius: 6, border: 'none', background: '#c0392b', color: '#fff', cursor: 'pointer' }}>
-                  {zh ? `开始重建（清理 ${purgeSel.size}）` : `Rebuild (purge ${purgeSel.size})`}
+                  {t('settings.rebuildPurge', purgeSel.size)}
                 </button>
               </div>
             </div>
@@ -3463,7 +3486,7 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
 
       {rebuilding && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001, color: '#fff', fontSize: 14 }}>
-          {zh ? '正在重建库，请稍候…' : 'Rebuilding library, please wait…'}
+          {t('settings.rebuildingWait')}
         </div>
       )}
     </div>

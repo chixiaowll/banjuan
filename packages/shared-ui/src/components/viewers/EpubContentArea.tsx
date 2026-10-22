@@ -7,6 +7,7 @@ import EpubInkOverlay from './EpubInkOverlay.js'
 import EpubInkLassoTool from './EpubInkLassoTool.js'
 import EpubInkToolbar from './EpubInkToolbar.js'
 import EpubAreaSelectTool from './EpubAreaSelectTool.js'
+import { useT } from '../../i18n/index.js'
 
 interface Props {
   annotations: Array<{
@@ -156,6 +157,7 @@ function EpubAreaOverlays({ annotations, containerRef }: {
 }
 
 export default function EpubContentArea({ annotations, docId, onHighlightCreated, onUnderlineCreated, onNoteCreated, onInkCreated, onInkUndo, onInkRedo, onInkClearPage, onAnnotationDelete, onAnnotationUpdate, inkCanUndo, inkCanRedo }: Props) {
+  const t = useT()
   const ctx = useEpubViewer()
   const { eyeProtection } = useEyeProtection()
   const { einkMode } = useEinkMode()
@@ -590,7 +592,7 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleNoteSubmit()
               if (e.key === 'Escape') handleNoteCancel()
             }}
-            placeholder="Add note..."
+            placeholder={t('tool.noteInput')}
             style={{
               width: '100%',
               height: 60,
@@ -613,7 +615,7 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
                 padding: '3px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--text)',
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               onClick={handleNoteSubmit}
@@ -624,7 +626,7 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
                 opacity: noteText.trim() ? 1 : 0.5,
               }}
             >
-              Save
+              {t('common.save')}
             </button>
           </div>
         </div>

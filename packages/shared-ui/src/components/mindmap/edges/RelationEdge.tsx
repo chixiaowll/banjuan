@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { EdgeLabelRenderer, useInternalNode, type EdgeProps } from '@xyflow/react'
 import { useMindmapStore } from '../useMindmapStore.js'
 import { getTheme } from '../themes.js'
+import { useT } from '../../../i18n/index.js'
 
 interface EdgeStyle {
   sx: number; sy: number
@@ -100,6 +101,7 @@ type DragTarget = 'label' | 'source' | 'target' | 'cp1' | 'cp2'
 
 export default function RelationEdge(props: EdgeProps) {
   const { id, source, target, data, selected } = props
+  const t = useT()
   const { theme: themeName, updateRelationEdge, removeRelationEdge } = useMindmapStore()
   const theme = getTheme(themeName)
   const [editing, setEditing] = useState(false)
@@ -348,7 +350,7 @@ export default function RelationEdge(props: EdgeProps) {
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--hover, #f5f5f5)' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
               onClick={() => { removeRelationEdge(id); setContextMenu(null) }}>
-              Delete
+              {t('mindmap.delete')}
             </button>
           </div>
         </>,

@@ -38,27 +38,33 @@ export default function EpubSearchPopup() {
     return () => window.removeEventListener('keydown', handler)
   }, [ctx.searchOpen, isActiveTab])
 
+  // Each search gets a generation number: sections of an older query that
+  // finish loading late must not overwrite the current query's results.
+  const searchGenRef = useRef(0)
   const performSearch = useCallback(async (q: string) => {
-    if (!q.trim() || !ctx.book) {
-      setResults([])
-      setCurrentIndex(-1)
-      return
+    const gen = ++searchGenRef.current
+    setResults([])
+    setCurrentIndex(-1)
+    if (!q.trim() || !ctx.book) return
+    const book = ctx.book
+    const sections: any[] = []
+    ;(book.spine as any).each((section: any) => { sections.push(section) })
+    // Results kept per section so the list stays in reading order no matter
+    // which section finishes loading first.
+    const perSection: SearchResult[][] = sections.map(() => [])
+    await Promise.all(sections.map((section, i) =>
+      section.load(book.load.bind(book)).then(() => {
+        if (gen !== searchGenRef.current) return
+        perSection[i] = section.find(q).map((item: any) => ({ cfi: item.cfi, excerpt: item.excerpt }))
+        setResults(perSection.flat())
+      }).catch((e: unknown) => console.warn('[EpubSearch] section failed', section.href, e))
+        .finally(() => section.unload?.())))
+    if (gen !== searchGenRef.current) return
+    const all = perSection.flat()
+    if (all.length > 0) {
+      setCurrentIndex(0)
+      ctx.rendition?.display(all[0].cfi)
     }
-    const allResults: SearchResult[] = []
-    const spine = ctx.book.spine as any
-    spine.each((section: any) => {
-      section.load(ctx.book!.load.bind(ctx.book)).then((contents: any) => {
-        const found = section.find(q)
-        for (const item of found) {
-          allResults.push({ cfi: item.cfi, excerpt: item.excerpt })
-        }
-        setResults([...allResults])
-        if (allResults.length > 0 && currentIndex < 0) {
-          setCurrentIndex(0)
-          ctx.rendition?.display(allResults[0].cfi)
-        }
-      })
-    })
   }, [ctx.book, ctx.rendition])
 
   const handleQueryChange = (q: string) => {

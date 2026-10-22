@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { Save, RefreshCw, Wifi } from 'lucide-react'
-import { useT } from '../../i18n/index.js'
+import { useI18n, LOCALE_TAGS } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { confirmDialog } from '../feedback.js'
 
@@ -29,7 +29,7 @@ interface Props {
 export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
   const api = useBanjuanAPI()
   const canHost = api.lan.canHost !== false   // undefined (older desktop) treated as can-host; mobile sets false
-  const t = useT()
+  const { t, locale } = useI18n()
   const lanUrlKey = `banjuan.lan.peerUrl:${libraryKey ?? ''}`
   const lanPinKey = `banjuan.lan.peerPin:${libraryKey ?? ''}`
   const [config, setConfig] = useState<SyncConfig>({
@@ -63,7 +63,12 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
     try { localStorage.setItem(lanPinKey, v) } catch { /* ignore */ }
   }
   const [lanBusy, setLanBusy] = useState(false)
-  const [lanMsg, setLanMsg] = useState('')
+  const [lanMsg, setLanMsgText] = useState('')
+  const [lanMsgIsError, setLanMsgIsError] = useState(false)
+  const setLanMsg = (msg: string, isError = false) => {
+    setLanMsgText(msg)
+    setLanMsgIsError(isError)
+  }
   const [pairedDevices, setPairedDevices] = useState<Array<{ peerDeviceId: string; peerDeviceName: string; peerLibraryId: string; linkedAt: string }>>([])
 
   const loadPaired = async () => {
@@ -87,15 +92,15 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
   }
 
   const connectNearby = async (url: string) => {
-    if (!/^\d{6}$/.test(peerPin)) { setLanMsg('请输入对方显示的 6 位 PIN'); return }
+    if (!/^\d{6}$/.test(peerPin)) { setLanMsg(t('welcome.pinRequired')); return }
     setLanBusy(true)
-    setLanMsg('连接中…')
+    setLanMsg(t('sync.connecting'))
     try {
       const r = await api.lan.pairDevice(url, peerPin)
-      setLanMsg(`已连接「${r.libraryName || r.deviceName}」`)
+      setLanMsg(t('sync.connected', r.libraryName || r.deviceName))
       await loadPaired()
     } catch (e: any) {
-      setLanMsg(`连接失败:${e?.message ?? String(e)}`)
+      setLanMsg(t('sync.connectFailed', e?.message ?? String(e)), true)
     } finally {
       setLanBusy(false)
     }
@@ -103,23 +108,23 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
 
   const syncWith = async (url: string) => {
     setLanBusy(true)
-    setLanMsg('同步中…')
+    setLanMsg(t('sync.syncing'))
     const onProgress = (p: { phase: string; current: number; total: number; currentFile: string }) =>
-      setLanMsg(`${p.phase} ${p.current}/${p.total} ${p.currentFile}`)
+      setLanMsg(`${getPhaseLabel(p.phase)} ${p.current}/${p.total} ${p.currentFile}`)
     try {
       let r = await api.lan.syncDevice(url, onProgress)
-      if ('needsPair' in r) { setLanMsg('尚未连接该设备,请先点"连接"'); return }
+      if ('needsPair' in r) { setLanMsg(t('sync.notPaired')); return }
       if ('needsConfirm' in r) {
         const ok = await confirmDialog({ title: t('sync.mergeLibrariesTitle'), message: t('sync.mergeLibrariesMessage', r.peerName, r.localName), confirmText: t('sync.mergeContinue'), danger: true })
-        if (!ok) { setLanMsg('已取消'); return }
-        setLanMsg('合并中…')
+        if (!ok) { setLanMsg(t('sync.cancelled')); return }
+        setLanMsg(t('sync.merging'))
         const r2 = await api.lan.syncDevice(url, onProgress, true)
-        if ('needsConfirm' in r2 || 'needsPair' in r2) { setLanMsg('已取消'); return }
+        if ('needsConfirm' in r2 || 'needsPair' in r2) { setLanMsg(t('sync.cancelled')); return }
         showSyncResult(r2); await loadPaired(); return
       }
       showSyncResult(r); await loadPaired()
     } catch (e: any) {
-      setLanMsg(`同步失败:${e?.message ?? String(e)}`)
+      setLanMsg(t('sync.syncFailed', e?.message ?? String(e)), true)
     } finally {
       setLanBusy(false)
     }
@@ -138,15 +143,16 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
         setLanMsg('')
       }
     } catch (e: any) {
-      setLanMsg(`开启共享失败:${e?.message ?? String(e)}`)
+      setLanMsg(t('sync.shareFailed', e?.message ?? String(e)), true)
     } finally {
       setLanBusy(false)
     }
   }
 
   const showSyncResult = (r: { downloaded: number; uploaded: number; deletedLocal: number; deletedRemote: number; conflicts?: number; errors: string[] }) => {
-    const conflictPart = r.conflicts ? `,冲突 ${r.conflicts}` : ''
-    setLanMsg(`完成:↓${r.downloaded} ↑${r.uploaded} 删除 ${r.deletedLocal + r.deletedRemote}${conflictPart}${r.errors.length ? `,错误 ${r.errors.length}` : ''}`)
+    const conflictPart = r.conflicts ? t('sync.lanConflicts', r.conflicts) : ''
+    const errorPart = r.errors.length ? t('sync.lanErrors', r.errors.length) : ''
+    setLanMsg(t('sync.lanDone', r.downloaded, r.uploaded, r.deletedLocal + r.deletedRemote, conflictPart + errorPart))
   }
 
   useEffect(() => {
@@ -254,9 +260,9 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
 
   const getPhaseLabel = (phase: string): string => {
     switch (phase) {
-      case 'scanning': return 'Scanning files...'
-      case 'syncing': return 'Syncing'
-      case 'finalizing': return 'Rebuilding index...'
+      case 'scanning': return t('sync.scanning')
+      case 'syncing': return t('sync.syncing')
+      case 'finalizing': return t('sync.finalizing')
       default: return phase
     }
   }
@@ -289,10 +295,10 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
           {/* Tab switcher */}
           <div style={{ display: 'inline-flex', padding: 3, borderRadius: 10, background: 'var(--paper-edge, #ebe7de)', gap: 2 }}>
             <button style={tabBtnStyle(tab === 'lan')} onClick={() => setTab('lan')}>
-              <Wifi size={12} style={{ marginRight: 5, verticalAlign: 'middle' }} />局域网直连
+              <Wifi size={12} style={{ marginRight: 5, verticalAlign: 'middle' }} />{t('sync.tabLan')}
             </button>
             <button style={tabBtnStyle(tab === 'webdav')} onClick={() => setTab('webdav')}>
-              WebDAV 云同步
+              {t('sync.tabWebdav')}
             </button>
           </div>
         </div>
@@ -329,7 +335,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--ink-mute)' }}>
                 <span>{getPhaseLabel(progress.phase)}{progress.total > 0 ? ` ${progress.current}/${progress.total}` : ''}</span>
-                {getEstimatedRemaining() && <span>{getEstimatedRemaining()} remaining</span>}
+                {getEstimatedRemaining() && <span>{t('sync.remaining', getEstimatedRemaining()!)}</span>}
               </div>
               <div style={{ height: 6, borderRadius: 3, background: 'var(--paper-edge, #e0e0e0)', overflow: 'hidden' }}>
                 <div style={{ height: '100%', borderRadius: 3, background: '#4A90E2', width: progress.phase === 'scanning' ? '0%' : `${pct}%`, transition: 'width 0.3s ease' }} />
@@ -368,15 +374,15 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
           {/* Host sub-section */}
           {canHost && (
             <div style={{ marginBottom: 20, paddingBottom: 20, borderBottom: '1px solid var(--paper-edge, #eee)' }}>
-              <div style={{ ...labelStyle, marginBottom: 10 }}>本机作为主机</div>
+              <div style={{ ...labelStyle, marginBottom: 10 }}>{t('sync.hostSection')}</div>
               <button onClick={toggleHost} disabled={lanBusy}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 500, borderRadius: 8, cursor: lanBusy ? 'not-allowed' : 'pointer', opacity: lanBusy ? 0.6 : 1, border: hostStatus.running ? '1px solid rgba(255,59,48,0.25)' : 'none', background: hostStatus.running ? 'rgba(255,59,48,0.08)' : '#4A90E2', color: hostStatus.running ? '#ff3b30' : '#fff', boxShadow: hostStatus.running ? 'none' : '0 2px 6px rgba(74,144,226,.25)' }}>
-                {hostStatus.running ? '停止共享' : '开启共享'}
+                {hostStatus.running ? t('sync.stopSharing') : t('sync.startSharing')}
               </button>
               {hostStatus.running && hostStatus.url && hostStatus.pin && (
                 <div style={{ marginTop: 12, padding: '14px 16px', borderRadius: 10, background: 'rgba(52,199,89,0.05)', border: '1px solid rgba(52,199,89,0.2)', display: 'flex', gap: 24 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ ...labelStyle, marginBottom: 4 }}>地址</div>
+                    <div style={{ ...labelStyle, marginBottom: 4 }}>{t('sync.address')}</div>
                     <code style={{ fontSize: 12, padding: '3px 7px', borderRadius: 6, background: 'var(--surface-raised, #fff)', border: '1px solid var(--paper-edge, #e5e5e7)', userSelect: 'all', wordBreak: 'break-all', display: 'block' }}>{hostStatus.url}</code>
                   </div>
                   <div>
@@ -391,14 +397,14 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
           {/* Nearby devices */}
           <div style={{ marginBottom: 20, paddingBottom: 20, borderBottom: '1px solid var(--paper-edge, #eee)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <div style={labelStyle}>附近设备</div>
+              <div style={labelStyle}>{t('sync.nearbyDevices')}</div>
               <button onClick={scanNearby} disabled={scanning || lanBusy}
                 style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--paper-edge, #e5e5e7)', background: 'var(--surface-raised, #fff)', cursor: 'pointer', opacity: scanning ? 0.6 : 1 }}>
-                {scanning ? '扫描中…' : '扫描'}
+                {scanning ? t('sync.scanning') : t('welcome.scan')}
               </button>
             </div>
             {nearby.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--ink-mute, #8A8377)' }}>{scanning ? '正在查找附近设备…' : '未发现附近设备'}</div>
+              <div style={{ fontSize: 13, color: 'var(--ink-mute, #8A8377)' }}>{scanning ? t('sync.searchingNearby') : t('sync.noNearby')}</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {nearby.map(s => (
@@ -409,10 +415,10 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
                     </div>
                     {pairedIds.has(s.deviceId) ? (
                       <button onClick={() => syncWith(s.url)} disabled={lanBusy}
-                        style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--paper-edge, #e5e5e7)', background: 'var(--surface-raised, #fff)', cursor: 'pointer' }}>同步</button>
+                        style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--paper-edge, #e5e5e7)', background: 'var(--surface-raised, #fff)', cursor: 'pointer' }}>{t('sync.sync')}</button>
                     ) : (
                       <button onClick={() => { setPeerUrl(s.url); connectNearby(s.url) }} disabled={lanBusy}
-                        style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6, border: 'none', background: '#4A90E2', color: '#fff', cursor: 'pointer' }}>连接</button>
+                        style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6, border: 'none', background: '#4A90E2', color: '#fff', cursor: 'pointer' }}>{t('sync.connect')}</button>
                     )}
                   </div>
                 ))}
@@ -421,35 +427,35 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
             {/* PIN input — only show when there are unpaired nearby devices to connect */}
             {nearby.some(s => !pairedIds.has(s.deviceId)) && (
               <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input style={{ ...inputStyle, width: 120, flex: 'none' }} type="text" inputMode="numeric" placeholder="6 位 PIN"
+                <input style={{ ...inputStyle, width: 120, flex: 'none' }} type="text" inputMode="numeric" placeholder={t('welcome.pinPlaceholder')}
                   value={peerPin} onChange={(e) => setPeerPin(e.target.value.replace(/\D/g, '').slice(0, 6))} disabled={lanBusy} autoFocus />
-                <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>填入对方显示的 PIN，再点「连接」</span>
+                <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>{t('sync.pinHint')}</span>
               </div>
             )}
           </div>
 
           {/* Manual connect */}
           <div style={{ marginBottom: 20, paddingBottom: 20, borderBottom: '1px solid var(--paper-edge, #eee)' }}>
-            <div style={{ ...labelStyle, marginBottom: 8 }}>手动连接</div>
+            <div style={{ ...labelStyle, marginBottom: 8 }}>{t('sync.manualConnect')}</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <input style={{ ...inputStyle, flex: 1 }} type="text" placeholder="http://192.168.x.x:端口"
+              <input style={{ ...inputStyle, flex: 1 }} type="text" placeholder={t('sync.peerUrlPlaceholder')}
                 value={peerUrl} onChange={(e) => setPeerUrl(e.target.value)} disabled={lanBusy} />
-              <input style={{ ...inputStyle, width: 100, flex: 'none' }} type="text" inputMode="numeric" placeholder="6 位 PIN"
+              <input style={{ ...inputStyle, width: 100, flex: 'none' }} type="text" inputMode="numeric" placeholder={t('welcome.pinPlaceholder')}
                 value={peerPin} onChange={(e) => setPeerPin(e.target.value.replace(/\D/g, '').slice(0, 6))} disabled={lanBusy} />
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button onClick={() => peerUrl && connectNearby(peerUrl)} disabled={lanBusy}
-                style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: 'none', background: '#4A90E2', color: '#fff', cursor: 'pointer', opacity: lanBusy ? 0.6 : 1 }}>连接</button>
+                style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: 'none', background: '#4A90E2', color: '#fff', cursor: 'pointer', opacity: lanBusy ? 0.6 : 1 }}>{t('sync.connect')}</button>
               <button onClick={() => peerUrl && syncWith(peerUrl)} disabled={lanBusy}
-                style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--paper-edge, #e5e5e7)', background: 'var(--surface-raised, #fff)', cursor: 'pointer', opacity: lanBusy ? 0.6 : 1 }}>同步</button>
+                style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--paper-edge, #e5e5e7)', background: 'var(--surface-raised, #fff)', cursor: 'pointer', opacity: lanBusy ? 0.6 : 1 }}>{t('sync.sync')}</button>
             </div>
           </div>
 
           {/* Paired devices */}
           <div>
-            <div style={{ ...labelStyle, marginBottom: 8 }}>已配对设备</div>
+            <div style={{ ...labelStyle, marginBottom: 8 }}>{t('sync.pairedDevices')}</div>
             {pairedDevices.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--ink-mute, #8A8377)' }}>暂无配对设备</div>
+              <div style={{ fontSize: 13, color: 'var(--ink-mute, #8A8377)' }}>{t('sync.noPairedDevices')}</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {pairedDevices.map(d => {
@@ -460,21 +466,21 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontWeight: 500, color: 'var(--ink, #2A2722)' }}>{d.peerDeviceName || d.peerDeviceId}</span>
                           <span style={{ fontSize: 11, color: onlineUrl ? '#34c759' : 'var(--ink-mute)', background: onlineUrl ? 'rgba(52,199,89,0.1)' : 'var(--paper-edge, #eee)', padding: '1px 6px', borderRadius: 10 }}>
-                            {onlineUrl ? '在线' : '未发现'}
+                            {onlineUrl ? t('sync.online') : t('sync.notNearby')}
                           </span>
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--ink-mute, #8A8377)' }}>{new Date(d.linkedAt).toLocaleString()}</div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-mute, #8A8377)' }}>{new Date(d.linkedAt).toLocaleString(LOCALE_TAGS[locale])}</div>
                       </div>
                       <div style={{ display: 'flex', gap: 6 }}>
                         {onlineUrl && (
                           <button onClick={() => syncWith(onlineUrl)} disabled={lanBusy}
                             style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#4A90E2', color: '#fff', cursor: 'pointer', opacity: lanBusy ? 0.6 : 1 }}>
-                            同步
+                            {t('sync.sync')}
                           </button>
                         )}
                         <button onClick={() => unpair(d.peerDeviceId)} disabled={lanBusy}
                           style={{ fontSize: 12, color: '#c0392b', background: 'none', border: '1px solid rgba(192,57,43,0.2)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>
-                          断开
+                          {t('sync.unpair')}
                         </button>
                       </div>
                     </div>
@@ -485,7 +491,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
           </div>
 
           {lanMsg && (
-            <div style={{ marginTop: 12, fontSize: 13, padding: '8px 12px', borderRadius: 8, background: lanMsg.includes('失败') ? 'rgba(255,59,48,0.06)' : 'rgba(52,199,89,0.06)', color: lanMsg.includes('失败') ? '#ff3b30' : 'var(--ink-soft)' }}>
+            <div style={{ marginTop: 12, fontSize: 13, padding: '8px 12px', borderRadius: 8, background: lanMsgIsError ? 'rgba(255,59,48,0.06)' : 'rgba(52,199,89,0.06)', color: lanMsgIsError ? '#ff3b30' : 'var(--ink-soft)' }}>
               {lanMsg}
             </div>
           )}

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import mermaid from 'mermaid'
 import { getMermaidThemeConfig } from './mermaidTemplates.js'
 import type { MermaidTheme } from './mermaidTemplates.js'
+import { useT } from '../../../i18n/index.js'
 
 let renderCounter = 0
 
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export default function MermaidPreview({ code, theme = 'neutral', renderWidth }: Props) {
+  const t = useT()
   const containerRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [debouncedWidth, setDebouncedWidth] = useState(renderWidth)
@@ -80,12 +82,12 @@ export default function MermaidPreview({ code, theme = 'neutral', renderWidth }:
     }).catch((err) => {
       if (document.body.contains(tempDiv)) document.body.removeChild(tempDiv)
       if (cancelled) return
-      setError(err?.message || 'Invalid Mermaid syntax')
+      setError(err?.message || t('mermaid.invalidSyntax'))
       if (containerRef.current) containerRef.current.innerHTML = ''
     })
 
     return () => { cancelled = true }
-  }, [code, theme, debouncedWidth])
+  }, [code, theme, debouncedWidth, t])
 
   const openFullscreen = useCallback(() => {
     setScale(1)
@@ -144,7 +146,7 @@ export default function MermaidPreview({ code, theme = 'neutral', renderWidth }:
   if (!code.trim()) {
     return (
       <div className="mermaid-preview mermaid-preview--empty">
-        Write Mermaid syntax to see diagram
+        {t('mermaid.emptyHint')}
       </div>
     )
   }
@@ -157,7 +159,7 @@ export default function MermaidPreview({ code, theme = 'neutral', renderWidth }:
         className="mermaid-preview__svg"
         onClick={openFullscreen}
         style={{ cursor: 'zoom-in' }}
-        title="Click to view full size"
+        title={t('mermaid.viewFullSize')}
       />
 
       {fullscreen && createPortal(

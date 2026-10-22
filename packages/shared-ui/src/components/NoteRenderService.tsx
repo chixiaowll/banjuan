@@ -173,8 +173,10 @@ async function renderMarkdownNote(note: any, container: HTMLDivElement): Promise
   }
 }
 
+// Also escapes quotes: values go into attributes too (img src, a href), where an
+// unescaped " in a note's URL could inject markup into the render container.
 function escHtml(s: string) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
 function blocksToHtml(blocks: any[]): string {
@@ -188,8 +190,8 @@ function blocksToHtml(blocks: any[]): string {
       }
       case 'bulletListItem': return `<ul><li>${text}</li></ul>`
       case 'numberedListItem': return `<ol><li>${text}</li></ol>`
-      case 'codeBlock': return `<pre style="background:#f5f5f5;padding:8px;border-radius:4px;font-size:12px"><code>${escHtml(text)}</code></pre>`
-      case 'image': return `<img src="${b.props?.url || ''}" style="max-width:100%" />`
+      case 'codeBlock': return `<pre style="background:#f5f5f5;padding:8px;border-radius:4px;font-size:12px"><code>${text}</code></pre>`
+      case 'image': return `<img src="${escHtml(b.props?.url || '')}" style="max-width:100%" />`
       default: return text ? `<p>${text}</p>` : ''
     }
   }).join('')
@@ -208,7 +210,7 @@ function inlineHtml(content: any): string {
       if (c.styles?.code) t = `<code>${t}</code>`
       return t
     }
-    if (c.type === 'link') return `<a href="${c.href || ''}">${inlineHtml(c.content)}</a>`
+    if (c.type === 'link') return `<a href="${escHtml(c.href || '')}">${inlineHtml(c.content)}</a>`
     return escHtml(c.text || '')
   }).join('')
 }

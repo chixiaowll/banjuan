@@ -1,6 +1,7 @@
 import React from 'react'
 import { useMindmapStore, type MindmapNodeData } from '../useMindmapStore.js'
 import { useNodeSizeStore } from '../useNodeSizeStore.js'
+import { useT } from '../../../i18n/index.js'
 import type { Node } from '@xyflow/react'
 
 const BRACE_WIDTH = 20
@@ -39,6 +40,7 @@ function SummaryBrace({ summary, rfNodes, nodeSizes, onRemove }: {
   nodeSizes: Map<string, { width: number; height: number }>
   onRemove: () => void
 }) {
+  const t = useT()
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number } | null>(null)
 
   const allIds = new Set<string>()
@@ -119,7 +121,7 @@ function SummaryBrace({ summary, rfNodes, nodeSizes, onRemove }: {
               onMouseLeave={e => e.currentTarget.style.background = 'none'}
               onClick={() => { setContextMenu(null); onRemove() }}
             >
-              Remove Summary
+              {t('mindmap.removeSummary')}
             </button>
           </div>
         </>

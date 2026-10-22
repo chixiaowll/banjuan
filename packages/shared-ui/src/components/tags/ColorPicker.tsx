@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { useT } from '../../i18n/index.js'
 
 const PRESET_COLORS = [
   '#4a7ab5', '#7b6ba8', '#a07842', '#3d8a66',
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function ColorPicker({ value, onChange, onClose }: Props) {
+  const t = useT()
   const [custom, setCustom] = useState(value || '')
   const ref = useRef<HTMLDivElement>(null)
 
@@ -57,7 +59,7 @@ export default function ColorPicker({ value, onChange, onClose }: Props) {
         <button
           onClick={() => { if (/^#[0-9a-fA-F]{6}$/.test(custom)) { onChange(custom); onClose() } }}
           style={{ fontSize: 11, padding: '3px 8px' }}
-        >OK</button>
+        >{t('common.confirm')}</button>
       </div>
     </div>
   )

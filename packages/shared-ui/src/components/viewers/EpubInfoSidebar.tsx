@@ -128,22 +128,22 @@ export default function EpubInfoSidebar({ doc, onDocUpdated, width = 280 }: Prop
         {doc.title}
       </div>
       <div style={{ padding: '8px 0' }}>
-        <EditableField label="Title" value={doc.title} onSave={(val) => saveDoc({ title: val })} />
-        <EditableField label="Authors" value={doc.authors.join(', ')} onSave={(val) => saveDoc({ authors: val.split(',').map(a => a.trim()).filter(Boolean) })} />
-        <EditableField label="Type" value={doc.type.toUpperCase()} readOnly />
-        <EditableField label="Path" value={doc.path} readOnly />
-        <EditableField label="Created" value={new Date(doc.createdAt).toLocaleString()} readOnly />
-        <EditableField label="Updated" value={new Date(doc.updatedAt).toLocaleString()} readOnly />
+        <EditableField label={t('detail.docTitle')} value={doc.title} onSave={(val) => saveDoc({ title: val })} />
+        <EditableField label={t('detail.authors')} value={doc.authors.join(', ')} onSave={(val) => saveDoc({ authors: val.split(',').map(a => a.trim()).filter(Boolean) })} />
+        <EditableField label={t('detail.type')} value={doc.type.toUpperCase()} readOnly />
+        <EditableField label={t('detail.path')} value={doc.path} readOnly />
+        <EditableField label={t('detail.createdAt')} value={new Date(doc.createdAt).toLocaleString()} readOnly />
+        <EditableField label={t('detail.updatedAt')} value={new Date(doc.updatedAt).toLocaleString()} readOnly />
       </div>
       <div style={{ borderTop: '1px solid var(--border)', padding: '8px 0' }}>
         <div style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
-          Metadata
+          {t('viewer.metadata')}
         </div>
         {metadata.map((entry, i) => (
           <div key={i} style={{ display: 'flex', padding: '2px 12px', fontSize: 12, gap: 4, alignItems: 'center' }}>
-            <input value={entry.key} onChange={(e) => updateMetaRow(i, 'key', e.target.value)} placeholder="key"
+            <input value={entry.key} onChange={(e) => updateMetaRow(i, 'key', e.target.value)} placeholder={t('viewer.metaKey')}
               style={{ width: 70, fontSize: 11, border: '1px solid var(--border)', borderRadius: 3, padding: '1px 4px', color: 'var(--text-muted)' }} />
-            <input value={entry.value} onChange={(e) => updateMetaRow(i, 'value', e.target.value)} placeholder="value"
+            <input value={entry.value} onChange={(e) => updateMetaRow(i, 'value', e.target.value)} placeholder={t('viewer.metaValue')}
               style={{ flex: 1, fontSize: 11, border: '1px solid var(--border)', borderRadius: 3, padding: '1px 4px', color: 'var(--text)' }} />
             <button onClick={() => removeMetaRow(i)}
               style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 2px', display: 'flex', alignItems: 'center' }}><X size={14} /></button>

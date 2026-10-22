@@ -6,6 +6,7 @@ import { useEpubViewer } from './EpubViewerContext.js'
 import { useBanjuanAPI } from '../../api.js'
 import { useIsActiveTab } from '../tabActive.js'
 import { isEditableTarget } from '../../utils/keyboard.js'
+import { useT } from '../../i18n/index.js'
 
 interface InkStroke {
   points: Array<{ x: number; y: number }>
@@ -89,6 +90,7 @@ function getScale(el: HTMLElement): number {
 
 export default function EpubInkLassoTool({ docId, annotations, containerRef, onUpdated }: Props) {
   const api = useBanjuanAPI()
+  const t = useT()
   const ctx = useEpubViewer()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -513,7 +515,7 @@ export default function EpubInkLassoTool({ docId, annotations, containerRef, onU
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--selected)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >
-            <Trash2 size={14} /> Delete
+            <Trash2 size={14} /> {t('common.delete')}
           </button>
         </div>
       )}

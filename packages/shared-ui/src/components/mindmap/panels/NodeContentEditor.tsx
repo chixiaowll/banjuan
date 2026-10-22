@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import BlockEditor from '../../notes/BlockEditor.js'
 import { useMindmapStore } from '../useMindmapStore.js'
+import { useT } from '../../../i18n/index.js'
 
 interface Props {
   nodeId: string
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export default function NodeContentEditor({ nodeId, onClose }: Props) {
+  const t = useT()
   const { mindmapId, rfNodes, updateNodeData } = useMindmapStore()
   const node = rfNodes.find(n => n.id === nodeId)
   const [title, setTitle] = useState(node?.data.title ?? '')
@@ -27,7 +29,7 @@ export default function NodeContentEditor({ nodeId, onClose }: Props) {
     updateNodeData(nodeId, { content: json })
   }, [nodeId, updateNodeData])
 
-  if (!node || !ready) return <div style={{ padding: 16 }}>Loading...</div>
+  if (!node || !ready) return <div style={{ padding: 16 }}>{t('common.loading')}</div>
 
   const content = (node.data.content as string) ?? ''
 

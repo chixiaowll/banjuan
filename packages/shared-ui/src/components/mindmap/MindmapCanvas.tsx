@@ -14,8 +14,10 @@ import ViewportOverlay from './overlays/ViewportOverlay.js'
 import BoundaryOverlay from './overlays/BoundaryOverlay.js'
 import SummaryOverlay from './overlays/SummaryOverlay.js'
 import './MindmapCanvas.css'
+import { useT } from '../../i18n/index.js'
 
 export default function MindmapCanvas({ readonly = false }: { readonly?: boolean } = {}) {
+  const t = useT()
   const [miniMapOpen, setMiniMapOpen] = useState(true)
   const {
     rfNodes, rfEdges, layout, theme: themeName,
@@ -333,7 +335,7 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
                   backdropFilter: 'blur(4px)',
                 }}
               >
-                {miniMapOpen ? '▼ 隐藏导航' : '▲ 显示导航'}
+                {miniMapOpen ? `▼ ${t('mindmap.hideMinimap')}` : `▲ ${t('mindmap.showMinimap')}`}
               </button>
             </Panel>
             <Controls />

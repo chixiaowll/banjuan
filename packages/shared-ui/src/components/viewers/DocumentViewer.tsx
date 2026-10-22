@@ -68,6 +68,7 @@ function UnsupportedViewer({ doc }: { doc: DocInfo }) {
 
 export default function DocumentViewer({ doc, onBack, onOpenNote }: Props) {
   const api = useBanjuanAPI()
+  const t = useT()
   const [filePath, setFilePath] = useState<string | null>(null)
   const [fileSrc, setFileSrc] = useState<string | null>(null)
   const [fileData, setFileData] = useState<ArrayBuffer | null>(null)
@@ -122,7 +123,7 @@ export default function DocumentViewer({ doc, onBack, onOpenNote }: Props) {
   const isLoading = !fileSrc || (doc.type === 'epub' && !fileData)
   if (isLoading) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-      Loading...
+      {t('common.loading')}
     </div>
   }
 

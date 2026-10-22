@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useBanjuanAPI } from '../../api.js'
+import { useT } from '../../i18n/index.js'
 
 interface NoteResult {
   id: string
@@ -16,6 +17,7 @@ interface Props {
 
 export default function LinkSearchPopup({ query, position, onSelect, onCreate, onClose }: Props) {
   const api = useBanjuanAPI()
+  const t = useT()
   const [results, setResults] = useState<NoteResult[]>([])
   const [selectedIndex, setSelectedIndex] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
@@ -106,7 +108,7 @@ export default function LinkSearchPopup({ query, position, onSelect, onCreate, o
         }}
         onMouseEnter={() => setSelectedIndex(results.length)}
       >
-        + 创建新笔记: "{query}"
+        + {t('link.createNote', query)}
       </div>
     </div>
   )

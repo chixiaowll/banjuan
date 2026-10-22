@@ -1,6 +1,7 @@
 import React from 'react'
 import { useExportManagerStore, type ExportItemStatus } from '../stores/useExportManagerStore.js'
 import { X, Minus, ChevronUp, CheckCircle2, AlertCircle, Loader2, Clock, FolderOpen, Trash2 } from 'lucide-react'
+import { useT } from '../i18n/index.js'
 
 const STATUS_ICON: Record<ExportItemStatus, React.ReactNode> = {
   pending: <Clock size={14} style={{ color: 'var(--text-muted, #999)' }} />,
@@ -9,16 +10,17 @@ const STATUS_ICON: Record<ExportItemStatus, React.ReactNode> = {
   error: <AlertCircle size={14} style={{ color: '#e74c3c' }} />,
 }
 
-const STATUS_LABEL: Record<ExportItemStatus, string> = {
-  pending: '等待中',
-  exporting: '导出中...',
-  done: '已完成',
-  error: '失败',
-}
-
 export default function ExportPanel() {
+  const t = useT()
   const { items, outputDir, format, isRunning, panelVisible, panelMinimized,
     minimizePanel, restorePanel, dismiss, clearDone } = useExportManagerStore()
+
+  const STATUS_LABEL: Record<ExportItemStatus, string> = {
+    pending: t('export.pending'),
+    exporting: t('export.exporting'),
+    done: t('export.done'),
+    error: t('export.failed'),
+  }
 
   if (!panelVisible) return null
 
@@ -40,7 +42,7 @@ export default function ExportPanel() {
         }}
       >
         <FolderOpen size={14} />
-        <span>导出 {doneCount}/{total}</span>
+        <span>{t('export.progress', doneCount, total)}</span>
         <div style={{
           width: 60, height: 4, background: 'var(--border, #e0e0e0)', borderRadius: 2, overflow: 'hidden',
         }}>
@@ -50,7 +52,7 @@ export default function ExportPanel() {
         {!isRunning && (
           <button
             onClick={(e) => { e.stopPropagation(); dismiss() }}
-            title="关闭"
+            title={t('export.close')}
             style={{ ...headerBtnStyle, marginLeft: 2 }}
           >
             <X size={13} />
@@ -77,15 +79,15 @@ export default function ExportPanel() {
         }}>
           <FolderOpen size={15} style={{ color: 'var(--text-muted)' }} />
           <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>
-            导出 {format === 'markdown' ? 'Markdown' : format.toUpperCase()}
+            {t('export.title', format === 'markdown' ? 'Markdown' : format.toUpperCase())}
           </span>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
             {doneCount}/{total}
-            {errorCount > 0 && <span style={{ color: '#e74c3c' }}> ({errorCount} 失败)</span>}
+            {errorCount > 0 && <span style={{ color: '#e74c3c' }}> {t('export.failedCount', errorCount)}</span>}
           </span>
-          <button onClick={minimizePanel} title="收起" style={headerBtnStyle}><Minus size={14} /></button>
+          <button onClick={minimizePanel} title={t('detail.collapse')} style={headerBtnStyle}><Minus size={14} /></button>
           {!isRunning && (
-            <button onClick={dismiss} title="关闭" style={headerBtnStyle}><X size={14} /></button>
+            <button onClick={dismiss} title={t('export.close')} style={headerBtnStyle}><X size={14} /></button>
           )}
         </div>
 
@@ -134,7 +136,7 @@ export default function ExportPanel() {
               background: 'var(--surface-raised, #f0f0f0)', color: 'var(--text-muted)',
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
             }}>
-              <Trash2 size={12} />清除已完成
+              <Trash2 size={12} />{t('export.clearDone')}
             </button>
             <span style={{ flex: 1 }} />
             <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>

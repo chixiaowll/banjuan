@@ -1,12 +1,14 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useMindmapStore } from './useMindmapStore.js'
+import { useT } from '../../i18n/index.js'
 
 interface Props {
   onClose: () => void
 }
 
 export default function MindmapSearch({ onClose }: Props) {
+  const t = useT()
   const { rfNodes, selectNode } = useMindmapStore()
   const { setCenter } = useReactFlow()
   const [query, setQuery] = useState('')
@@ -52,14 +54,14 @@ export default function MindmapSearch({ onClose }: Props) {
         value={query}
         onChange={e => setQuery(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Search nodes..."
+        placeholder={t('mindmap.search')}
         style={{
           border: 'none', outline: 'none', fontSize: 14, width: 200,
           background: 'transparent', color: 'var(--text, #333)',
         }}
       />
       <span style={{ fontSize: 12, color: 'var(--text-muted, #999)', whiteSpace: 'nowrap' }}>
-        {matches.length > 0 ? `${matchIndex + 1}/${matches.length}` : query ? 'No matches' : ''}
+        {matches.length > 0 ? `${matchIndex + 1}/${matches.length}` : query ? t('mindmap.noMatches') : ''}
       </span>
       <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-muted, #999)' }}>
         ×

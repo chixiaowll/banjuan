@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useBanjuanAPI } from '../../../api.js'
+import { useT } from '../../../i18n/index.js'
 import { ReactFlowProvider, useReactFlow, useNodesInitialized, getNodesBounds } from '@xyflow/react'
 import MindmapCanvas from '../../mindmap/MindmapCanvas.js'
 import { MindmapStoreContext, createMindmapStore } from '../../mindmap/useMindmapStore.js'
@@ -13,6 +14,7 @@ interface Props {
 const PADDING = 20
 
 function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapStoreApi }) {
+  const t = useT()
   const [ready, setReady] = useState(false)
   const [height, setHeight] = useState(400)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -67,7 +69,7 @@ function MindmapEmbedInner({ noteId, store }: { noteId: string; store: MindmapSt
   }, [handleScreenshot])
 
   if (!ready) {
-    return <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading mindmap...</span>
+    return <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('embed.loadingMindmap')}</span>
   }
 
   const style: React.CSSProperties = {

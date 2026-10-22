@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Highlighter, Copy, Underline, ChevronDown } from 'lucide-react'
 import { ANNOTATION_COLORS as DEFAULT_COLORS } from './PdfViewerContext.js'
+import { useT } from '../../i18n/index.js'
 
 interface Props {
   position: { x: number; y: number; bottom: number }
@@ -16,6 +17,7 @@ interface Props {
 export default function TextSelectionToolbar({
   position, color, colors = DEFAULT_COLORS, onHighlight, onUnderline, onCopy, onChangeColor, onClose,
 }: Props) {
+  const t = useT()
   const ref = useRef<HTMLDivElement>(null)
   const [above, setAbove] = useState(false)
   const [showColors, setShowColors] = useState(false)
@@ -48,13 +50,13 @@ export default function TextSelectionToolbar({
       border: '1px solid var(--border)',
       boxShadow: '0 2px 16px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.04)',
     }}>
-      <ToolBtn onClick={onHighlight} title="高亮" color={color}>
+      <ToolBtn onClick={onHighlight} title={t('tool.highlight')} color={color}>
         <Highlighter size={14} />
       </ToolBtn>
-      <ToolBtn onClick={onUnderline} title="下划线" color={color}>
+      <ToolBtn onClick={onUnderline} title={t('selection.underline')} color={color}>
         <Underline size={14} />
       </ToolBtn>
-      <ToolBtn onClick={onCopy} title="复制">
+      <ToolBtn onClick={onCopy} title={t('common.copy')}>
         <Copy size={14} />
       </ToolBtn>
       <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 1px', flexShrink: 0 }} />
