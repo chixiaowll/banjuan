@@ -17,6 +17,7 @@ import TagInput from '../tags/TagInput.js'
 import { useResizable, ResizeHandle } from '../ResizeHandle.js'
 import { useBanjuanAPI } from '../../api.js'
 import DocumentLoadError from './DocumentLoadError.js'
+import { takeDocPage, onDocPageRequest } from '../../utils/docNavigation.js'
 import TextSelectionToolbar from './TextSelectionToolbar.js'
 import AnnotationContextMenu from './AnnotationContextMenu.js'
 
@@ -292,6 +293,31 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
     const offset = yFraction != null ? ctx.pageSizes[idx].h * yFraction : 0
     el.scrollTo({ top: pageTop + offset - 80, behavior: 'smooth' })
   }, [ctx.scrollRef, ctx.pageSizes])
+
+  // "Open at page N" from search / annotation cards: wait until page sizes are
+  // known, and claim the position so restoring the last reading spot doesn't win.
+  // Instant, not smooth: page sizes are recomputed right after load and the
+  // content area re-anchors on the current scrollTop — mid-animation that left
+  // a smooth scroll stranded a page or two in.
+  const pageSizesReady = ctx.pageSizes.length > 0
+  useEffect(() => {
+    if (!pageSizesReady) return
+    const jump = () => {
+      const page = takeDocPage(doc.id)
+      if (!page) return
+      lastPositionRef.current = { page, offsetFraction: 0 }
+      requestAnimationFrame(() => {
+        const el = ctx.scrollRef.current
+        const sizes = pageSizesRef.current
+        if (!el || sizes.length === 0) return
+        let top = 0
+        for (let i = 0; i < Math.min(page, sizes.length) - 1; i++) top += sizes[i].h + 16
+        el.scrollTo({ top, behavior: 'instant' as ScrollBehavior })
+      })
+    }
+    jump()
+    return onDocPageRequest(doc.id, jump)
+  }, [pageSizesReady, doc.id, ctx.scrollRef])
 
   const handleAnnotationDelete = useCallback(async (id: string) => {
     await remove(id)

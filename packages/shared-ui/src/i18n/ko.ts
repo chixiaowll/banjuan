@@ -563,6 +563,13 @@ const ko = {
   // fixes
   'library.folderExists': '"{0}" 폴더가 이미 있습니다.',
   'library.renameFailed': '이름 변경 실패: {0}',
+
+  // palette
+  'palette.placeholder': '노트, 문서, 주석 검색…',
+  'palette.annotations': '주석',
+  'palette.recent': '최근',
+  'palette.noResults': '"{0}"에 대한 결과가 없습니다',
+  'palette.hint': '↑↓ 이동 · ↵ 열기 · esc 닫기',
 } as const
 
 export default ko

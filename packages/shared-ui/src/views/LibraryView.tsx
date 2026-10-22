@@ -21,6 +21,7 @@ import { listExportNotes, buildExportEntries } from '../utils/exportEntries.js'
 import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 import { notifyNotesChanged, notifyDocumentsChanged } from '../utils/libraryEvents.js'
 import { toast, alertDialog, confirmDialog, errorMessage } from '../components/feedback.js'
+import { requestDocPage } from '../utils/docNavigation.js'
 
 interface Document {
   id: string
@@ -1484,7 +1485,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                       const tapeBg = tapeColors[i % tapeColors.length]
                       return (
                         <div key={ann.id}
-                          onClick={() => { const doc = documents.find(d => d.id === ann.docId); if (doc) onOpenDoc(doc) }}
+                          onClick={() => { const doc = documents.find(d => d.id === ann.docId); if (doc) { requestDocPage(doc.id, ann.page); onOpenDoc(doc) } }}
                           style={{
                             position: 'relative', cursor: 'pointer', transition: 'transform 0.15s',
                             paddingTop: 12,
@@ -1754,7 +1755,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                       const markerColor = ann.color || markerColors[i % markerColors.length]
                       return (
                         <div key={ann.id}
-                          onClick={() => { const doc = documents.find(d => d.id === ann.docId); if (doc) onOpenDoc(doc) }}
+                          onClick={() => { const doc = documents.find(d => d.id === ann.docId); if (doc) { requestDocPage(doc.id, ann.page); onOpenDoc(doc) } }}
                           style={layout.home.annotationLayout === 'grid-card' ? {
                             background: 'var(--surface-raised)', border: '1px solid var(--border)',
                             borderRadius: 8, padding: 16, cursor: 'pointer', transition: 'all 0.15s',

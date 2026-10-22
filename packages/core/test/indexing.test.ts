@@ -137,6 +137,19 @@ describe('IndexService', () => {
       expect(tags).toHaveLength(1)
     })
 
+    it('keeps reading history (last_read_at lives only in the DB) across a rebuild', async () => {
+      createTestFile(libPath, 'read.pdf', Buffer.from('pdf'))
+      const doc = await lib.documents.import('read.pdf')
+      await lib.documents.markRead(doc.id)
+      const before = (await lib.documents.get(doc.id))!.lastReadAt
+      expect(before).toBeTruthy()
+
+      const indexer = new IndexService((lib as any).db, libPath, new NodeFS())
+      await indexer.rebuildFull()
+
+      expect((await lib.documents.get(doc.id))!.lastReadAt).toBe(before)
+    })
+
     it('writes timestamp to db.meta.json', async () => {
       const db = (lib as any).db
       const indexer = new IndexService(db, libPath, new NodeFS())

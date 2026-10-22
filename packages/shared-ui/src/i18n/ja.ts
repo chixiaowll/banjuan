@@ -563,6 +563,13 @@ const ja = {
   // fixes
   'library.folderExists': '「{0}」という名前のフォルダーは既に存在します。',
   'library.renameFailed': '名前を変更できませんでした：{0}',
+
+  // palette
+  'palette.placeholder': 'ノート・ドキュメント・注釈を検索…',
+  'palette.annotations': '注釈',
+  'palette.recent': '最近',
+  'palette.noResults': '「{0}」に一致する項目はありません',
+  'palette.hint': '↑↓ 選択 · ↵ 開く · esc 閉じる',
 } as const
 
 export default ja

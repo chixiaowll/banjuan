@@ -223,9 +223,16 @@ export type TagTarget = 'document' | 'note' | 'mindmap'
 export interface SearchResult {
   type: 'document' | 'note' | 'annotation'
   id: string
+  /** Note / document title; for an annotation, the title of its document. */
   title: string
+  /** Text around the first hit (empty when only the title matched). */
   snippet: string
   score: number
+  /** Annotation: the document it belongs to, and its page (if any). */
+  docId?: string
+  page?: number | null
+  /** Note: markdown / mindmap / handwriting. */
+  noteType?: string
 }
 
 export interface SearchOptions {

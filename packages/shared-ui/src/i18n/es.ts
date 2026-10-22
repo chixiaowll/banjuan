@@ -563,6 +563,13 @@ const es = {
   // fixes
   'library.folderExists': 'Ya existe una carpeta llamada «{0}».',
   'library.renameFailed': 'Error al cambiar el nombre: {0}',
+
+  // palette
+  'palette.placeholder': 'Buscar notas, documentos y anotaciones…',
+  'palette.annotations': 'Anotaciones',
+  'palette.recent': 'Recientes',
+  'palette.noResults': 'No hay resultados para «{0}»',
+  'palette.hint': '↑↓ moverse · ↵ abrir · esc cerrar',
 } as const
 
 export default es
