@@ -25,6 +25,7 @@ import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
 import { emitLinksSynced } from '../utils/linkEvents.js'
 import { useDebouncedSaver } from '../utils/debouncedSaver.js'
+import { registerFlush } from '../utils/flushRegistry.js'
 import { toast, errorMessage } from '../components/feedback.js'
 import { useIsActiveTab } from '../components/tabActive.js'
 
@@ -717,6 +718,10 @@ export default function NoteView(props: Props) {
   const isHandwriting = (props.note.type ?? 'markdown') === 'handwriting'
   const store = useMemo(() => isMindmap ? createMindmapStore(api) : null, [props.note.id, api])
   const hwStore = useMemo(() => isHandwriting ? createHandwritingStore(api) : null, [props.note.id, api])
+  // Pending mind-map layout/title and handwriting saves are written before the
+  // window closes or the app quits (see flushRegistry).
+  useEffect(() => store ? registerFlush(() => store.getState().flushPersist()) : undefined, [store])
+  useEffect(() => hwStore ? registerFlush(() => hwStore.getState().flushPendingSave()) : undefined, [hwStore])
 
   if (isHandwriting && hwStore) {
     return (

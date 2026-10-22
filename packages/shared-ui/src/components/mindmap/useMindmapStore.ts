@@ -99,6 +99,8 @@ export interface MindmapState {
   closeSidePanel: () => void
 
   persist: () => Promise<void>
+  /** Write a pending persist() now (before the window closes / app quits). */
+  flushPersist: () => Promise<void>
 }
 
 function buildTreeDepths(nodes: Node<MindmapNodeData>[]): Map<string, number> {
@@ -207,6 +209,16 @@ export const MindmapStoreContext = createContext<MindmapStoreApi | null>(null)
 
 export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
   let persistTimer: ReturnType<typeof setTimeout> | null = null
+  const writePersist = async (get: () => MindmapState) => {
+    const { mindmapId, mindmapTitle, layout, theme } = get()
+    if (!mindmapId) return
+    const sizes = useNodeSizeStore.getState().sizes
+    const nodeSizes: Record<string, { w: number; h: number }> = {}
+    for (const [id, s] of sizes) {
+      nodeSizes[id] = { w: s.width, h: s.height }
+    }
+    await api.notes.update(mindmapId, { title: mindmapTitle, typeMeta: { layout, theme, nodeSizes } }).catch(reportSaveError)
+  }
   // Background writes (node edits, layout/theme) must not fail silently: the
   // canvas already shows the change, so tell the user it didn't reach disk.
   const reportSaveError = (e: unknown) => {
@@ -646,16 +658,13 @@ export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
 
     persist: async () => {
       if (persistTimer) clearTimeout(persistTimer)
-      persistTimer = setTimeout(async () => {
-        const { mindmapId, mindmapTitle, layout, theme } = get()
-        if (!mindmapId) return
-        const sizes = useNodeSizeStore.getState().sizes
-        const nodeSizes: Record<string, { w: number; h: number }> = {}
-        for (const [id, s] of sizes) {
-          nodeSizes[id] = { w: s.width, h: s.height }
-        }
-        await api.notes.update(mindmapId, { title: mindmapTitle, typeMeta: { layout, theme, nodeSizes } }).catch(reportSaveError)
-      }, 500)
+      persistTimer = setTimeout(() => { persistTimer = null; void writePersist(get) }, 500)
+    },
+    flushPersist: async () => {
+      if (!persistTimer) return
+      clearTimeout(persistTimer)
+      persistTimer = null
+      await writePersist(get)
     },
   }))
 }

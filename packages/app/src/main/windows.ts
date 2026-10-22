@@ -1,7 +1,33 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 
 const windows = new Set<BrowserWindow>()
+
+// Unsaved edits wait behind timers in the renderer (debounced note saves,
+// handwriting stroke batching). Before a library window closes or the app
+// quits, ask the renderer to write them and wait — up to a few seconds, so a
+// hung renderer can't block closing forever.
+const FLUSH_TIMEOUT_MS = 3000
+let nextFlushId = 1
+let quitFlushed = false
+
+function flushWindow(win: BrowserWindow): Promise<void> {
+  if (win.isDestroyed() || win.webContents.isDestroyed()) return Promise.resolve()
+  const id = nextFlushId++
+  return new Promise(resolve => {
+    const finish = () => { clearTimeout(timer); ipcMain.removeListener('app:flush-done', onDone); resolve() }
+    const onDone = (_e: unknown, doneId: number) => { if (doneId === id) finish() }
+    const timer = setTimeout(() => { console.warn('[flush] renderer did not confirm in time; closing anyway'); finish() }, FLUSH_TIMEOUT_MS)
+    ipcMain.on('app:flush-done', onDone)
+    win.webContents.send('app:flush', id)
+  })
+}
+
+/** Flush every library window before quitting; afterwards windows close without asking again. */
+export function flushAllWindowsForQuit(): Promise<void> {
+  quitFlushed = true
+  return Promise.all([...windows].map(flushWindow)).then(() => {})
+}
 
 export function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -45,6 +71,13 @@ export function createWindow(): BrowserWindow {
 
   windows.add(win)
   win.on('closed', () => windows.delete(win))
+  let flushed = false
+  win.on('close', (e) => {
+    if (flushed || quitFlushed) return
+    e.preventDefault()
+    flushed = true
+    void flushWindow(win).finally(() => { if (!win.isDestroyed()) win.close() })
+  })
 
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL)

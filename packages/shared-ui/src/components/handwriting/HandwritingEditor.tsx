@@ -5,6 +5,7 @@ import { renderStroke, generateThumbnailDataUrl } from './renderStrokes.js'
 import type { HandwritingTemplate, CanvasSnapshot, Stroke, StrokePoint, CanvasImage } from '@banjuan/core'
 import { useIsActiveTab } from '../tabActive.js'
 import { isEditableTarget } from '../../utils/keyboard.js'
+import { registerFlush } from '../../utils/flushRegistry.js'
 
 interface Props {
   pageId: string
@@ -541,6 +542,9 @@ export default function HandwritingEditor({
     setUndoIndex(idx + 1)
     schedulePersist()
   }, [schedulePersist])
+  // Before the window closes / app quits, hand the batched strokes to the store
+  // (whose own 'write' flusher then saves them) — the 2s timer won't survive.
+  useEffect(() => registerFlush(() => { if (persistTimerRef.current) flushPersist() }, 'collect'), [flushPersist])
   // Flush any pending save on unmount so closing the note never loses the last strokes.
   useEffect(() => () => { if (persistTimerRef.current) flushPersist() }, [flushPersist])
   // Also flush when the app is backgrounded / the page is hidden (safe boundary,

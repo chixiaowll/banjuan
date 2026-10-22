@@ -322,6 +322,11 @@ export interface BanjuanAPI {
     sendResult(requestId: string, dataUrl: string | null): void
   }
 
+  /** Desktop only: window-close / app-quit asks the renderer to write pending edits first. */
+  lifecycle?: {
+    onFlushRequest(handler: () => Promise<void>): () => void
+  }
+
   /** Desktop only: application-menu commands routed to the renderer. */
   menu?: {
     /** File › Close Tab (⌘W). Return true if a tab was closed; false lets the window close. */

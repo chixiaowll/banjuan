@@ -7,6 +7,14 @@ ipcRenderer.on('menu:close-tab', () => {
   if (!closeTabHandler?.()) ipcRenderer.send('window:close')
 })
 
+// Before this window closes or the app quits, main asks us to write pending
+// edits (flushRegistry) and waits for the reply.
+let flushHandler: (() => Promise<void>) | null = null
+ipcRenderer.on('app:flush', async (_e, id: number) => {
+  try { await flushHandler?.() } catch (err) { console.error('[flush] failed', err) }
+  ipcRenderer.send('app:flush-done', id)
+})
+
 const api = {
   library: {
     check: (path: string) => ipcRenderer.invoke('library:check', path),
@@ -293,6 +301,12 @@ const api = {
     },
     sendResult: (requestId: string, dataUrl: string | null) => {
       ipcRenderer.send(`note-render-result:${requestId}`, dataUrl)
+    },
+  },
+  lifecycle: {
+    onFlushRequest: (handler: () => Promise<void>) => {
+      flushHandler = handler
+      return () => { if (flushHandler === handler) flushHandler = null }
     },
   },
   menu: {
