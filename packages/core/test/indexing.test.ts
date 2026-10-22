@@ -194,11 +194,13 @@ describe('FileWatcher', () => {
     }
     writeFileSync(join(annDir, 'ab000000-test-file-watcher.json'), JSON.stringify(annData, null, 2))
 
-    await new Promise(resolve => setTimeout(resolve, 500))
+    // Wait for the fs.watch event + debounce. Poll instead of a fixed sleep: under
+    // parallel test load (pnpm -r) a fixed 500ms was sometimes too short.
+    const find = () => db.queryOne('SELECT id FROM annotations WHERE id = ?', ['ab000000-test-file-watcher'])
+    for (let waited = 0; !find() && waited < 5000; waited += 50) await new Promise(resolve => setTimeout(resolve, 50))
 
     watcher.stop()
 
-    const row = db.queryOne('SELECT id FROM annotations WHERE id = ?', ['ab000000-test-file-watcher'])
-    expect(row).toBeDefined()
+    expect(find()).toBeDefined()
   })
 })
