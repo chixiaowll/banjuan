@@ -610,6 +610,13 @@ const ja = {
   'template.namePrompt': 'テンプレート名',
   'template.saved': 'テンプレート「{0}」として保存しました',
   'template.deleteConfirm': 'テンプレート「{0}」を削除しますか？作成済みのノートには影響しません。',
+
+  // readingnote
+  'readingNote.generate': '読書ノートを作成',
+  'readingNote.title': '『{0}』読書ノート',
+  'readingNote.annotations': '注釈',
+  'readingNote.empty': 'まとめられる注釈（ハイライト・下線・メモ）がまだありません',
+  'readingNote.created': '{0} 件の注釈から読書ノートを作成しました',
 } as const
 
 export default ja

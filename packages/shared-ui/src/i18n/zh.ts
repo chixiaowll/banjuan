@@ -639,6 +639,13 @@ const zh = {
   'template.namePrompt': '模板名称',
   'template.saved': '已存为模板「{0}」',
   'template.deleteConfirm': '删除模板「{0}」？已用它创建的笔记不受影响。',
+
+  // readingnote
+  'readingNote.generate': '生成读书笔记',
+  'readingNote.title': '《{0}》读书笔记',
+  'readingNote.annotations': '批注',
+  'readingNote.empty': '这篇文档还没有可以汇总的批注（高亮、下划线或文字批注）',
+  'readingNote.created': '已生成读书笔记，汇总了 {0} 条批注',
 } as const
 
 export default zh

@@ -1,6 +1,11 @@
 import React, { useState } from 'react'
 import { useT, type MessageKey } from '../../i18n/index.js'
 import InkThumbnail from './InkThumbnail.js'
+import { NotebookPen } from 'lucide-react'
+import { useBanjuanAPI } from '../../api.js'
+import { toast, errorMessage } from '../feedback.js'
+import { createReadingNote } from '../../utils/readingNote.js'
+import { notifyNotesChanged } from '../../utils/libraryEvents.js'
 
 interface AnnotationData {
   id: string
@@ -28,10 +33,30 @@ interface Props {
   onAnnotationNavigate?: (annotation: AnnotationData) => void
   onAnnotationDelete: (id: string) => void
   onAnnotationUpdate: (id: string, updates: any) => void
+  /** With both set, a "Generate reading notes" button collects the annotations into a note. */
+  docId?: string
+  onOpenNote?: (note: any) => void
 }
 
-export default function AnnotationPanel({ annotations, onAnnotationClick, onAnnotationNavigate, onAnnotationDelete, onAnnotationUpdate }: Props) {
+export default function AnnotationPanel({ annotations, onAnnotationClick, onAnnotationNavigate, onAnnotationDelete, onAnnotationUpdate, docId, onOpenNote }: Props) {
   const t = useT()
+  const api = useBanjuanAPI()
+  const [generating, setGenerating] = useState(false)
+  const generateNote = async () => {
+    if (!docId || generating) return
+    setGenerating(true)
+    try {
+      const result = await createReadingNote(api, docId, t)
+      if (!result) { toast.info(t('readingNote.empty')); return }
+      notifyNotesChanged()
+      toast.success(t('readingNote.created', result.count))
+      onOpenNote?.(result.note)
+    } catch (e) {
+      toast.error(errorMessage(e))
+    } finally {
+      setGenerating(false)
+    }
+  }
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
 
@@ -74,6 +99,17 @@ export default function AnnotationPanel({ annotations, onAnnotationClick, onAnno
 
   return (
     <div style={{ padding: '4px 0' }}>
+      {docId && onOpenNote && annotations.length > 0 && (
+        <div style={{ padding: '6px 12px 8px', borderBottom: '1px solid var(--border)' }}>
+          <button onClick={generateNote} disabled={generating} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5, width: '100%', justifyContent: 'center',
+            padding: '5px 10px', fontSize: 12, borderRadius: 6, cursor: generating ? 'default' : 'pointer',
+            border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', opacity: generating ? 0.6 : 1,
+          }}>
+            <NotebookPen size={13} />{t('readingNote.generate')}
+          </button>
+        </div>
+      )}
       {sortedPages.map(page => (
         <div key={page}>
           {hasPages && (

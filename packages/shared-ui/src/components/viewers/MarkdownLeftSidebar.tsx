@@ -68,6 +68,8 @@ export default function MarkdownLeftSidebar({
             onAnnotationNavigate={onAnnotationClick}
             onAnnotationDelete={onAnnotationDelete}
             onAnnotationUpdate={onAnnotationUpdate}
+            docId={docId}
+            onOpenNote={onOpenNote}
           />
         )}
         {leftSidebarTab === 'notes' && (

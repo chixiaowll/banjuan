@@ -64,7 +64,8 @@ export default function PdfLeftSidebar({
         {leftSidebarTab === 'outline' && <OutlinePanel />}
         {leftSidebarTab === 'annotations' && (
           <AnnotationPanel annotations={annotations} onAnnotationClick={onAnnotationClick}
-            onAnnotationDelete={onAnnotationDelete} onAnnotationUpdate={onAnnotationUpdate} />
+            onAnnotationDelete={onAnnotationDelete} onAnnotationUpdate={onAnnotationUpdate}
+            docId={docId} onOpenNote={onOpenNote} />
         )}
         {leftSidebarTab === 'notes' && (
           <NotesPanel docId={docId} onOpenNote={onOpenNote} onCreateNote={onCreateNote} onDeleteNote={onDeleteNote} />

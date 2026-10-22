@@ -610,6 +610,13 @@ const de = {
   'template.namePrompt': 'Name der Vorlage',
   'template.saved': 'Als Vorlage „{0}“ gespeichert',
   'template.deleteConfirm': 'Vorlage „{0}“ löschen? Bereits erstellte Notizen bleiben unverändert.',
+
+  // readingnote
+  'readingNote.generate': 'Lesenotiz erstellen',
+  'readingNote.title': 'Lesenotiz: {0}',
+  'readingNote.annotations': 'Anmerkungen',
+  'readingNote.empty': 'Dieses Dokument hat noch keine Anmerkungen zum Sammeln (Markierungen, Unterstreichungen oder Notizen).',
+  'readingNote.created': 'Lesenotiz aus {0} Anmerkungen erstellt',
 } as const
 
 export default de

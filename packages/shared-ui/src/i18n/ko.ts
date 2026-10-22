@@ -610,6 +610,13 @@ const ko = {
   'template.namePrompt': '템플릿 이름',
   'template.saved': '템플릿 "{0}"(으)로 저장했습니다',
   'template.deleteConfirm': '템플릿 "{0}"을(를) 삭제할까요? 이미 만든 노트에는 영향이 없습니다.',
+
+  // readingnote
+  'readingNote.generate': '독서 노트 만들기',
+  'readingNote.title': '《{0}》 독서 노트',
+  'readingNote.annotations': '주석',
+  'readingNote.empty': '아직 모을 주석(하이라이트, 밑줄, 메모)이 없습니다',
+  'readingNote.created': '주석 {0}개로 독서 노트를 만들었습니다',
 } as const
 
 export default ko

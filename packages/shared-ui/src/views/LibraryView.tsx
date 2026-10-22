@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronRight, FilePlus, Download, Upload, Trash2, FolderPlus, Check, Pencil, LibraryBig, PenLine, Cloud, Puzzle, Settings, Folder, Tag, Home, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, PanelRightClose, FolderOutput, X, RefreshCw, Plus, Highlighter, MessageSquareQuote, Search, Star, Info } from 'lucide-react'
+import { ChevronDown, ChevronRight, FilePlus, Download, Upload, Trash2, FolderPlus, Check, Pencil, LibraryBig, PenLine, Cloud, Puzzle, Settings, Folder, Tag, Home, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, PanelRightClose, FolderOutput, X, RefreshCw, Plus, Highlighter, MessageSquareQuote, Search, Star, Info, NotebookPen } from 'lucide-react'
 import { PoetryCard } from '../components/PoetryCard.js'
 import type { NoteType } from '../components/notes/TemplatePicker.js'
 import SyncConfigPanel from '../components/sync/SyncConfigPanel.js'
@@ -22,6 +22,7 @@ import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 import { notifyNotesChanged, notifyDocumentsChanged } from '../utils/libraryEvents.js'
 import { toast, alertDialog, confirmDialog, errorMessage } from '../components/feedback.js'
 import { requestDocPage } from '../utils/docNavigation.js'
+import { createReadingNote } from '../utils/readingNote.js'
 import { useEscapeKey } from '../utils/useEscapeKey.js'
 import { useFitInViewport } from '../utils/useFitInViewport.js'
 
@@ -3284,6 +3285,23 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><FolderOutput size={14} />{t('library.move')}</div>
+              <div onClick={async () => {
+                const docId = contextMenu.docId
+                setContextMenu(null)
+                if (!docId) return
+                try {
+                  const result = await createReadingNote(api, docId, t)
+                  if (!result) { toast.info(t('readingNote.empty')); return }
+                  notifyNotesChanged()
+                  toast.success(t('readingNote.created', result.count))
+                  onOpenNote(result.note)
+                } catch (e) {
+                  toast.error(errorMessage(e))
+                }
+              }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              ><NotebookPen size={14} />{t('readingNote.generate')}</div>
               <div onClick={async () => {
                 const { docId, docTitle } = contextMenu
                 setContextMenu(null)

@@ -610,6 +610,13 @@ const es = {
   'template.namePrompt': 'Nombre de la plantilla',
   'template.saved': 'Guardado como plantilla «{0}»',
   'template.deleteConfirm': '¿Eliminar la plantilla «{0}»? Las notas ya creadas no se ven afectadas.',
+
+  // readingnote
+  'readingNote.generate': 'Generar notas de lectura',
+  'readingNote.title': 'Notas de lectura: {0}',
+  'readingNote.annotations': 'Anotaciones',
+  'readingNote.empty': 'Este documento aún no tiene anotaciones que reunir (resaltados, subrayados o notas).',
+  'readingNote.created': 'Notas de lectura creadas a partir de {0} anotaciones',
 } as const
 
 export default es

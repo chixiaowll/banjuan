@@ -639,6 +639,13 @@ const en = {
   'template.namePrompt': 'Template name',
   'template.saved': 'Saved as template "{0}"',
   'template.deleteConfirm': 'Delete the template "{0}"? Notes created from it are not affected.',
+
+  // readingnote
+  'readingNote.generate': 'Generate reading notes',
+  'readingNote.title': 'Reading notes: {0}',
+  'readingNote.annotations': 'Annotations',
+  'readingNote.empty': 'This document has no annotations to collect yet (highlights, underlines or notes).',
+  'readingNote.created': 'Reading notes created from {0} annotations',
 } as const
 
 export default en

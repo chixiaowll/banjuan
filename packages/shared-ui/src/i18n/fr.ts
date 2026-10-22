@@ -610,6 +610,13 @@ const fr = {
   'template.namePrompt': 'Nom du modèle',
   'template.saved': 'Enregistré comme modèle « {0} »',
   'template.deleteConfirm': 'Supprimer le modèle « {0} » ? Les notes déjà créées ne sont pas touchées.',
+
+  // readingnote
+  'readingNote.generate': 'Générer une note de lecture',
+  'readingNote.title': 'Notes de lecture : {0}',
+  'readingNote.annotations': 'Annotations',
+  'readingNote.empty': 'Ce document n’a encore aucune annotation à rassembler (surlignages, soulignements ou notes).',
+  'readingNote.created': 'Note de lecture créée à partir de {0} annotations',
 } as const
 
 export default fr
