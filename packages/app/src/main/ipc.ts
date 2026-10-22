@@ -844,7 +844,8 @@ export function registerIpcHandlers() {
     const { SyncService, WebDAVAdapter } = await import('@banjuan/core')
     const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect(config)
-    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, config.remotePath)
+    // crypto enables content hashes (false-conflict check); the device name labels conflict copies — as on mobile.
+    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, config.remotePath, deps.crypto, getDeviceIdentity().deviceName)
     try {
       const result = await svc.sync((p) => {
         event.sender.send('sync:progress', p)
@@ -1016,7 +1017,7 @@ export function registerIpcHandlers() {
 
     const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect({ type: 'webdav', url: base, username: 'banjuan', password: token, remotePath: '/' })
-    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, '/')
+    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, '/', deps.crypto, getDeviceIdentity().deviceName)
     try {
       const result = await svc.sync((p) => { event.sender.send('sync:progress', p) })
       event.sender.send('sync:progress', { phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })

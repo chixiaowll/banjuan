@@ -66,10 +66,17 @@ export interface SyncOptions {
 }
 
 
+// Files deleted locally because another device deleted them are moved here
+// (excluded from sync) instead of being unlinked, and purged after 30 days.
+const SYNC_TRASH_REL = '.banjuan/.sync-trash'
+const SYNC_TRASH_KEEP_MS = 30 * 24 * 3600 * 1000
+
 export class SyncService {
   private archivePath: string
   private remotePath: string
   private createdDirs = new Set<string>()
+  private localScanIncomplete = false
+  private runStamp = 0
 
   constructor(
     private rootPath: string,
@@ -91,6 +98,8 @@ export class SyncService {
 
     onProgress?.({ phase: 'scanning', current: 0, total: 0, currentFile: '' })
 
+    this.runStamp = Date.now()
+    await this.purgeSyncTrash()
     const localFiles = await this.collectLocalFiles()
     const remoteFiles = await this.collectRemoteFiles()
     const localMap = new Map(localFiles.map(f => [f.relativePath, f]))
@@ -115,7 +124,9 @@ export class SyncService {
     // A side whose listing is empty while the archive had files can't be trusted
     // (failed PROPFIND, server not up) — never delete based on such an "absence".
     const remoteReliable = !(remoteFiles.length === 0 && archiveCount > 0)
-    const localReliable = !(localFiles.length === 0 && archiveCount > 0)
+    // Same for a local scan that hit an unreadable folder or file: whatever is
+    // missing there is unknown, not deleted — don't propagate any deletion.
+    const localReliable = !this.localScanIncomplete && !(localFiles.length === 0 && archiveCount > 0)
 
     const allPaths = new Set([...localMap.keys(), ...remoteMap.keys()])
     const total = allPaths.size
@@ -162,7 +173,7 @@ export class SyncService {
             result.uploaded++
             this.events?.emit('sync:file:uploaded', { path })
             const sig = localSig ?? await this.signature(local!.absolutePath, local!.size, local!.mtime)
-            nextArchive[path] = { sig, size: local!.size, mtime: local!.mtime, remoteMtime: local!.mtime }
+            nextArchive[path] = { sig, size: local!.size, mtime: local!.mtime, remoteMtime: await this.uploadedRemoteMtime(path, local!.mtime) }
             break
           }
           case 'download':
@@ -197,11 +208,14 @@ export class SyncService {
                 const cabs = join(this.rootPath, conflictRel)
                 const cst = await this.fs.stat(cabs)
                 await this.adapter.upload(cabs, this.toRemotePath(conflictRel), cst.mtime)
-                nextArchive[conflictRel] = { sig: await this.signature(cabs, cst.size, cst.mtime), size: cst.size, mtime: cst.mtime, remoteMtime: cst.mtime }
+                nextArchive[conflictRel] = { sig: await this.signature(cabs, cst.size, cst.mtime), size: cst.size, mtime: cst.mtime, remoteMtime: await this.uploadedRemoteMtime(conflictRel, cst.mtime) }
                 this.events?.emit('sync:conflict', { path, conflictPath: conflictRel })
                 console.log(`[sync] CONFLICT "${path}" → kept local as "${conflictRel}", host version takes the name`)
               } catch (e) {
+                // Without a saved copy, downloading would overwrite the local edit:
+                // skip this file (baseline kept) and retry on the next sync.
                 console.log(`[sync] CONFLICT "${path}" — failed to make conflict copy: ${(e as Error).message}`)
+                throw new Error(`conflict copy failed, local version kept: ${(e as Error).message}`)
               }
             }
             // Stub large brand-new remote-only files instead of downloading.
@@ -222,7 +236,7 @@ export class SyncService {
           }
           case 'deleteLocal':
             if (!PROTECTED_FILES.has(path)) {
-              await this.fs.remove(local!.absolutePath)
+              await this.moveToSyncTrash(path, local!.absolutePath)
               result.deletedLocal++
             }
             break
@@ -258,6 +272,7 @@ export class SyncService {
 
   private async collectLocalFiles(): Promise<Array<{ relativePath: string; absolutePath: string; mtime: number; size: number }>> {
     const results: Array<{ relativePath: string; absolutePath: string; mtime: number; size: number }> = []
+    this.localScanIncomplete = false
     await this.walkDir(this.rootPath, async (absPath) => {
       try {
         const rel = relative(this.rootPath, absPath)
@@ -265,7 +280,7 @@ export class SyncService {
         const stat = await this.fs.stat(absPath)
         results.push({ relativePath: rel, absolutePath: absPath, mtime: stat.mtime, size: stat.size })
       } catch {
-        // skip files that can't be stat'd
+        this.localScanIncomplete = true   // exists but unreadable — not "deleted"
       }
     })
     return results
@@ -300,6 +315,7 @@ export class SyncService {
     try {
       entries = await this.fs.readdirWithTypes(dir)
     } catch {
+      this.localScanIncomplete = true   // unreadable folder: its files are unknown, not deleted
       return
     }
     for (const entry of entries) {
@@ -311,6 +327,42 @@ export class SyncService {
         await callback(fullPath)
       }
     }
+  }
+
+  /**
+   * The mtime the server actually recorded for an upload. Generic WebDAV
+   * servers (Nutstore, Nextcloud, …) ignore the mtime we send and stamp their
+   * own clock; recording our local mtime instead made every next sync see a
+   * "remote change" — a redundant re-download, or a false conflict that moved
+   * the user's newest edit into a conflict copy.
+   */
+  private async uploadedRemoteMtime(relativePath: string, fallback: number): Promise<number> {
+    try {
+      return (await this.adapter.getMetadata(this.toRemotePath(relativePath))).mtime || fallback
+    } catch {
+      return fallback
+    }
+  }
+
+  /** Move a file deleted by another device into the local sync trash (recoverable). */
+  private async moveToSyncTrash(relativePath: string, absPath: string): Promise<void> {
+    const dest = join(this.rootPath, SYNC_TRASH_REL, String(this.runStamp), relativePath)
+    await this.fs.mkdir(dirname(dest), { recursive: true })
+    await this.fs.rename(absPath, dest)
+  }
+
+  /** Drop sync-trash batches older than SYNC_TRASH_KEEP_MS. Best-effort. */
+  private async purgeSyncTrash(): Promise<void> {
+    const trashDir = join(this.rootPath, SYNC_TRASH_REL)
+    try {
+      if (!(await this.fs.exists(trashDir))) return
+      for (const entry of await this.fs.readdirWithTypes(trashDir)) {
+        const stamp = Number(entry.name)
+        if (entry.isDirectory && stamp > 0 && this.runStamp - stamp > SYNC_TRASH_KEEP_MS) {
+          await this.fs.rmdir(join(trashDir, entry.name), { recursive: true })
+        }
+      }
+    } catch { /* best-effort */ }
   }
 
   private toRemotePath(relativePath: string): string {

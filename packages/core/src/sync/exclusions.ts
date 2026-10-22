@@ -20,6 +20,7 @@ export const EXCLUDED_NAMES = new Set([
 // Directory names never synced or served.
 export const EXCLUDED_DIRS = new Set([
   'plugins',
+  '.sync-trash',   // .banjuan/.sync-trash: local recovery copies of synced-away deletions
 ])
 
 // Files that must never be auto-deleted during sync (deletion-tracking only).
