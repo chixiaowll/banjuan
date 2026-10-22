@@ -537,6 +537,13 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     return () => document.removeEventListener('notes-changed', refresh)
   }, [])
 
+  // Added from outside this window — CLI, web clipper, scripts via the local API.
+  useEffect(() => api.library.onExternalChange?.((kind) => {
+    if (kind !== 'notes') { loadDocuments(); loadRecentAnnotations(); notifyDocumentsChanged() }
+    if (kind !== 'documents') notifyNotesChanged()
+    loadTags()
+  }), [])
+
   useEffect(() => {
     document.addEventListener('tags-changed', loadTags)
     return () => document.removeEventListener('tags-changed', loadTags)

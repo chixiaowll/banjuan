@@ -13,6 +13,12 @@ import { extractDocumentText } from './pdf-text.js'
 import { isAuthorized, corsHeaders } from './api-auth.js'
 
 const MAX_TEXT_PAGES = 25
+/**
+ * Tried in order before falling back to a random port, so the web clipper can
+ * find the app by probing a handful of ports instead of asking for one. Keep in
+ * sync with packages/chrome-extension/lib/connection.js.
+ */
+export const API_PREFERRED_PORTS = [48720, 48721, 48722, 48723, 48724] as const
 const TEXT_SUPPORTED = new Set(['pdf', 'epub', 'txt', 'md', 'html'])
 
 let server: ReturnType<typeof createServer> | null = null
@@ -94,6 +100,19 @@ function requireLib(res: ServerResponse, query: Record<string, string>): Library
   return lib
 }
 
+/**
+ * What a successful write through the API (CLI, web clipper, scripts) changed,
+ * so open windows can reload their lists — they otherwise only refresh on their
+ * own edits.
+ */
+function changeKind(method: string, path: string): 'documents' | 'notes' | 'all' | null {
+  if (method === 'GET' || method === 'OPTIONS') return null
+  if (path === '/api/clip' || path.startsWith('/api/documents') || path.startsWith('/api/annotations')) return 'documents'
+  if (path.startsWith('/api/notes') || path.startsWith('/api/mindmaps') || path.startsWith('/api/folders')) return 'notes'
+  if (path.startsWith('/api/tags')) return 'all'
+  return null
+}
+
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method === 'OPTIONS') {
     json(res, 204, null)
@@ -101,6 +120,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   const { path, query } = parseUrl(req.url ?? '')
+  const changed = changeKind(req.method ?? 'GET', path)
+  if (changed) {
+    res.once('finish', () => {
+      if (res.statusCode < 400) for (const w of BrowserWindow.getAllWindows()) w.webContents.send('library:external-change', changed)
+    })
+  }
 
   const authorized = isAuthorized({
     method: req.method ?? 'GET', path,
@@ -116,6 +141,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const openLibraries = [...libraries.values()].map(l => l.rootPath)
     json(res, 200, {
       status: 'ok',
+      app: 'banjuan',
       libraryOpen: lib !== null,
       libraryPath: lib?.rootPath ?? null,
       libraries: openLibraries,
@@ -795,7 +821,24 @@ export function startApiServer(): Promise<number> {
       })
     })
 
-    server.listen(0, '127.0.0.1', () => {
+    const listenOn = (ports: number[]) => {
+      const port = ports[0] ?? 0
+      const onError = (err: NodeJS.ErrnoException) => {
+        server!.removeListener('listening', onListening)
+        if (err.code === 'EADDRINUSE' && port !== 0) listenOn(ports.slice(1))   // taken: next one, finally a random port
+        else reject(err)
+      }
+      const onListening = () => {
+        server!.removeListener('error', onError)
+        started()
+      }
+      server!.once('error', onError)
+      server!.once('listening', onListening)
+      server!.listen(port, '127.0.0.1')
+    }
+    listenOn([...API_PREFERRED_PORTS])
+
+    function started() {
       const addr = server!.address()
       if (!addr || typeof addr === 'string') {
         reject(new Error('Failed to start API server'))
@@ -815,9 +858,7 @@ export function startApiServer(): Promise<number> {
 
       console.log(`API server listening on http://127.0.0.1:${port}`)
       resolve(port)
-    })
-
-    server.on('error', reject)
+    }
   })
 }
 

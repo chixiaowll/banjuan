@@ -36,6 +36,7 @@ const api = {
     rename: (name: string) => ipcRenderer.invoke('library:rename', name),
     detectMissing: () => ipcRenderer.invoke('library:detectMissing'),
     rebuild: (purgeIds?: string[]) => ipcRenderer.invoke('library:rebuild', purgeIds ?? []),
+    onExternalChange: (cb: (kind: 'documents' | 'notes' | 'all') => void) => listen('library:external-change', cb),
   },
   dialog: {
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),

@@ -100,6 +100,8 @@ export interface BanjuanAPI {
     delete?(path: string): Promise<void>
     detectMissing?(): Promise<Array<{ id: string; title: string; path: string }>>
     rebuild?(purgeIds?: string[]): Promise<{ reimported: number; purged: number; markedMissing: number }>
+    /** Something was added or changed outside this window (CLI, web clipper, scripts via the local API). */
+    onExternalChange?(cb: (kind: 'documents' | 'notes' | 'all') => void): () => void
   }
 
   dialog: {
