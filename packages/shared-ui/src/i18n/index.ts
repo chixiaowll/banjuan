@@ -8,6 +8,11 @@ import de from './de.js'
 import es from './es.js'
 
 export type Locale = 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es'
+
+/** BCP 47 tag of each UI language, for Intl / toLocaleDateString / toLocaleTimeString. */
+export const LOCALE_TAGS: Record<Locale, string> = {
+  zh: 'zh-CN', en: 'en-US', ja: 'ja-JP', ko: 'ko-KR', fr: 'fr-FR', de: 'de-DE', es: 'es-ES',
+}
 export type MessageKey = keyof typeof zh
 type Messages = Record<MessageKey, string>
 
