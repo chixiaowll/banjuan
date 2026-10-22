@@ -302,7 +302,6 @@ export default function MarkdownContentArea({ content, docId, annotations, onHig
         />
       )}
       <MarkdownInkLassoTool
-        docId={docId}
         annotations={visibleAnnotations}
         scrollContainer={containerRef.current}
         onUpdated={onInkCreated}

@@ -12,6 +12,7 @@ import { useEyeProtection, EYE_PROTECTION_TINT, useEinkMode, EINK_FILTER } from 
 
 // Max canvas backing-store pixels per page (pdf.js viewer default, 2^24).
 const MAX_CANVAS_PIXELS = 16_777_216
+const noop = () => {}
 
 export interface TextSelectInfo {
   page: number
@@ -519,10 +520,8 @@ export default function PdfPage({
           <InkLassoTool
             active={activeTool === 'lasso'}
             pageNum={pageNum}
-            docId={docId}
-            existingAnnotationId={annotations.find(a => a.page === pageNum && a.position?.type === 'ink')?.id ?? null}
-            existingStrokes={annotations.filter(a => a.page === pageNum && a.position?.type === 'ink').flatMap(a => a.position?.strokes || [])}
-            onUpdated={onAnnotationCreated || (() => {})}
+            annotations={annotations}
+            onUpdated={onAnnotationCreated || noop}
           />
           <EraserTool
             active={activeTool === 'eraser'}

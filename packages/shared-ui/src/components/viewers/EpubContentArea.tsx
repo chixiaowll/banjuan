@@ -522,7 +522,6 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
 
       {ctx.activeTool === 'lasso' && (
         <EpubInkLassoTool
-          docId={docId}
           annotations={ctx.annotationsVisible ? annotations : []}
           containerRef={containerRef}
           onUpdated={onInkCreated}

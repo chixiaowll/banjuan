@@ -1,526 +1,113 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react'
-import { Trash2 } from 'lucide-react'
-import { renderStroke } from '../handwriting/renderStrokes.js'
-import type { Stroke } from '@banjuan/core'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useEpubViewer } from './EpubViewerContext.js'
-import { useBanjuanAPI } from '../../api.js'
-import { useIsActiveTab } from '../tabActive.js'
-import { isEditableTarget } from '../../utils/keyboard.js'
-import { useT } from '../../i18n/index.js'
-import { useFitInViewport } from '../../utils/useFitInViewport.js'
+import { useInkLasso, type LassoFrame } from './useInkLasso.js'
+import { inkEntries } from './inkLasso.js'
 
-interface InkStroke {
-  points: Array<{ x: number; y: number }>
-  color: string
-  width: number
-}
-
-interface InkAnnotation {
-  id: string
-  position: {
-    type: 'ink'
-    strokes: InkStroke[]
-    bounds: { x: number; y: number; w: number; h: number }
-  }
-  color: string
-}
+/**
+ * Ink lasso over an EPUB in scrolled mode. The canvas covers the visible part
+ * of the (possibly CSS-scaled) container and follows the epub.js scroll
+ * container. Ink x is a fraction of the container's width, y is in document
+ * pixels — the lasso works in that document space so a selection stays put
+ * while the book scrolls under it.
+ */
 
 interface Props {
-  docId: string
   annotations: any[]
   containerRef: React.RefObject<HTMLDivElement | null>
   onUpdated: () => void
 }
 
-interface FlatStroke {
-  annotationId: string
-  strokeIndex: number
-  stroke: InkStroke
-}
-
-function isPointInPolygon(px: number, py: number, polygon: Array<{ x: number; y: number }>): boolean {
-  let inside = false
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].x, yi = polygon[i].y
-    const xj = polygon[j].x, yj = polygon[j].y
-    if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
-      inside = !inside
-    }
-  }
-  return inside
-}
-
-function computeBounds(strokes: InkStroke[]) {
-  const allPts = strokes.flatMap(s => s.points)
-  const xs = allPts.map(p => p.x)
-  const ys = allPts.map(p => p.y)
-  return {
-    x: Math.min(...xs), y: Math.min(...ys),
-    w: Math.max(...xs) - Math.min(...xs),
-    h: Math.max(...ys) - Math.min(...ys),
-  }
-}
-
-function getSelBounds(flatStrokes: FlatStroke[], indices: Set<number>, logicalWidth: number): { x: number; y: number; w: number; h: number } | null {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  for (const i of indices) {
-    if (i >= flatStrokes.length) continue
-    for (const p of flatStrokes[i].stroke.points) {
-      const px = p.x * logicalWidth
-      const py = p.y
-      minX = Math.min(minX, px)
-      minY = Math.min(minY, py)
-      maxX = Math.max(maxX, px)
-      maxY = Math.max(maxY, py)
-    }
-  }
-  if (minX === Infinity) return null
-  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
-}
-
-let lassoIdCounter = 0
-
-const SEL_MARGIN_PX = 12
-
+/** On-screen size ÷ layout size of the (zoomed) container. */
 function getScale(el: HTMLElement): number {
-  const rect = el.getBoundingClientRect()
-  const logical = el.clientWidth
-  if (!logical) return 1
-  return rect.width / logical
+  return el.clientWidth ? el.getBoundingClientRect().width / el.clientWidth : 1
 }
 
-export default function EpubInkLassoTool({ docId, annotations, containerRef, onUpdated }: Props) {
-  const api = useBanjuanAPI()
-  const t = useT()
+export default function EpubInkLassoTool({ annotations, containerRef, onUpdated }: Props) {
   const ctx = useEpubViewer()
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const wrapperRef = useRef<HTMLDivElement>(null)
   const active = ctx.activeTool === 'lasso'
+  const entries = useMemo(() => inkEntries(annotations), [annotations])
+  const scrollTopRef = useRef(0)
 
-  type Mode = 'idle' | 'lasso' | 'dragging'
-  const modeRef = useRef<Mode>('idle')
-  const [mode, setMode] = useState<Mode>('idle')
+  const lasso = useInkLasso({
+    active, entries, onUpdated,
+    ignorePointer: e => e.pointerType === 'touch',   // touch scrolls the book
+    measure: (): LassoFrame | null => {
+      const container = containerRef.current
+      if (!container) return null
+      const W = container.clientWidth, H = container.clientHeight
+      if (!W || !H) return null
+      const r = container.getBoundingClientRect()
+      const scale = getScale(container)
+      const st = scrollTopRef.current
+      return {
+        w: W, h: H, fixedCssSize: true,
+        toWork: p => ({ x: p.x * W, y: p.y }),
+        workDeltaToStored: d => ({ x: d.x / W, y: d.y }),
+        eventToWork: e => ({ x: (e.clientX - r.left) / scale, y: (e.clientY - r.top) / scale + st }),
+        workToCanvas: p => ({ x: p.x, y: p.y - st }),
+      }
+    },
+  })
+  const { redraw, canvasRef } = lasso
 
-  const lassoPointsRef = useRef<Array<{ x: number; y: number }>>([])
-  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
-  const selectedRef = useRef<Set<number>>(new Set())
-  selectedRef.current = selectedIndices
-
-  const selBoundsRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
-  const dragStartRef = useRef({ x: 0, y: 0 })
-  const dragOffsetRef = useRef({ x: 0, y: 0 })
-
+  // epub.js creates its scroll container after rendering; wait for it.
   const [scrollContainer, setScrollContainer] = useState<HTMLElement | null>(null)
   useEffect(() => {
-    if (!containerRef.current) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | null = null
     const find = () => {
       if (cancelled) return
       const sc = containerRef.current?.querySelector('.epub-container') as HTMLElement | null
-      if (sc) { setScrollContainer(sc); scrollContainerRef.current = sc }
+      if (sc) setScrollContainer(sc)
       else timer = setTimeout(find, 100)
     }
     find()
     return () => { cancelled = true; if (timer) clearTimeout(timer) }
   }, [containerRef, ctx.rendition])
 
-  const scrollTopRef = useRef(0)
-  const scrollContainerRef = useRef<HTMLElement | null>(null)
-  const rafIdRef = useRef(0)
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    const container = containerRef.current
-    if (!canvas || !scrollContainer || !active || !container) return
-    const handleWheel = (e: WheelEvent) => {
-      const scale = getScale(container)
-      scrollContainer.scrollBy({ top: e.deltaY / scale })
-      e.preventDefault()
-    }
-    canvas.addEventListener('wheel', handleWheel, { passive: false })
-    return () => canvas.removeEventListener('wheel', handleWheel)
-  }, [scrollContainer, active, containerRef])
-
-  const inkAnnotations: InkAnnotation[] = annotations.filter(
-    (a: any) => a.type === 'ink' && a.position?.type === 'ink'
-  )
-
-  const flatStrokes: FlatStroke[] = inkAnnotations.flatMap(ann =>
-    ann.position.strokes.map((s, i) => ({
-      annotationId: ann.id,
-      strokeIndex: i,
-      stroke: s,
-    }))
-  )
-
-  const getDocCoord = useCallback((e: React.PointerEvent): { x: number; y: number } => {
-    const container = containerRef.current!
-    const rect = container.getBoundingClientRect()
-    const scale = getScale(container)
-    return {
-      x: e.clientX - rect.left,
-      y: (e.clientY - rect.top) / scale + scrollTopRef.current,
-    }
-  }, [containerRef])
-
-  const redraw = useCallback((opts?: {
-    lassoPoints?: Array<{ x: number; y: number }>
-    selected?: Set<number>
-    dragOffset?: { x: number; y: number }
-  }) => {
-    const canvas = canvasRef.current
-    const container = containerRef.current
-    if (!canvas || !container) return
-    const logicalW = container.clientWidth
-    const logicalH = container.clientHeight
-    if (!logicalW || !logicalH) return
-    const dpr = window.devicePixelRatio || 1
-    canvas.width = logicalW * dpr
-    canvas.height = logicalH * dpr
-    canvas.style.width = `${logicalW}px`
-    canvas.style.height = `${logicalH}px`
-    const c = canvas.getContext('2d')!
-    c.scale(dpr, dpr)
-
-    const sel = opts?.selected || selectedRef.current
-    const offset = opts?.dragOffset || { x: 0, y: 0 }
-    const scale = getScale(container)
-    const st = scrollTopRef.current
-
-    for (let i = 0; i < flatStrokes.length; i++) {
-      const s = flatStrokes[i].stroke
-      const absStroke: Stroke = {
-        id: `lasso-${++lassoIdCounter}`,
-        points: s.points.map(p => ({ x: p.x * logicalW, y: p.y - st })),
-        color: s.color,
-        width: s.width,
-        opacity: 1,
-      }
-      if (sel.has(i)) {
-        c.save()
-        c.translate(offset.x / scale, offset.y)
-        renderStroke(c, absStroke)
-        c.restore()
-      } else {
-        renderStroke(c, absStroke)
-      }
-    }
-
-    const bounds = sel.size > 0 ? getSelBounds(flatStrokes, sel, logicalW) : null
-    if (bounds) {
-      const m = 8
-      const bx = bounds.x + offset.x / scale
-      const by = bounds.y - st + offset.y
-      const bw = bounds.w
-      const bh = bounds.h
-      c.save()
-      c.setLineDash([6, 3])
-      c.strokeStyle = '#3182ce'
-      c.lineWidth = 1.5
-      c.strokeRect(bx - m, by - m, bw + m * 2, bh + m * 2)
-      const corners = [
-        [bx - m, by - m], [bx + bw + m, by - m],
-        [bx - m, by + bh + m], [bx + bw + m, by + bh + m],
-      ]
-      c.setLineDash([])
-      c.fillStyle = 'white'
-      for (const [cx, cy] of corners) {
-        c.beginPath()
-        c.arc(cx, cy, 4, 0, Math.PI * 2)
-        c.fill()
-        c.stroke()
-      }
-      c.restore()
-    }
-
-    const lassoP = opts?.lassoPoints
-    if (lassoP && lassoP.length > 2) {
-      c.save()
-      c.beginPath()
-      const s0 = lassoP[0]
-      c.moveTo(s0.x / scale, s0.y - st)
-      for (let i = 1; i < lassoP.length; i++) {
-        c.lineTo(lassoP[i].x / scale, lassoP[i].y - st)
-      }
-      c.closePath()
-      c.fillStyle = 'rgba(49,130,206,0.06)'
-      c.fill()
-      c.setLineDash([5, 3])
-      c.strokeStyle = '#3182ce'
-      c.lineWidth = 1.5
-      c.stroke()
-      c.restore()
-    }
-  }, [flatStrokes, containerRef])
-
-  useEffect(() => { redraw() }, [redraw])
-
-  // Sync scroll → immediate canvas redraw (no React state in the hot path)
+  // Scroll → repaint on the next frame (no React state in the hot path).
   useEffect(() => {
     if (!scrollContainer) return
+    let raf = 0
     const onScroll = () => {
       scrollTopRef.current = scrollContainer.scrollTop
-      cancelAnimationFrame(rafIdRef.current)
-      rafIdRef.current = requestAnimationFrame(() => redraw())
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(redraw)
     }
     scrollTopRef.current = scrollContainer.scrollTop
+    redraw()
     scrollContainer.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      scrollContainer.removeEventListener('scroll', onScroll)
-      cancelAnimationFrame(rafIdRef.current)
-    }
+    return () => { scrollContainer.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
   }, [scrollContainer, redraw])
 
+  // The lasso layer sits on top while active; pass the wheel through to the book.
   useEffect(() => {
-    if (!active) {
-      setSelectedIndices(new Set())
-      selBoundsRef.current = null
-      lassoPointsRef.current = []
-      modeRef.current = 'idle'
-      setMode('idle')
-    }
-  }, [active])
-
-  const isInsideSelection = useCallback((pos: { x: number; y: number }): boolean => {
-    const b = selBoundsRef.current
-    if (!b || selectedRef.current.size === 0) return false
+    const canvas = canvasRef.current?.parentElement
     const container = containerRef.current
-    if (!container) return false
-    const scale = getScale(container)
-    const logicalX = pos.x / scale
-    return logicalX >= b.x - SEL_MARGIN_PX && logicalX <= b.x + b.w + SEL_MARGIN_PX &&
-           pos.y >= b.y - SEL_MARGIN_PX && pos.y <= b.y + b.h + SEL_MARGIN_PX
-  }, [containerRef])
-
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    if (!active || e.pointerType === 'touch') return
-    e.preventDefault()
-    const pos = getDocCoord(e)
-
-    if (selectedRef.current.size > 0 && isInsideSelection(pos)) {
-      modeRef.current = 'dragging'
-      setMode('dragging')
-      dragStartRef.current = pos
-      dragOffsetRef.current = { x: 0, y: 0 }
-      return
+    if (!canvas || !scrollContainer || !active || !container) return
+    const onWheel = (e: WheelEvent) => {
+      scrollContainer.scrollBy({ top: e.deltaY / getScale(container) })
+      e.preventDefault()
     }
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', onWheel)
+  }, [scrollContainer, active, containerRef, canvasRef])
 
-    setSelectedIndices(new Set())
-    selBoundsRef.current = null
-    modeRef.current = 'lasso'
-    setMode('lasso')
-    lassoPointsRef.current = [pos]
-  }, [active, isInsideSelection, getDocCoord])
-
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (modeRef.current === 'lasso') {
-      lassoPointsRef.current.push(getDocCoord(e))
-      redraw({ lassoPoints: lassoPointsRef.current, selected: new Set() })
-      return
-    }
-    if (modeRef.current === 'dragging') {
-      const pos = getDocCoord(e)
-      const dx = pos.x - dragStartRef.current.x
-      const dy = pos.y - dragStartRef.current.y
-      dragOffsetRef.current = { x: dx, y: dy }
-      redraw({ dragOffset: { x: dx, y: dy } })
-      return
-    }
-  }, [redraw, getDocCoord])
-
-  const applyDrag = useCallback(async () => {
-    const offset = dragOffsetRef.current
-    if (offset.x === 0 && offset.y === 0) return
-    const sel = selectedRef.current
-    const container = containerRef.current
-    if (!container) return
-    const logicalW = container.clientWidth
-    const scale = getScale(container)
-
-    const affectedAnnotations = new Map<string, { original: InkAnnotation; strokeUpdates: Map<number, InkStroke> }>()
-
-    for (const i of sel) {
-      if (i >= flatStrokes.length) continue
-      const fs = flatStrokes[i]
-      if (!affectedAnnotations.has(fs.annotationId)) {
-        const ann = inkAnnotations.find(a => a.id === fs.annotationId)!
-        affectedAnnotations.set(fs.annotationId, { original: ann, strokeUpdates: new Map() })
-      }
-      const entry = affectedAnnotations.get(fs.annotationId)!
-      const moved: InkStroke = {
-        ...fs.stroke,
-        points: fs.stroke.points.map(p => ({
-          x: p.x + offset.x / scale / logicalW,
-          y: p.y + offset.y,
-        })),
-      }
-      entry.strokeUpdates.set(fs.strokeIndex, moved)
-    }
-
-    for (const [annId, { original, strokeUpdates }] of affectedAnnotations) {
-      const newStrokes = original.position.strokes.map((s, i) =>
-        strokeUpdates.has(i) ? strokeUpdates.get(i)! : s
-      )
-      const bounds = computeBounds(newStrokes)
-      await api.annotations.update(annId, {
-        position: { type: 'ink', strokes: newStrokes, bounds },
-      })
-    }
-
-    dragOffsetRef.current = { x: 0, y: 0 }
-    onUpdated()
-  }, [flatStrokes, inkAnnotations, containerRef, onUpdated])
-
-  const handlePointerUp = useCallback(() => {
-    if (modeRef.current === 'dragging') {
-      modeRef.current = 'idle'
-      setMode('idle')
-      applyDrag()
-      return
-    }
-    if (modeRef.current === 'lasso') {
-      modeRef.current = 'idle'
-      setMode('idle')
-      const lasso = lassoPointsRef.current
-      if (lasso.length < 3) {
-        lassoPointsRef.current = []
-        redraw()
-        return
-      }
-      const container = containerRef.current
-      if (!container) return
-      const logicalW = container.clientWidth
-      const scale = getScale(container)
-      const indices = new Set<number>()
-      for (let i = 0; i < flatStrokes.length; i++) {
-        const hit = flatStrokes[i].stroke.points.some(p =>
-          isPointInPolygon(p.x * logicalW * scale, p.y, lasso)
-        )
-        if (hit) indices.add(i)
-      }
-      lassoPointsRef.current = []
-      if (indices.size === 0) {
-        redraw()
-        return
-      }
-      setSelectedIndices(indices)
-      selBoundsRef.current = getSelBounds(flatStrokes, indices, logicalW)
-      redraw({ selected: indices })
-    }
-  }, [flatStrokes, redraw, applyDrag, containerRef])
-
-  const deleteSelected = useCallback(async () => {
-    if (selectedRef.current.size === 0) return
-    const sel = selectedRef.current
-
-    const removals = new Map<string, Set<number>>()
-    for (const i of sel) {
-      if (i >= flatStrokes.length) continue
-      const fs = flatStrokes[i]
-      if (!removals.has(fs.annotationId)) removals.set(fs.annotationId, new Set())
-      removals.get(fs.annotationId)!.add(fs.strokeIndex)
-    }
-
-    for (const [annId, strokeIndices] of removals) {
-      const ann = inkAnnotations.find(a => a.id === annId)
-      if (!ann) continue
-      const remaining = ann.position.strokes.filter((_, i) => !strokeIndices.has(i))
-      if (remaining.length === 0) {
-        await api.annotations.delete(annId)
-      } else {
-        const bounds = computeBounds(remaining)
-        await api.annotations.update(annId, {
-          position: { type: 'ink', strokes: remaining, bounds },
-        })
-      }
-    }
-
-    setSelectedIndices(new Set())
-    selBoundsRef.current = null
-    onUpdated()
-  }, [flatStrokes, inkAnnotations, onUpdated])
-
-  const isActiveTab = useIsActiveTab()
-  useEffect(() => {
-    if (!active || !isActiveTab) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (isEditableTarget(e.target)) return   // Backspace in a note editor isn't "delete ink"
-      if ((e.code === 'Backspace' || e.code === 'Delete') && selectedRef.current.size > 0) {
-        e.preventDefault()
-        deleteSelected()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [active, isActiveTab, deleteSelected])
-
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
-  const ctxMenuRef = useRef<HTMLDivElement>(null)
-  useFitInViewport(ctxMenuRef)
-
-  useEffect(() => {
-    if (!ctxMenu) return
-    const handler = (e: MouseEvent) => {
-      if (ctxMenuRef.current && !ctxMenuRef.current.contains(e.target as Node)) setCtxMenu(null)
-    }
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null) }
-    document.addEventListener('mousedown', handler)
-    document.addEventListener('keydown', esc)
-    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', esc) }
-  }, [ctxMenu])
-
-  if (!active && flatStrokes.length === 0) return null
-
-  const cursor = active
-    ? (mode === 'dragging' ? 'grabbing' : selectedIndices.size > 0 ? 'default' : 'crosshair')
-    : 'default'
+  if (!active && lasso.strokeCount === 0) return null
 
   return (
     <div
-      ref={wrapperRef}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onContextMenu={(e) => {
-        if (selectedRef.current.size > 0) {
-          e.preventDefault()
-          setCtxMenu({ x: e.clientX, y: e.clientY })
-        }
-      }}
+      {...lasso.handlers}
       style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        cursor,
+        position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+        cursor: lasso.cursor,
         pointerEvents: active ? 'auto' : 'none',
         zIndex: active ? 10 : 2,
         touchAction: 'pan-y',
       }}
     >
       <canvas ref={canvasRef} style={{ width: '100%', height: '100%', pointerEvents: 'none' }} />
-      {ctxMenu && (
-        <div ref={ctxMenuRef} style={{
-          position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: 9999,
-          background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.18)', padding: 4, minWidth: 120,
-        }}>
-          <button
-            onClick={() => { deleteSelected(); setCtxMenu(null) }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px',
-              cursor: 'pointer', fontSize: 13, color: '#e53e3e', border: 'none',
-              background: 'none', width: '100%', textAlign: 'left', borderRadius: 4,
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--selected)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-          >
-            <Trash2 size={14} /> {t('common.delete')}
-          </button>
-        </div>
-      )}
+      {lasso.menu}
     </div>
   )
 }
