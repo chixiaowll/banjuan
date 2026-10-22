@@ -20,12 +20,22 @@ function getApiPort() {
   }
 }
 
+// Per-launch token written by the app; re-read per call since it changes on restart.
+function authHeaders(extra = {}) {
+  try {
+    const token = readFileSync(join(homedir(), '.banjuan', 'api-token'), 'utf-8').trim()
+    return token ? { ...extra, Authorization: `Bearer ${token}` } : extra
+  } catch {
+    return extra
+  }
+}
+
 const PORT = getApiPort()
 const BASE = PORT ? `http://127.0.0.1:${PORT}` : null
 
 async function apiCall(path) {
   if (!BASE) throw new Error('Banjuan app is not running (no api-port found)')
-  const res = await fetch(`${BASE}${path}`)
+  const res = await fetch(`${BASE}${path}`, { headers: authHeaders() })
   if (!res.ok) {
     const body = await res.text()
     throw new Error(`API ${res.status}: ${body}`)
@@ -37,7 +47,7 @@ async function apiPost(path, body) {
   if (!BASE) throw new Error('Banjuan app is not running')
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   })
   if (!res.ok) {
@@ -51,7 +61,7 @@ async function apiPut(path, body) {
   if (!BASE) throw new Error('Banjuan app is not running')
   const res = await fetch(`${BASE}${path}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   })
   if (!res.ok) {
@@ -63,7 +73,7 @@ async function apiPut(path, body) {
 
 async function apiDelete(path) {
   if (!BASE) throw new Error('Banjuan app is not running')
-  const res = await fetch(`${BASE}${path}`, { method: 'DELETE' })
+  const res = await fetch(`${BASE}${path}`, { method: 'DELETE', headers: authHeaders() })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`API ${res.status}: ${text}`)
