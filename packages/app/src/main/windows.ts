@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 
 const windows = new Set<BrowserWindow>()
@@ -10,6 +10,13 @@ const windows = new Set<BrowserWindow>()
 const FLUSH_TIMEOUT_MS = 3000
 let nextFlushId = 1
 let quitFlushed = false
+let lastFocused: BrowserWindow | null = null
+
+/** The library window the user used last — target for "insert into note" and screenshot notices. */
+export function getLastFocusedLibraryWindow(): BrowserWindow | null {
+  if (lastFocused && !lastFocused.isDestroyed()) return lastFocused
+  return [...windows].find(w => !w.isDestroyed()) ?? null
+}
 
 function flushWindow(win: BrowserWindow): Promise<void> {
   if (win.isDestroyed() || win.webContents.isDestroyed()) return Promise.resolve()
@@ -70,7 +77,14 @@ export function createWindow(): BrowserWindow {
   })
 
   windows.add(win)
-  win.on('closed', () => windows.delete(win))
+  win.on('focus', () => { lastFocused = win })
+  win.on('closed', () => {
+    windows.delete(win)
+    if (lastFocused === win) lastFocused = null
+    // The pre-warmed screenshot overlay is a hidden window that never closes,
+    // so 'window-all-closed' no longer fires on Windows/Linux: quit here.
+    if (process.platform !== 'darwin' && windows.size === 0) app.quit()
+  })
   let flushed = false
   win.on('close', (e) => {
     if (flushed || quitFlushed) return

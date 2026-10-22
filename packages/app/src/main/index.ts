@@ -4,7 +4,7 @@ import { registerExportWindowHandlers } from './export-window.js'
 import { startApiServer, stopApiServer } from './api-server.js'
 import { installCli } from './install-cli.js'
 import { createWindow, getWindowCount, isLibraryWindow, flushAllWindowsForQuit } from './windows.js'
-import { initScreenshot, disposeScreenshot } from './screenshot-service.js'
+import { initScreenshot, disposeScreenshot } from './screenshot/index.js'
 import { join } from 'node:path'
 
 protocol.registerSchemesAsPrivileged([
