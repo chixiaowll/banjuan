@@ -580,6 +580,36 @@ const de = {
   // mindmap
   'mindmap.newTopic': 'Neues Thema',
   'mindmap.summaryTopic': 'Zusammenfassung',
+
+  // templates
+  'template.literature': 'Literaturnotiz',
+  'template.literatureDesc': 'Quelle, Kernaussagen und eigene Gedanken zu einem Text',
+  'template.litSource': 'Quelle',
+  'template.litTitle': 'Titel: ',
+  'template.litAuthors': 'Autoren: ',
+  'template.litYear': 'Jahr: ',
+  'template.litMainPoints': 'Kernaussagen',
+  'template.litQuotes': 'Wichtige Zitate',
+  'template.litThoughts': 'Eigene Gedanken',
+  'template.zettel': 'Zettelkasten-Karte',
+  'template.zettelDesc': 'Ein Gedanke pro Karte, verknüpft mit verwandten Notizen',
+  'template.zettelTopic': 'Thema',
+  'template.zettelBody': 'Gedanke',
+  'template.zettelRelated': 'Verwandte Notizen',
+  'template.zettelSources': 'Quellen',
+  'template.meeting': 'Lese- / Besprechungsnotiz',
+  'template.meetingDesc': 'Kernpunkte, Aufgaben und Zusammenfassung',
+  'template.meetingInfo': 'Eckdaten',
+  'template.meetingDate': 'Datum: ',
+  'template.meetingSubject': 'Thema: ',
+  'template.meetingPoints': 'Kernpunkte',
+  'template.meetingActions': 'Aufgaben',
+  'template.meetingSummary': 'Zusammenfassung',
+  'template.mine': 'Eigene Vorlagen',
+  'template.saveAs': 'Als Vorlage speichern',
+  'template.namePrompt': 'Name der Vorlage',
+  'template.saved': 'Als Vorlage „{0}“ gespeichert',
+  'template.deleteConfirm': 'Vorlage „{0}“ löschen? Bereits erstellte Notizen bleiben unverändert.',
 } as const
 
 export default de

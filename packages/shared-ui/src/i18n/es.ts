@@ -580,6 +580,36 @@ const es = {
   // mindmap
   'mindmap.newTopic': 'Nuevo tema',
   'mindmap.summaryTopic': 'Resumen',
+
+  // templates
+  'template.literature': 'Nota bibliográfica',
+  'template.literatureDesc': 'Fuente, ideas clave y reflexiones sobre un texto',
+  'template.litSource': 'Fuente',
+  'template.litTitle': 'Título: ',
+  'template.litAuthors': 'Autores: ',
+  'template.litYear': 'Año: ',
+  'template.litMainPoints': 'Ideas principales',
+  'template.litQuotes': 'Citas clave',
+  'template.litThoughts': 'Mis reflexiones',
+  'template.zettel': 'Ficha Zettelkasten',
+  'template.zettelDesc': 'Una idea por ficha, enlazada a notas relacionadas',
+  'template.zettelTopic': 'Tema',
+  'template.zettelBody': 'Idea',
+  'template.zettelRelated': 'Notas relacionadas',
+  'template.zettelSources': 'Fuentes',
+  'template.meeting': 'Notas de lectura / reunión',
+  'template.meetingDesc': 'Puntos clave, tareas y resumen',
+  'template.meetingInfo': 'Información',
+  'template.meetingDate': 'Fecha: ',
+  'template.meetingSubject': 'Tema: ',
+  'template.meetingPoints': 'Puntos clave',
+  'template.meetingActions': 'Tareas',
+  'template.meetingSummary': 'Resumen',
+  'template.mine': 'Mis plantillas',
+  'template.saveAs': 'Guardar como plantilla',
+  'template.namePrompt': 'Nombre de la plantilla',
+  'template.saved': 'Guardado como plantilla «{0}»',
+  'template.deleteConfirm': '¿Eliminar la plantilla «{0}»? Las notas ya creadas no se ven afectadas.',
 } as const
 
 export default es

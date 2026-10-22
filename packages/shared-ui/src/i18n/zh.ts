@@ -609,6 +609,36 @@ const zh = {
   // mindmap
   'mindmap.newTopic': '分支主题',
   'mindmap.summaryTopic': '概要',
+
+  // templates
+  'template.literature': '文献笔记',
+  'template.literatureDesc': '记录一篇文献的来源、观点和思考',
+  'template.litSource': '来源信息',
+  'template.litTitle': '标题：',
+  'template.litAuthors': '作者：',
+  'template.litYear': '年份：',
+  'template.litMainPoints': '主要观点',
+  'template.litQuotes': '关键引用',
+  'template.litThoughts': '个人思考',
+  'template.zettel': '卡片笔记',
+  'template.zettelDesc': '一张卡片只写一个想法，并链接到相关笔记',
+  'template.zettelTopic': '主题',
+  'template.zettelBody': '内容',
+  'template.zettelRelated': '关联笔记',
+  'template.zettelSources': '参考来源',
+  'template.meeting': '读书 / 会议笔记',
+  'template.meetingDesc': '要点、行动事项和总结',
+  'template.meetingInfo': '基本信息',
+  'template.meetingDate': '日期：',
+  'template.meetingSubject': '主题：',
+  'template.meetingPoints': '要点记录',
+  'template.meetingActions': '行动事项',
+  'template.meetingSummary': '总结',
+  'template.mine': '我的模板',
+  'template.saveAs': '存为模板',
+  'template.namePrompt': '模板名称',
+  'template.saved': '已存为模板「{0}」',
+  'template.deleteConfirm': '删除模板「{0}」？已用它创建的笔记不受影响。',
 } as const
 
 export default zh

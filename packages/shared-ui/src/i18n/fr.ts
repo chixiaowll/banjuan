@@ -580,6 +580,36 @@ const fr = {
   // mindmap
   'mindmap.newTopic': 'Nouveau sujet',
   'mindmap.summaryTopic': 'Résumé',
+
+  // templates
+  'template.literature': 'Note de lecture',
+  'template.literatureDesc': 'Source, idées clés et réflexions sur un texte',
+  'template.litSource': 'Source',
+  'template.litTitle': 'Titre : ',
+  'template.litAuthors': 'Auteurs : ',
+  'template.litYear': 'Année : ',
+  'template.litMainPoints': 'Idées principales',
+  'template.litQuotes': 'Citations clés',
+  'template.litThoughts': 'Mes réflexions',
+  'template.zettel': 'Fiche Zettelkasten',
+  'template.zettelDesc': 'Une idée par fiche, reliée aux notes associées',
+  'template.zettelTopic': 'Sujet',
+  'template.zettelBody': 'Idée',
+  'template.zettelRelated': 'Notes liées',
+  'template.zettelSources': 'Sources',
+  'template.meeting': 'Notes de lecture / réunion',
+  'template.meetingDesc': 'Points clés, actions et synthèse',
+  'template.meetingInfo': 'Informations',
+  'template.meetingDate': 'Date : ',
+  'template.meetingSubject': 'Sujet : ',
+  'template.meetingPoints': 'Points clés',
+  'template.meetingActions': 'Actions',
+  'template.meetingSummary': 'Synthèse',
+  'template.mine': 'Mes modèles',
+  'template.saveAs': 'Enregistrer comme modèle',
+  'template.namePrompt': 'Nom du modèle',
+  'template.saved': 'Enregistré comme modèle « {0} »',
+  'template.deleteConfirm': 'Supprimer le modèle « {0} » ? Les notes déjà créées ne sont pas touchées.',
 } as const
 
 export default fr

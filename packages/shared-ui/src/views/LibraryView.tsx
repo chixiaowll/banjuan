@@ -639,12 +639,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
   const [notePickerError, setNotePickerError] = useState<string | null>(null)
 
-  const handleNoteTemplateSelect = async (templateId: string | null, title: string, type: NoteType) => {
+  const handleNoteTemplateSelect = async (templateId: string | null, title: string, type: NoteType, content?: string) => {
     try {
       const note = await api.notes.create({
         title,
         folder: selectedNoteDir ?? undefined,
-        ...(type !== 'markdown' ? { type } : { templateId: templateId ?? undefined }),
+        ...(type !== 'markdown' ? { type } : content ? { content } : { templateId: templateId ?? undefined }),
       })
       setNotePickerError(null)
       setShowNotePicker(false)

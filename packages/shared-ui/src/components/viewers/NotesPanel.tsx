@@ -48,12 +48,12 @@ export default function NotesPanel({ docId, onOpenNote, onCreateNote, onDeleteNo
 
   const [pickerError, setPickerError] = useState<string | null>(null)
 
-  const handleCreateFromTemplate = async (templateId: string | null, title: string, type: NoteType) => {
+  const handleCreateFromTemplate = async (templateId: string | null, title: string, type: NoteType, content?: string) => {
     try {
       const note = await api.notes.create({
         title,
         docId,
-        ...(type !== 'markdown' ? { type } : { templateId: templateId ?? undefined }),
+        ...(type !== 'markdown' ? { type } : content ? { content } : { templateId: templateId ?? undefined }),
       })
       setPickerError(null)
       setShowPicker(false)

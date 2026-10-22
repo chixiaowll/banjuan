@@ -580,6 +580,36 @@ const ko = {
   // mindmap
   'mindmap.newTopic': '새 주제',
   'mindmap.summaryTopic': '요약',
+
+  // templates
+  'template.literature': '문헌 노트',
+  'template.literatureDesc': '문헌의 출처, 핵심 내용, 생각을 기록',
+  'template.litSource': '출처',
+  'template.litTitle': '제목: ',
+  'template.litAuthors': '저자: ',
+  'template.litYear': '연도: ',
+  'template.litMainPoints': '주요 관점',
+  'template.litQuotes': '핵심 인용',
+  'template.litThoughts': '나의 생각',
+  'template.zettel': '제텔카스텐 카드',
+  'template.zettelDesc': '카드 한 장에 생각 하나, 관련 노트와 연결',
+  'template.zettelTopic': '주제',
+  'template.zettelBody': '내용',
+  'template.zettelRelated': '관련 노트',
+  'template.zettelSources': '참고 자료',
+  'template.meeting': '독서 / 회의 노트',
+  'template.meetingDesc': '핵심, 실행 항목, 요약',
+  'template.meetingInfo': '기본 정보',
+  'template.meetingDate': '날짜: ',
+  'template.meetingSubject': '주제: ',
+  'template.meetingPoints': '핵심 내용',
+  'template.meetingActions': '실행 항목',
+  'template.meetingSummary': '요약',
+  'template.mine': '내 템플릿',
+  'template.saveAs': '템플릿으로 저장',
+  'template.namePrompt': '템플릿 이름',
+  'template.saved': '템플릿 "{0}"(으)로 저장했습니다',
+  'template.deleteConfirm': '템플릿 "{0}"을(를) 삭제할까요? 이미 만든 노트에는 영향이 없습니다.',
 } as const
 
 export default ko

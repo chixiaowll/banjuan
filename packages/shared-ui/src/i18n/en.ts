@@ -609,6 +609,36 @@ const en = {
   // mindmap
   'mindmap.newTopic': 'New Topic',
   'mindmap.summaryTopic': 'Summary',
+
+  // templates
+  'template.literature': 'Literature note',
+  'template.literatureDesc': 'Source, key ideas and your thoughts on a paper',
+  'template.litSource': 'Source',
+  'template.litTitle': 'Title: ',
+  'template.litAuthors': 'Authors: ',
+  'template.litYear': 'Year: ',
+  'template.litMainPoints': 'Key ideas',
+  'template.litQuotes': 'Key quotes',
+  'template.litThoughts': 'My thoughts',
+  'template.zettel': 'Zettelkasten card',
+  'template.zettelDesc': 'One idea per card, linked to related notes',
+  'template.zettelTopic': 'Topic',
+  'template.zettelBody': 'Idea',
+  'template.zettelRelated': 'Related notes',
+  'template.zettelSources': 'Sources',
+  'template.meeting': 'Reading / meeting notes',
+  'template.meetingDesc': 'Key points, action items and a summary',
+  'template.meetingInfo': 'Details',
+  'template.meetingDate': 'Date: ',
+  'template.meetingSubject': 'Subject: ',
+  'template.meetingPoints': 'Key points',
+  'template.meetingActions': 'Action items',
+  'template.meetingSummary': 'Summary',
+  'template.mine': 'My templates',
+  'template.saveAs': 'Save as template',
+  'template.namePrompt': 'Template name',
+  'template.saved': 'Saved as template "{0}"',
+  'template.deleteConfirm': 'Delete the template "{0}"? Notes created from it are not affected.',
 } as const
 
 export default en

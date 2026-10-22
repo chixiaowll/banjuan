@@ -580,6 +580,36 @@ const ja = {
   // mindmap
   'mindmap.newTopic': '新しいトピック',
   'mindmap.summaryTopic': '要約',
+
+  // templates
+  'template.literature': '文献ノート',
+  'template.literatureDesc': '文献の出典・要点・考察を記録',
+  'template.litSource': '出典',
+  'template.litTitle': 'タイトル：',
+  'template.litAuthors': '著者：',
+  'template.litYear': '年：',
+  'template.litMainPoints': '主な主張',
+  'template.litQuotes': '重要な引用',
+  'template.litThoughts': '自分の考え',
+  'template.zettel': 'カードノート',
+  'template.zettelDesc': '1 枚に 1 つの考えを書き、関連ノートにリンク',
+  'template.zettelTopic': 'テーマ',
+  'template.zettelBody': '内容',
+  'template.zettelRelated': '関連ノート',
+  'template.zettelSources': '参考文献',
+  'template.meeting': '読書・会議ノート',
+  'template.meetingDesc': '要点・アクション・まとめ',
+  'template.meetingInfo': '基本情報',
+  'template.meetingDate': '日付：',
+  'template.meetingSubject': 'テーマ：',
+  'template.meetingPoints': '要点',
+  'template.meetingActions': 'アクション',
+  'template.meetingSummary': 'まとめ',
+  'template.mine': 'マイテンプレート',
+  'template.saveAs': 'テンプレートとして保存',
+  'template.namePrompt': 'テンプレート名',
+  'template.saved': 'テンプレート「{0}」として保存しました',
+  'template.deleteConfirm': 'テンプレート「{0}」を削除しますか？作成済みのノートには影響しません。',
 } as const
 
 export default ja

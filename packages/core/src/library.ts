@@ -67,7 +67,7 @@ export class Library {
     this.mindmaps = new MindmapService(db, rootPath, this.events, deps.fs)
     this.graph = new GraphService(db)
     this.plugins = new PluginManager(this, this.events, rootPath, deps.fs, deps.globalPluginsDir)
-    this.templates = new TemplateService(db)
+    this.templates = new TemplateService(db, rootPath, deps.fs)
     this.attachments = new AttachmentService(rootPath, deps.fs)
 
     this.trash = new TrashService(db, rootPath, deps.fs, () => this.createIndexService(), this.annotations)
