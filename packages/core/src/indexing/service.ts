@@ -36,7 +36,14 @@ export class IndexService {
   }
 
   async rebuildFull(): Promise<void> {
-    this.db.pragma('foreign_keys = OFF')
+    this.db.pragma('foreign_keys = OFF')   // must be set outside a transaction
+    // One transaction for the whole rebuild: a failure part-way rolls back to the
+    // previous index instead of leaving cleared tables half refilled (which still
+    // looked valid, so nothing re-triggered a rebuild). One commit is also far
+    // faster than auto-committing every row. better-sqlite3's own transaction()
+    // nests as a SAVEPOINT if other code writes during an await here.
+    this.db.execute('BEGIN')
+    let committed = false
     try {
     // The DB now persists across opens, so a rebuild may run on a populated DB.
     // Clear the derived tables first, otherwise FTS rows duplicate (append-only
@@ -68,8 +75,11 @@ export class IndexService {
       this.db.run('INSERT OR IGNORE INTO doc_links (source_id, target_id, context) VALUES (?, ?, ?)', [link.sourceId, link.targetId, link.context])
     }
 
+    this.db.execute('COMMIT')
+    committed = true
     await this.writeMetaTimestamp()
     } finally {
+      if (!committed) this.db.execute('ROLLBACK')
       this.db.pragma('foreign_keys = ON')
     }
   }
