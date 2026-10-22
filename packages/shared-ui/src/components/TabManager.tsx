@@ -18,6 +18,7 @@ import { ResizeHandle, useResizable } from './ResizeHandle.js'
 import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 import { TabActiveContext } from './tabActive.js'
 import { readTabSession, writeTabSession, tabShortcut, type SavedTab } from './tabSession.js'
+import SearchPalette from './SearchPalette.js'
 import '../styles/mobile.css'
 
 const LIBRARY_TAB_ID = 'library'
@@ -361,11 +362,19 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     writeTabSession(localStorage, libraryPath, { tabs: saved, active: activeTabId })
   }, [tabs, tabData, activeTabId, libraryPath])
 
-  // ⌘1–8 / ⌘9 / ⌃Tab switch tabs (Ctrl instead of ⌘ off macOS).
+  const [paletteOpen, setPaletteOpen] = useState(false)
+
+  // ⌘1–8 / ⌘9 / ⌃Tab switch tabs, ⌘K toggles global search (Ctrl instead of ⌘ off macOS).
   useEffect(() => {
     const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.isComposing) return
+      const mod = isMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
+      if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPaletteOpen(v => !v)
+        return
+      }
       const target = tabShortcut(e, isMac, tabs.map(x => x.id), activeTabId)
       if (!target) return
       e.preventDefault()
@@ -520,6 +529,9 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
             </div>
           ))}
           <Suspense fallback={null}><MindmapExportHost /></Suspense>
+          {paletteOpen && (
+            <SearchPalette onClose={() => setPaletteOpen(false)} onOpenNote={openNote} onOpenDocument={openDocument} />
+          )}
         </div>
         {(sidePanel || detailOpen) && (
           <>

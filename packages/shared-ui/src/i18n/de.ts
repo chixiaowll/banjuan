@@ -556,6 +556,13 @@ const de = {
   // fixes
   'library.folderExists': 'Ein Ordner namens „{0}“ existiert bereits.',
   'library.renameFailed': 'Umbenennen fehlgeschlagen: {0}',
+
+  // palette
+  'palette.placeholder': 'Notizen, Dokumente und Anmerkungen durchsuchen…',
+  'palette.annotations': 'Anmerkungen',
+  'palette.recent': 'Zuletzt',
+  'palette.noResults': 'Keine Treffer für „{0}“',
+  'palette.hint': '↑↓ auswählen · ↵ öffnen · Esc schließen',
 } as const
 
 export default de

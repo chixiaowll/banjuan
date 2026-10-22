@@ -556,6 +556,13 @@ const fr = {
   // fixes
   'library.folderExists': 'Un dossier nommé « {0} » existe déjà.',
   'library.renameFailed': 'Échec du renommage : {0}',
+
+  // palette
+  'palette.placeholder': 'Rechercher dans les notes, documents et annotations…',
+  'palette.annotations': 'Annotations',
+  'palette.recent': 'Récents',
+  'palette.noResults': 'Aucun résultat pour « {0} »',
+  'palette.hint': '↑↓ naviguer · ↵ ouvrir · échap fermer',
 } as const
 
 export default fr

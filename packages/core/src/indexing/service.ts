@@ -49,11 +49,18 @@ export class IndexService {
     // The DB now persists across opens, so a rebuild may run on a populated DB.
     // Clear the derived tables first, otherwise FTS rows duplicate (append-only
     // INSERT) and removed links/notes linger (INSERT OR IGNORE never deletes).
+    // Reading history (last_read_at) exists only in the DB — it isn't in the
+    // document JSON — so carry it over instead of wiping "recently read".
+    const lastRead = this.db.query<{ id: string; last_read_at: string }>(
+      'SELECT id, last_read_at FROM documents WHERE last_read_at IS NOT NULL')
     this.clearDerivedTables()
     await this.indexTags()
 
     for (const doc of await this.docStore.listAll()) {
       this.indexDocument(doc)
+    }
+    for (const r of lastRead) {
+      this.db.run('UPDATE documents SET last_read_at = ? WHERE id = ?', [r.last_read_at, r.id])
     }
 
     for (const ann of await this.annStore.listAll()) {

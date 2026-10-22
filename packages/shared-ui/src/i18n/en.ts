@@ -585,6 +585,13 @@ const en = {
   // fixes
   'library.folderExists': 'A folder named "{0}" already exists.',
   'library.renameFailed': 'Rename failed: {0}',
+
+  // palette
+  'palette.placeholder': 'Search notes, documents and annotations…',
+  'palette.annotations': 'Annotations',
+  'palette.recent': 'Recent',
+  'palette.noResults': 'Nothing found for "{0}"',
+  'palette.hint': '↑↓ to navigate · ↵ to open · esc to close',
 } as const
 
 export default en

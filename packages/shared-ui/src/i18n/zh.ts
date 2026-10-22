@@ -585,6 +585,13 @@ const zh = {
   // fixes
   'library.folderExists': '已存在名为「{0}」的文件夹。',
   'library.renameFailed': '重命名失败：{0}',
+
+  // palette
+  'palette.placeholder': '搜索笔记、文档和批注…',
+  'palette.annotations': '批注',
+  'palette.recent': '最近',
+  'palette.noResults': '没有找到与「{0}」相关的内容',
+  'palette.hint': '↑↓ 选择 · ↵ 打开 · esc 关闭',
 } as const
 
 export default zh
