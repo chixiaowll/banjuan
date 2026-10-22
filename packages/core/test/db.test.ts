@@ -3,7 +3,6 @@ import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { createTempDir, cleanupTempDir } from './helpers.js'
 import { NodeDatabaseFactory } from '@banjuan/platform-node'
-import { createConnection } from '../src/db/connection.js'
 import { initSchema } from '../src/db/schema.js'
 
 describe('Database', () => {
@@ -20,14 +19,14 @@ describe('Database', () => {
 
   it('creates a SQLite connection', async () => {
     const dbPath = join(tempDir, '.banjuan', 'db.sqlite')
-    const db = await createConnection(dbPath, new NodeDatabaseFactory())
+    const db = await new NodeDatabaseFactory().open(dbPath)
     expect(db).toBeDefined()
     db.close()
   })
 
   it('initializes schema with all tables', async () => {
     const dbPath = join(tempDir, '.banjuan', 'db.sqlite')
-    const db = await createConnection(dbPath, new NodeDatabaseFactory())
+    const db = await new NodeDatabaseFactory().open(dbPath)
     initSchema(db)
 
     const tables = db
@@ -47,7 +46,7 @@ describe('Database', () => {
 
   it('initializes FTS5 search index', async () => {
     const dbPath = join(tempDir, '.banjuan', 'db.sqlite')
-    const db = await createConnection(dbPath, new NodeDatabaseFactory())
+    const db = await new NodeDatabaseFactory().open(dbPath)
     initSchema(db)
 
     const tables = db
@@ -60,7 +59,7 @@ describe('Database', () => {
 
   it('is idempotent — running initSchema twice does not error', async () => {
     const dbPath = join(tempDir, '.banjuan', 'db.sqlite')
-    const db = await createConnection(dbPath, new NodeDatabaseFactory())
+    const db = await new NodeDatabaseFactory().open(dbPath)
     initSchema(db)
     initSchema(db)
 
