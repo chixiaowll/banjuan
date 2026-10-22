@@ -345,6 +345,12 @@ export interface BanjuanAPI {
   /** Desktop only: Feishu-style screen capture. Absent on mobile. */
   screenshot?: {
     trigger: () => Promise<void>
+    getHotkey?: () => Promise<string>
+    setHotkey?: (accelerator: string) => Promise<string>
+    /** Screenshot overlay window only. */
+    onInit?: (cb: (p: { image: string; width: number; height: number; scaleFactor: number }) => void) => () => void
+    confirm?: (dataUrl: string) => void
+    cancel?: () => void
   }
 
   /** Mobile (iPad) only: toggle "drawing mode", which disables the WebView's

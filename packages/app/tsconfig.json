@@ -5,5 +5,5 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src", "electron.d.ts"]
+  "include": ["src"]
 }

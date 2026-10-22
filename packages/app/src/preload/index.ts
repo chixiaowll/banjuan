@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { BanjuanAPI } from '@banjuan/shared-ui'
 
 // ⌘W (File › Close Tab): the renderer closes its current tab and returns true;
 // with no handler, or nothing closable, the window closes instead.
@@ -333,6 +334,6 @@ const api = {
     getHotkey: () => ipcRenderer.invoke('settings:getScreenshotHotkey') as Promise<string>,
     setHotkey: (accel: string) => ipcRenderer.invoke('settings:setScreenshotHotkey', accel) as Promise<string>,
   },
-}
+} satisfies BanjuanAPI
 
 contextBridge.exposeInMainWorld('electronAPI', api)
