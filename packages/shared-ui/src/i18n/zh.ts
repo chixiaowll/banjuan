@@ -52,9 +52,6 @@ const zh = {
   'common.loading': '加载中...',
   'common.search': '搜索...',
   'common.import': '导入',
-  'common.unload': '卸载',
-  'common.enable': '启用',
-  'common.disable': '停用',
   'common.new': '新建',
 
   // Library sidebar
@@ -63,20 +60,16 @@ const zh = {
   'library.recentNotes': '最近更新笔记',
   'library.documents': '文档',
   'library.notes': '笔记',
-  'library.mindmaps': '脑图',
-  'library.graph': '知识图谱',
   'library.sync': '同步',
   'library.plugins': '插件',
   'library.tags': '标签',
   'library.noTags': '无标签',
   'library.noPlugins': '无已加载插件',
-  'library.tab': '书库',
 
   // Library content
   'library.newNote': '新建笔记',
   'library.newFolder': '新建文件夹',
   'library.rename': '重命名',
-  'library.newMindmap': '新建脑图',
   'library.untitledMindmap': '未命名脑图',
   'library.colTitle': '标题',
   'library.colType': '类型',
@@ -85,13 +78,10 @@ const zh = {
   'library.totalCount': '共 {0} 个',
   'library.sortAsc': '升序',
   'library.sortDesc': '降序',
-  'library.colCreatedAt': '创建时间',
   'library.emptyDir': '该目录下没有文件',
   'library.emptyDocuments': '暂无文档',
   'library.allNotes': '全部',
   'library.emptyNotes': '还没有笔记',
-  'library.emptyMindmaps': '还没有脑图',
-  'library.newHandwriting': '新建手写',
   'library.untitledHandwriting': '未命名手写',
   'library.refresh': '刷新',
   'library.import': '导入文档',
@@ -116,14 +106,12 @@ const zh = {
   'template.blank': '空白笔记',
   'template.blankDesc': '从空白开始',
   'template.titlePlaceholder': '笔记标题',
-  'template.builtin': '内置',
 
   // Handwriting
   'handwriting.pages': '页面',
   'handwriting.newPage': '新建页面',
   'handwriting.deletePage': '删除页面',
   'handwriting.changeTemplate': '更换模板',
-  'handwriting.insertBefore': '在前方插入',
   'handwriting.insertAfter': '在后方插入',
   'handwriting.duplicatePage': '复制页面',
   'handwriting.template.blank': '空白',
@@ -131,19 +119,11 @@ const zh = {
   'handwriting.template.grid': '网格',
   'handwriting.template.dotted': '点阵',
   'handwriting.template.cornell': '康奈尔',
-  'handwriting.tool.pen': '钢笔',
-  'handwriting.tool.highlighter': '荧光笔',
-  'handwriting.tool.eraser': '橡皮擦',
-  'handwriting.tool.shape': '形状',
-  'handwriting.tool.lasso': '套索',
   'handwriting.exportPdf': '导出 PDF',
   'handwriting.exportMarkdown': '导出 Markdown',
   'handwriting.exportPng': '导出 PNG',
-  'handwriting.exportAllPng': '导出全部页面 (ZIP)',
-  'handwriting.clearPage': '清空页面',
   'handwriting.zoomIn': '放大',
   'handwriting.zoomOut': '缩小',
-  'handwriting.zoomFit': '适应页面',
 
   // Library detail
   'detail.title': '详情',
@@ -162,15 +142,8 @@ const zh = {
   'detail.local': '本地',
   'detail.download': '下载到本地',
   'detail.upload': '上传到云端',
-  'detail.downloadFailed': '下载失败',
-  'detail.uploadFailed': '上传失败',
 
   // Prompts
-  'prompt.noteTitle': '笔记标题:',
-  'prompt.folderName': '文件夹名称:',
-  'prompt.mindmapTitle': '脑图标题:',
-  'prompt.nodeTitle': '节点标题：',
-  'prompt.childNodeTitle': '子节点标题：',
 
   // PDF viewer
   'pdf.thumbnails': '缩略图',
@@ -185,7 +158,6 @@ const zh = {
   'pdf.noReferences': '暂无引用',
   'pdf.loadingPdf': '正在加载 PDF…',
   'pdf.areaScreenshot': '区域截图',
-  'pdf.areaSelect': '区域选取',
   'pdf.page': '第 {0} 页',
 
   // PDF tools
@@ -218,8 +190,6 @@ const zh = {
   'folderTree.confirmDeleteNote': '确定删除笔记「{0}」？删除后可在回收站中恢复（保留 30 天）。',
 
   // Mindmap
-  'mindmap.label': '脑图',
-  'mindmap.addRoot': '+ 根节点',
   'mindmap.addChild': '+ 子节点',
   'mindmap.addFloating': '浮动主题',
   'mindmap.delete': '删除',
@@ -227,14 +197,9 @@ const zh = {
   'mindmap.redo': '重做',
   'mindmap.export': '导出',
   'mindmap.search': '搜索节点...',
-  'mindmap.minimap': '导航',
   'mindmap.properties': '属性',
   'mindmap.themes': '主题',
   'mindmap.selectNodeHint': '选择一个节点以查看属性',
-  'mindmap.dockTop': '停靠顶部',
-  'mindmap.dockLeft': '停靠左侧',
-  'mindmap.dockRight': '停靠右侧',
-  'mindmap.dockPosition': '停靠位置',
 
   // Sync
   'sync.title': '同步',
@@ -251,16 +216,13 @@ const zh = {
   'sync.configSaved': '配置已保存',
   'sync.saveFailed': '保存失败：{0}',
   'sync.syncSuccess': '同步成功 — 上传 {0}，下载 {1}，本地删除 {2}，远端删除 {3}',
-  'sync.syncWithErrors': '同步完成（有错误）：{0}',
   'sync.syncFailed': '同步失败：{0}',
   'sync.testConnection': '测试连接',
   'sync.testing': '测试中…',
 
   // Annotation sidebar
-  'annotation.title': '标注',
   'annotation.highlight': '高亮',
   'annotation.note': '批注',
-  'annotation.empty': '选中文本后即可创建标注',
 
   // Settings
   'settings.title': '设置',
@@ -299,16 +261,11 @@ const zh = {
   'epub.outline': '目录',
   'epub.annotations': '标注',
   'epub.notes': '笔记',
-  'epub.noAnnotations': '暂无标注',
-  'epub.noNotes': '暂无笔记',
   'epub.noOutline': '此文档无目录',
-  'epub.newNote': '+ 新建笔记',
-  'epub.chapter': '章节',
   'epub.prevChapter': '上一章',
   'epub.nextChapter': '下一章',
 
   // Markdown viewer
-  'md.thumbnails': '章节',
   'md.outline': '目录',
   'md.annotations': '标注',
   'md.notes': '笔记',
@@ -328,16 +285,8 @@ const zh = {
   'backlinks.linkedAnnotations': '关联标注 ({0})',
 
   // Mindmap file tree
-  'mindmapTree.newMindmap': '新建思维导图',
-  'mindmapTree.newFolder': '新建文件夹',
-  'mindmapTree.rename': '重命名',
-  'mindmapTree.delete': '删除',
-  'mindmapTree.cancel': '取消',
-  'mindmapTree.confirmDeleteDir': '确定删除文件夹「{0}」？',
-  'mindmapTree.confirmDeleteMindmap': '确定删除思维导图「{0}」？',
 
   // Multi-window
-  'library.openAnother': '打开其他书房',
 
   // Tags
   'tags.search': '搜索标签...',
@@ -346,7 +295,6 @@ const zh = {
   'tags.newTag': '新建标签',
   'tags.rename': '重命名',
   'tags.delete': '删除',
-  'tags.deleteConfirm': '删除标签「{0}」？将从所有内容中移除。',
   'tags.color': '颜色',
   'tags.count': '关联数',
   'tags.more': '+{0} 更多',
@@ -503,11 +451,7 @@ const zh = {
   'annotation.color.pink': '粉色',
   'annotation.location': '位置 {0}',
   'annotation.areaOnPage': '区域选取（第 {0} 页）',
-  'annotation.titleWithCount': '标注 ({0})',
   'selection.underline': '下划线',
-  'md.noSections': '暂无章节',
-  'md.emptyHeading': '（空标题）',
-  'md.noHeadings': '（无标题）',
   'image.select': '选择',
   'image.pan': '平移',
   'image.fitToWindow': '适应窗口',
@@ -532,7 +476,6 @@ const zh = {
   'embed.searchNotes': '搜索笔记...',
   'embed.selectPage': '{0} — 选择页面',
   'embed.untitledDocument': '无标题文档',
-  'link.createNote': '创建新笔记「{0}」',
   'mermaid.emptyHint': '输入 Mermaid 语法以查看图表',
   'mermaid.invalidSyntax': 'Mermaid 语法有误',
   'mermaid.loading': '正在加载图表...',

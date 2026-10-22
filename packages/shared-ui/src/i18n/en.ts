@@ -52,9 +52,6 @@ const en = {
   'common.loading': 'Loading...',
   'common.search': 'Search...',
   'common.import': 'Import',
-  'common.unload': 'Unload',
-  'common.enable': 'Enable',
-  'common.disable': 'Disable',
   'common.new': 'New',
 
   // Library sidebar
@@ -63,20 +60,16 @@ const en = {
   'library.recentNotes': 'Recently Updated Notes',
   'library.documents': 'Documents',
   'library.notes': 'Notes',
-  'library.mindmaps': 'Mindmaps',
-  'library.graph': 'Knowledge Graph',
   'library.sync': 'Sync',
   'library.plugins': 'Plugins',
   'library.tags': 'Tags',
   'library.noTags': 'No tags',
   'library.noPlugins': 'No plugins loaded',
-  'library.tab': 'Library',
 
   // Library content
   'library.newNote': 'New Note',
   'library.newFolder': 'New Folder',
   'library.rename': 'Rename',
-  'library.newMindmap': 'New Mindmap',
   'library.untitledMindmap': 'Untitled Mindmap',
   'library.colTitle': 'Title',
   'library.colType': 'Type',
@@ -85,13 +78,10 @@ const en = {
   'library.totalCount': '{0} total',
   'library.sortAsc': 'Ascending',
   'library.sortDesc': 'Descending',
-  'library.colCreatedAt': 'Created',
   'library.emptyDir': 'No files in this directory',
   'library.emptyDocuments': 'Library is empty',
   'library.allNotes': 'All',
   'library.emptyNotes': 'No notes yet',
-  'library.emptyMindmaps': 'No mindmaps yet',
-  'library.newHandwriting': 'New Handwriting',
   'library.untitledHandwriting': 'Untitled Handwriting',
   'library.refresh': 'Refresh',
   'library.import': 'Import',
@@ -116,14 +106,12 @@ const en = {
   'template.blank': 'Blank Note',
   'template.blankDesc': 'Start from scratch',
   'template.titlePlaceholder': 'Note title',
-  'template.builtin': 'Built-in',
 
   // Handwriting
   'handwriting.pages': 'Pages',
   'handwriting.newPage': 'New Page',
   'handwriting.deletePage': 'Delete Page',
   'handwriting.changeTemplate': 'Change Template',
-  'handwriting.insertBefore': 'Insert Before',
   'handwriting.insertAfter': 'Insert After',
   'handwriting.duplicatePage': 'Duplicate Page',
   'handwriting.template.blank': 'Blank',
@@ -131,19 +119,11 @@ const en = {
   'handwriting.template.grid': 'Grid',
   'handwriting.template.dotted': 'Dotted',
   'handwriting.template.cornell': 'Cornell',
-  'handwriting.tool.pen': 'Pen',
-  'handwriting.tool.highlighter': 'Highlighter',
-  'handwriting.tool.eraser': 'Eraser',
-  'handwriting.tool.shape': 'Shape',
-  'handwriting.tool.lasso': 'Lasso',
   'handwriting.exportPdf': 'Export PDF',
   'handwriting.exportMarkdown': 'Export Markdown',
   'handwriting.exportPng': 'Export PNG',
-  'handwriting.exportAllPng': 'Export All Pages (ZIP)',
-  'handwriting.clearPage': 'Clear Page',
   'handwriting.zoomIn': 'Zoom In',
   'handwriting.zoomOut': 'Zoom Out',
-  'handwriting.zoomFit': 'Fit to Page',
 
   // Library detail
   'detail.title': 'Details',
@@ -162,15 +142,8 @@ const en = {
   'detail.local': 'Local',
   'detail.download': 'Download',
   'detail.upload': 'Upload',
-  'detail.downloadFailed': 'Download failed',
-  'detail.uploadFailed': 'Upload failed',
 
   // Prompts
-  'prompt.noteTitle': 'Note title:',
-  'prompt.folderName': 'Folder name:',
-  'prompt.mindmapTitle': 'Mindmap title:',
-  'prompt.nodeTitle': 'Node title:',
-  'prompt.childNodeTitle': 'Child node title:',
 
   // PDF viewer
   'pdf.thumbnails': 'Thumbnails',
@@ -185,7 +158,6 @@ const en = {
   'pdf.noReferences': 'No references',
   'pdf.loadingPdf': 'Loading PDF...',
   'pdf.areaScreenshot': 'Area screenshot',
-  'pdf.areaSelect': 'Area selection',
   'pdf.page': 'Page {0}',
 
   // PDF tools
@@ -218,8 +190,6 @@ const en = {
   'folderTree.confirmDeleteNote': 'Delete note "{0}"? You can restore it from the Trash for 30 days.',
 
   // Mindmap
-  'mindmap.label': 'Mindmap',
-  'mindmap.addRoot': '+ Root',
   'mindmap.addChild': '+ Child',
   'mindmap.addFloating': 'Floating Topic',
   'mindmap.delete': 'Delete',
@@ -227,14 +197,9 @@ const en = {
   'mindmap.redo': 'Redo',
   'mindmap.export': 'Export',
   'mindmap.search': 'Search nodes...',
-  'mindmap.minimap': 'Minimap',
   'mindmap.properties': 'Properties',
   'mindmap.themes': 'Themes',
   'mindmap.selectNodeHint': 'Select a node to view properties',
-  'mindmap.dockTop': 'Dock Top',
-  'mindmap.dockLeft': 'Dock Left',
-  'mindmap.dockRight': 'Dock Right',
-  'mindmap.dockPosition': 'Dock Position',
 
   // Sync
   'sync.title': 'Sync',
@@ -251,16 +216,13 @@ const en = {
   'sync.configSaved': 'Config saved',
   'sync.saveFailed': 'Save failed: {0}',
   'sync.syncSuccess': 'Sync complete — uploaded {0}, downloaded {1}, deleted local {2}, deleted remote {3}',
-  'sync.syncWithErrors': 'Sync completed with errors: {0}',
   'sync.syncFailed': 'Sync failed: {0}',
   'sync.testConnection': 'Test Connection',
   'sync.testing': 'Testing…',
 
   // Annotation sidebar
-  'annotation.title': 'Annotations',
   'annotation.highlight': 'Highlight',
   'annotation.note': 'Note',
-  'annotation.empty': 'Select text to create annotations',
 
   // Settings
   'settings.title': 'Settings',
@@ -299,16 +261,11 @@ const en = {
   'epub.outline': 'Outline',
   'epub.annotations': 'Annotations',
   'epub.notes': 'Notes',
-  'epub.noAnnotations': 'No annotations',
-  'epub.noNotes': 'No notes',
   'epub.noOutline': 'No outline available',
-  'epub.newNote': '+ New Note',
-  'epub.chapter': 'Chapter',
   'epub.prevChapter': 'Prev Chapter',
   'epub.nextChapter': 'Next Chapter',
 
   // Markdown viewer
-  'md.thumbnails': 'Sections',
   'md.outline': 'Outline',
   'md.annotations': 'Annotations',
   'md.notes': 'Notes',
@@ -328,16 +285,8 @@ const en = {
   'backlinks.linkedAnnotations': 'Linked Annotations ({0})',
 
   // Mindmap file tree
-  'mindmapTree.newMindmap': 'New Mindmap',
-  'mindmapTree.newFolder': 'New Folder',
-  'mindmapTree.rename': 'Rename',
-  'mindmapTree.delete': 'Delete',
-  'mindmapTree.cancel': 'Cancel',
-  'mindmapTree.confirmDeleteDir': 'Delete folder "{0}"?',
-  'mindmapTree.confirmDeleteMindmap': 'Delete mindmap "{0}"?',
 
   // Multi-window
-  'library.openAnother': 'Open Another Library',
 
   // Tags
   'tags.search': 'Search tags...',
@@ -346,7 +295,6 @@ const en = {
   'tags.newTag': 'New Tag',
   'tags.rename': 'Rename',
   'tags.delete': 'Delete',
-  'tags.deleteConfirm': 'Delete tag "{0}"? It will be removed from all items.',
   'tags.color': 'Color',
   'tags.count': 'Items',
   'tags.more': '+{0} more',
@@ -503,11 +451,7 @@ const en = {
   'annotation.color.pink': 'Pink',
   'annotation.location': 'Loc {0}',
   'annotation.areaOnPage': 'Area selection (Page {0})',
-  'annotation.titleWithCount': 'Annotations ({0})',
   'selection.underline': 'Underline',
-  'md.noSections': 'No sections',
-  'md.emptyHeading': '(Empty heading)',
-  'md.noHeadings': '(No headings)',
   'image.select': 'Select',
   'image.pan': 'Pan',
   'image.fitToWindow': 'Fit to window',
@@ -532,7 +476,6 @@ const en = {
   'embed.searchNotes': 'Search notes...',
   'embed.selectPage': '{0} — Select page',
   'embed.untitledDocument': 'Untitled Document',
-  'link.createNote': 'Create note "{0}"',
   'mermaid.emptyHint': 'Write Mermaid syntax to see diagram',
   'mermaid.invalidSyntax': 'Invalid Mermaid syntax',
   'mermaid.loading': 'Loading diagram...',
