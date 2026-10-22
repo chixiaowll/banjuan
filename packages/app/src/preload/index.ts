@@ -3,6 +3,13 @@ import type { BanjuanAPI } from '@banjuan/shared-ui'
 
 // ⌘W (File › Close Tab): the renderer closes its current tab and returns true;
 // with no handler, or nothing closable, the window closes instead.
+/** Subscribe to a main → renderer channel; returns the unsubscribe function. */
+function listen<T>(channel: string, cb: (payload: T) => void): () => void {
+  const handler = (_e: unknown, payload: T) => cb(payload)
+  ipcRenderer.on(channel, handler)
+  return () => { ipcRenderer.removeListener(channel, handler) }
+}
+
 let closeTabHandler: (() => boolean) | null = null
 ipcRenderer.on('menu:close-tab', () => {
   if (!closeTabHandler?.()) ipcRenderer.send('window:close')
@@ -324,16 +331,25 @@ const api = {
   },
   screenshot: {
     trigger: () => ipcRenderer.invoke('screenshot:trigger'),
-    onInit: (cb: (p: { image: string; width: number; height: number; scaleFactor: number; workArea?: { x: number; y: number; w: number; h: number } }) => void) => {
-      const handler = (_e: any, p: any) => cb(p)
-      ipcRenderer.on('screenshot:init', handler)
-      return () => ipcRenderer.removeListener('screenshot:init', handler)
-    },
-    ready: () => ipcRenderer.send('screenshot:ready'),
-    confirm: (dataUrl: string) => ipcRenderer.send('screenshot:confirm', dataUrl),
-    cancel: () => ipcRenderer.send('screenshot:cancel'),
     getHotkey: () => ipcRenderer.invoke('settings:getScreenshotHotkey') as Promise<{ hotkey: string; registered: boolean }>,
     setHotkey: (accel: string) => ipcRenderer.invoke('settings:setScreenshotHotkey', accel) as Promise<{ ok: boolean; hotkey: string; registered: boolean }>,
+    setInsertTarget: (available: boolean) => ipcRenderer.send('screenshot:insert-target', available),
+    onInsertIntoNote: (cb: (png: Uint8Array) => void) => listen('screenshot:insert-into-note', cb),
+    onDone: (cb: (r: { action: 'copy' | 'save' | 'pin' | 'insert'; ok: boolean; detail?: string }) => void) => listen('screenshot:done', cb),
+    onSession: (cb: (s: any) => void) => listen('screenshot:session', cb),
+    onReset: (cb: () => void) => listen('screenshot:reset', cb),
+    pageReady: () => ipcRenderer.send('screenshot:page-ready'),
+    ready: (sessionId: number) => ipcRenderer.send('screenshot:ready', sessionId),
+    setIdle: (idle: boolean) => ipcRenderer.send('screenshot:idle', idle),
+    finish: (r: any) => ipcRenderer.send('screenshot:finish', r),
+    cancel: () => ipcRenderer.send('screenshot:cancel'),
+    onPinInit: (cb: (p: { png: Uint8Array }) => void) => listen('screenshot:pin-init', cb),
+    pinRequest: () => ipcRenderer.send('screenshot:pin-request'),
+    pinReady: () => ipcRenderer.send('screenshot:pin-ready'),
+    pinMove: (dx: number, dy: number) => ipcRenderer.send('screenshot:pin-move', dx, dy),
+    pinZoom: (factor: number) => ipcRenderer.send('screenshot:pin-zoom', factor),
+    pinClose: () => ipcRenderer.send('screenshot:pin-close'),
+    pinMenu: (labels: { copy: string; save: string; close: string; fileNamePrefix: string }) => ipcRenderer.send('screenshot:pin-menu', labels),
   },
 } satisfies BanjuanAPI
 

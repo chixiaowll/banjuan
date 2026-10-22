@@ -67,6 +67,24 @@ export interface BatchExportProgress {
   error?: string
 }
 
+/** One screenshot, handed from main to the overlay page (CSS px unless noted). */
+export interface ScreenshotSession {
+  sessionId: number
+  /** BGRA, pixelWidth × pixelHeight × 4 */
+  bitmap: Uint8Array
+  pixelWidth: number
+  pixelHeight: number
+  cssWidth: number
+  cssHeight: number
+  /** Device px per CSS px of the bitmap. */
+  scaleFactor: number
+  workArea: { x: number; y: number; w: number; h: number }
+  /** Click-to-select targets, frontmost first. */
+  windows: Array<{ x: number; y: number; w: number; h: number }>
+  canInsertNote: boolean
+}
+export type ScreenshotAction = 'copy' | 'save' | 'pin' | 'insert'
+
 export interface BanjuanAPI {
   library: {
     check(path: string): Promise<LibraryConfig | null>
@@ -345,15 +363,29 @@ export interface BanjuanAPI {
   /** Desktop only: Feishu-style screen capture. Absent on mobile. */
   screenshot?: {
     trigger: () => Promise<void>
-    /** Current global hotkey (Electron accelerator) and whether it is registered. */
     getHotkey?: () => Promise<{ hotkey: string; registered: boolean }>
-    /** Set the global hotkey ('' = default). On failure `ok` is false and the previous one is kept. */
     setHotkey?: (accel: string) => Promise<{ ok: boolean; hotkey: string; registered: boolean }>
-    /** Screenshot overlay window only. */
-    onInit?: (cb: (p: { image: string; width: number; height: number; scaleFactor: number; workArea?: { x: number; y: number; w: number; h: number } }) => void) => () => void
-    ready?: () => void
-    confirm?: (dataUrl: string) => void
+    // Library window
+    setInsertTarget?: (available: boolean) => void
+    onInsertIntoNote?: (cb: (png: Uint8Array) => void) => () => void
+    onDone?: (cb: (r: { action: ScreenshotAction; ok: boolean; detail?: string }) => void) => () => void
+    // Overlay page
+    onSession?: (cb: (s: ScreenshotSession) => void) => () => void
+    onReset?: (cb: () => void) => () => void
+    /** The overlay page has registered its listeners. */
+    pageReady?: () => void
+    ready?: (sessionId: number) => void
+    setIdle?: (idle: boolean) => void
+    finish?: (r: { sessionId: number; action: ScreenshotAction; png: Uint8Array; rect: { x: number; y: number; w: number; h: number }; fileNamePrefix: string }) => void
     cancel?: () => void
+    // Pin window
+    onPinInit?: (cb: (p: { png: Uint8Array }) => void) => () => void
+    pinRequest?: () => void
+    pinReady?: () => void
+    pinMove?: (dx: number, dy: number) => void
+    pinZoom?: (factor: number) => void
+    pinClose?: () => void
+    pinMenu?: (labels: { copy: string; save: string; close: string; fileNamePrefix: string }) => void
   }
 
   /** Mobile (iPad) only: toggle "drawing mode", which disables the WebView's
