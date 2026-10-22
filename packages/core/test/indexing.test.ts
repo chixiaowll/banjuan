@@ -205,12 +205,18 @@ describe('FileWatcher', () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
-    writeFileSync(join(annDir, 'ab000000-test-file-watcher.json'), JSON.stringify(annData, null, 2))
+    const write = () => writeFileSync(join(annDir, 'ab000000-test-file-watcher.json'), JSON.stringify(annData, null, 2))
+    write()
 
     // Wait for the fs.watch event + debounce. Poll instead of a fixed sleep: under
-    // parallel test load (pnpm -r) a fixed 500ms was sometimes too short.
+    // parallel test load (pnpm -r) a fixed 500ms was sometimes too short. And
+    // rewrite now and then: macOS FSEvents can miss a write made while the watch
+    // is still starting up, which under load no amount of waiting recovers.
     const find = () => db.queryOne('SELECT id FROM annotations WHERE id = ?', ['ab000000-test-file-watcher'])
-    for (let waited = 0; !find() && waited < 5000; waited += 50) await new Promise(resolve => setTimeout(resolve, 50))
+    for (let waited = 0; !find() && waited < 8000; waited += 50) {
+      if (waited > 0 && waited % 500 === 0) write()
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
 
     watcher.stop()
 
