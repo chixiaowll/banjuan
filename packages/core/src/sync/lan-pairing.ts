@@ -23,6 +23,29 @@ export function generatePairing(rand: RandomBytes): Pairing {
   return { pin, token: toHex(tokenBytes) }
 }
 
+/**
+ * Throttles PIN guessing on the unauthenticated pairing endpoint: after
+ * `maxFailures` wrong PINs in a row, pairing is refused for `lockMs`. A 6-digit
+ * PIN otherwise falls to a LAN brute force in minutes.
+ */
+export class PairLimiter {
+  private failures = 0
+  private lockedUntil = 0
+
+  constructor(private maxFailures = 5, private lockMs = 60_000, private now: () => number = Date.now) {}
+
+  isLocked(): boolean { return this.now() < this.lockedUntil }
+
+  recordFailure(): void {
+    if (++this.failures >= this.maxFailures) {
+      this.lockedUntil = this.now() + this.lockMs
+      this.failures = 0
+    }
+  }
+
+  recordSuccess(): void { this.failures = 0 }
+}
+
 /** Whether a client-supplied token matches the host token. */
 export function verifyToken(expected: string, supplied: string): boolean {
   if (!expected || !supplied) return false

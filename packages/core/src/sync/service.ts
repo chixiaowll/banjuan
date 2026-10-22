@@ -3,7 +3,7 @@ import type { PlatformCrypto } from '../platform/crypto.js'
 import { join, relative, dirname } from '../platform/path.js'
 import type { SyncAdapter } from './adapter.js'
 import type { EventBus } from '../events/bus.js'
-import { PROTECTED_FILES, isExcluded } from './exclusions.js'
+import { PROTECTED_FILES, isExcluded, DEVICE_LOCAL_PATHS } from './exclusions.js'
 import { mergeTagState, type TagState, type TagEntry, type TagTombstone } from './tag-merge.js'
 import { reconcileFile } from './reconcile.js'
 import { conflictCopyPath, rewriteNoteConflict } from './conflict.js'
@@ -16,9 +16,7 @@ import { v4 as uuid } from 'uuid'
 // - tags.json / tags-deleted.json: the tag catalog, handled separately by a
 //   last-writer-wins-by-name merge (mergeTags) so neither side loses tags.
 const SYNC_EXCLUDED_PATHS = new Set([
-  '.banjuan/config.json',
-  '.banjuan/paired-devices.json',
-  '.banjuan/sync.json',
+  ...DEVICE_LOCAL_PATHS,
   '.banjuan/tags.json',
   '.banjuan/tags-deleted.json',
 ])

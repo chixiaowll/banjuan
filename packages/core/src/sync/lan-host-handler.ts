@@ -1,7 +1,7 @@
 import type { PlatformFS } from '../platform/index.js'
 import { join, dirname } from '../platform/path.js'
-import { isExcluded } from './exclusions.js'
-import { parseBasicAuthPassword, verifyToken } from './lan-pairing.js'
+import { isExcluded, DEVICE_LOCAL_PATHS } from './exclusions.js'
+import { parseBasicAuthPassword, verifyToken, type PairLimiter } from './lan-pairing.js'
 
 export interface DavRequest {
   method: string
@@ -32,6 +32,10 @@ export interface DavContext {
   // record a freshly PIN-paired peer (returning the minted durable token).
   isValidToken?: (token: string) => Promise<boolean>
   recordPairing?: (peerDeviceId: string, peerDeviceName: string, peerLibraryId: string) => Promise<string>
+  /** Throttles wrong-PIN attempts (one shared instance per host). */
+  pairLimiter?: PairLimiter
+  /** Called after a successful PIN pairing — the host rotates the PIN (one-time). */
+  onPaired?: () => void
 }
 
 function xmlEscape(s: string): string {
@@ -60,13 +64,10 @@ function unauthorized(): DavResponse {
   return { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="banjuan"' }, body: 'Unauthorized' }
 }
 
-// Full-path files the host must never serve or accept — per-device identity that
-// is excluded from sync (mirrors SyncService's SYNC_EXCLUDED_PATHS). Without this
-// an authenticated peer could GET/PUT/DELETE the host's config.json directly.
-const HOST_EXCLUDED_FULL_PATHS = new Set([
-  '.banjuan/config.json',
-  '.banjuan/paired-devices.json',
-])
+// Full-path files the host must never serve or accept: the same per-device set
+// SyncService excludes. Without this an authenticated peer could read the WebDAV
+// password in sync.json or overwrite the host's config.json directly.
+const HOST_EXCLUDED_FULL_PATHS = DEVICE_LOCAL_PATHS
 
 /** True if the path is a full-path-excluded file, or any segment is an excluded name/dir. */
 function isExcludedPath(reqPath: string): boolean {
@@ -89,6 +90,23 @@ export async function handleDavRequest(req: DavRequest, ctx: DavContext): Promis
   }
 }
 
+/** Routes answered without auth (identity probe, pairing, OPTIONS); they take no body. */
+export function isPublicDavRoute(method: string, path: string, ctx: DavContext): boolean {
+  const m = method.toUpperCase()
+  if (m === 'OPTIONS') return true
+  return m === 'GET' && (path === (ctx.infoPath ?? '/.banjuan-info') || path === (ctx.pairPath ?? '/.banjuan-pair'))
+}
+
+/**
+ * Whether the request carries a valid Basic-auth token. Needs only the headers,
+ * so the host can reject strangers before buffering a (possibly huge) body.
+ */
+export async function isDavAuthorized(headers: Record<string, string>, ctx: DavContext): Promise<boolean> {
+  const supplied = parseBasicAuthPassword(headers['authorization'])
+  if (supplied === null) return false
+  return verifyToken(ctx.token, supplied) || (ctx.isValidToken ? await ctx.isValidToken(supplied) : false)
+}
+
 async function routeDavRequest(req: DavRequest, ctx: DavContext): Promise<DavResponse> {
   const pairPath = ctx.pairPath ?? '/.banjuan-pair'
   const method = req.method.toUpperCase()
@@ -105,20 +123,24 @@ async function routeDavRequest(req: DavRequest, ctx: DavContext): Promise<DavRes
 
   // --- Pairing endpoint (no auth): GET /.banjuan-pair?pin=NNNNNN -> { token } ---
   if (method === 'GET' && req.path === pairPath) {
+    if (ctx.pairLimiter?.isLocked()) return { status: 429, headers: { 'Retry-After': '60' }, body: 'Too many attempts' }
     const pin = req.query?.pin ?? ''
-    if (pin === ctx.pin) {
+    if (verifyToken(ctx.pin, pin)) {
+      ctx.pairLimiter?.recordSuccess()
       const peerDeviceId = req.query?.deviceId ?? ''
       const peerDeviceName = req.query?.deviceName ?? ''
       const peerLibraryId = req.query?.libraryId ?? ''
       const token = ctx.recordPairing
         ? await ctx.recordPairing(peerDeviceId, peerDeviceName, peerLibraryId)
         : ctx.token
+      ctx.onPaired?.()
       return { status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
         token,
         deviceId: ctx.deviceId ?? '', deviceName: ctx.deviceName ?? '',
         libraryId: ctx.libraryId ?? '', libraryName: ctx.libraryName ?? '',
       }) }
     }
+    ctx.pairLimiter?.recordFailure()
     return { status: 403, headers: {}, body: 'Bad PIN' }
   }
 
@@ -127,10 +149,7 @@ async function routeDavRequest(req: DavRequest, ctx: DavContext): Promise<DavRes
   }
 
   // --- All other routes require Basic auth where password === token ---
-  const supplied = parseBasicAuthPassword(req.headers['authorization'])
-  if (supplied === null) return unauthorized()
-  const ok = verifyToken(ctx.token, supplied) || (ctx.isValidToken ? await ctx.isValidToken(supplied) : false)
-  if (!ok) return unauthorized()
+  if (!(await isDavAuthorized(req.headers, ctx))) return unauthorized()
 
   const abs = resolveSafe(ctx.rootPath, req.path)
   if (abs === null) return { status: 403, headers: {}, body: 'Forbidden' }
