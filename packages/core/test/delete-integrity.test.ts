@@ -44,3 +44,12 @@ describe('delete keeps disk and database consistent', () => {
     expect(await lib.notes.get(mm.id)).toBeNull()
   })
 })
+
+describe('saving into a deleted note', () => {
+  it('rejects with a clear error instead of a TypeError', async () => {
+    const lib = await Library.init(mkdtempSync(join(tmpdir(), 'del-')) + '/lib', deps() as any, 'T')
+    const note = await lib.notes.create({ title: 'gone' } as any)
+    await lib.notes.delete(note.id)
+    await expect(lib.notes.update(note.id, { content: '[]' })).rejects.toThrow('Note not found')
+  })
+})

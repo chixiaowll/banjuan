@@ -3,6 +3,7 @@ import { useT } from '../../i18n/index.js'
 import TemplatePicker, { type NoteType } from '../notes/TemplatePicker.js'
 import { useBanjuanAPI } from '../../api.js'
 import { useLongPress } from '../../hooks/useLongPress.js'
+import { notifyNotesChanged } from '../../utils/libraryEvents.js'
 
 interface NoteInfo {
   id: string
@@ -65,10 +66,13 @@ export default function NotesPanel({ docId, onOpenNote, onCreateNote, onDeleteNo
 
   const handleDeleteNote = useCallback(async (noteId: string) => {
     setContextMenu(null)
+    const title = notes.find(n => n.id === noteId)?.title ?? ''
+    if (!window.confirm(t('folderTree.confirmDeleteNote', title))) return
     await api.notes.delete(noteId)
     onDeleteNote?.(noteId)
     loadNotes()
-  }, [loadNotes, onDeleteNote])
+    notifyNotesChanged()
+  }, [loadNotes, onDeleteNote, notes, t])
 
   useEffect(() => {
     if (!contextMenu) return

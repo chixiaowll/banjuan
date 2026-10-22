@@ -355,6 +355,9 @@ export class NoteService {
 
   async update(id: string, updates: { title?: string; content?: string; typeMeta?: Record<string, unknown> }): Promise<Note> {
     id = this.resolveId(id)
+    // A late save from an editor whose note was just deleted: fail clearly
+    // instead of a TypeError on the missing row below.
+    if (!this.db.queryOne('SELECT id FROM notes WHERE id = ?', [id])) throw new Error('Note not found')
     const now = new Date().toISOString()
     const sets: string[] = ['updated_at = ?']
     const params: unknown[] = [now]

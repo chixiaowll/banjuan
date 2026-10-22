@@ -376,6 +376,8 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
       try {
         await api.notes.update(id, { content: json })
         emitLinksSynced()
+      } catch (e) {
+        console.error('[NoteView] save failed', id, e)
       } finally {
         setSaving(false)
       }

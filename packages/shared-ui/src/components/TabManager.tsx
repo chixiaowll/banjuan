@@ -294,6 +294,26 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     }
   }, [activeTabId])
 
+  // Close tabs whose note / document was deleted from any view; otherwise the
+  // editor stays open and keeps saving into something that no longer exists.
+  useEffect(() => {
+    const prune = async () => {
+      for (const tab of tabs) {
+        if (tab.type !== 'note' && tab.type !== 'document') continue
+        const data = tabData.get(tab.id)
+        if (!data) continue
+        const exists = tab.type === 'note' ? await api.notes.get(data.id) : await api.documents.get(data.id)
+        if (!exists) closeTab(tab.id)
+      }
+    }
+    document.addEventListener('notes-changed', prune)
+    document.addEventListener('documents-changed', prune)
+    return () => {
+      document.removeEventListener('notes-changed', prune)
+      document.removeEventListener('documents-changed', prune)
+    }
+  }, [tabs, tabData, api, closeTab])
+
   const titleBarElement = (
     <TitleBar
       tabs={tabs}

@@ -216,6 +216,8 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
       try {
         await api.notes.update(id, { content: json })
         emitLinksSynced()
+      } catch (e) {
+        console.error('[PdfNoteSidebar] save failed', id, e)
       } finally {
         setSaving(false)
       }

@@ -20,6 +20,7 @@ import { schema as blockNoteSchema } from '../components/notes/BlockEditor.js'
 import { exportToDirectory, newRunId } from '../utils/exportToDirectory.js'
 import { listExportNotes, buildExportEntries } from '../utils/exportEntries.js'
 import { useExportManagerStore } from '../stores/useExportManagerStore.js'
+import { notifyNotesChanged, notifyDocumentsChanged } from '../utils/libraryEvents.js'
 
 interface Document {
   id: string
@@ -643,9 +644,11 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     if (selectedSection === 'documents') {
       await api.documents.delete(id)
       await loadDocuments()
+      notifyDocumentsChanged()
     } else if (selectedSection === 'notes') {
       await api.notes.delete(id)
       await loadNotes()
+      notifyNotesChanged()
     }
     if (selectedItemId === id) {
       setSelectedItemId(null)
@@ -3118,6 +3121,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   if (!confirm(locale === 'zh' ? `确定删除文件夹「${dirPath.split('/').pop()}」及其所有文档？` : `Delete folder "${dirPath.split('/').pop()}" and all documents inside?`)) return
                   if (api.documents.deleteDir) await api.documents.deleteDir(dirPath)
                   await loadDocuments()
+                  notifyDocumentsChanged()
                   if (selectedDir === dirPath || selectedDir?.startsWith(dirPath + '/')) setSelectedDir(null)
                 }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6, color: '#f38ba8' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
@@ -3169,6 +3173,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   if (api.notes.deleteDir) await api.notes.deleteDir(dirPath)
                   await loadNotes()
                   await loadNoteDirs()
+                  notifyNotesChanged()
                   if (selectedNoteDir === dirPath || selectedNoteDir?.startsWith(dirPath + '/')) setSelectedNoteDir(null)
                 }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6, color: '#f38ba8' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
