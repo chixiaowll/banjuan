@@ -259,15 +259,19 @@ export function registerIpcHandlers() {
     const path = await import('node:path')
     const targetDir = destDir ? path.join(library.rootPath, destDir) : library.rootPath
     await fs.mkdir(targetDir, { recursive: true })
-    let lastDoc = null
+    const destPaths: string[] = []
     for (const srcPath of result.filePaths) {
-      const fileName = path.basename(srcPath)
-      const destPath = path.join(targetDir, fileName)
+      const destPath = path.join(targetDir, path.basename(srcPath))
       if (srcPath !== destPath) {
         await fs.copyFile(srcPath, destPath)
       }
-      lastDoc = await library.documents.import(destPath)
+      destPaths.push(destPath)
     }
+    // One batch import (per-file import() re-read every document JSON: O(N²)).
+    const imported = await library.documents.importMany(destPaths)
+    const lastDoc = [...imported].reverse().find(r => r.doc)?.doc ?? null
+    const firstError = imported.find(r => r.error)?.error
+    if (!lastDoc && firstError) throw new Error(firstError)
     return lastDoc
   })
 
@@ -535,6 +539,8 @@ export function registerIpcHandlers() {
     const targetDir = destDir ? join(lib.rootPath, destDir) : lib.rootPath
     mkdirSync(targetDir, { recursive: true })
 
+    // Files are copied as the tree is walked, then imported in one batch below.
+    const pending: Array<{ title: string; destPath: string }> = []
     const importFile = async (srcPath: string, dir: string) => {
       const fileName = basename(srcPath)
       let destName = fileName
@@ -549,8 +555,7 @@ export function registerIpcHandlers() {
       }
       try {
         if (srcPath !== destPath) copyFileSync(srcPath, destPath)
-        await lib.documents.import(destPath)
-        results.push({ title: destName, success: true })
+        pending.push({ title: destName, destPath })
       } catch (err: any) {
         results.push({ title: destName, success: false, error: err?.message })
       }
@@ -583,6 +588,11 @@ export function registerIpcHandlers() {
         results.push({ title: basename(filePath), success: false, error: err?.message })
       }
     }
+    // One batch import (per-file import() re-read every document JSON: O(N²)).
+    const imported = await lib.documents.importMany(pending.map(p => p.destPath))
+    imported.forEach((r, i) => results.push(r.doc
+      ? { title: pending[i].title, success: true }
+      : { title: pending[i].title, success: false, error: r.error }))
     return results
   }
 
