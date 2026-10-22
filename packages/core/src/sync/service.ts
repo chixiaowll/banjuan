@@ -32,6 +32,9 @@ export interface SyncResult {
   stubbed: number
   conflicts: number
   errors: string[]
+  /** Whether this sync changed any local file (downloads, deletions, conflict
+   *  copies, stubs, merged tags) — if not, the caller can skip re-indexing. */
+  localChanged: boolean
 }
 
 // Files above this size are never read into memory to hash — mobile
@@ -94,7 +97,7 @@ export class SyncService {
 
   async sync(onProgress?: (progress: SyncProgress) => void, options?: SyncOptions): Promise<SyncResult> {
     this.events?.emit('sync:started', { timestamp: Date.now() })
-    const result: SyncResult = { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0, stubbed: 0, conflicts: 0, errors: [] }
+    const result: SyncResult = { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0, stubbed: 0, conflicts: 0, errors: [], localChanged: false }
 
     onProgress?.({ phase: 'scanning', current: 0, total: 0, currentFile: '' })
 
@@ -256,12 +259,16 @@ export class SyncService {
 
     // The tag catalog is merged (not mtime-overwritten) so neither device loses
     // tags and deletions propagate via tombstones. Failure here must not fail sync.
+    let tagsChanged = false
     try {
-      await this.mergeTags()
+      tagsChanged = await this.mergeTags()
     } catch (err) {
       result.errors.push(`tags-merge: ${(err as Error).message}`)
       this.events?.emit('sync:error', { error: (err as Error).message })
     }
+
+    result.localChanged = tagsChanged ||
+      result.downloaded + result.deletedLocal + result.conflicts + result.stubbed > 0
 
     onProgress?.({ phase: 'finalizing', current: total, total, currentFile: '' })
     await this.writeArchive({ version: 2, timestamp: Date.now(), files: nextArchive })
@@ -460,19 +467,25 @@ export class SyncService {
   // tags.json + tags-deleted.json are excluded from the generic file sync and
   // reconciled here by a last-writer-wins-by-name merge with tombstones, so a
   // fresh/empty device never clobbers a peer's tags and deletions propagate.
-  private async mergeTags(): Promise<void> {
+  /** Returns whether the local tag files' content changed. */
+  private async mergeTags(): Promise<boolean> {
     const local = await this.readLocalTagState()
     const remote = await this.fetchRemoteTagState()
     const merged = mergeTagState(local, remote)
 
     const tagsAbs = join(this.rootPath, TAGS_REL)
     const tombAbs = join(this.rootPath, TAGS_DELETED_REL)
-    await this.fs.writeTextFile(tagsAbs, JSON.stringify(merged.tags, null, 2))
-    await this.fs.writeTextFile(tombAbs, JSON.stringify(merged.tombstones, null, 2))
+    const readOr = (p: string) => this.fs.readTextFile(p).catch(() => '')
+    const before = (await readOr(tagsAbs)) + '\0' + (await readOr(tombAbs))
+    const tagsText = JSON.stringify(merged.tags, null, 2)
+    const tombText = JSON.stringify(merged.tombstones, null, 2)
+    await this.fs.writeTextFile(tagsAbs, tagsText)
+    await this.fs.writeTextFile(tombAbs, tombText)
 
     await this.ensureRemoteDir(TAGS_REL)
     await this.adapter.upload(tagsAbs, this.toRemotePath(TAGS_REL))
     await this.adapter.upload(tombAbs, this.toRemotePath(TAGS_DELETED_REL))
+    return before !== tagsText + '\0' + tombText
   }
 
   private async readLocalTagState(): Promise<TagState> {

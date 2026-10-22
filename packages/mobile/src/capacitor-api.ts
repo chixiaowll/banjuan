@@ -495,6 +495,8 @@ export function createCapacitorAPI(): BanjuanAPI {
         const me = await getDeviceIdentity()
         const svc = new SyncService(getLib().rootPath, adapter, getLib().events, deps.fs, config.remotePath, deps.crypto, me.deviceName)
         const result = await svc.sync(onProgress)
+        // Upload-only / no-op sync: no local file changed, nothing to import or re-index.
+        if (!result.localChanged) return result
         onProgress?.({ phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
         try {
           const deps = createDeps(getLib().rootPath)
@@ -634,8 +636,10 @@ export function createCapacitorAPI(): BanjuanAPI {
         const me = await getDeviceIdentity()
         const svc = new SyncService(lib.rootPath, adapter, lib.events, syncDeps.fs, '/', syncDeps.crypto, me.deviceName)
         const result = await svc.sync(onProgress)
-        onProgress?.({ phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
-        await lib.createIndexService().rebuildFull()
+        if (result.localChanged) {   // nothing local changed → no re-index needed
+          onProgress?.({ phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
+          await lib.createIndexService().rebuildFull()
+        }
         return result
       },
 

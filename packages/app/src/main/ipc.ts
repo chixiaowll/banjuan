@@ -864,9 +864,12 @@ export function registerIpcHandlers() {
       const result = await svc.sync((p) => {
         event.sender.send('sync:progress', p)
       })
-      event.sender.send('sync:progress', { phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
-      const indexService = library.createIndexService()
-      await indexService.rebuildFull()
+      // An upload-only / no-op sync leaves every local file as it was — skip the
+      // full re-index (it re-read the whole library after every sync).
+      if (result.localChanged) {
+        event.sender.send('sync:progress', { phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
+        await library.createIndexService().rebuildFull()
+      }
       return result
     } finally {
       await adapter.disconnect()
@@ -1034,9 +1037,10 @@ export function registerIpcHandlers() {
     const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, '/', deps.crypto, getDeviceIdentity().deviceName)
     try {
       const result = await svc.sync((p) => { event.sender.send('sync:progress', p) })
-      event.sender.send('sync:progress', { phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
-      const indexService = library.createIndexService()
-      await indexService.rebuildFull()
+      if (result.localChanged) {   // nothing local changed → no re-index needed
+        event.sender.send('sync:progress', { phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
+        await library.createIndexService().rebuildFull()
+      }
       return result
     } finally {
       await adapter.disconnect()

@@ -116,6 +116,22 @@ describe('WebDAV sync safety', () => {
     expect(r.errors.length).toBeGreaterThan(0)
   })
 
+  it('reports localChanged only when this device\'s files changed (so the index rebuild can be skipped)', async () => {
+    const { root, adapter, svc } = setup()
+    edit(join(root, 'a.txt'), 'A', clock - 60_000)
+    await svc.sync()                                             // first sync may write tag files
+    clock += 60_000
+    edit(join(root, 'a.txt'), 'A2', clock - 10_000)
+    const upload = await svc.sync()
+    expect(upload.uploaded).toBe(1)
+    expect(upload.localChanged).toBe(false)                     // upload-only: nothing local changed
+    clock += 60_000
+    adapter.editRemote('/a.txt', 'A3 from another device')
+    const download = await svc.sync()
+    expect(download.downloaded).toBe(1)
+    expect(download.localChanged).toBe(true)
+  })
+
   it('a deletion arriving from another device moves the local file to the sync trash', async () => {
     const { root, adapter, svc } = setup()
     edit(join(root, 'z.txt'), 'precious', clock - 60_000)
