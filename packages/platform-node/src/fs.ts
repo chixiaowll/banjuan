@@ -2,6 +2,35 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import type { PlatformFS } from '@banjuan/core'
 
+/** Suffix of in-flight temp files; sync excludes it (see core sync/exclusions). */
+export const TEMP_SUFFIX = '.banjuan-tmp'
+
+/**
+ * Write via a temp file in the same directory, fsync, then rename over the
+ * target. A crash or power loss mid-write leaves the old file or the new one —
+ * never a truncated JSON that would break the index and then sync to every
+ * device. Fully synchronous, so no other code in this process ever sees the
+ * temp file; on any failure it is removed and the original is untouched.
+ */
+function writeAtomic(filePath: string, data: Uint8Array | string): void {
+  const dir = path.dirname(filePath)
+  fs.mkdirSync(dir, { recursive: true })
+  const tmp = path.join(dir, `.${path.basename(filePath)}.${process.pid}-${Math.random().toString(36).slice(2)}${TEMP_SUFFIX}`)
+  try {
+    const fd = fs.openSync(tmp, 'w')
+    try {
+      fs.writeFileSync(fd, data)
+      fs.fsyncSync(fd)
+    } finally {
+      fs.closeSync(fd)
+    }
+    fs.renameSync(tmp, filePath)
+  } catch (e) {
+    fs.rmSync(tmp, { force: true })
+    throw e
+  }
+}
+
 export class NodeFS implements PlatformFS {
   async readFile(filePath: string): Promise<Uint8Array> {
     return fs.readFileSync(filePath)
@@ -12,13 +41,11 @@ export class NodeFS implements PlatformFS {
   }
 
   async writeFile(filePath: string, data: Uint8Array): Promise<void> {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true })
-    fs.writeFileSync(filePath, data)
+    writeAtomic(filePath, data)
   }
 
   async writeTextFile(filePath: string, content: string): Promise<void> {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true })
-    fs.writeFileSync(filePath, content, 'utf-8')
+    writeAtomic(filePath, content)   // strings are written as UTF-8
   }
 
   async exists(filePath: string): Promise<boolean> {
