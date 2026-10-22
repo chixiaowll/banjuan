@@ -4,3 +4,4 @@ dist/
 .DS_Store
 .superpowers/
 packages/app/release/
+packages/app/resources/cli-bundle/
