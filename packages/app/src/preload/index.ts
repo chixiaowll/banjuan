@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
+// ⌘W (File › Close Tab): the renderer closes its current tab and returns true;
+// with no handler, or nothing closable, the window closes instead.
+let closeTabHandler: (() => boolean) | null = null
+ipcRenderer.on('menu:close-tab', () => {
+  if (!closeTabHandler?.()) ipcRenderer.send('window:close')
+})
+
 const api = {
   library: {
     check: (path: string) => ipcRenderer.invoke('library:check', path),
@@ -285,6 +292,12 @@ const api = {
     },
     sendResult: (requestId: string, dataUrl: string | null) => {
       ipcRenderer.send(`note-render-result:${requestId}`, dataUrl)
+    },
+  },
+  menu: {
+    onCloseTab: (handler: () => boolean) => {
+      closeTabHandler = handler
+      return () => { if (closeTabHandler === handler) closeTabHandler = null }
     },
   },
   screenshot: {

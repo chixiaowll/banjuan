@@ -17,6 +17,7 @@ import ExportPanel from './ExportPanel.js'
 import { ResizeHandle, useResizable } from './ResizeHandle.js'
 import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 import { TabActiveContext } from './tabActive.js'
+import { readTabSession, writeTabSession, tabShortcut, type SavedTab } from './tabSession.js'
 import '../styles/mobile.css'
 
 const LIBRARY_TAB_ID = 'library'
@@ -79,6 +80,10 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
   // detail content into it so detail + plugins share one resizable container.
   const [inspectorEl, setInspectorEl] = useState<HTMLDivElement | null>(null)
   const tabHistoryRef = useRef<string[]>([LIBRARY_TAB_ID])
+  // Tabs whose content has been rendered. A tab mounts the first time it's
+  // shown and then stays mounted (keeping scroll/editor state) until closed.
+  const mountedTabsRef = useRef(new Set<string>([LIBRARY_TAB_ID]))
+  mountedTabsRef.current.add(activeTabId)
 
   const activateTab = useCallback((tabId: string) => {
     setActiveTabId(tabId)
@@ -286,6 +291,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
 
   const closeTab = useCallback((tabId: string) => {
     if (tabId === LIBRARY_TAB_ID) return
+    mountedTabsRef.current.delete(tabId)
     setTabs(prev => prev.filter(t => t.id !== tabId))
     setTabData(prev => { const m = new Map(prev); m.delete(tabId); return m })
     if (activeTabId === tabId) {
@@ -297,6 +303,86 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
       tabHistoryRef.current = tabHistoryRef.current.filter(id => id !== tabId)
     }
   }, [activeTabId])
+
+  // Restore the tabs open when this library was last closed. Entities are
+  // fetched fresh (titles may have changed, deleted ones are skipped) and the
+  // tabs mount lazily, so restoring many PDFs doesn't slow startup.
+  const restoredRef = useRef(false)
+  const activeTabIdRef = useRef(activeTabId)
+  activeTabIdRef.current = activeTabId
+  useEffect(() => {
+    let cancelled = false
+    const session = readTabSession(localStorage, libraryPath)
+    void (async () => {
+      const entries = await Promise.all((session?.tabs ?? []).map(async (s): Promise<[Tab, any] | null> => {
+        try {
+          if (s.kind === 'tag-manager') return [{ id: 'tag-manager', type: 'tag-manager', title: t('tags.manager'), closable: true }, undefined]
+          if (s.kind === 'document') {
+            const d = await api.documents.get(s.id)
+            return d ? [{ id: `doc-${d.id}`, type: 'document', title: d.title, closable: true }, d] : null
+          }
+          const n = await api.notes.get(s.id)
+          return n ? [{ id: `note-${n.id}`, type: 'note', title: n.title, closable: true }, n] : null
+        } catch { return null }
+      }))
+      if (cancelled) return
+      const restored = entries.filter((e): e is [Tab, any] => !!e)
+      if (restored.length > 0) {
+        // Merge: keep anything the user opened while we were loading.
+        setTabs(prev => {
+          const have = new Set(prev.map(x => x.id))
+          const [library, ...rest] = prev
+          return [library, ...restored.map(([tab]) => tab).filter(tab => !have.has(tab.id)), ...rest]
+        })
+        setTabData(prev => {
+          const m = new Map(prev)
+          for (const [tab, data] of restored) if (data && !m.has(tab.id)) m.set(tab.id, data)
+          return m
+        })
+        if (session && activeTabIdRef.current === LIBRARY_TAB_ID && restored.some(([tab]) => tab.id === session.active)) {
+          activateTab(session.active)
+        }
+      }
+      restoredRef.current = true
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (!restoredRef.current) return   // don't overwrite the saved session before it's restored
+    const saved: SavedTab[] = []
+    for (const tab of tabs) {
+      if (tab.type === 'tag-manager') saved.push({ kind: 'tag-manager' })
+      else if (tab.type === 'document' || tab.type === 'note') {
+        const id = tabData.get(tab.id)?.id
+        if (id) saved.push({ kind: tab.type, id })
+      }
+    }
+    writeTabSession(localStorage, libraryPath, { tabs: saved, active: activeTabId })
+  }, [tabs, tabData, activeTabId, libraryPath])
+
+  // ⌘1–8 / ⌘9 / ⌃Tab switch tabs (Ctrl instead of ⌘ off macOS).
+  useEffect(() => {
+    const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing) return
+      const target = tabShortcut(e, isMac, tabs.map(x => x.id), activeTabId)
+      if (!target) return
+      e.preventDefault()
+      if (target !== activeTabId) activateTab(target)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [tabs, activeTabId, activateTab])
+
+  // File › Close Tab (⌘W) closes the current tab; on the library tab it lets
+  // the window close, like a browser's last tab.
+  useEffect(() => api.menu?.onCloseTab(() => {
+    const tab = tabs.find(x => x.id === activeTabId)
+    if (!tab?.closable) return false
+    closeTab(tab.id)
+    return true
+  }), [api, tabs, activeTabId, closeTab])
 
   // Close tabs whose note / document was deleted from any view; otherwise the
   // editor stays open and keeps saving into something that no longer exists.
@@ -390,7 +476,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
               }}
             >
               <TabActiveContext.Provider value={tab.id === activeTabId}>
-              <Suspense fallback={null}>
+              {mountedTabsRef.current.has(tab.id) && <Suspense fallback={null}>
               {tab.type === 'library' && (
                 <LibraryView
                   rootPath={libraryPath}
@@ -424,7 +510,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
               {tab.type === 'tag-manager' && (
                 <TagManagerView libraryName={libraryName} onBack={() => closeTab(tab.id)} />
               )}
-              </Suspense>
+              </Suspense>}
               </TabActiveContext.Provider>
             </div>
           ))}
