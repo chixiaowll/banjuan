@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { registerFlush } from './flushRegistry.js'
 
 type SaveRun = () => Promise<void> | void
 
@@ -41,8 +42,11 @@ export function useDebouncedSaver(delay = 800, flushKey?: unknown): DebouncedSav
     const saver = ref.current!
     const onUnload = () => { void saver.flush() }
     window.addEventListener('beforeunload', onUnload)
+    // Window close / app quit wait for this (see flushRegistry).
+    const unregister = registerFlush(() => saver.flush())
     return () => {
       window.removeEventListener('beforeunload', onUnload)
+      unregister()
       void saver.flush()
     }
   }, [])

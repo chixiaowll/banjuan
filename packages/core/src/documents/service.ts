@@ -6,9 +6,11 @@ import type { SearchService } from '../search/service.js'
 import type { EventBus } from '../events/bus.js'
 import { JsonStore } from '../storage/json-store.js'
 import { escapeLike, LIKE_ESCAPE } from '../db/like.js'
+import type { TrashService } from '../trash/service.js'
 
 export class DocumentService {
   private store: JsonStore<DocumentFileData>
+  private trash: TrashService | null = null
 
   constructor(
     private db: PlatformDatabase,
@@ -351,9 +353,14 @@ export class DocumentService {
     return Array.from(dirs).sort()
   }
 
+  /** Deletes move the file to the recycle bin instead of erasing it. */
+  setTrash(trash: TrashService): void { this.trash = trash }
+
   async delete(id: string): Promise<void> {
     const doc = await this.get(id)
     if (!doc) return
+    const incoming = this.db.query<{ source_id: string; context: string }>(
+      'SELECT source_id, context FROM doc_links WHERE target_id = ?', [id])
 
     // Database first, in one transaction, children before the row (doc_links has
     // a foreign key to documents); disk only after it commits. The old order
@@ -364,10 +371,21 @@ export class DocumentService {
       this.db.run('DELETE FROM documents WHERE id = ?', [id])
     })
     this.search.removeById(id)
-    await this.store.delete(id)
-    const absPath = join(this.rootPath, doc.path)
-    if (await this.fs.exists(absPath)) {
-      await this.fs.remove(absPath)
+    if (this.trash) {
+      try {
+        await this.trash.putDocument(await this.store.read(id), doc, incoming.map(l => ({ sourceId: l.source_id, context: l.context })))
+        await this.store.delete(id)
+      } catch (e) {
+        // Leave the file and its metadata where they are: the document comes
+        // back on the next rebuild rather than being erased without a copy.
+        console.error('[documents] moving to the recycle bin failed; file kept in place', id, e)
+      }
+    } else {
+      await this.store.delete(id)
+      const absPath = join(this.rootPath, doc.path)
+      if (await this.fs.exists(absPath)) {
+        await this.fs.remove(absPath)
+      }
     }
     this.events.emit('document:deleted', { id })
   }
@@ -381,7 +399,9 @@ export class DocumentService {
     }
     const absDir = join(this.rootPath, dirPath)
     if (await this.fs.exists(absDir)) {
-      await this.fs.rmdir(absDir, { recursive: true })
+      // Files the library doesn't track (other formats, …) go to the bin with the folder.
+      if (this.trash && (await this.trash.containsFiles(absDir))) await this.trash.putFolder(absDir, dirPath, 'documents')
+      else await this.fs.rmdir(absDir, { recursive: true })
     }
   }
 

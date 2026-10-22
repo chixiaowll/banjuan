@@ -31,6 +31,7 @@ import type {
   LibraryConfig,
   SearchResult,
   SearchOptions,
+  TrashEntry,
 } from '@banjuan/core'
 
 // ---------------------------------------------------------------------------
@@ -322,6 +323,19 @@ export interface BanjuanAPI {
     sendResult(requestId: string, dataUrl: string | null): void
   }
 
+  /** Recycle bin: deleted documents, notes and folders, kept for 30 days. */
+  trash?: {
+    list(): Promise<TrashEntry[]>
+    restore(entryId: string): Promise<{ kind: TrashEntry['kind']; id: string }>
+    purge(entryId: string): Promise<void>
+    empty(): Promise<void>
+  }
+
+  /** Desktop only: window-close / app-quit asks the renderer to write pending edits first. */
+  lifecycle?: {
+    onFlushRequest(handler: () => Promise<void>): () => void
+  }
+
   /** Desktop only: application-menu commands routed to the renderer. */
   menu?: {
     /** File › Close Tab (⌘W). Return true if a tab was closed; false lets the window close. */
@@ -335,6 +349,11 @@ export interface BanjuanAPI {
     getHotkey?: () => Promise<{ hotkey: string; registered: boolean }>
     /** Set the global hotkey ('' = default). On failure `ok` is false and the previous one is kept. */
     setHotkey?: (accel: string) => Promise<{ ok: boolean; hotkey: string; registered: boolean }>
+    /** Screenshot overlay window only. */
+    onInit?: (cb: (p: { image: string; width: number; height: number; scaleFactor: number; workArea?: { x: number; y: number; w: number; h: number } }) => void) => () => void
+    ready?: () => void
+    confirm?: (dataUrl: string) => void
+    cancel?: () => void
   }
 
   /** Mobile (iPad) only: toggle "drawing mode", which disables the WebView's

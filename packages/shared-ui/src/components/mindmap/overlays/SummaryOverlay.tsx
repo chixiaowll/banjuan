@@ -1,8 +1,10 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import { useMindmapStore, type MindmapNodeData } from '../useMindmapStore.js'
 import { useNodeSizeStore } from '../useNodeSizeStore.js'
 import { useT } from '../../../i18n/index.js'
 import type { Node } from '@xyflow/react'
+import { useEscapeKey } from '../../../utils/useEscapeKey.js'
+import { useFitInViewport } from '../../../utils/useFitInViewport.js'
 
 const BRACE_WIDTH = 20
 const GAP = 16
@@ -42,6 +44,9 @@ function SummaryBrace({ summary, rfNodes, nodeSizes, onRemove }: {
 }) {
   const t = useT()
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useFitInViewport(menuRef)
+  useEscapeKey(!!contextMenu, () => setContextMenu(null))
 
   const allIds = new Set<string>()
   for (const id of summary.nodeIds) {
@@ -106,7 +111,7 @@ function SummaryBrace({ summary, rfNodes, nodeSizes, onRemove }: {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 999 }}
             onClick={() => setContextMenu(null)} />
-          <div style={{
+          <div ref={menuRef} style={{
             position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 1000,
             background: 'var(--surface, #fff)', border: '1px solid var(--border, #e0e0e0)',
             borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.15)',

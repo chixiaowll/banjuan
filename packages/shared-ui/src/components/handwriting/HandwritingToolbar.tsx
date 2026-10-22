@@ -3,6 +3,7 @@ import { Eraser, Lasso, Trash2, Undo2, Redo2, Minus, Plus, ChevronLeft, ChevronR
 import { useHandwritingStore } from './useHandwritingStore.js'
 import { useT } from '../../i18n/index.js'
 import type { DrawingTool, ToolState, ToolPreset } from './HandwritingEditor.js'
+import { useEscapeKey } from '../../utils/useEscapeKey.js'
 
 const COLORS = [
   '#1a1a1a', '#5c5c5c', '#3182ce', '#805ad5',
@@ -50,6 +51,7 @@ export default function HandwritingToolbar({
   const setCurrentPage = useHandwritingStore(s => s.setCurrentPage)
 
   const [showColorPicker, setShowColorPicker] = useState(false)
+  useEscapeKey(showColorPicker, () => setShowColorPicker(false))
   const [showWidthPicker, setShowWidthPicker] = useState(false)
 
   const isEraserActive = toolState.tool === 'eraser'

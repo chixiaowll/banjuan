@@ -6,6 +6,7 @@ import { useT } from '../i18n/index.js'
 import type { MessageKey } from '../i18n/index.js'
 import { highlightParts, searchTerms } from '../utils/searchHighlight.js'
 import { requestDocPage } from '../utils/docNavigation.js'
+import { useEscapeKey } from '../utils/useEscapeKey.js'
 
 /**
  * ⌘K global search: notes (title, body, mind-map nodes), documents and
@@ -55,6 +56,7 @@ export default function SearchPalette({ onClose, onOpenNote, onOpenDocument }: P
   const listRef = useRef<HTMLDivElement>(null)
   const requestRef = useRef(0)
   const terms = useMemo(() => searchTerms(query), [query])
+  useEscapeKey(true, onClose)
 
   useEffect(() => { inputRef.current?.focus() }, [])
 
@@ -115,9 +117,8 @@ export default function SearchPalette({ onClose, onOpenNote, onOpenDocument }: P
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.nativeEvent.isComposing) return
     // These keys belong to the palette, not to the viewer / tab shortcuts underneath.
-    if (['Escape', 'ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) e.stopPropagation()
-    if (e.key === 'Escape') { e.preventDefault(); onClose() }
-    else if (e.key === 'ArrowDown') { e.preventDefault(); if (ordered.length) setSelected(s => (s + 1) % ordered.length) }
+    if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) e.stopPropagation()
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (ordered.length) setSelected(s => (s + 1) % ordered.length) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); if (ordered.length) setSelected(s => (s - 1 + ordered.length) % ordered.length) }
     else if (e.key === 'Enter') { e.preventDefault(); const item = ordered[selected]; if (item) void open(item) }
   }

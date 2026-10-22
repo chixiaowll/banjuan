@@ -315,6 +315,11 @@ export function registerIpcHandlers() {
     return getLib(event).documents.renameDir(oldPath, newPath)
   })
 
+  ipcMain.handle('trash:list', async (event) => getLib(event).trash.list())
+  ipcMain.handle('trash:restore', async (event, entryId: string) => getLib(event).trash.restore(entryId))
+  ipcMain.handle('trash:purge', async (event, entryId: string) => getLib(event).trash.purge(entryId))
+  ipcMain.handle('trash:empty', async (event) => getLib(event).trash.empty())
+
   ipcMain.handle('documents:importFiles', async (event, filePaths: string[], destDir?: string) => {
     const library = getLib(event)
     return importDocumentFiles(library, filePaths, destDir ?? null)

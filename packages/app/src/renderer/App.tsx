@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
-import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService, FeedbackHost, useT } from '@banjuan/shared-ui'
+import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService, FeedbackHost, useT, flushAll } from '@banjuan/shared-ui'
 import WelcomeView from './views/WelcomeView.js'
 import ScreenshotOverlay from './views/ScreenshotOverlay.js'
 import { electronAPI } from './electron-api.js'
@@ -70,6 +70,9 @@ function MainApp() {
   useEffect(() => {
     if (library) setReady(true)
   }, [library])
+
+  // Window close / app quit: write every pending edit first (main waits for this).
+  useEffect(() => electronAPI.lifecycle?.onFlushRequest(flushAll), [])
 
   if (!ready) {
     return (

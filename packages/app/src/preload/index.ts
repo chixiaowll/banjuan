@@ -1,10 +1,19 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { BanjuanAPI } from '@banjuan/shared-ui'
 
 // ⌘W (File › Close Tab): the renderer closes its current tab and returns true;
 // with no handler, or nothing closable, the window closes instead.
 let closeTabHandler: (() => boolean) | null = null
 ipcRenderer.on('menu:close-tab', () => {
   if (!closeTabHandler?.()) ipcRenderer.send('window:close')
+})
+
+// Before this window closes or the app quits, main asks us to write pending
+// edits (flushRegistry) and waits for the reply.
+let flushHandler: (() => Promise<void>) | null = null
+ipcRenderer.on('app:flush', async (_e, id: number) => {
+  try { await flushHandler?.() } catch (err) { console.error('[flush] failed', err) }
+  ipcRenderer.send('app:flush-done', id)
 })
 
 const api = {
@@ -295,6 +304,18 @@ const api = {
       ipcRenderer.send(`note-render-result:${requestId}`, dataUrl)
     },
   },
+  trash: {
+    list: () => ipcRenderer.invoke('trash:list'),
+    restore: (entryId: string) => ipcRenderer.invoke('trash:restore', entryId),
+    purge: (entryId: string) => ipcRenderer.invoke('trash:purge', entryId),
+    empty: () => ipcRenderer.invoke('trash:empty'),
+  },
+  lifecycle: {
+    onFlushRequest: (handler: () => Promise<void>) => {
+      flushHandler = handler
+      return () => { if (flushHandler === handler) flushHandler = null }
+    },
+  },
   menu: {
     onCloseTab: (handler: () => boolean) => {
       closeTabHandler = handler
@@ -314,6 +335,6 @@ const api = {
     getHotkey: () => ipcRenderer.invoke('settings:getScreenshotHotkey') as Promise<{ hotkey: string; registered: boolean }>,
     setHotkey: (accel: string) => ipcRenderer.invoke('settings:setScreenshotHotkey', accel) as Promise<{ ok: boolean; hotkey: string; registered: boolean }>,
   },
-}
+} satisfies BanjuanAPI
 
 contextBridge.exposeInMainWorld('electronAPI', api)

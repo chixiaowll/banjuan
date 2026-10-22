@@ -1,6 +1,8 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import { useMindmapStore } from './useMindmapStore.js'
 import { useT } from '../../i18n/index.js'
+import { useEscapeKey } from '../../utils/useEscapeKey.js'
+import { useFitInViewport } from '../../utils/useFitInViewport.js'
 
 interface Props {
   x: number
@@ -20,11 +22,15 @@ function hoverOn(e: React.MouseEvent<HTMLButtonElement>) { e.currentTarget.style
 function hoverOff(e: React.MouseEvent<HTMLButtonElement>) { e.currentTarget.style.background = 'none' }
 
 export default function MindmapContextMenu({ x, y, nodeId, onClose }: Props) {
+  useEscapeKey(true, onClose)
   const t = useT()
   const { addNode, addSiblingNode, removeNode, setEditingNodeId, openSidePanel, rfNodes } = useMindmapStore()
   const node = rfNodes.find(n => n.id === nodeId)
   const isRoot = !node?.data.parentId && !node?.data.floating
   const canDelete = !isRoot
+
+  const menuRef = useRef<HTMLDivElement>(null)
+  useFitInViewport(menuRef)
 
   const menuStyle: React.CSSProperties = {
     position: 'fixed', left: x, top: y, zIndex: 1000,
@@ -38,7 +44,7 @@ export default function MindmapContextMenu({ x, y, nodeId, onClose }: Props) {
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={onClose} />
-      <div style={menuStyle}>
+      <div ref={menuRef} style={menuStyle}>
         <button style={itemStyle} onClick={() => { addNode(nodeId); onClose() }}
           onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
           {t('mindmap.addChildNode')}

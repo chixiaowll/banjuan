@@ -36,7 +36,6 @@
     "bindings": "^1.5.0",
     "bonjour-service": "^1.4.0",
     "d3": "^7.9.0",
-    "elkjs": "^0.11.1",
     "epubjs": "^0.3.93",
     "fflate": "^0.8.3",
     "file-uri-to-path": "^1.0.0",
@@ -46,8 +45,6 @@
     "mermaid": "^11.14.0",
     "pdfjs-dist": "4.10.38",
     "perfect-freehand": "^1.2.3",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

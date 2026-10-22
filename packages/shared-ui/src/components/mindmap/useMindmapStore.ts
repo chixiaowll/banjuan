@@ -1,10 +1,11 @@
 import { createStore, useStore, type StoreApi } from 'zustand'
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useCallback, useRef } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import { useNodeSizeStore } from './useNodeSizeStore.js'
 import { layoutMindmap } from './useLayoutEngine.js'
 import type { BanjuanAPI } from '../../api.js'
 import { toast, errorMessage } from '../feedback.js'
+import { useT } from '../../i18n/index.js'
 
 export interface MindmapNodeData {
   [key: string]: unknown
@@ -99,6 +100,8 @@ export interface MindmapState {
   closeSidePanel: () => void
 
   persist: () => Promise<void>
+  /** Write a pending persist() now (before the window closes / app quits). */
+  flushPersist: () => Promise<void>
 }
 
 function buildTreeDepths(nodes: Node<MindmapNodeData>[]): Map<string, number> {
@@ -205,8 +208,34 @@ export type MindmapStoreApi = StoreApi<MindmapState>
 
 export const MindmapStoreContext = createContext<MindmapStoreApi | null>(null)
 
-export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
+/** Titles given to nodes the user creates; saved into the map, so in the UI language. */
+export interface MindmapLabels { newTopic: string; floatingTopic: string; summary: string }
+const DEFAULT_LABELS: MindmapLabels = { newTopic: 'New Topic', floatingTopic: 'Floating Topic', summary: 'Summary' }
+
+/** Default node titles in the current UI language, read when a node is created. */
+export function useMindmapLabels(): () => MindmapLabels {
+  const t = useT()
+  const ref = useRef(t)
+  ref.current = t
+  return useCallback(() => ({
+    newTopic: ref.current('mindmap.newTopic'),
+    floatingTopic: ref.current('mindmap.addFloating'),
+    summary: ref.current('mindmap.summaryTopic'),
+  }), [])
+}
+
+export function createMindmapStore(api: BanjuanAPI, labels: () => MindmapLabels = () => DEFAULT_LABELS): MindmapStoreApi {
   let persistTimer: ReturnType<typeof setTimeout> | null = null
+  const writePersist = async (get: () => MindmapState) => {
+    const { mindmapId, mindmapTitle, layout, theme } = get()
+    if (!mindmapId) return
+    const sizes = useNodeSizeStore.getState().sizes
+    const nodeSizes: Record<string, { w: number; h: number }> = {}
+    for (const [id, s] of sizes) {
+      nodeSizes[id] = { w: s.width, h: s.height }
+    }
+    await api.notes.update(mindmapId, { title: mindmapTitle, typeMeta: { layout, theme, nodeSizes } }).catch(reportSaveError)
+  }
   // Background writes (node edits, layout/theme) must not fail silently: the
   // canvas already shows the change, so tell the user it didn't reach disk.
   const reportSaveError = (e: unknown) => {
@@ -324,7 +353,7 @@ export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
       const { mindmapId, rfNodes } = get()
       if (!mindmapId) return null
       const effectiveParentId = parentId ?? rfNodes.find(n => !n.data.parentId && !n.data.floating)?.id ?? null
-      const title = 'New Topic'
+      const title = labels().newTopic
 
       const node = await api.mindmaps.addNode(mindmapId, {
         title,
@@ -370,7 +399,7 @@ export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
       const absX = (rootNode?.position.x ?? 0) + 200
       const absY = (rootNode?.position.y ?? 0) - 200
       const node = await api.mindmaps.addNode(mindmapId, {
-        title: 'Floating Topic',
+        title: labels().floatingTopic,
         floating: true,
         positionX: absX,
         positionY: absY,
@@ -584,7 +613,7 @@ export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
     addSummary: async (nodeIds) => {
       const { mindmapId } = get()
       if (!mindmapId || nodeIds.length === 0) return
-      const result = await api.mindmaps.addSummary(mindmapId, { nodeIds })
+      const result = await api.mindmaps.addSummary(mindmapId, { nodeIds, summaryTitle: labels().summary })
       const summaryNode = result.summaryNode
       const depths = buildTreeDepths(get().rfNodes)
       const maxDepth = Math.max(...nodeIds.map(id => depths.get(id) ?? 0))
@@ -646,16 +675,13 @@ export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
 
     persist: async () => {
       if (persistTimer) clearTimeout(persistTimer)
-      persistTimer = setTimeout(async () => {
-        const { mindmapId, mindmapTitle, layout, theme } = get()
-        if (!mindmapId) return
-        const sizes = useNodeSizeStore.getState().sizes
-        const nodeSizes: Record<string, { w: number; h: number }> = {}
-        for (const [id, s] of sizes) {
-          nodeSizes[id] = { w: s.width, h: s.height }
-        }
-        await api.notes.update(mindmapId, { title: mindmapTitle, typeMeta: { layout, theme, nodeSizes } }).catch(reportSaveError)
-      }, 500)
+      persistTimer = setTimeout(() => { persistTimer = null; void writePersist(get) }, 500)
+    },
+    flushPersist: async () => {
+      if (!persistTimer) return
+      clearTimeout(persistTimer)
+      persistTimer = null
+      await writePersist(get)
     },
   }))
 }

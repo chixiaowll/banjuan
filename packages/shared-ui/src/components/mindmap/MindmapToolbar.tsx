@@ -7,6 +7,7 @@ import { getNodesBounds, getViewportForBounds } from '@xyflow/react'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { exportToDirectory, exportSingleNote } from '../../utils/exportToDirectory.js'
+import { useEscapeKey } from '../../utils/useEscapeKey.js'
 
 interface TitleBarProps {
   onToggleLeftSidebar?: () => void
@@ -19,6 +20,7 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
   const { mindmapId, mindmapTitle, layout, theme, setTitle, setLayout, setTheme, rfNodes, rfEdges, boundaries, summaries } = useMindmapStore()
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  useEscapeKey(exportMenuOpen, () => setExportMenuOpen(false))
 
   const handleExport = useCallback(async (format: 'png' | 'svg' | 'json' | 'pdf' | 'markdown') => {
     setExportMenuOpen(false)

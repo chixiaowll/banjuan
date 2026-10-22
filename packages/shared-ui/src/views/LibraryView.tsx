@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronRight, FilePlus, Download, Upload, Trash2, FolderPlus, Check, Pencil, LibraryBig, PenLine, Cloud, Puzzle, Settings, Folder, Tag, Home, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, PanelRightClose, FolderOutput, X, RefreshCw, Plus, Highlighter, MessageSquareQuote, Search, Star, Info } from 'lucide-react'
+import { ChevronDown, ChevronRight, FilePlus, Download, Upload, Trash2, FolderPlus, Check, Pencil, LibraryBig, PenLine, Cloud, Puzzle, Settings, Folder, Tag, Home, ArrowLeftRight, PanelLeftClose, PanelLeftOpen, PanelRightClose, FolderOutput, X, RefreshCw, Plus, Highlighter, MessageSquareQuote, Search, Star, Info, NotebookPen } from 'lucide-react'
 import { PoetryCard } from '../components/PoetryCard.js'
 import type { NoteType } from '../components/notes/TemplatePicker.js'
 import SyncConfigPanel from '../components/sync/SyncConfigPanel.js'
 import { ScreenshotHotkeySetting } from '../components/ScreenshotHotkeySetting.js'
 import TagManagerView from './TagManagerView.js'
+import TrashView from './TrashView.js'
 import TemplatePicker from '../components/notes/TemplatePicker.js'
 import TagInput from '../components/tags/TagInput.js'
 import TagPill from '../components/tags/TagPill.js'
@@ -22,6 +23,9 @@ import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 import { notifyNotesChanged, notifyDocumentsChanged } from '../utils/libraryEvents.js'
 import { toast, alertDialog, confirmDialog, errorMessage } from '../components/feedback.js'
 import { requestDocPage } from '../utils/docNavigation.js'
+import { createReadingNote } from '../utils/readingNote.js'
+import { useEscapeKey } from '../utils/useEscapeKey.js'
+import { useFitInViewport } from '../utils/useFitInViewport.js'
 
 interface Document {
   id: string
@@ -57,7 +61,7 @@ interface Props {
   onLibraryRenamed?: (name: string) => void
 }
 
-type SidebarSection = 'home' | 'documents' | 'notes' | 'sync' | 'plugins' | 'settings' | 'tags' | 'tag-results'
+type SidebarSection = 'home' | 'documents' | 'notes' | 'sync' | 'plugins' | 'settings' | 'trash' | 'tags' | 'tag-results'
 
 interface DirNode {
   name: string
@@ -338,6 +342,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [showNotePicker, setShowNotePicker] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: string; dirPath?: string; noteId?: string; noteTitle?: string; docId?: string; docTitle?: string } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useFitInViewport(menuRef)
   const [moveDocDialog, setMoveDocDialog] = useState<{ docId: string; docTitle: string } | null>(null)
   const [docDirs, setDocDirs] = useState<string[]>([])
   const [showDocFolderInput, setShowDocFolderInput] = useState(false)
@@ -366,6 +372,13 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [noteDragOver, setNoteDragOver] = useState(false)
   const [exportDirPath, setExportDirPath] = useState<string | null>(null)
   const [showExportDialog, setShowExportDialog] = useState(false)
+  // Esc closes the topmost overlay (see useEscapeKey).
+  useEscapeKey(!!contextMenu, () => setContextMenu(null))
+  useEscapeKey(showFolderInput, () => setShowFolderInput(false))
+  useEscapeKey(showDocFolderInput, () => setShowDocFolderInput(false))
+  useEscapeKey(showRenameInput, () => setShowRenameInput(false))
+  useEscapeKey(showExportDialog, () => setShowExportDialog(false))
+  useEscapeKey(!!moveDocDialog, () => setMoveDocDialog(null))
   const composingRef = useRef(false)
   const [tagSearch, setTagSearch] = useState('')
   const [showAllTags, setShowAllTags] = useState(false)
@@ -628,12 +641,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
 
   const [notePickerError, setNotePickerError] = useState<string | null>(null)
 
-  const handleNoteTemplateSelect = async (templateId: string | null, title: string, type: NoteType) => {
+  const handleNoteTemplateSelect = async (templateId: string | null, title: string, type: NoteType, content?: string) => {
     try {
       const note = await api.notes.create({
         title,
         folder: selectedNoteDir ?? undefined,
-        ...(type !== 'markdown' ? { type } : { templateId: templateId ?? undefined }),
+        ...(type !== 'markdown' ? { type } : content ? { content } : { templateId: templateId ?? undefined }),
       })
       setNotePickerError(null)
       setShowNotePicker(false)
@@ -1074,6 +1087,18 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             <Settings size={sb.iconSize} style={{ flexShrink: 0 }} />
             {!sidebarCollapsed && t('settings.title')}
           </div>
+          {api.trash && (
+            <div
+              style={sidebarItemStyle(selectedSection === 'trash')}
+              onClick={() => handleSectionChange('trash')}
+              onMouseEnter={e => { if (selectedSection !== 'trash') e.currentTarget.style.background = sb.hoverBackground }}
+              onMouseLeave={e => { if (selectedSection !== 'trash') e.currentTarget.style.background = 'transparent' }}
+              title={sidebarCollapsed ? t('trash.title') : undefined}
+            >
+              <Trash2 size={sb.iconSize} style={{ flexShrink: 0 }} />
+              {!sidebarCollapsed && t('trash.title')}
+            </div>
+          )}
           {!sidebarCollapsed && <div style={{ margin: sb.dividerMargin, borderTop: '1px solid var(--border)' }} />}
           {sidebarCollapsed && <div style={{ margin: '6px 8px', borderTop: '1px solid var(--border)' }} />}
 
@@ -1847,6 +1872,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
           <div style={layout.contentMaxWidth ? { flex: 1, overflow: 'auto' } : { display: 'contents' }}>
             <div style={layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth, margin: '0 auto' } : { display: 'contents' }}>
               <SettingsPanel locale={locale} setLocale={setLocale} t={t} />
+            </div>
+          </div>
+        ) : selectedSection === 'trash' ? (
+          <div style={layout.contentMaxWidth ? { flex: 1, overflow: 'auto' } : { display: 'contents' }}>
+            <div style={layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth, margin: '0 auto' } : { display: 'contents' }}>
+              <TrashView onRestored={() => { void loadDocuments(); void loadNotes(); void loadNoteDirs() }} />
             </div>
           </div>
         ) : selectedSection === 'plugins' ? (
@@ -2671,7 +2702,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                       const typeLabel = pill?.label ?? item.type
                       const coverColor = noteColorFor(item.type, item.title || '')
                       const { relative, absolute } = formatRelativeTime(item.updatedAt || item.createdAt, locale, t)
-                      const pathParts = item.path?.split('/').filter(Boolean) || []
+                      // A note's file is "<folder>/<uuid>.json": show the folder, never the id file name.
+                      const pathParts = (item.path?.split('/').filter(Boolean) || []).slice(0, -1)
                       return (
                         <div
                           key={item.id}
@@ -3144,7 +3176,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         </div>
       )}
       {contextMenu && (
-        <div style={{
+        <div ref={menuRef} style={{
           position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 2000,
           background: 'var(--surface, #fff)', border: '1px solid var(--border)',
           borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
@@ -3255,6 +3287,23 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               ><FolderOutput size={14} />{t('library.move')}</div>
               <div onClick={async () => {
+                const docId = contextMenu.docId
+                setContextMenu(null)
+                if (!docId) return
+                try {
+                  const result = await createReadingNote(api, docId, t)
+                  if (!result) { toast.info(t('readingNote.empty')); return }
+                  notifyNotesChanged()
+                  toast.success(t('readingNote.created', result.count))
+                  onOpenNote(result.note)
+                } catch (e) {
+                  toast.error(errorMessage(e))
+                }
+              }} style={{ ...ctxItemStyle, display: 'flex', alignItems: 'center', gap: 6 }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              ><NotebookPen size={14} />{t('readingNote.generate')}</div>
+              <div onClick={async () => {
                 const { docId, docTitle } = contextMenu
                 setContextMenu(null)
                 if (docId && await confirmDialog({ message: t('library.confirmDeleteDoc', docTitle || ''), danger: true, confirmText: t('common.delete') })) {
@@ -3298,6 +3347,7 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
   const api = useBanjuanAPI()
   const [rebuilding, setRebuilding] = React.useState(false)
   const [missingDocs, setMissingDocs] = React.useState<Array<{ id: string; title: string; path: string }> | null>(null)
+  useEscapeKey(!!missingDocs, () => setMissingDocs(null))
   const [purgeSel, setPurgeSel] = React.useState<Set<string>>(new Set())
 
   const runRebuild = useCallback(async (purgeIds: string[]) => {

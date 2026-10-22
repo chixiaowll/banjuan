@@ -3,7 +3,7 @@ import { registerIpcHandlers, getLibraryRootPath, installBundledPlugins } from '
 import { registerExportWindowHandlers } from './export-window.js'
 import { startApiServer, stopApiServer } from './api-server.js'
 import { installCli } from './install-cli.js'
-import { createWindow, getWindowCount, isLibraryWindow } from './windows.js'
+import { createWindow, getWindowCount, isLibraryWindow, flushAllWindowsForQuit } from './windows.js'
 import { initScreenshot, disposeScreenshot } from './screenshot-service.js'
 import { join } from 'node:path'
 
@@ -71,6 +71,16 @@ app.whenReady().then(() => {
 
 app.on('activate', () => {
   if (getWindowCount() === 0) createWindow()
+})
+
+// Quit waits until every library window has written its pending edits (a
+// debounced save still on a timer would otherwise die with the renderer).
+let quitReady = false
+app.on('before-quit', (e) => {
+  if (quitReady) return
+  e.preventDefault()
+  quitReady = true
+  void flushAllWindowsForQuit().finally(() => app.quit())
 })
 
 // Remove ~/.banjuan/api-port and api-token on every platform's quit, so clients

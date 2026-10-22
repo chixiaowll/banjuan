@@ -5,13 +5,14 @@ import BlockEditor from '../notes/BlockEditor.js'
 import MindmapCanvas from '../mindmap/MindmapCanvas.js'
 import { MindmapTitleBar, MindmapFloatingToolbar } from '../mindmap/MindmapToolbar.js'
 import { useKeyboardShortcuts } from '../mindmap/useKeyboardShortcuts.js'
-import { createMindmapStore, MindmapStoreContext, useMindmapStore } from '../mindmap/useMindmapStore.js'
+import { createMindmapStore, MindmapStoreContext, useMindmapStore, useMindmapLabels } from '../mindmap/useMindmapStore.js'
 import HandwritingEditor from '../handwriting/HandwritingEditor.js'
 import { createHandwritingStore, HandwritingStoreContext, useHandwritingStore } from '../handwriting/useHandwritingStore.js'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { emitLinksSynced } from '../../utils/linkEvents.js'
 import { useDebouncedSaver } from '../../utils/debouncedSaver.js'
+import { registerFlush } from '../../utils/flushRegistry.js'
 import { toast, errorMessage } from '../feedback.js'
 
 interface NoteInfo {
@@ -189,14 +190,17 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
 
   const noteType = (note?.type ?? 'markdown') as string
 
+  const mindmapLabels = useMindmapLabels()
   const mindmapStore = useMemo(
-    () => noteType === 'mindmap' ? createMindmapStore(api) : null,
+    () => noteType === 'mindmap' ? createMindmapStore(api, mindmapLabels) : null,
     [noteId, noteType],
   )
   const hwStore = useMemo(
     () => noteType === 'handwriting' ? createHandwritingStore(api) : null,
     [noteId, noteType],
   )
+  useEffect(() => mindmapStore ? registerFlush(() => mindmapStore.getState().flushPersist()) : undefined, [mindmapStore])
+  useEffect(() => hwStore ? registerFlush(() => hwStore.getState().flushPendingSave()) : undefined, [hwStore])
 
   useEffect(() => {
     let cancelled = false

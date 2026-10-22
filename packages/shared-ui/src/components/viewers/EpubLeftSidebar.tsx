@@ -78,7 +78,8 @@ export default function EpubLeftSidebar({
         {leftSidebarTab === 'annotations' && (
           <AnnotationPanel annotations={annotations} onAnnotationClick={() => {}}
             onAnnotationNavigate={handleAnnotationNavigate}
-            onAnnotationDelete={onAnnotationDelete} onAnnotationUpdate={onAnnotationUpdate} />
+            onAnnotationDelete={onAnnotationDelete} onAnnotationUpdate={onAnnotationUpdate}
+            docId={docId} onOpenNote={onOpenNote} />
         )}
         {leftSidebarTab === 'notes' && (
           <NotesPanel docId={docId} onOpenNote={onOpenNote} onCreateNote={onCreateNote} />

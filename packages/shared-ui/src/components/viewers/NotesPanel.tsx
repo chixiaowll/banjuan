@@ -5,6 +5,7 @@ import { useBanjuanAPI } from '../../api.js'
 import { useLongPress } from '../../hooks/useLongPress.js'
 import { notifyNotesChanged } from '../../utils/libraryEvents.js'
 import { confirmDialog } from '../feedback.js'
+import { useFitInViewport } from '../../utils/useFitInViewport.js'
 
 interface NoteInfo {
   id: string
@@ -27,6 +28,8 @@ export default function NotesPanel({ docId, onOpenNote, onCreateNote, onDeleteNo
   const [loading, setLoading] = useState(true)
   const [showPicker, setShowPicker] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useFitInViewport(menuRef)
   const longPressNoteRef = useRef<string | null>(null)
   const longPressHandlers = useLongPress(useCallback((e: React.PointerEvent) => {
     if (longPressNoteRef.current) {
@@ -45,12 +48,12 @@ export default function NotesPanel({ docId, onOpenNote, onCreateNote, onDeleteNo
 
   const [pickerError, setPickerError] = useState<string | null>(null)
 
-  const handleCreateFromTemplate = async (templateId: string | null, title: string, type: NoteType) => {
+  const handleCreateFromTemplate = async (templateId: string | null, title: string, type: NoteType, content?: string) => {
     try {
       const note = await api.notes.create({
         title,
         docId,
-        ...(type !== 'markdown' ? { type } : { templateId: templateId ?? undefined }),
+        ...(type !== 'markdown' ? { type } : content ? { content } : { templateId: templateId ?? undefined }),
       })
       setPickerError(null)
       setShowPicker(false)
@@ -126,7 +129,7 @@ export default function NotesPanel({ docId, onOpenNote, onCreateNote, onDeleteNo
         <TemplatePicker onSelect={handleCreateFromTemplate} onClose={() => { setShowPicker(false); setPickerError(null) }} error={pickerError} />
       )}
       {contextMenu && (
-        <div style={{
+        <div ref={menuRef} style={{
           position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 1000,
           background: 'var(--surface)', border: '1px solid var(--border)',
           borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',

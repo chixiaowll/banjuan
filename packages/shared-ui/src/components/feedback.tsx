@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
 import { useT } from '../i18n/index.js'
 import type { MessageKey } from '../i18n/index.js'
+import { useEscapeKey } from '../utils/useEscapeKey.js'
 
 /**
  * App-wide feedback: toasts and promise-based dialogs replacing window.alert /
@@ -126,15 +127,15 @@ function Dialog({ d }: { d: DialogRequest }) {
   const cancelValue = d.kind === 'confirm' ? false : d.kind === 'prompt' ? null : undefined
   const submit = () => closeDialog(d.id, d.kind === 'confirm' ? true : d.kind === 'prompt' ? value : undefined)
   const cancel = () => closeDialog(d.id, cancelValue)
+  useEscapeKey(true, cancel)
 
   useEffect(() => {
     if (d.kind === 'prompt') { inputRef.current?.focus(); inputRef.current?.select() }
     else confirmRef.current?.focus()
-    // Capture phase + stopPropagation: Esc/Enter belong to the dialog, not to
+    // Capture phase + stopPropagation: Enter belongs to the dialog, not to
     // the editor or tab shortcuts underneath it.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel() }
-      else if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); e.stopPropagation(); submit() }
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); e.stopPropagation(); submit() }
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)

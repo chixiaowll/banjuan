@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
 import { Library } from '../src/library.js'
 import { createTempDir, cleanupTempDir, testDeps } from './helpers.js'
 
@@ -83,5 +84,35 @@ describe('TemplateService', () => {
   it('returns null for non-existent id', async () => {
     const found = await lib.templates.get('non-existent-id')
     expect(found).toBeNull()
+  })
+
+  it('stores custom templates as library files, so they survive a DB rebuild and sync', async () => {
+    const tpl = await lib.templates.create({ name: '周报', content: JSON.stringify([{ type: 'paragraph', content: [{ type: 'text', text: '本周进展' }] }]) })
+    const file = join(libPath, '.banjuan', 'templates', `${tpl.id}.json`)
+    expect(existsSync(file)).toBe(true)
+    expect(JSON.parse(readFileSync(file, 'utf-8')).name).toBe('周报')
+
+    const db = (lib as any).db
+    db.run('DELETE FROM note_templates')
+    const again = await lib.templates.list()
+    expect(again.filter(t => !t.isBuiltin).map(t => t.name)).toEqual(['周报'])
+
+    await lib.templates.update(tpl.id, { name: '周报（新）' })
+    expect(JSON.parse(readFileSync(file, 'utf-8')).name).toBe('周报（新）')
+    const note = await lib.notes.create({ title: '第 1 周', templateId: tpl.id })
+    expect(JSON.parse(note.content)[0].content[0].text).toBe('本周进展')
+    await lib.templates.delete(tpl.id)
+    expect(existsSync(file)).toBe(false)
+  })
+
+  it('moves custom templates that only existed in the DB into files, once', async () => {
+    const db = (lib as any).db
+    const now = new Date().toISOString()
+    db.run("INSERT INTO note_templates (id, name, description, content, is_builtin, sort_order, created_at, updated_at) VALUES ('old-1', '旧模板', '', '[]', 0, 9, ?, ?)", [now, now])
+    const first = await lib.templates.list()
+    expect(first.filter(t => t.name === '旧模板')).toHaveLength(1)
+    expect(existsSync(join(libPath, '.banjuan', 'templates', 'old-1.json'))).toBe(true)
+    const second = await lib.templates.list()
+    expect(second.filter(t => t.name === '旧模板')).toHaveLength(1)
   })
 })

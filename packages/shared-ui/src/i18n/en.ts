@@ -103,7 +103,7 @@ const en = {
   'library.inkAnnotation': 'Ink',
   'library.recentDocs': 'Recently Read Documents',
   'library.move': 'Move to...',
-  'library.confirmDeleteDoc': 'Delete document "{0}"? The file will be removed from disk.',
+  'library.confirmDeleteDoc': 'Delete document "{0}"? You can restore it from the Trash for 30 days.',
   'library.moveToRoot': 'Root',
   'library.moveTitle': 'Move "{0}" to...',
 
@@ -214,8 +214,8 @@ const en = {
   'folderTree.rename': 'Rename',
   'folderTree.delete': 'Delete',
   'folderTree.cancel': 'Cancel',
-  'folderTree.confirmDeleteDir': 'Delete folder "{0}"?',
-  'folderTree.confirmDeleteNote': 'Delete note "{0}"?',
+  'folderTree.confirmDeleteDir': 'Delete the folder "{0}" and all notes in it? You can restore them from the Trash for 30 days.',
+  'folderTree.confirmDeleteNote': 'Delete note "{0}"? You can restore it from the Trash for 30 days.',
 
   // Mindmap
   'mindmap.label': 'Mindmap',
@@ -368,8 +368,8 @@ const en = {
   'sync.mergeLibrariesTitle': 'Merge two different libraries?',
   'sync.mergeLibrariesMessage': 'The other device has the library "{0}"; this one is "{1}". Continuing merges their contents, which is usually not what you want.',
   'sync.mergeContinue': 'Merge anyway',
-  'library.confirmDeleteDocFolder': 'Delete the folder "{0}" and all documents in it? The files will be removed from disk.',
-  'library.confirmDeleteNoteFolder': 'Delete the folder "{0}" and all notes in it?',
+  'library.confirmDeleteDocFolder': 'Delete the folder "{0}" and all documents in it? You can restore them from the Trash for 30 days.',
+  'library.confirmDeleteNoteFolder': 'Delete the folder "{0}" and all notes in it? You can restore them from the Trash for 30 days.',
   'settings.rebuildConfirm': 'A full rebuild clears the index, re-reads every file from disk, re-hashes and rebuilds all indexes. This may take a while. Continue?',
   'settings.rebuildDone': 'Rebuild done: {0} reimported, {1} purged, {2} marked missing. Reloading to show the latest data.',
   'settings.rebuildFailed': 'Rebuild failed: {0}',
@@ -599,6 +599,60 @@ const en = {
   'palette.recent': 'Recent',
   'palette.noResults': 'Nothing found for "{0}"',
   'palette.hint': '↑↓ to navigate · ↵ to open · esc to close',
+
+  // trash
+  'trash.title': 'Trash',
+  'trash.subtitle': 'Deleted documents, notes and folders stay here for 30 days, then are removed automatically.',
+  'trash.empty': 'Trash is empty',
+  'trash.emptyBin': 'Empty Trash',
+  'trash.emptyConfirm': 'Permanently delete {0} items in the Trash? This can\'t be undone.',
+  'trash.restore': 'Restore',
+  'trash.purge': 'Delete forever',
+  'trash.purgeConfirm': '"{0}" will be permanently deleted. This can\'t be undone.',
+  'trash.restored': 'Restored "{0}"',
+  'trash.restoreFailed': 'Couldn’t restore: {0}',
+  'trash.deletedAt': 'Deleted {0}',
+
+  // mindmap
+  'mindmap.newTopic': 'New Topic',
+  'mindmap.summaryTopic': 'Summary',
+
+  // templates
+  'template.literature': 'Literature note',
+  'template.literatureDesc': 'Source, key ideas and your thoughts on a paper',
+  'template.litSource': 'Source',
+  'template.litTitle': 'Title: ',
+  'template.litAuthors': 'Authors: ',
+  'template.litYear': 'Year: ',
+  'template.litMainPoints': 'Key ideas',
+  'template.litQuotes': 'Key quotes',
+  'template.litThoughts': 'My thoughts',
+  'template.zettel': 'Zettelkasten card',
+  'template.zettelDesc': 'One idea per card, linked to related notes',
+  'template.zettelTopic': 'Topic',
+  'template.zettelBody': 'Idea',
+  'template.zettelRelated': 'Related notes',
+  'template.zettelSources': 'Sources',
+  'template.meeting': 'Reading / meeting notes',
+  'template.meetingDesc': 'Key points, action items and a summary',
+  'template.meetingInfo': 'Details',
+  'template.meetingDate': 'Date: ',
+  'template.meetingSubject': 'Subject: ',
+  'template.meetingPoints': 'Key points',
+  'template.meetingActions': 'Action items',
+  'template.meetingSummary': 'Summary',
+  'template.mine': 'My templates',
+  'template.saveAs': 'Save as template',
+  'template.namePrompt': 'Template name',
+  'template.saved': 'Saved as template "{0}"',
+  'template.deleteConfirm': 'Delete the template "{0}"? Notes created from it are not affected.',
+
+  // readingnote
+  'readingNote.generate': 'Generate reading notes',
+  'readingNote.title': 'Reading notes: {0}',
+  'readingNote.annotations': 'Annotations',
+  'readingNote.empty': 'This document has no annotations to collect yet (highlights, underlines or notes).',
+  'readingNote.created': 'Reading notes created from {0} annotations',
 } as const
 
 export default en

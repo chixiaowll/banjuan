@@ -3,6 +3,8 @@ import { ChevronDown, ChevronRight, FilePlus, FolderPlus, Pencil, Trash2, Folder
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { toast, alertDialog } from '../feedback.js'
+import { useEscapeKey } from '../../utils/useEscapeKey.js'
+import { useFitInViewport } from '../../utils/useFitInViewport.js'
 
 interface NoteInfo {
   id: string
@@ -89,6 +91,7 @@ function ContextMenu({ state, onClose, onAction }: {
 }) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
+  useFitInViewport(ref)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -201,10 +204,10 @@ function ConfirmDialog({ message, onConfirm, onCancel }: {
   onCancel: () => void
 }) {
   const t = useT()
+  useEscapeKey(true, onCancel)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Enter') onConfirm()
-      if (e.key === 'Escape') onCancel()
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)

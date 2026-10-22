@@ -27,6 +27,8 @@ export interface HandwritingState {
    *  synchronous serialize+write never fires mid-stroke and drops it). */
   cancelPendingSave: () => void
   save: () => Promise<void>
+  /** Write a pending debounced save now (before the window closes / app quits). */
+  flushPendingSave: () => Promise<void>
   updateThumbnail: (pageId: string, dataUrl: string) => void
 }
 
@@ -137,6 +139,13 @@ export function createHandwritingStore(api: BanjuanAPI): HandwritingStoreApi {
     },
     cancelPendingSave: () => {
       if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
+    },
+
+    flushPendingSave: async () => {
+      if (!saveTimer) return
+      clearTimeout(saveTimer)
+      saveTimer = null
+      await get().save()
     },
 
     save: async () => {

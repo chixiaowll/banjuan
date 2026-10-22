@@ -103,8 +103,13 @@ function blockToMd(block: Record<string, unknown>): string {
       break
     }
     case 'annotationEmbed': {
-      const annText = props.selectedText as string ?? props.content as string ?? ''
-      result = annText ? `> ${annText}` : ''
+      // Props are quote / comment / docTitle / page (the old selectedText /
+      // content names never existed on this block, so exports came out empty).
+      const page = Number(props.page) || 0
+      const lines = [`> 📄 ${(props.docTitle as string) || 'Document'}${page ? ` p.${page}` : ''}`]
+      if (props.quote) lines.push(`> "${props.quote as string}"`)
+      if (props.comment) lines.push(`> ${props.comment as string}`)
+      result = lines.join('\n')
       break
     }
     default:

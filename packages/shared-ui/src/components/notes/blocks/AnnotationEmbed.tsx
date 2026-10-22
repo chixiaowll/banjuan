@@ -1,6 +1,7 @@
 import React from 'react'
 import { createReactBlockSpec } from '@blocknote/react'
 import { useT } from '../../../i18n/index.js'
+import { requestDocPage } from '../../../utils/docNavigation.js'
 
 export const AnnotationEmbed = createReactBlockSpec(
   {
@@ -18,10 +19,16 @@ export const AnnotationEmbed = createReactBlockSpec(
   {
     render: (props) => {
       const t = useT()
-      const { quote, comment, docTitle, page } = props.block.props
+      const { quote, comment, docTitle, page, docId } = props.block.props
+      // "Jump to source": open the document at the annotation's page.
+      const openSource = () => {
+        if (!docId) return
+        requestDocPage(docId, page)
+        document.dispatchEvent(new CustomEvent('banjuan:open-document', { detail: { docId } }))
+      }
 
       return (
-        <div className="annotation-embed" contentEditable={false}>
+        <div className="annotation-embed" contentEditable={false} onClick={openSource} style={docId ? { cursor: 'pointer' } : undefined}>
           <div className="embed-source">
             📄 {docTitle || t('embed.document')} {page ? t('embed.pageShort', page) : ''}
           </div>

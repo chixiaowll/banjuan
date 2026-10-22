@@ -12,12 +12,12 @@ import MindmapSearch from '../components/mindmap/MindmapSearch.js'
 import NodePropertyPanel from '../components/mindmap/panels/NodePropertyPanel.js'
 import NodeContentEditor from '../components/mindmap/panels/NodeContentEditor.js'
 import ThemePanel from '../components/mindmap/panels/ThemePanel.js'
-import { useMindmapStore, createMindmapStore, MindmapStoreContext } from '../components/mindmap/useMindmapStore.js'
+import { useMindmapStore, createMindmapStore, MindmapStoreContext, useMindmapLabels } from '../components/mindmap/useMindmapStore.js'
 import { useKeyboardShortcuts } from '../components/mindmap/useKeyboardShortcuts.js'
 import HandwritingCenterContent from '../components/handwriting/HandwritingCenterContent.js'
 import PageListPanel from '../components/handwriting/PageListPanel.js'
 import { createHandwritingStore, HandwritingStoreContext } from '../components/handwriting/useHandwritingStore.js'
-import { FileDown, FileText, FileImage, Eye, Pencil, PanelLeft, PanelRight, ZoomIn, ZoomOut } from 'lucide-react'
+import { FileDown, FileText, FileImage, Eye, Pencil, PanelLeft, PanelRight, ZoomIn, ZoomOut, LayoutTemplate } from 'lucide-react'
 import { exportToDirectory, exportSingleNote } from '../utils/exportToDirectory.js'
 import TagInput from '../components/tags/TagInput.js'
 import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
@@ -25,7 +25,8 @@ import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
 import { emitLinksSynced } from '../utils/linkEvents.js'
 import { useDebouncedSaver } from '../utils/debouncedSaver.js'
-import { toast, errorMessage } from '../components/feedback.js'
+import { registerFlush } from '../utils/flushRegistry.js'
+import { toast, errorMessage, promptDialog } from '../components/feedback.js'
 import { useIsActiveTab } from '../components/tabActive.js'
 
 interface NoteInfo {
@@ -419,12 +420,12 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
 
   const [templatePickerError, setTemplatePickerError] = useState<string | null>(null)
 
-  const handleTemplateSelect = async (templateId: string | null, title: string, type: NoteType) => {
+  const handleTemplateSelect = async (templateId: string | null, title: string, type: NoteType, content?: string) => {
     try {
       const newNote = await api.notes.create({
         title,
         folder: selectedFolder ?? undefined,
-        ...(type !== 'markdown' ? { type } : { templateId: templateId ?? undefined }),
+        ...(type !== 'markdown' ? { type } : content ? { content } : { templateId: templateId ?? undefined }),
       })
       setTemplatePickerError(null)
       setShowTemplatePicker(false)
@@ -636,6 +637,31 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
                   >
                     <FileImage size={14} />PDF
                   </button>
+                  <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                  <button
+                    onClick={async () => {
+                      setExportMenuOpen(false)
+                      const name = await promptDialog({ title: t('template.saveAs'), placeholder: t('template.namePrompt'), defaultValue: title, confirmText: t('common.save') })
+                      if (!name?.trim()) return
+                      try {
+                        await saver.flush()   // the template takes the note as it is now
+                        const fresh = await api.notes.get(note.id)
+                        await api.templates.create({ name: name.trim(), content: fresh?.content ?? '[]' })
+                        toast.success(t('template.saved', name.trim()))
+                      } catch (e) {
+                        toast.error(errorMessage(e))
+                      }
+                    }}
+                    style={{
+                      display: 'flex', width: '100%', padding: '8px 16px', border: 'none',
+                      background: 'none', textAlign: 'left', fontSize: 13, cursor: 'pointer',
+                      color: 'var(--text)', alignItems: 'center', gap: 6,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    <LayoutTemplate size={14} />{t('template.saveAs')}
+                  </button>
                 </div>
               )}
             </div>
@@ -715,8 +741,13 @@ export default function NoteView(props: Props) {
   const api = useBanjuanAPI()
   const isMindmap = (props.note.type ?? 'markdown') === 'mindmap'
   const isHandwriting = (props.note.type ?? 'markdown') === 'handwriting'
-  const store = useMemo(() => isMindmap ? createMindmapStore(api) : null, [props.note.id, api])
+  const mindmapLabels = useMindmapLabels()
+  const store = useMemo(() => isMindmap ? createMindmapStore(api, mindmapLabels) : null, [props.note.id, api])
   const hwStore = useMemo(() => isHandwriting ? createHandwritingStore(api) : null, [props.note.id, api])
+  // Pending mind-map layout/title and handwriting saves are written before the
+  // window closes or the app quits (see flushRegistry).
+  useEffect(() => store ? registerFlush(() => store.getState().flushPersist()) : undefined, [store])
+  useEffect(() => hwStore ? registerFlush(() => hwStore.getState().flushPendingSave()) : undefined, [hwStore])
 
   if (isHandwriting && hwStore) {
     return (

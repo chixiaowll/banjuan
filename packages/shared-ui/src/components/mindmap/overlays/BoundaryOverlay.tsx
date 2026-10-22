@@ -4,6 +4,8 @@ import type { Node } from '@xyflow/react'
 import { useMindmapStore, type MindmapNodeData } from '../useMindmapStore.js'
 import { useNodeSizeStore } from '../useNodeSizeStore.js'
 import { useT } from '../../../i18n/index.js'
+import { useEscapeKey } from '../../../utils/useEscapeKey.js'
+import { useFitInViewport } from '../../../utils/useFitInViewport.js'
 
 const PADDING = 24
 const BORDER_RADIUS = 12
@@ -48,6 +50,9 @@ function BoundaryBox({ boundary, rfNodes, nodeSizes, onUpdateLabel, onRemove }: 
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(boundary.label)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useFitInViewport(menuRef)
+  useEscapeKey(!!contextMenu, () => setContextMenu(null))
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -157,7 +162,7 @@ function BoundaryBox({ boundary, rfNodes, nodeSizes, onUpdateLabel, onRemove }: 
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 999 }}
             onClick={() => setContextMenu(null)} onContextMenu={e => { e.preventDefault(); setContextMenu(null) }} />
-          <div style={{
+          <div ref={menuRef} style={{
             position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 1000,
             background: 'var(--surface, #fff)', border: '1px solid var(--border, #e0e0e0)',
             borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
