@@ -11,6 +11,7 @@ import type { DocLinkService } from './doc-link-service.js'
 import { extractNoteLinks, extractDocumentLinks, resolveNoteLinks } from './extract-links.js'
 import { markdownToBlocks } from './migration.js'
 import { AttachmentService } from './attachment-service.js'
+import type { TrashService } from '../trash/service.js'
 import { importMarkdownImages } from './import-images.js'
 
 interface NoteJsonFile {
@@ -39,6 +40,10 @@ export class NoteService {
   ) {
     this.notesDir = join(rootPath, '.banjuan', 'notes')
   }
+
+  private trash: TrashService | null = null
+  /** Deletes move the note file to the recycle bin instead of erasing it. */
+  setTrash(trash: TrashService): void { this.trash = trash }
 
   setTemplateService(svc: TemplateService): void { this.templateService = svc }
 
@@ -159,7 +164,8 @@ export class NoteService {
       await this.delete(note.id)
     }
     if (await this.fs.exists(fullPath)) {
-      await this.fs.rmdir(fullPath, { recursive: true })
+      if (this.trash && (await this.trash.containsFiles(fullPath))) await this.trash.putFolder(fullPath, dirPath, 'notes')
+      else await this.fs.rmdir(fullPath, { recursive: true })
     }
   }
 
@@ -459,8 +465,10 @@ export class NoteService {
 
   async delete(id: string): Promise<void> {
     id = this.resolveId(id)
-    const row = this.db.queryOne<{ path: string; type: string }>('SELECT path, type FROM notes WHERE id = ?', [id])
+    const row = this.db.queryOne<{ path: string; type: string; title: string }>('SELECT path, type, title FROM notes WHERE id = ?', [id])
     if (!row) return
+    const incoming = this.db.query<{ source_id: string; context: string }>(
+      'SELECT source_id, context FROM note_links WHERE target_id = ? AND source_id != ?', [id, id])
     // Database first, in one transaction, children before parents — note_links
     // and mindmap_* reference notes, mindmap_summaries references mindmap_nodes —
     // and the file only after it commits. Previously the file went first and a
@@ -481,7 +489,17 @@ export class NoteService {
     })
     this.search.removeById(id)
     const filePath = join(this.notesDir, row.path)
-    if (await this.fs.exists(filePath)) { await this.fs.remove(filePath) }
+    if (await this.fs.exists(filePath)) {
+      if (this.trash) {
+        try {
+          await this.trash.putNote({ id, title: row.title, type: row.type, path: row.path }, incoming.map(l => ({ sourceId: l.source_id, context: l.context })))
+        } catch (e) {
+          console.error('[notes] moving to the recycle bin failed; file kept in place', id, e)
+        }
+      } else {
+        await this.fs.remove(filePath)
+      }
+    }
     this.events.emit('note:deleted', { id })
   }
 

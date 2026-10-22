@@ -83,8 +83,9 @@ export class AnnotationService {
   }
 
   async listRecent(limit = 10): Promise<(Annotation & { docTitle?: string })[]> {
+    // Inner join: annotations of a document in the recycle bin stay hidden until it's restored.
     const sql = `SELECT a.*, d.title as doc_title FROM annotations a
-      LEFT JOIN documents d ON a.doc_id = d.id
+      JOIN documents d ON a.doc_id = d.id
       ORDER BY a.created_at DESC LIMIT ?`
     const rows = this.db.query<Record<string, unknown>>(sql, [limit])
     return rows.map(r => ({ ...rowToAnnotation(r), docTitle: (r.doc_title as string) || undefined }))

@@ -92,6 +92,31 @@ export class IndexService {
     }
   }
 
+  /** Index one document record (restoring it from the recycle bin). */
+  indexDocumentRecord(doc: DocumentFileData): void {
+    this.indexDocument(doc)
+  }
+
+  /**
+   * Index one note file (restoring it from the recycle bin): its row, text,
+   * tags, mind-map data and the links it makes to notes / documents that exist.
+   */
+  async indexNoteFile(relPath: string): Promise<void> {
+    const noteLinks: Array<{ sourceId: string; targetId: string; targetTitle?: string; context: string }> = []
+    const docLinks: Array<{ sourceId: string; targetId: string; context: string }> = []
+    await this.indexNoteJsonFile(relPath, noteLinks, docLinks)
+    for (const link of noteLinks) {
+      const targetId = link.targetId
+        || (link.targetTitle ? this.db.queryOne<{ id: string }>('SELECT id FROM notes WHERE title = ? LIMIT 1', [link.targetTitle])?.id ?? '' : '')
+      if (!targetId || targetId === link.sourceId || !this.db.queryOne('SELECT 1 FROM notes WHERE id = ?', [targetId])) continue
+      this.db.run('INSERT OR IGNORE INTO note_links (source_id, target_id, context) VALUES (?, ?, ?)', [link.sourceId, targetId, link.context])
+    }
+    for (const link of docLinks) {
+      if (!this.db.queryOne('SELECT 1 FROM documents WHERE id = ?', [link.targetId])) continue
+      this.db.run('INSERT OR IGNORE INTO doc_links (source_id, target_id, context) VALUES (?, ?, ?)', [link.sourceId, link.targetId, link.context])
+    }
+  }
+
   private async indexTags(): Promise<void> {
     if (!(await this.fs.exists(this.tagsPath))) return
     const tags = JSON.parse(await this.fs.readTextFile(this.tagsPath)) as Array<{ id: string; name: string; color: string | null }>

@@ -98,7 +98,7 @@ const ja = {
   'library.inkAnnotation': 'インク',
   'library.recentDocs': '最近の閲覧',
   'library.move': '移動先...',
-  'library.confirmDeleteDoc': 'ドキュメント「{0}」を削除しますか？ファイルはディスクから削除されます。',
+  'library.confirmDeleteDoc': 'ドキュメント「{0}」を削除しますか？30 日間はゴミ箱から元に戻せます。',
   'library.moveToRoot': 'ルート',
   'library.moveTitle': '「{0}」を移動...',
 
@@ -201,8 +201,8 @@ const ja = {
   'folderTree.rename': '名前変更',
   'folderTree.delete': '削除',
   'folderTree.cancel': 'キャンセル',
-  'folderTree.confirmDeleteDir': 'フォルダ「{0}」を削除しますか？',
-  'folderTree.confirmDeleteNote': 'ノート「{0}」を削除しますか？',
+  'folderTree.confirmDeleteDir': 'フォルダー「{0}」とその中のすべてのノートを削除しますか？30 日間はゴミ箱から元に戻せます。',
+  'folderTree.confirmDeleteNote': 'ノート「{0}」を削除しますか？30 日間はゴミ箱から元に戻せます。',
 
   'mindmap.label': 'マインドマップ',
   'mindmap.addRoot': '+ ルート',
@@ -332,8 +332,8 @@ const ja = {
   'sync.mergeLibrariesTitle': '別々の書斎を統合しますか？',
   'sync.mergeLibrariesMessage': '相手の書斎は「{0}」、こちらは「{1}」です。続けると両方の内容が統合されます。通常は意図しない操作です。',
   'sync.mergeContinue': 'それでも統合',
-  'library.confirmDeleteDocFolder': 'フォルダー「{0}」とその中のすべてのドキュメントを削除しますか？ファイルはディスクから削除されます。',
-  'library.confirmDeleteNoteFolder': 'フォルダー「{0}」とその中のすべてのノートを削除しますか？',
+  'library.confirmDeleteDocFolder': 'フォルダー「{0}」とその中のすべてのドキュメントを削除しますか？30 日間はゴミ箱から元に戻せます。',
+  'library.confirmDeleteNoteFolder': 'フォルダー「{0}」とその中のすべてのノートを削除しますか？30 日間はゴミ箱から元に戻せます。',
   'settings.rebuildConfirm': '完全な再構築ではインデックスを消去し、すべてのファイルを読み直して再ハッシュし、索引を作り直します。時間がかかる場合があります。続けますか？',
   'settings.rebuildDone': '再構築完了：{0} 件を再取り込み、{1} 件を完全削除、{2} 件を欠落として記録しました。最新データを表示するため再読み込みします。',
   'settings.rebuildFailed': '再構築に失敗しました：{0}',
@@ -563,6 +563,19 @@ const ja = {
   'palette.recent': '最近',
   'palette.noResults': '「{0}」に一致する項目はありません',
   'palette.hint': '↑↓ 選択 · ↵ 開く · esc 閉じる',
+
+  // trash
+  'trash.title': 'ゴミ箱',
+  'trash.subtitle': '削除したドキュメント・ノート・フォルダーは 30 日間ここに保管され、その後自動的に消去されます。',
+  'trash.empty': 'ゴミ箱は空です',
+  'trash.emptyBin': 'ゴミ箱を空にする',
+  'trash.emptyConfirm': 'ゴミ箱内の {0} 件を完全に削除します。元に戻せません。よろしいですか？',
+  'trash.restore': '元に戻す',
+  'trash.purge': '完全に削除',
+  'trash.purgeConfirm': '「{0}」を完全に削除します。元に戻せません。',
+  'trash.restored': '「{0}」を元に戻しました',
+  'trash.restoreFailed': '元に戻せませんでした：{0}',
+  'trash.deletedAt': '{0} に削除',
 } as const
 
 export default ja

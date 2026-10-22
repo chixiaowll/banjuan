@@ -98,7 +98,7 @@ const de = {
   'library.inkAnnotation': 'Tinte',
   'library.recentDocs': 'Zuletzt gelesene Dokumente',
   'library.move': 'Verschieben nach...',
-  'library.confirmDeleteDoc': 'Dokument „{0}" löschen? Die Datei wird von der Festplatte entfernt.',
+  'library.confirmDeleteDoc': 'Dokument „{0}“ löschen? Es lässt sich 30 Tage lang aus dem Papierkorb wiederherstellen.',
   'library.moveToRoot': 'Stammverzeichnis',
   'library.moveTitle': '„{0}" verschieben nach...',
 
@@ -201,8 +201,8 @@ const de = {
   'folderTree.rename': 'Umbenennen',
   'folderTree.delete': 'Löschen',
   'folderTree.cancel': 'Abbrechen',
-  'folderTree.confirmDeleteDir': 'Ordner „{0}" löschen?',
-  'folderTree.confirmDeleteNote': 'Notiz „{0}" löschen?',
+  'folderTree.confirmDeleteDir': 'Ordner „{0}“ und alle darin enthaltenen Notizen löschen? Sie lassen sich 30 Tage lang aus dem Papierkorb wiederherstellen.',
+  'folderTree.confirmDeleteNote': 'Notiz „{0}“ löschen? Sie lässt sich 30 Tage lang aus dem Papierkorb wiederherstellen.',
 
   'mindmap.label': 'Mindmap',
   'mindmap.addRoot': '+ Wurzel',
@@ -332,8 +332,8 @@ const de = {
   'sync.mergeLibrariesTitle': 'Zwei verschiedene Bibliotheken zusammenführen?',
   'sync.mergeLibrariesMessage': 'Das andere Gerät hat die Bibliothek „{0}“, dieses „{1}“. Fortfahren führt ihre Inhalte zusammen – meist nicht gewollt.',
   'sync.mergeContinue': 'Trotzdem zusammenführen',
-  'library.confirmDeleteDocFolder': 'Ordner „{0}“ und alle darin enthaltenen Dokumente löschen? Die Dateien werden von der Festplatte entfernt.',
-  'library.confirmDeleteNoteFolder': 'Ordner „{0}“ und alle darin enthaltenen Notizen löschen?',
+  'library.confirmDeleteDocFolder': 'Ordner „{0}“ und alle darin enthaltenen Dokumente löschen? Sie lassen sich 30 Tage lang aus dem Papierkorb wiederherstellen.',
+  'library.confirmDeleteNoteFolder': 'Ordner „{0}“ und alle darin enthaltenen Notizen löschen? Sie lassen sich 30 Tage lang aus dem Papierkorb wiederherstellen.',
   'settings.rebuildConfirm': 'Ein vollständiger Neuaufbau leert den Index, liest alle Dateien neu ein, berechnet Hashes neu und baut alle Indizes neu auf. Das kann dauern. Fortfahren?',
   'settings.rebuildDone': 'Neuaufbau fertig: {0} neu importiert, {1} bereinigt, {2} als fehlend markiert. Wird neu geladen, um die aktuellen Daten zu zeigen.',
   'settings.rebuildFailed': 'Neuaufbau fehlgeschlagen: {0}',
@@ -563,6 +563,19 @@ const de = {
   'palette.recent': 'Zuletzt',
   'palette.noResults': 'Keine Treffer für „{0}“',
   'palette.hint': '↑↓ auswählen · ↵ öffnen · Esc schließen',
+
+  // trash
+  'trash.title': 'Papierkorb',
+  'trash.subtitle': 'Gelöschte Dokumente, Notizen und Ordner bleiben 30 Tage hier und werden dann automatisch entfernt.',
+  'trash.empty': 'Der Papierkorb ist leer',
+  'trash.emptyBin': 'Papierkorb leeren',
+  'trash.emptyConfirm': '{0} Elemente im Papierkorb endgültig löschen? Das kann nicht rückgängig gemacht werden.',
+  'trash.restore': 'Wiederherstellen',
+  'trash.purge': 'Endgültig löschen',
+  'trash.purgeConfirm': '„{0}“ wird endgültig gelöscht. Das kann nicht rückgängig gemacht werden.',
+  'trash.restored': '„{0}“ wiederhergestellt',
+  'trash.restoreFailed': 'Wiederherstellen fehlgeschlagen: {0}',
+  'trash.deletedAt': 'Gelöscht am {0}',
 } as const
 
 export default de

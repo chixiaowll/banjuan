@@ -20,6 +20,7 @@ import { SyncService } from './sync/service.js'
 import { StubService } from './sync/stub-service.js'
 import { IndexService } from './indexing/service.js'
 import { TemplateService } from './notes/template-service.js'
+import { TrashService } from './trash/service.js'
 import { migrateNotesToJsonAsync } from './notes/migration.js'
 import { AttachmentService } from './notes/attachment-service.js'
 
@@ -46,6 +47,7 @@ export class Library {
   readonly plugins: PluginManager
   readonly templates: TemplateService
   readonly attachments: AttachmentService
+  readonly trash: TrashService
   private db: PlatformDatabase
   private fs: PlatformFS
 
@@ -67,6 +69,10 @@ export class Library {
     this.plugins = new PluginManager(this, this.events, rootPath, deps.fs, deps.globalPluginsDir)
     this.templates = new TemplateService(db)
     this.attachments = new AttachmentService(rootPath, deps.fs)
+
+    this.trash = new TrashService(db, rootPath, deps.fs, () => this.createIndexService(), this.annotations)
+    this.documents.setTrash(this.trash)
+    this.notes.setTrash(this.trash)
 
     this.notes.setTemplateService(this.templates)
     this.notes.setLinkService(this.noteLinks)
@@ -134,7 +140,14 @@ export class Library {
       }
     } catch { /* config unreadable — leave as-is */ }
 
-    return new Library(rootPath, db, deps)
+    const library = new Library(rootPath, db, deps)
+    try {
+      const purged = await library.trash.purgeExpired()
+      if (purged) console.log(`[trash] purged ${purged} entries older than the retention period`)
+    } catch (e) {
+      console.warn('[trash] purging expired entries failed', e)
+    }
+    return library
   }
 
   static async migrateNotes(rootPath: string, fs: PlatformFS): Promise<{ migrated: number; errors: string[] }> {

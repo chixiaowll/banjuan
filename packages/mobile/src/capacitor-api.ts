@@ -666,6 +666,13 @@ export function createCapacitorAPI(): BanjuanAPI {
       },
     },
 
+    trash: {
+      async list() { return getLib().trash.list() },
+      async restore(entryId) { return getLib().trash.restore(entryId) },
+      async purge(entryId) { return getLib().trash.purge(entryId) },
+      async empty() { return getLib().trash.empty() },
+    },
+
     index: {
       async rebuild() {
         const indexSvc = getLib().createIndexService()

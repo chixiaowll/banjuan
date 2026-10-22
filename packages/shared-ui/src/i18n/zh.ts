@@ -103,7 +103,7 @@ const zh = {
   'library.inkAnnotation': '手写批注',
   'library.recentDocs': '最近阅读文档',
   'library.move': '移动到...',
-  'library.confirmDeleteDoc': '确定删除文档「{0}」？文件将从磁盘上删除。',
+  'library.confirmDeleteDoc': '确定删除文档「{0}」？删除后可在回收站中恢复（保留 30 天）。',
   'library.moveToRoot': '根目录',
   'library.moveTitle': '移动「{0}」到...',
 
@@ -214,8 +214,8 @@ const zh = {
   'folderTree.rename': '重命名',
   'folderTree.delete': '删除',
   'folderTree.cancel': '取消',
-  'folderTree.confirmDeleteDir': '确定删除文件夹「{0}」？',
-  'folderTree.confirmDeleteNote': '确定删除笔记「{0}」？',
+  'folderTree.confirmDeleteDir': '确定删除文件夹「{0}」及其中所有笔记？删除后可在回收站中恢复（保留 30 天）。',
+  'folderTree.confirmDeleteNote': '确定删除笔记「{0}」？删除后可在回收站中恢复（保留 30 天）。',
 
   // Mindmap
   'mindmap.label': '脑图',
@@ -361,8 +361,8 @@ const zh = {
   'sync.mergeLibrariesTitle': '要合并两个不同的书房吗？',
   'sync.mergeLibrariesMessage': '对方是书房「{0}」，当前是「{1}」。继续会把两个书房的内容合并到一起，通常你并不想这样。',
   'sync.mergeContinue': '仍然合并',
-  'library.confirmDeleteDocFolder': '确定删除文件夹「{0}」及其中所有文档？文件将从磁盘上删除。',
-  'library.confirmDeleteNoteFolder': '确定删除文件夹「{0}」及其中所有笔记？',
+  'library.confirmDeleteDocFolder': '确定删除文件夹「{0}」及其中所有文档？删除后可在回收站中恢复（保留 30 天）。',
+  'library.confirmDeleteNoteFolder': '确定删除文件夹「{0}」及其中所有笔记？删除后可在回收站中恢复（保留 30 天）。',
   'settings.rebuildConfirm': '彻底重建会清空索引并从磁盘重新读取、重算哈希、重建所有索引，可能耗时较长。是否继续？',
   'settings.rebuildDone': '重建完成：重新导入 {0} 个文档，彻底清理 {1} 个，标记缺失 {2} 个。将刷新以加载最新数据。',
   'settings.rebuildFailed': '重建失败：{0}',
@@ -592,6 +592,19 @@ const zh = {
   'palette.recent': '最近',
   'palette.noResults': '没有找到与「{0}」相关的内容',
   'palette.hint': '↑↓ 选择 · ↵ 打开 · esc 关闭',
+
+  // trash
+  'trash.title': '回收站',
+  'trash.subtitle': '删除的文档、笔记和文件夹会在这里保留 30 天，之后自动清除。',
+  'trash.empty': '回收站是空的',
+  'trash.emptyBin': '清空回收站',
+  'trash.emptyConfirm': '将永久删除回收站中的 {0} 项，无法恢复。确定清空吗？',
+  'trash.restore': '恢复',
+  'trash.purge': '彻底删除',
+  'trash.purgeConfirm': '将永久删除「{0}」，无法恢复。',
+  'trash.restored': '已恢复「{0}」',
+  'trash.restoreFailed': '恢复失败：{0}',
+  'trash.deletedAt': '{0} 删除',
 } as const
 
 export default zh

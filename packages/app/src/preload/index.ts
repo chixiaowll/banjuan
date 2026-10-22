@@ -303,6 +303,12 @@ const api = {
       ipcRenderer.send(`note-render-result:${requestId}`, dataUrl)
     },
   },
+  trash: {
+    list: () => ipcRenderer.invoke('trash:list'),
+    restore: (entryId: string) => ipcRenderer.invoke('trash:restore', entryId),
+    purge: (entryId: string) => ipcRenderer.invoke('trash:purge', entryId),
+    empty: () => ipcRenderer.invoke('trash:empty'),
+  },
   lifecycle: {
     onFlushRequest: (handler: () => Promise<void>) => {
       flushHandler = handler

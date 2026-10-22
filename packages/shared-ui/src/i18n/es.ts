@@ -98,7 +98,7 @@ const es = {
   'library.inkAnnotation': 'Tinta',
   'library.recentDocs': 'Documentos leídos recientemente',
   'library.move': 'Mover a...',
-  'library.confirmDeleteDoc': '¿Eliminar el documento "{0}"? El archivo se eliminará del disco.',
+  'library.confirmDeleteDoc': '¿Eliminar el documento «{0}»? Podrás restaurarlo desde la papelera durante 30 días.',
   'library.moveToRoot': 'Raíz',
   'library.moveTitle': 'Mover "{0}" a...',
 
@@ -201,8 +201,8 @@ const es = {
   'folderTree.rename': 'Renombrar',
   'folderTree.delete': 'Eliminar',
   'folderTree.cancel': 'Cancelar',
-  'folderTree.confirmDeleteDir': '¿Eliminar la carpeta "{0}"?',
-  'folderTree.confirmDeleteNote': '¿Eliminar la nota "{0}"?',
+  'folderTree.confirmDeleteDir': '¿Eliminar la carpeta «{0}» y todas sus notas? Podrás restaurarlas desde la papelera durante 30 días.',
+  'folderTree.confirmDeleteNote': '¿Eliminar la nota «{0}»? Podrás restaurarla desde la papelera durante 30 días.',
 
   'mindmap.label': 'Mapa mental',
   'mindmap.addRoot': '+ Raíz',
@@ -332,8 +332,8 @@ const es = {
   'sync.mergeLibrariesTitle': '¿Fusionar dos bibliotecas distintas?',
   'sync.mergeLibrariesMessage': 'El otro dispositivo tiene la biblioteca «{0}» y esta es «{1}». Continuar fusionará su contenido, algo que normalmente no se desea.',
   'sync.mergeContinue': 'Fusionar de todos modos',
-  'library.confirmDeleteDocFolder': '¿Eliminar la carpeta «{0}» y todos sus documentos? Los archivos se borrarán del disco.',
-  'library.confirmDeleteNoteFolder': '¿Eliminar la carpeta «{0}» y todas sus notas?',
+  'library.confirmDeleteDocFolder': '¿Eliminar la carpeta «{0}» y todos sus documentos? Podrás restaurarlos desde la papelera durante 30 días.',
+  'library.confirmDeleteNoteFolder': '¿Eliminar la carpeta «{0}» y todas sus notas? Podrás restaurarlas desde la papelera durante 30 días.',
   'settings.rebuildConfirm': 'Una reconstrucción completa vacía el índice, vuelve a leer todos los archivos, recalcula los hashes y rehace los índices. Puede tardar. ¿Continuar?',
   'settings.rebuildDone': 'Reconstrucción terminada: {0} reimportados, {1} purgados, {2} marcados como faltantes. Recargando para mostrar los datos actuales.',
   'settings.rebuildFailed': 'Error al reconstruir: {0}',
@@ -563,6 +563,19 @@ const es = {
   'palette.recent': 'Recientes',
   'palette.noResults': 'No hay resultados para «{0}»',
   'palette.hint': '↑↓ moverse · ↵ abrir · esc cerrar',
+
+  // trash
+  'trash.title': 'Papelera',
+  'trash.subtitle': 'Los documentos, notas y carpetas eliminados se guardan aquí 30 días y luego se borran automáticamente.',
+  'trash.empty': 'La papelera está vacía',
+  'trash.emptyBin': 'Vaciar papelera',
+  'trash.emptyConfirm': '¿Eliminar definitivamente los {0} elementos de la papelera? No se puede deshacer.',
+  'trash.restore': 'Restaurar',
+  'trash.purge': 'Eliminar para siempre',
+  'trash.purgeConfirm': '«{0}» se eliminará para siempre. No se puede deshacer.',
+  'trash.restored': '«{0}» restaurado',
+  'trash.restoreFailed': 'No se pudo restaurar: {0}',
+  'trash.deletedAt': 'Eliminado el {0}',
 } as const
 
 export default es

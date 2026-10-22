@@ -31,6 +31,7 @@ import type {
   LibraryConfig,
   SearchResult,
   SearchOptions,
+  TrashEntry,
 } from '@banjuan/core'
 
 // ---------------------------------------------------------------------------
@@ -320,6 +321,14 @@ export interface BanjuanAPI {
   noteRender?: {
     onRequest(handler: (noteId: string, requestId: string) => void): () => void
     sendResult(requestId: string, dataUrl: string | null): void
+  }
+
+  /** Recycle bin: deleted documents, notes and folders, kept for 30 days. */
+  trash?: {
+    list(): Promise<TrashEntry[]>
+    restore(entryId: string): Promise<{ kind: TrashEntry['kind']; id: string }>
+    purge(entryId: string): Promise<void>
+    empty(): Promise<void>
   }
 
   /** Desktop only: window-close / app-quit asks the renderer to write pending edits first. */

@@ -98,7 +98,7 @@ const ko = {
   'library.inkAnnotation': '잉크',
   'library.recentDocs': '최근 읽은 문서',
   'library.move': '이동...',
-  'library.confirmDeleteDoc': '문서 "{0}"을(를) 삭제하시겠습니까? 파일이 디스크에서 삭제됩니다.',
+  'library.confirmDeleteDoc': '문서 "{0}"을(를) 삭제할까요? 30일 동안 휴지통에서 복원할 수 있습니다.',
   'library.moveToRoot': '루트',
   'library.moveTitle': '"{0}" 이동...',
 
@@ -201,8 +201,8 @@ const ko = {
   'folderTree.rename': '이름 변경',
   'folderTree.delete': '삭제',
   'folderTree.cancel': '취소',
-  'folderTree.confirmDeleteDir': '폴더 "{0}"을(를) 삭제하시겠습니까?',
-  'folderTree.confirmDeleteNote': '노트 "{0}"을(를) 삭제하시겠습니까?',
+  'folderTree.confirmDeleteDir': '폴더 "{0}"와(과) 그 안의 모든 노트를 삭제할까요? 30일 동안 휴지통에서 복원할 수 있습니다.',
+  'folderTree.confirmDeleteNote': '노트 "{0}"을(를) 삭제할까요? 30일 동안 휴지통에서 복원할 수 있습니다.',
 
   'mindmap.label': '마인드맵',
   'mindmap.addRoot': '+ 루트',
@@ -332,8 +332,8 @@ const ko = {
   'sync.mergeLibrariesTitle': '서로 다른 서재를 병합할까요?',
   'sync.mergeLibrariesMessage': '상대 기기의 서재는 "{0}", 현재 서재는 "{1}"입니다. 계속하면 두 서재의 내용이 합쳐지며, 보통은 원하지 않는 동작입니다.',
   'sync.mergeContinue': '그래도 병합',
-  'library.confirmDeleteDocFolder': '폴더 "{0}"와(과) 그 안의 모든 문서를 삭제할까요? 파일이 디스크에서 삭제됩니다.',
-  'library.confirmDeleteNoteFolder': '폴더 "{0}"와(과) 그 안의 모든 노트를 삭제할까요?',
+  'library.confirmDeleteDocFolder': '폴더 "{0}"와(과) 그 안의 모든 문서를 삭제할까요? 30일 동안 휴지통에서 복원할 수 있습니다.',
+  'library.confirmDeleteNoteFolder': '폴더 "{0}"와(과) 그 안의 모든 노트를 삭제할까요? 30일 동안 휴지통에서 복원할 수 있습니다.',
   'settings.rebuildConfirm': '전체 재구성은 색인을 비우고 모든 파일을 디스크에서 다시 읽어 해시를 다시 계산하고 색인을 다시 만듭니다. 시간이 걸릴 수 있습니다. 계속할까요?',
   'settings.rebuildDone': '재구성 완료: {0}개 다시 가져옴, {1}개 정리, {2}개 누락으로 표시. 최신 데이터를 보려면 새로고침합니다.',
   'settings.rebuildFailed': '재구성 실패: {0}',
@@ -563,6 +563,19 @@ const ko = {
   'palette.recent': '최근',
   'palette.noResults': '"{0}"에 대한 결과가 없습니다',
   'palette.hint': '↑↓ 이동 · ↵ 열기 · esc 닫기',
+
+  // trash
+  'trash.title': '휴지통',
+  'trash.subtitle': '삭제한 문서, 노트, 폴더는 30일 동안 여기에 보관된 후 자동으로 삭제됩니다.',
+  'trash.empty': '휴지통이 비어 있습니다',
+  'trash.emptyBin': '휴지통 비우기',
+  'trash.emptyConfirm': '휴지통의 {0}개 항목을 영구 삭제합니다. 되돌릴 수 없습니다. 계속할까요?',
+  'trash.restore': '복원',
+  'trash.purge': '영구 삭제',
+  'trash.purgeConfirm': '"{0}"을(를) 영구 삭제합니다. 되돌릴 수 없습니다.',
+  'trash.restored': '"{0}"을(를) 복원했습니다',
+  'trash.restoreFailed': '복원 실패: {0}',
+  'trash.deletedAt': '{0} 삭제됨',
 } as const
 
 export default ko

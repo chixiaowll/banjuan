@@ -5,6 +5,7 @@ import { PoetryCard } from '../components/PoetryCard.js'
 import type { NoteType } from '../components/notes/TemplatePicker.js'
 import SyncConfigPanel from '../components/sync/SyncConfigPanel.js'
 import TagManagerView from './TagManagerView.js'
+import TrashView from './TrashView.js'
 import TemplatePicker from '../components/notes/TemplatePicker.js'
 import TagInput from '../components/tags/TagInput.js'
 import TagPill from '../components/tags/TagPill.js'
@@ -56,7 +57,7 @@ interface Props {
   onLibraryRenamed?: (name: string) => void
 }
 
-type SidebarSection = 'home' | 'documents' | 'notes' | 'sync' | 'plugins' | 'settings' | 'tags' | 'tag-results'
+type SidebarSection = 'home' | 'documents' | 'notes' | 'sync' | 'plugins' | 'settings' | 'trash' | 'tags' | 'tag-results'
 
 interface DirNode {
   name: string
@@ -1073,6 +1074,18 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
             <Settings size={sb.iconSize} style={{ flexShrink: 0 }} />
             {!sidebarCollapsed && t('settings.title')}
           </div>
+          {api.trash && (
+            <div
+              style={sidebarItemStyle(selectedSection === 'trash')}
+              onClick={() => handleSectionChange('trash')}
+              onMouseEnter={e => { if (selectedSection !== 'trash') e.currentTarget.style.background = sb.hoverBackground }}
+              onMouseLeave={e => { if (selectedSection !== 'trash') e.currentTarget.style.background = 'transparent' }}
+              title={sidebarCollapsed ? t('trash.title') : undefined}
+            >
+              <Trash2 size={sb.iconSize} style={{ flexShrink: 0 }} />
+              {!sidebarCollapsed && t('trash.title')}
+            </div>
+          )}
           {!sidebarCollapsed && <div style={{ margin: sb.dividerMargin, borderTop: '1px solid var(--border)' }} />}
           {sidebarCollapsed && <div style={{ margin: '6px 8px', borderTop: '1px solid var(--border)' }} />}
 
@@ -1846,6 +1859,12 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
           <div style={layout.contentMaxWidth ? { flex: 1, overflow: 'auto' } : { display: 'contents' }}>
             <div style={layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth, margin: '0 auto' } : { display: 'contents' }}>
               <SettingsPanel locale={locale} setLocale={setLocale} t={t} />
+            </div>
+          </div>
+        ) : selectedSection === 'trash' ? (
+          <div style={layout.contentMaxWidth ? { flex: 1, overflow: 'auto' } : { display: 'contents' }}>
+            <div style={layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth, margin: '0 auto' } : { display: 'contents' }}>
+              <TrashView onRestored={() => { void loadDocuments(); void loadNotes(); void loadNoteDirs() }} />
             </div>
           </div>
         ) : selectedSection === 'plugins' ? (

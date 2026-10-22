@@ -98,7 +98,7 @@ const fr = {
   'library.inkAnnotation': 'Encre',
   'library.recentDocs': 'Documents récemment lus',
   'library.move': 'Déplacer vers...',
-  'library.confirmDeleteDoc': 'Supprimer le document « {0} » ? Le fichier sera supprimé du disque.',
+  'library.confirmDeleteDoc': 'Supprimer le document « {0} » ? Vous pourrez le restaurer depuis la corbeille pendant 30 jours.',
   'library.moveToRoot': 'Racine',
   'library.moveTitle': 'Déplacer « {0} » vers...',
 
@@ -201,8 +201,8 @@ const fr = {
   'folderTree.rename': 'Renommer',
   'folderTree.delete': 'Supprimer',
   'folderTree.cancel': 'Annuler',
-  'folderTree.confirmDeleteDir': 'Supprimer le dossier « {0} » ?',
-  'folderTree.confirmDeleteNote': 'Supprimer la note « {0} » ?',
+  'folderTree.confirmDeleteDir': 'Supprimer le dossier « {0} » et toutes ses notes ? Vous pourrez les restaurer depuis la corbeille pendant 30 jours.',
+  'folderTree.confirmDeleteNote': 'Supprimer la note « {0} » ? Vous pourrez la restaurer depuis la corbeille pendant 30 jours.',
 
   'mindmap.label': 'Carte mentale',
   'mindmap.addRoot': '+ Racine',
@@ -332,8 +332,8 @@ const fr = {
   'sync.mergeLibrariesTitle': 'Fusionner deux bibliothèques différentes ?',
   'sync.mergeLibrariesMessage': 'L’autre appareil a la bibliothèque « {0} », celle-ci est « {1} ». Continuer fusionnera leur contenu, ce qui n’est généralement pas souhaité.',
   'sync.mergeContinue': 'Fusionner quand même',
-  'library.confirmDeleteDocFolder': 'Supprimer le dossier « {0} » et tous ses documents ? Les fichiers seront supprimés du disque.',
-  'library.confirmDeleteNoteFolder': 'Supprimer le dossier « {0} » et toutes ses notes ?',
+  'library.confirmDeleteDocFolder': 'Supprimer le dossier « {0} » et tous ses documents ? Vous pourrez les restaurer depuis la corbeille pendant 30 jours.',
+  'library.confirmDeleteNoteFolder': 'Supprimer le dossier « {0} » et toutes ses notes ? Vous pourrez les restaurer depuis la corbeille pendant 30 jours.',
   'settings.rebuildConfirm': 'Une reconstruction complète vide l’index, relit tous les fichiers, recalcule les empreintes et reconstruit les index. Cela peut prendre du temps. Continuer ?',
   'settings.rebuildDone': 'Reconstruction terminée : {0} réimportés, {1} purgés, {2} marqués manquants. Rechargement pour afficher les dernières données.',
   'settings.rebuildFailed': 'Échec de la reconstruction : {0}',
@@ -563,6 +563,19 @@ const fr = {
   'palette.recent': 'Récents',
   'palette.noResults': 'Aucun résultat pour « {0} »',
   'palette.hint': '↑↓ naviguer · ↵ ouvrir · échap fermer',
+
+  // trash
+  'trash.title': 'Corbeille',
+  'trash.subtitle': 'Les documents, notes et dossiers supprimés restent ici 30 jours, puis sont effacés automatiquement.',
+  'trash.empty': 'La corbeille est vide',
+  'trash.emptyBin': 'Vider la corbeille',
+  'trash.emptyConfirm': 'Supprimer définitivement les {0} éléments de la corbeille ? Cette action est irréversible.',
+  'trash.restore': 'Restaurer',
+  'trash.purge': 'Supprimer définitivement',
+  'trash.purgeConfirm': '« {0} » sera supprimé définitivement. Cette action est irréversible.',
+  'trash.restored': '« {0} » restauré',
+  'trash.restoreFailed': 'Échec de la restauration : {0}',
+  'trash.deletedAt': 'Supprimé le {0}',
 } as const
 
 export default fr
