@@ -1,35 +1,41 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { Library } from '../../src/library.js'
-import { createTempDir, cleanupTempDir, createTestFile } from '../helpers.js'
+import { createTempDir, cleanupTempDir, createTestFile, testDeps } from '../helpers.js'
 import { SyncService } from '../../src/sync/service.js'
 import type { SyncAdapter } from '../../src/sync/adapter.js'
 import type { RemoteFile, SyncConfig } from '../../src/types.js'
+import type { PlatformDeps } from '../../src/platform/index.js'
 
+/**
+ * In-memory WebDAV stand-in. Like the real LAN host (X-Banjuan-Mtime header),
+ * an upload keeps the client-supplied mtime when given, otherwise "now".
+ */
 class MockAdapter implements SyncAdapter {
   private files = new Map<string, { content: Buffer; mtime: number }>()
 
   async connect(_config: SyncConfig): Promise<void> {}
   async disconnect(): Promise<void> {}
 
-  async list(_remotePath: string): Promise<RemoteFile[]> {
+  async list(remotePath: string): Promise<RemoteFile[]> {
     const results: RemoteFile[] = []
     for (const [path, data] of this.files) {
+      if (!path.startsWith(remotePath)) continue
       results.push({ path, mtime: data.mtime, size: data.content.length, isDirectory: false })
     }
     return results
   }
 
-  async upload(localPath: string, remotePath: string): Promise<void> {
+  async upload(localPath: string, remotePath: string, mtimeMs?: number): Promise<void> {
     const content = readFileSync(localPath)
-    this.files.set(remotePath, { content, mtime: Date.now() })
+    this.files.set(remotePath, { content, mtime: mtimeMs && mtimeMs > 0 ? mtimeMs : Date.now() })
   }
 
   async download(remotePath: string, localPath: string): Promise<void> {
     const data = this.files.get(remotePath)
     if (!data) throw new Error(`Not found: ${remotePath}`)
-    mkdirSync(join(localPath, '..'), { recursive: true })
+    mkdirSync(dirname(localPath), { recursive: true })
     writeFileSync(localPath, data.content)
   }
 
@@ -62,15 +68,18 @@ describe('SyncService', () => {
   let tempDir: string
   let lib: Library
   let libPath: string
+  let deps: PlatformDeps
   let adapter: MockAdapter
   let syncService: SyncService
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTempDir()
     libPath = join(tempDir, 'lib')
-    lib = Library.init(libPath)
+    deps = testDeps()
+    lib = await Library.init(libPath, deps)
     adapter = new MockAdapter()
-    syncService = new SyncService(libPath, adapter)
+    // The whole library root is synced; remote paths mirror library-relative paths.
+    syncService = new SyncService(libPath, adapter, undefined, deps.fs, '/', deps.crypto)
   })
 
   afterEach(async () => {
@@ -92,8 +101,8 @@ describe('SyncService', () => {
 
       await syncService.sync()
 
-      expect(adapter.has('/tags.json')).toBe(true)
-      const remote = JSON.parse(adapter.getContent('/tags.json'))
+      expect(adapter.has('/.banjuan/tags.json')).toBe(true)
+      const remote = JSON.parse(adapter.getContent('/.banjuan/tags.json'))
       expect(remote[0].name).toBe('SyncTag')
     })
   })
@@ -105,7 +114,7 @@ describe('SyncService', () => {
         position: {}, content: 'from remote', selectedText: null, color: 'yellow',
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       })
-      adapter.seed('/data/annotations/re/remote-ann-001.json', annJson, Date.now() + 10000)
+      adapter.seed('/.banjuan/data/annotations/re/remote-ann-001.json', annJson, Date.now() + 10000)
 
       const result = await syncService.sync()
       expect(result.downloaded).toBeGreaterThan(0)
@@ -116,23 +125,30 @@ describe('SyncService', () => {
   })
 
   describe('delete detection', () => {
-    it('does not delete on first sync (no snapshot)', async () => {
+    it('does not delete on first sync (no archive)', async () => {
       createTestFile(libPath, 'keep.txt', 'keep')
       await lib.documents.import('keep.txt')
 
-      await syncService.sync()
+      const result = await syncService.sync()
 
-      const snapshotPath = join(libPath, '.banjuan', 'sync-snapshot.json')
-      expect(existsSync(snapshotPath)).toBe(true)
+      expect(result.deletedLocal).toBe(0)
+      expect(result.deletedRemote).toBe(0)
+      expect(existsSync(join(libPath, 'keep.txt'))).toBe(true)
+      const archivePath = join(libPath, '.banjuan', 'sync-archive.json')
+      expect(existsSync(archivePath)).toBe(true)
     })
 
     it('detects local deletion and removes from remote', async () => {
+      // A second document stays behind: an entirely empty local listing is
+      // treated as unreliable by design and never propagates deletions.
+      createTestFile(libPath, 'stay.txt', 'stay')
+      await lib.documents.import('stay.txt')
       createTestFile(libPath, 'del.txt', 'delete me')
       const doc = await lib.documents.import('del.txt')
       await syncService.sync()
 
       const prefix = doc.id.slice(0, 2)
-      const remotePath = `/data/documents/${prefix}/${doc.id}.json`
+      const remotePath = `/.banjuan/data/documents/${prefix}/${doc.id}.json`
       expect(adapter.has(remotePath)).toBe(true)
 
       await lib.documents.delete(doc.id)
@@ -150,7 +166,7 @@ describe('SyncService', () => {
       await syncService.sync()
 
       const prefix = doc.id.slice(0, 2)
-      const remotePath = `/data/documents/${prefix}/${doc.id}.json`
+      const remotePath = `/.banjuan/data/documents/${prefix}/${doc.id}.json`
       const updatedJson = JSON.stringify({
         ...JSON.parse(adapter.getContent(remotePath)),
         title: 'Remote Updated',
@@ -169,7 +185,7 @@ describe('SyncService', () => {
     it('emits sync:started and sync:completed', async () => {
       const { EventBus } = await import('../../src/events/bus.js')
       const events = new EventBus()
-      const evSyncService = new SyncService(libPath, adapter, events)
+      const evSyncService = new SyncService(libPath, adapter, events, deps.fs, '/', deps.crypto)
 
       let started = false
       let completed = false
@@ -183,16 +199,21 @@ describe('SyncService', () => {
     })
   })
 
-  describe('snapshot', () => {
-    it('writes sync-snapshot.json after sync', async () => {
+  // The flat sync-snapshot.json (timestamp + file list) was replaced by the
+  // per-file baseline archive sync-archive.json (version 2, files keyed by path).
+  describe('archive', () => {
+    it('writes sync-archive.json after sync', async () => {
       await syncService.sync()
 
-      const snapshotPath = join(libPath, '.banjuan', 'sync-snapshot.json')
-      expect(existsSync(snapshotPath)).toBe(true)
+      const archivePath = join(libPath, '.banjuan', 'sync-archive.json')
+      expect(existsSync(archivePath)).toBe(true)
 
-      const snapshot = JSON.parse(readFileSync(snapshotPath, 'utf-8'))
-      expect(snapshot.timestamp).toBeDefined()
-      expect(Array.isArray(snapshot.files)).toBe(true)
+      const archive = JSON.parse(readFileSync(archivePath, 'utf-8'))
+      expect(archive.version).toBe(2)
+      expect(archive.timestamp).toBeDefined()
+      expect(archive.files).toBeTypeOf('object')
+      expect(archive.files).not.toBeNull()
+      expect(Array.isArray(archive.files)).toBe(false)
     })
   })
 })

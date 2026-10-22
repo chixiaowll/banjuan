@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { Library } from '../../src/library.js'
-import { createTempDir, cleanupTempDir, createTestFile } from '../helpers.js'
+import { createTempDir, cleanupTempDir, createTestFile, testDeps } from '../helpers.js'
 import { StubService } from '../../src/sync/stub-service.js'
 import type { SyncAdapter } from '../../src/sync/adapter.js'
 import type { RemoteFile, SyncConfig } from '../../src/types.js'
+import type { PlatformDeps } from '../../src/platform/index.js'
 
 class MockAdapter implements SyncAdapter {
   private files = new Map<string, Buffer>()
@@ -19,7 +20,7 @@ class MockAdapter implements SyncAdapter {
   async download(remotePath: string, localPath: string): Promise<void> {
     const data = this.files.get(remotePath)
     if (!data) throw new Error('Not found')
-    mkdirSync(join(localPath, '..'), { recursive: true })
+    mkdirSync(dirname(localPath), { recursive: true })
     writeFileSync(localPath, data)
   }
   async delete(_remotePath: string): Promise<void> {}
@@ -40,15 +41,17 @@ describe('StubService', () => {
   let tempDir: string
   let lib: Library
   let libPath: string
+  let deps: PlatformDeps
   let adapter: MockAdapter
   let stubService: StubService
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTempDir()
     libPath = join(tempDir, 'lib')
-    lib = Library.init(libPath)
+    deps = testDeps()
+    lib = await Library.init(libPath, deps)
     adapter = new MockAdapter()
-    stubService = new StubService(libPath, adapter)
+    stubService = new StubService(libPath, adapter, deps.fs)
   })
 
   afterEach(async () => {
@@ -57,8 +60,8 @@ describe('StubService', () => {
   })
 
   describe('createStub', () => {
-    it('creates a stub file', () => {
-      stubService.createStub({ id: 'doc-123', hash: 'abc123', size: 5242880, remotePath: 'papers/attention.pdf' })
+    it('creates a stub file', async () => {
+      await stubService.createStub({ id: 'doc-123', hash: 'abc123', size: 5242880, remotePath: 'papers/attention.pdf' })
 
       const stubPath = join(libPath, '.banjuan', 'stubs', 'do', 'doc-123.stub.json')
       expect(existsSync(stubPath)).toBe(true)
@@ -70,10 +73,10 @@ describe('StubService', () => {
   })
 
   describe('listStubs', () => {
-    it('lists all stubs', () => {
-      stubService.createStub({ id: 'doc-1', hash: 'h1', size: 100, remotePath: 'a.pdf' })
-      stubService.createStub({ id: 'doc-2', hash: 'h2', size: 200, remotePath: 'b.pdf' })
-      const stubs = stubService.listStubs()
+    it('lists all stubs', async () => {
+      await stubService.createStub({ id: 'doc-1', hash: 'h1', size: 100, remotePath: 'a.pdf' })
+      await stubService.createStub({ id: 'doc-2', hash: 'h2', size: 200, remotePath: 'b.pdf' })
+      const stubs = await stubService.listStubs()
       expect(stubs).toHaveLength(2)
     })
   })
@@ -83,7 +86,7 @@ describe('StubService', () => {
       const pdfContent = Buffer.from('fake pdf content')
       adapter.seed('/papers/attention.pdf', pdfContent)
 
-      stubService.createStub({ id: 'doc-dl', hash: 'h', size: pdfContent.length, remotePath: 'papers/attention.pdf' })
+      await stubService.createStub({ id: 'doc-dl', hash: 'h', size: pdfContent.length, remotePath: 'papers/attention.pdf' })
 
       await stubService.downloadFile('doc-dl', join(libPath, 'papers', 'attention.pdf'))
 
@@ -104,14 +107,14 @@ describe('StubService', () => {
   })
 
   describe('getStatus', () => {
-    it('returns local when file exists and no stub', () => {
+    it('returns local when file exists and no stub', async () => {
       createTestFile(libPath, 'local.pdf', 'x')
-      expect(stubService.getStatus('no-stub-id', join(libPath, 'local.pdf'))).toBe('local')
+      expect(await stubService.getStatus('no-stub-id', join(libPath, 'local.pdf'))).toBe('local')
     })
 
-    it('returns cloud when stub exists and no file', () => {
-      stubService.createStub({ id: 'cloud-id', hash: 'h', size: 100, remotePath: 'x.pdf' })
-      expect(stubService.getStatus('cloud-id', join(libPath, 'nonexistent.pdf'))).toBe('cloud')
+    it('returns cloud when stub exists and no file', async () => {
+      await stubService.createStub({ id: 'cloud-id', hash: 'h', size: 100, remotePath: 'x.pdf' })
+      expect(await stubService.getStatus('cloud-id', join(libPath, 'nonexistent.pdf'))).toBe('cloud')
     })
   })
 })
