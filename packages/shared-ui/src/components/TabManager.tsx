@@ -21,6 +21,7 @@ import { readTabSession, writeTabSession, tabShortcut, type SavedTab } from './t
 import SearchPalette from './SearchPalette.js'
 import '../styles/mobile.css'
 import { useEscapeKey } from '../utils/useEscapeKey.js'
+import { toast } from './feedback.js'
 
 const LIBRARY_TAB_ID = 'library'
 
@@ -266,6 +267,19 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     }
     ;(window as any).__banjuanContext = ctx
   }, [activeTabId, tabs, tabData, libraryName])
+  // Tell main whether the active tab can take "insert screenshot into note".
+  useEffect(() => {
+    const tab = tabs.find(x => x.id === activeTabId)
+    const ok = tab?.type === 'note' && (tabData.get(tab.id)?.type ?? 'markdown') === 'markdown'
+    api.screenshot?.setInsertTarget?.(ok)
+  }, [api, tabs, activeTabId, tabData])
+
+  useEffect(() => api.screenshot?.onDone?.(r => {
+    if (!r.ok) toast.error(t('screenshot.failed', r.detail ?? ''))
+    else if (r.action === 'copy') toast.success(t('screenshot.copied'))
+    else if (r.action === 'save') toast.success(t('screenshot.saved', r.detail ?? ''))
+  }), [api, t])
+
   const publishContextRef = useRef(publishContext)
   publishContextRef.current = publishContext
   useEffect(() => { publishContext() }, [publishContext])

@@ -101,6 +101,8 @@ export interface BlockEditorHandle {
   exportMarkdown: () => Promise<{ markdown: string; files: Array<{ name: string; dataUrl: string }> }>
   exportHTML: () => Promise<string>
   getAttachmentPaths: () => string[]
+  /** Save `file` as an attachment of this note and insert it as an image after the cursor's block. */
+  insertImage: (file: File) => Promise<void>
 }
 
 interface Props {
@@ -335,6 +337,12 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     exportMarkdown: () => exportBlocksToMarkdown(editor, editor.document as any[], api),
     exportHTML: () => exportBlocksToHTML(editor, editor.document as any[], api),
     getAttachmentPaths: () => extractExportAttachmentPaths(editor.document as any[]),
+    insertImage: async (file: File) => {
+      const url = await handleUploadFileRef.current(file)
+      if (!url) return
+      const at = editor.getTextCursorPosition().block
+      editor.insertBlocks([{ type: 'image', props: { url } } as any], at, 'after')
+    },
   }), [editor])
 
   const handleUploadFileRef = useRef(handleUploadFile)

@@ -399,6 +399,18 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
   }, [note.id, title, note.title])
 
   const isActiveTab = useIsActiveTab()
+  const isActiveRef = useRef(isActiveTab)
+  isActiveRef.current = isActiveTab
+  // Screenshot "insert into note": only the note in the active tab takes it.
+  useEffect(() => api.screenshot?.onInsertIntoNote?.(async (png) => {
+    if (!isActiveRef.current || !editorRef.current) return
+    try {
+      await editorRef.current.insertImage(new File([png as Uint8Array<ArrayBuffer>], `screenshot-${Date.now()}.png`, { type: 'image/png' }))
+      toast.success(t('screenshot.inserted'))
+    } catch (e) {
+      toast.error(t('screenshot.insertFailed', errorMessage(e)))
+    }
+  }), [api, t])
   useEffect(() => {
     if (!isActiveTab) return
     const handleKey = (e: KeyboardEvent) => {
