@@ -40,9 +40,10 @@ function load(w: BrowserWindow): Promise<void> {
 
 /**
  * The overlay is created once (pre-warmed) and reused: hidden between
- * screenshots, never destroyed unless its renderer dies. backgroundThrottling
- * must be off — otherwise a hidden window gets no animation frames, the page
- * can't report `ready`, and every screenshot waits for the 3s fallback.
+ * screenshots, never destroyed unless its renderer dies. A hidden window only
+ * gets ~1 frame per second after a while (even with backgroundThrottling off),
+ * so a session is not painted while hidden: the window is shown fully
+ * transparent, painted at full frame rate, then made opaque (see presentSession).
  */
 function getOverlay(): BrowserWindow {
   if (win && !win.isDestroyed()) return win
@@ -88,13 +89,23 @@ export function destroyOverlay(): void {
   pageReady = null
 }
 
-/** Place the overlay on `display` and hand it the session; it shows once the page reports `ready`. */
+/**
+ * Place the overlay on `display` and hand it the session. The window is shown
+ * at opacity 0 — visible windows paint at full rate, hidden ones don't — and
+ * becomes opaque when the page reports the capture is painted (`ready`), so
+ * neither the previous screenshot nor a black frame ever flashes.
+ */
 export async function presentSession(display: Display, payload: SessionPayload): Promise<void> {
   const w = getOverlay()
   // Normally long resolved (pre-warmed); bounded so a broken page can't stall the screenshot forever.
   await Promise.race([pageReady, new Promise(res => setTimeout(res, SHOW_FALLBACK_MS))])
   if (w.isDestroyed()) return
   w.setBounds(display.bounds)
+  w.setOpacity(0)
+  if (!w.isVisible()) {
+    w.show()
+    w.focus()
+  }
   w.webContents.send('screenshot:session', payload)
   clearShowTimer()
   // If `ready` never comes (renderer error), show anyway: the page's error panel and Esc must be reachable.
@@ -102,7 +113,7 @@ export async function presentSession(display: Display, payload: SessionPayload):
   shownSession = payload.sessionId
 }
 
-/** Show the overlay for `sessionId` (ignored for a stale session). */
+/** Make the overlay for `sessionId` opaque (ignored for a stale session). */
 export function revealOverlay(sessionId: number): boolean {
   if (!win || win.isDestroyed() || sessionId !== shownSession) return false
   clearShowTimer()
@@ -110,6 +121,7 @@ export function revealOverlay(sessionId: number): boolean {
     win.show()
     win.focus()
   }
+  win.setOpacity(1)
   return true
 }
 
@@ -119,6 +131,7 @@ export function hideOverlay(): void {
   shownSession = 0
   if (!win || win.isDestroyed()) return
   win.hide()
+  win.setOpacity(0)
   win.webContents.send('screenshot:reset')
 }
 

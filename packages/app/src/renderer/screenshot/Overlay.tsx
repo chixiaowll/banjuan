@@ -77,6 +77,8 @@ function OverlayInner() {
       c.getContext('2d', { willReadFrequently: true })!.putImageData(new ImageData(bgraToRgba(s.bitmap), s.pixelWidth, s.pixelHeight), 0, 0)
       reset()
       setSession(s)
+      // The window is already shown (transparent), so frames run at full rate:
+      // two frames later the capture is on screen and main can make it opaque.
       requestAnimationFrame(() => requestAnimationFrame(() => bridge.ready(s.sessionId)))
     })
     const offReset = bridge.onReset(() => { reset(); setSession(null) })
