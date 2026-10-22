@@ -11,6 +11,7 @@ import { LanHostServer, type HostStatus } from './lan-host-server.js'
 import { getDeviceIdentity } from './device-identity.js'
 import { writeZip } from './zip.js'
 import { DiscoveryService } from './discovery-service.js'
+import { docTextStatus } from './doc-text-indexer.js'
 
 // Global plugins live here (shared by every library), à la Claude Code's
 // global plugin dir. Built-in plugins are installed here once at startup.
@@ -1301,6 +1302,8 @@ img { max-width: 100%; } table { border-collapse: collapse; width: 100%; } th, t
   ipcMain.handle('search:query', async (event, query: string, options?: SearchOptions) => {
     return getLib(event).search.query(query, options)
   })
+
+  ipcMain.handle('search:textIndexStatus', async (event) => docTextStatus(getLib(event)))
 
   ipcMain.handle('index:rebuild', async (event) => {
     const indexService = getLib(event).createIndexService()

@@ -331,6 +331,8 @@ export interface BanjuanAPI {
 
   search?: {
     query(query: string, options?: SearchOptions): Promise<SearchResult[]>
+    /** Desktop: how far the background extraction of document text has got. */
+    textIndexStatus?(): Promise<{ total: number; indexed: number; pending: number; failed: number; running: boolean }>
   }
 
   index: {

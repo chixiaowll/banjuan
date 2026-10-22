@@ -512,6 +512,9 @@ const ja = {
   'palette.annotations': '注釈',
   'palette.recent': '最近',
   'palette.noResults': '「{0}」に一致する項目はありません',
+  'palette.chapter': '第 {0} 章',
+  'palette.indexing': '本文インデックス {0}/{1}',
+  'palette.indexingHint': 'バックグラウンドで文書の本文を抽出中です。完了するまで本文の検索結果は不完全な場合があります',
   'palette.hint': '↑↓ 選択 · ↵ 開く · esc 閉じる',
 
   // trash

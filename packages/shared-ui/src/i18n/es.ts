@@ -512,6 +512,9 @@ const es = {
   'palette.annotations': 'Anotaciones',
   'palette.recent': 'Recientes',
   'palette.noResults': 'No hay resultados para «{0}»',
+  'palette.chapter': 'Cap. {0}',
+  'palette.indexing': 'Indexando texto {0}/{1}',
+  'palette.indexingHint': 'El texto de los documentos se está extrayendo en segundo plano; hasta que termine pueden faltar resultados en el texto',
   'palette.hint': '↑↓ moverse · ↵ abrir · esc cerrar',
 
   // trash

@@ -512,6 +512,9 @@ const fr = {
   'palette.annotations': 'Annotations',
   'palette.recent': 'Récents',
   'palette.noResults': 'Aucun résultat pour « {0} »',
+  'palette.chapter': 'Ch. {0}',
+  'palette.indexing': 'Indexation du texte {0}/{1}',
+  'palette.indexingHint': 'Le texte des documents est extrait en arrière-plan ; les résultats dans le texte peuvent être incomplets d’ici là',
   'palette.hint': '↑↓ naviguer · ↵ ouvrir · échap fermer',
 
   // trash

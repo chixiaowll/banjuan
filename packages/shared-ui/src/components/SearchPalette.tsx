@@ -9,9 +9,10 @@ import { requestDocPage } from '../utils/docNavigation.js'
 import { useEscapeKey } from '../utils/useEscapeKey.js'
 
 /**
- * ⌘K global search: notes (title, body, mind-map nodes), documents and
- * annotations. Results are grouped by kind; ↑↓ moves, ↵ opens, Esc closes.
- * With an empty query it lists recently read documents and recently edited notes.
+ * ⌘K global search: notes (title, body, mind-map nodes), documents (title and
+ * text) and annotations. Results are grouped by kind; ↑↓ moves, ↵ opens (at the
+ * page / chapter of the hit), Esc closes. With an empty query it lists recently
+ * read documents and recently edited notes.
  */
 
 interface Props {
@@ -29,6 +30,9 @@ const GROUPS: Array<{ type: SearchResult['type']; label: MessageKey }> = [
 ]
 const PER_GROUP = 8
 const DEBOUNCE_MS = 120
+const INDEX_POLL_MS = 3000
+
+type IndexStatus = { total: number; indexed: number; pending: number }
 
 function Highlighted({ text, terms }: { text: string; terms: string[] }) {
   return <>{highlightParts(text, terms).map((p, i) => p.hit
@@ -59,6 +63,23 @@ export default function SearchPalette({ onClose, onOpenNote, onOpenDocument }: P
   useEscapeKey(true, onClose)
 
   useEffect(() => { inputRef.current?.focus() }, [])
+
+  // While document text is still being extracted, say so (text hits may be missing).
+  const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null)
+  useEffect(() => {
+    if (!api.search?.textIndexStatus) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const poll = () => {
+      void api.search!.textIndexStatus!().then(s => {
+        if (cancelled) return
+        setIndexStatus(s)
+        if (s.pending > 0) timer = setTimeout(poll, INDEX_POLL_MS)
+      }).catch(() => {})
+    }
+    poll()
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [api])
 
   // Recently read documents and recently edited notes, for the empty state.
   useEffect(() => {
@@ -106,7 +127,7 @@ export default function SearchPalette({ onClose, onOpenNote, onOpenDocument }: P
     if (!docId) return
     const doc = await api.documents.get(docId)
     if (!doc) return
-    if (item.type === 'annotation') requestDocPage(docId, item.page)
+    requestDocPage(docId, item.page)
     onOpenDocument(doc)
   }
 
@@ -160,8 +181,10 @@ export default function SearchPalette({ onClose, onOpenNote, onOpenDocument }: P
                           </div>
                         )}
                       </div>
-                      {item.type === 'annotation' && item.page != null && (
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, paddingTop: 2 }}>{t('pdf.page', item.page)}</span>
+                      {item.page != null && (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, paddingTop: 2 }}>
+                          {item.docType === 'epub' ? t('palette.chapter', item.page) : t('pdf.page', item.page)}
+                        </span>
                       )}
                     </div>
                   )
@@ -173,7 +196,12 @@ export default function SearchPalette({ onClose, onOpenNote, onOpenDocument }: P
             <div style={{ padding: '28px 16px', textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>{t('palette.noResults', query.trim())}</div>
           )}
         </div>
-        <div style={{ padding: '7px 16px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-muted)' }}>{t('palette.hint')}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 16px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-muted)' }}>
+          <span>{t('palette.hint')}</span>
+          {indexStatus && indexStatus.pending > 0 && (
+            <span title={t('palette.indexingHint')}>{t('palette.indexing', indexStatus.indexed, indexStatus.total)}</span>
+          )}
+        </div>
       </div>
     </div>
   )

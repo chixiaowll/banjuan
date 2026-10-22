@@ -1,0 +1,104 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { join } from 'node:path'
+import { createTempDir, cleanupTempDir, createTestFile, testDeps } from './helpers.js'
+import { Library } from '../src/library.js'
+
+describe('document text index and search', () => {
+  let tempDir: string
+  let libPath: string
+  let lib: Library
+
+  beforeEach(async () => {
+    tempDir = createTempDir()
+    libPath = join(tempDir, 'lib')
+    lib = await Library.init(libPath, testDeps())
+  })
+  afterEach(async () => { await lib.close(); cleanupTempDir(tempDir) })
+
+  const importDoc = async (name: string, content = 'x') => {
+    createTestFile(libPath, name, content)
+    return lib.documents.import(name)
+  }
+
+  it('lists documents that need text, then not once stored; a changed file is pending again', async () => {
+    const pdf = await importDoc('a.pdf', 'pdf one')
+    await importDoc('b.png', 'img')   // not a text type
+    expect(lib.docText.pending().map(j => j.id)).toEqual([pdf.id])
+    lib.docText.store(pdf.id, pdf.hash, [{ page: 1, text: 'hello' }])
+    expect(lib.docText.pending()).toEqual([])
+    expect(lib.docText.stats()).toMatchObject({ total: 1, indexed: 1, pending: 0, failed: 0 })
+    lib.docText.store(pdf.id, 'old-hash', [{ page: 1, text: 'hello' }])
+    expect(lib.docText.pending().map(j => j.id)).toEqual([pdf.id])
+  })
+
+  it('retries missing files but not failed ones (until the file changes)', async () => {
+    const a = await importDoc('a.pdf', 'a')
+    const b = await importDoc('b.pdf', 'b')
+    lib.docText.markFailed(a.id, a.hash, 'missing', 'ENOENT')
+    lib.docText.markFailed(b.id, b.hash, 'failed', 'bad xref')
+    expect(lib.docText.pending().map(j => j.id)).toEqual([a.id])
+    expect(lib.docText.stats()).toMatchObject({ total: 2, pending: 1, failed: 1, indexed: 0 })
+  })
+
+  it('finds a document by its text — Chinese substrings, 1–2 character terms, AND across terms — with page and snippet', async () => {
+    const pdf = await importDoc('paper.pdf')
+    const epub = await importDoc('book.epub')
+    lib.docText.store(pdf.id, pdf.hash, [
+      { page: 1, text: '摘要：本文研究深度学习在医学影像中的应用。' },
+      { page: 7, text: '实验部分：我们在三个数据集上评估了注意力机制的效果，结果显著优于基线。' },
+    ])
+    lib.docText.store(epub.id, epub.hash, [{ page: 3, text: 'Chapter three talks about Attention and memory.' }])
+
+    const r = await lib.search.query('注意力机制')
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatchObject({ type: 'document', id: pdf.id, page: 7, docType: 'pdf' })
+    expect(r[0].snippet).toContain('注意力机制')
+
+    expect((await lib.search.query('学习')).map(x => x.id)).toEqual([pdf.id])        // 2 characters: scanned
+    expect((await lib.search.query('数据集 基线')).map(x => x.page)).toEqual([7])     // both on page 7
+    expect(await lib.search.query('摘要 基线')).toHaveLength(0)                       // never on one page
+    expect((await lib.search.query('attention')).map(x => [x.id, x.page])).toEqual([[epub.id, 3]])   // case-insensitive
+  })
+
+  it('ranks a title match above a text match and does not list a document twice', async () => {
+    const titled = await importDoc('量子纠缠导论.pdf')
+    const other = await importDoc('杂谈.pdf')
+    lib.docText.store(titled.id, titled.hash, [{ page: 2, text: '量子纠缠是一种现象' }])
+    lib.docText.store(other.id, other.hash, [{ page: 5, text: '顺便提到量子纠缠' }])
+    const r = await lib.search.query('量子纠缠')
+    expect(r.map(x => x.id)).toEqual([titled.id, other.id])
+    expect(r[1].page).toBe(5)
+  })
+
+  it('treats search syntax literally and skips empty pages', async () => {
+    const d = await importDoc('n.txt')
+    lib.docText.store(d.id, d.hash, [{ page: 1, text: '' }, { page: 2, text: 'cost is 100% "quoted" a*b' }])
+    expect((await lib.search.query('100%')).map(x => x.id)).toEqual([d.id])
+    expect((await lib.search.query('"quoted"')).map(x => x.id)).toEqual([d.id])
+    expect((await lib.search.query('a*b')).map(x => x.id)).toEqual([d.id])
+    expect((await lib.search.query('100%'))[0].page).toBeNull()   // plain text: no page
+  })
+
+  it('drops text of removed documents', async () => {
+    const d = await importDoc('gone.pdf')
+    lib.docText.store(d.id, d.hash, [{ page: 1, text: 'vanishing text' }])
+    await lib.documents.delete(d.id)
+    expect(await lib.search.query('vanishing')).toHaveLength(0)   // joined with documents
+    expect(lib.docText.prune()).toBe(1)
+  })
+})
+
+describe('query folding for document text', () => {
+  let tempDir: string
+  let lib: Library
+  beforeEach(async () => { tempDir = createTempDir(); lib = await Library.init(join(tempDir, 'lib'), testDeps()) })
+  afterEach(async () => { await lib.close(); cleanupTempDir(tempDir) })
+
+  it('matches full-width query letters against the folded text', async () => {
+    createTestFile(join(tempDir, 'lib'), 'p.pdf', 'p')
+    const d = await lib.documents.import('p.pdf')
+    lib.docText.store(d.id, d.hash, [{ page: 4, text: 'GPT4 模型，效果很好。' }])
+    expect((await lib.search.query('ＧＰＴ４')).map(r => r.page)).toEqual([4])
+    expect((await lib.search.query('模型，效果')).map(r => r.page)).toEqual([4])   // Chinese punctuation kept on both sides
+  })
+})

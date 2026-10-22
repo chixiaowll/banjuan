@@ -1,7 +1,8 @@
 import { app, protocol, net, Menu, BrowserWindow, ipcMain } from 'electron'
-import { registerIpcHandlers, getLibraryRootPath, installBundledPlugins } from './ipc.js'
+import { registerIpcHandlers, getLibraryRootPath, installBundledPlugins, libraries } from './ipc.js'
 import { registerExportWindowHandlers } from './export-window.js'
 import { startApiServer, stopApiServer } from './api-server.js'
+import { startDocTextIndexer, stopDocTextIndexer } from './doc-text-indexer.js'
 import { installCli } from './install-cli.js'
 import { createWindow, getWindowCount, isLibraryWindow, flushAllWindowsForQuit } from './windows.js'
 import { initScreenshot, disposeScreenshot } from './screenshot/index.js'
@@ -34,6 +35,8 @@ app.whenReady().then(() => {
   installBundledPlugins() // refresh global plugins (~/.banjuan/plugins) at startup
   registerExportWindowHandlers()
   startApiServer().catch(console.error)
+  // Document text for search, extracted in the background (doc-text-indexer.ts).
+  startDocTextIndexer(() => libraries.values())
   installCli().catch(console.error)
 
   const isMac = process.platform === 'darwin'
@@ -85,7 +88,7 @@ app.on('before-quit', (e) => {
 
 // Remove ~/.banjuan/api-port and api-token on every platform's quit, so clients
 // don't mistake a stale port for a running app.
-app.on('will-quit', () => { disposeScreenshot(); stopApiServer() })
+app.on('will-quit', () => { disposeScreenshot(); stopApiServer(); stopDocTextIndexer() })
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

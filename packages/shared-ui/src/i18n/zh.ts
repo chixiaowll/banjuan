@@ -541,6 +541,9 @@ const zh = {
   'palette.annotations': '批注',
   'palette.recent': '最近',
   'palette.noResults': '没有找到与「{0}」相关的内容',
+  'palette.chapter': '第 {0} 章',
+  'palette.indexing': '正文索引 {0}/{1}',
+  'palette.indexingHint': '正在后台提取文档正文，完成前正文搜索的结果可能不全',
   'palette.hint': '↑↓ 选择 · ↵ 打开 · esc 关闭',
 
   // trash

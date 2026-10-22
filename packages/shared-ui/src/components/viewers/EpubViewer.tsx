@@ -11,6 +11,7 @@ import { useAnnotations } from '../../hooks/useAnnotations.js'
 import { useT } from '../../i18n/index.js'
 import { useResizable, ResizeHandle } from '../ResizeHandle.js'
 import { useBanjuanAPI } from '../../api.js'
+import { takeDocPage, onDocPageRequest } from '../../utils/docNavigation.js'
 
 interface DocInfo {
   id: string
@@ -130,8 +131,11 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
           epubContainer.style.overflowX = 'hidden'
         }
 
+        // A search hit asks for a chapter ("page" N = Nth spine item); otherwise resume.
+        const chapter = takeDocPage(docRef.current.id)
+        const chapterHref = chapter ? epubBook.spine.get(chapter - 1)?.href : undefined
         const savedPosition = (docRef.current.metadata?.readingPosition as any)?.cfi
-        rend.display(savedPosition || undefined)
+        rend.display(chapterHref || savedPosition || undefined)
 
         epubBook.loaded.navigation.then((nav) => {
           if (!cancelled) ctx.setToc(nav.toc)
@@ -201,6 +205,13 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
       color: ctx.activeColor,
     })
   }, [create, ctx.activeColor])
+
+  // Chapter requests while the book is already open.
+  useEffect(() => onDocPageRequest(doc.id, () => {
+    const chapter = takeDocPage(doc.id)
+    const href = chapter ? ctx.book?.spine.get(chapter - 1)?.href : undefined
+    if (href) void ctx.rendition?.display(href)
+  }), [doc.id, ctx.book, ctx.rendition])
 
   const handleAnnotationClick = useCallback(async (cfi: string) => {
     if (!ctx.rendition) return

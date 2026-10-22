@@ -512,6 +512,9 @@ const de = {
   'palette.annotations': 'Anmerkungen',
   'palette.recent': 'Zuletzt',
   'palette.noResults': 'Keine Treffer für „{0}“',
+  'palette.chapter': 'Kap. {0}',
+  'palette.indexing': 'Textindex {0}/{1}',
+  'palette.indexingHint': 'Der Text der Dokumente wird im Hintergrund ausgelesen; bis dahin können Treffer im Text fehlen',
   'palette.hint': '↑↓ auswählen · ↵ öffnen · Esc schließen',
 
   // trash

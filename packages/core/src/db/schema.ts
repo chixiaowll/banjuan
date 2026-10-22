@@ -185,6 +185,7 @@ export function initSchema(db: PlatformDatabase): void {
   db.execute(INDEX_SQL)
 
   ensureSearchIndex(db)
+  ensureDocTextIndex(db)
 
   // Migrate mindmap_nodes: add new columns if missing
   const nodeColumns = db.pragma('table_info(mindmap_nodes)') as Array<{ name: string }>
@@ -231,5 +232,28 @@ function ensureSearchIndex(db: PlatformDatabase): void {
     db.execute(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(title, content, type, tokenize='${trigram ? 'trigram' : 'unicode61'}')`)
   } catch {
     // FTS5 not available (e.g. sql.js on mobile)
+  }
+}
+
+/**
+ * Full text of documents (PDF / EPUB / plain text / web clips), one row per
+ * page or chapter, filled in the background by the app (DocTextService). Like
+ * search_index it is derived data: the database isn't synced, and a document
+ * whose file changed (new hash) is extracted again.
+ */
+function ensureDocTextIndex(db: PlatformDatabase): void {
+  db.execute(`CREATE TABLE IF NOT EXISTS doc_text_state (
+    doc_id TEXT PRIMARY KEY,
+    hash TEXT NOT NULL,
+    status TEXT NOT NULL,
+    pages INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    updated_at TEXT NOT NULL
+  )`)
+  for (const tokenizer of ['trigram', 'unicode61']) {
+    try {
+      db.execute(`CREATE VIRTUAL TABLE IF NOT EXISTS doc_text USING fts5(content, doc_id UNINDEXED, page UNINDEXED, tokenize='${tokenizer}')`)
+      return
+    } catch { /* trigram (SQLite < 3.34) or FTS5 unavailable */ }
   }
 }

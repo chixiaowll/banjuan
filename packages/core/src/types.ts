@@ -228,11 +228,16 @@ export interface SearchResult {
   /** Text around the first hit (empty when only the title matched). */
   snippet: string
   score: number
-  /** Annotation: the document it belongs to, and its page (if any). */
+  /**
+   * Annotation: the document it belongs to, and its page (if any). Document
+   * matched by its text: the page (PDF) or chapter (EPUB) of the hit.
+   */
   docId?: string
   page?: number | null
   /** Note: markdown / mindmap / handwriting. */
   noteType?: string
+  /** Document: pdf / epub / … */
+  docType?: string
 }
 
 export interface SearchOptions {

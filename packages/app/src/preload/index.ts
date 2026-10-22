@@ -298,6 +298,7 @@ const api = {
   search: {
     query: (query: string, options?: { type?: string; limit?: number }) =>
       ipcRenderer.invoke('search:query', query, options),
+    textIndexStatus: () => ipcRenderer.invoke('search:textIndexStatus'),
   },
   index: {
     rebuild: () => ipcRenderer.invoke('index:rebuild'),

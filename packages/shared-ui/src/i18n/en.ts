@@ -541,6 +541,9 @@ const en = {
   'palette.annotations': 'Annotations',
   'palette.recent': 'Recent',
   'palette.noResults': 'Nothing found for "{0}"',
+  'palette.chapter': 'Ch. {0}',
+  'palette.indexing': 'Indexing text {0}/{1}',
+  'palette.indexingHint': 'Document text is being extracted in the background; text matches may be incomplete until it finishes',
   'palette.hint': '↑↓ to navigate · ↵ to open · esc to close',
 
   // trash

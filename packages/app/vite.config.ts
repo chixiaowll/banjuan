@@ -24,6 +24,18 @@ export default defineConfig({
         },
       },
       {
+        // Background text extraction for search (doc-text-indexer.ts forks it as a utility process).
+        entry: resolve(__dirname, 'src/main/text-worker.ts'),
+        vite: {
+          build: {
+            outDir: resolve(__dirname, 'dist/worker'),
+            rollupOptions: {
+              external: ['electron'],
+            },
+          },
+        },
+      },
+      {
         entry: resolve(__dirname, 'src/preload/index.ts'),
         onstart(args) {
           args.reload()

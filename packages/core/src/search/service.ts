@@ -43,15 +43,48 @@ function makeSnippet(text: string, terms: string[]): string {
 
 const likeParam = (term: string) => `%${escapeLike(term)}%`
 
+/**
+ * The folding the app applies to extracted document text (normalizeText in
+ * app/src/main/doc-text-extract.ts), applied to query terms so they compare:
+ * full-width letters and digits, ligatures, Kangxi radicals.
+ */
+const NFKC_FOLD = /[\u2f00-\u2fdf\uf900-\ufaff\ufb00-\ufb06\uff10-\uff19\uff21-\uff3a\uff41-\uff5a]/g
+const foldSearchText = (text: string) => text.replace(NFKC_FOLD, ch => ch.normalize('NFKC'))
+
+function ftsModeOf(db: PlatformDatabase, table: string): FtsMode {
+  let sql: string | undefined
+  try {
+    sql = db.queryOne<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", [table])?.sql
+  } catch { /* no sqlite_master access — treat as no FTS */ }
+  return !sql ? 'none' : /trigram/i.test(sql) ? 'trigram' : 'scan'
+}
+
+/**
+ * WHERE clauses for "every term occurs in these columns": an FTS MATCH for the
+ * terms the trigram index can answer (3+ characters), LIKE scans for the rest.
+ */
+function termFilter(table: string, columns: string[], terms: string[], mode: FtsMode): { where: string[]; params: unknown[]; ranked: boolean } {
+  const where: string[] = []
+  const params: unknown[] = []
+  const indexed = mode === 'trigram' ? terms.filter(t => [...t].length >= 3) : []
+  if (indexed.length > 0) {
+    where.push(`${table} MATCH ?`)
+    params.push(`{${columns.join(' ')}} : (${indexed.map(t => `"${t.replace(/"/g, '""')}"`).join(' AND ')})`)
+  }
+  for (const t of terms.filter(t => !indexed.includes(t))) {
+    where.push(`(${columns.map(c => `${table}.${c} LIKE ? ${LIKE_ESCAPE}`).join(' OR ')})`)
+    for (const _ of columns) params.push(likeParam(t))
+  }
+  return { where, params, ranked: indexed.length > 0 }
+}
+
 export class SearchService {
   private fts: FtsMode
+  private docText: FtsMode
 
   constructor(private db: PlatformDatabase) {
-    let sql: string | undefined
-    try {
-      sql = db.queryOne<{ sql: string }>("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'search_index'")?.sql
-    } catch { /* no sqlite_master access — treat as no FTS */ }
-    this.fts = !sql ? 'none' : /trigram/i.test(sql) ? 'trigram' : 'scan'
+    this.fts = ftsModeOf(db, 'search_index')
+    this.docText = ftsModeOf(db, 'doc_text')
   }
 
   index(entry: { id: string; title: string; content: string; type: string }): void {
@@ -70,9 +103,9 @@ export class SearchService {
 
   /**
    * Substring search across notes (title, body, mind-map node text), documents
-   * (title, file path) and annotations (highlighted text, comment). Terms are
-   * separated by whitespace and must all match (AND), case-insensitively; they
-   * are always literal — no FTS / LIKE syntax leaks through.
+   * (title, file path, text — see DocTextService) and annotations (highlighted
+   * text, comment). Terms are separated by whitespace and must all match (AND),
+   * case-insensitively; they are always literal — no FTS / LIKE syntax leaks through.
    */
   async query(queryStr: string, options?: SearchOptions): Promise<SearchResult[]> {
     const terms = [...new Set(queryStr.trim().toLowerCase().split(/\s+/).filter(Boolean))]
@@ -96,21 +129,11 @@ export class SearchService {
 
     // Body text (plain notes), via the FTS table.
     if (this.fts !== 'none') {
-      const where: string[] = []
-      const params: unknown[] = []
-      const indexed = this.fts === 'trigram' ? terms.filter(t => [...t].length >= 3) : []
-      if (indexed.length > 0) {
-        where.push('search_index MATCH ?')
-        params.push(`{title content} : (${indexed.map(t => `"${t.replace(/"/g, '""')}"`).join(' AND ')})`)
-      }
-      for (const t of terms.filter(t => !indexed.includes(t))) {
-        where.push(`(title LIKE ? ${LIKE_ESCAPE} OR content LIKE ? ${LIKE_ESCAPE})`)
-        params.push(likeParam(t), likeParam(t))
-      }
+      const { where, params, ranked } = termFilter('search_index', ['title', 'content'], terms, this.fts)
       where.push("type LIKE 'note:%'")
       try {
         const rows = this.db.query<{ title: string; content: string; type: string }>(
-          `SELECT title, content, type FROM search_index WHERE ${where.join(' AND ')}${indexed.length ? ' ORDER BY rank' : ''} LIMIT ?`,
+          `SELECT title, content, type FROM search_index WHERE ${where.join(' AND ')}${ranked ? ' ORDER BY rank' : ''} LIMIT ?`,
           [...params, limit * 4],
         )
         for (const r of rows) add(r.type.slice('note:'.length), scoreOf(r.title, r.content, terms), makeSnippet(r.content, terms))
@@ -150,13 +173,53 @@ export class SearchService {
       .map(({ r, f }) => ({ type: 'note' as const, id: r.id, title: r.title, snippet: f.snippet, score: f.score, noteType: r.type }))
   }
 
+  /** Documents by title / file path, and by their text (one result per document: its best page). */
   private searchDocuments(terms: string[], limit: number): SearchResult[] {
     const where = terms.map(() => `(title LIKE ? ${LIKE_ESCAPE} OR path LIKE ? ${LIKE_ESCAPE})`).join(' AND ')
-    const rows = this.db.query<{ id: string; title: string; path: string }>(
-      `SELECT id, title, path FROM documents WHERE ${where} ORDER BY COALESCE(last_read_at, updated_at) DESC LIMIT ?`,
+    const rows = this.db.query<{ id: string; title: string; path: string; type: string }>(
+      `SELECT id, title, path, type FROM documents WHERE ${where} ORDER BY COALESCE(last_read_at, updated_at) DESC LIMIT ?`,
       [...terms.flatMap(t => [likeParam(t), likeParam(t)]), limit],
     )
-    return rows.map(r => ({ type: 'document' as const, id: r.id, title: r.title, snippet: r.path, score: scoreOf(r.title, r.path, terms) }))
+    const byId = new Map<string, SearchResult>()
+    for (const r of rows) byId.set(r.id, { type: 'document', id: r.id, title: r.title, snippet: r.path, score: scoreOf(r.title, r.path, terms), docType: r.type })
+    for (const hit of this.searchDocText(terms, limit)) {
+      const prev = byId.get(hit.id)
+      if (prev) prev.score += 5   // matched by title already; the text agrees
+      else byId.set(hit.id, hit)
+    }
+    return [...byId.values()]
+  }
+
+  /** Pages (PDF) / chapters (EPUB) / whole files whose text contains every term. */
+  private searchDocText(queryTerms: string[], limit: number): SearchResult[] {
+    if (this.docText === 'none') return []
+    const terms = queryTerms.map(foldSearchText)
+    const { where, params, ranked } = termFilter('doc_text', ['content'], terms, this.docText)
+    let rows: Array<{ doc_id: string; page: number; content: string; title: string; type: string }>
+    try {
+      rows = this.db.query(
+        `SELECT doc_text.doc_id, doc_text.page, doc_text.content, d.title, d.type
+           FROM doc_text JOIN documents d ON d.id = doc_text.doc_id
+          WHERE ${where.join(' AND ')}${ranked ? ' ORDER BY doc_text.rank' : ''} LIMIT ?`,
+        [...params, limit * 5],
+      )
+    } catch (e) {
+      console.warn('[search] document text query failed', terms, e)
+      return []
+    }
+    const best = new Map<string, SearchResult & { pagesHit: number }>()
+    for (const r of rows) {
+      const prev = best.get(r.doc_id)
+      if (prev) { prev.pagesHit++; continue }
+      best.set(r.doc_id, {
+        type: 'document', id: r.doc_id, title: r.title, snippet: makeSnippet(r.content, terms),
+        // Text hits rank below title hits; more matching pages, a little higher.
+        score: 30 + Math.min(scoreOf('', r.content, terms), 20),
+        page: r.type === 'pdf' || r.type === 'epub' ? r.page : null,
+        docType: r.type, pagesHit: 1,
+      })
+    }
+    return [...best.values()].map(({ pagesHit, ...r }) => ({ ...r, score: r.score + Math.min(pagesHit - 1, 10) }))
   }
 
   private searchAnnotations(terms: string[], limit: number): SearchResult[] {

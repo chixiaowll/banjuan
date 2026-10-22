@@ -10,6 +10,7 @@ import { DocLinkService } from './notes/doc-link-service.js'
 import { FolderService } from './notes/folder-service.js'
 import { TagService } from './tags/service.js'
 import { SearchService } from './search/service.js'
+import { DocTextService } from './search/doc-text.js'
 import { MindmapService } from './mindmaps/service.js'
 import { GraphService } from './graph/service.js'
 import { EventBus } from './events/bus.js'
@@ -41,6 +42,7 @@ export class Library {
   readonly docLinks: DocLinkService
   readonly tags: TagService
   readonly search: SearchService
+  readonly docText: DocTextService
   readonly mindmaps: MindmapService
   readonly graph: GraphService
   readonly events: EventBus
@@ -57,6 +59,7 @@ export class Library {
     this.fs = deps.fs
     this.events = new EventBus()
     this.search = new SearchService(db)
+    this.docText = new DocTextService(db)
     this.documents = new DocumentService(db, rootPath, this.search, this.events, deps.fs, deps.crypto)
     this.annotations = new AnnotationService(db, rootPath, this.events, deps.fs)
     this.notes = new NoteService(db, rootPath, this.search, this.events, deps.fs)

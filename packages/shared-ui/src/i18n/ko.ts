@@ -512,6 +512,9 @@ const ko = {
   'palette.annotations': '주석',
   'palette.recent': '최근',
   'palette.noResults': '"{0}"에 대한 결과가 없습니다',
+  'palette.chapter': '{0}장',
+  'palette.indexing': '본문 색인 {0}/{1}',
+  'palette.indexingHint': '백그라운드에서 문서 본문을 추출하는 중입니다. 끝날 때까지 본문 검색 결과가 일부 빠질 수 있습니다',
   'palette.hint': '↑↓ 이동 · ↵ 열기 · esc 닫기',
 
   // trash
