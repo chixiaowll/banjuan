@@ -24,6 +24,7 @@ import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
 import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
 import { emitLinksSynced } from '../utils/linkEvents.js'
+import { useDebouncedSaver } from '../utils/debouncedSaver.js'
 
 interface NoteInfo {
   id: string
@@ -325,7 +326,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     setNaturalH(el.offsetHeight)
   }, [])
   const editorRef = useRef<BlockEditorHandle>(null)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saver = useDebouncedSaver(800, note.id)   // flushes on unmount / window close, never drops the last edit
   const leftPanel = useResizable(240, 160, 480, 'left')
   const rightPanel = useResizable(260, 180, 720, 'right')
 
@@ -366,14 +367,17 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
   }, [note.id, title])
 
   const saveContent = useCallback((json: string) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(async () => {
+    const id = note.id
+    saver.schedule(async () => {
       setSaving(true)
-      await api.notes.update(note.id, { content: json })
-      setSaving(false)
-      emitLinksSynced()
-    }, 800)
-  }, [note.id])
+      try {
+        await api.notes.update(id, { content: json })
+        emitLinksSynced()
+      } finally {
+        setSaving(false)
+      }
+    })
+  }, [note.id, saver])
 
   const saveTitle = useCallback(async () => {
     if (title !== note.title) {
