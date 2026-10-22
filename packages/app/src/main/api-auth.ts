@@ -7,6 +7,9 @@ import { timingSafeEqual } from 'node:crypto'
  * The one exception is the web-clipper browser extension, which can't read
  * files: requests whose Origin is a browser extension may use the clipper's
  * routes. Browsers set Origin themselves, so a page can't pose as an extension.
+ * An extension's GET carries no Origin at all, so `GET /api/status` is public —
+ * the server answers it without a token with nothing more than "running, and
+ * which library is open" (no paths).
  */
 
 const EXTENSION_ORIGIN = /^(chrome|moz)-extension:\/\/[^/]+$/
@@ -40,4 +43,18 @@ export function corsHeaders(origin: string | undefined): Record<string, string> 
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     Vary: 'Origin',
   }
+}
+
+/** Readable without a token (with a reduced answer — see the server). */
+export function isPublicRoute(method: string, path: string): boolean {
+  return method === 'GET' && path === '/api/status'
+}
+
+/**
+ * The Host header must name the loopback address we listen on. A DNS-rebinding
+ * page (evil.example re-resolved to 127.0.0.1) is same-origin with itself and
+ * could read our answers, but its requests carry its own host name.
+ */
+export function isLoopbackHost(host: string | undefined, port: number): boolean {
+  return host === `127.0.0.1:${port}` || host === `localhost:${port}`
 }

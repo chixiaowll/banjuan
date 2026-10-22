@@ -1,20 +1,13 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html>
 <head>
   <meta charset="UTF-8">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="container">
-    <h1>半卷闲书</h1>
-    <div id="status" class="status disconnected">检查连接中...</div>
-
-    <div id="settings-section" style="display:none">
-      <label>API 端口：
-        <input type="number" id="port-input" placeholder="端口号">
-      </label>
-      <button id="save-port">保存</button>
-    </div>
+    <h1 data-i18n="extName"></h1>
+    <div id="status" class="status disconnected" data-i18n="statusChecking"></div>
 
     <div id="clip-section" style="display:none">
       <div class="page-info">
@@ -22,21 +15,30 @@
         <div id="page-url" class="page-url"></div>
       </div>
 
-      <div id="selection-info" style="display:none">
-        <label>选中文本：</label>
-        <div id="selected-text" class="selected-text"></div>
+      <div class="modes">
+        <label class="mode"><input type="radio" name="mode" value="article" checked> <span data-i18n="modeArticle"></span></label>
+        <label class="mode" id="mode-selection-label"><input type="radio" name="mode" value="selection" id="mode-selection"> <span data-i18n="modeSelection"></span></label>
       </div>
+      <div id="selected-text" class="selected-text" style="display:none"></div>
 
-      <label>标签（逗号分隔）：
-        <input type="text" id="tags-input" placeholder="标签1, 标签2">
+      <label><span data-i18n="tagsLabel"></span>
+        <input type="text" id="tags-input" data-i18n-placeholder="tagsPlaceholder">
       </label>
 
-      <button id="clip-btn" class="primary">保存到书房</button>
+      <button id="clip-btn" class="primary" data-i18n="save"></button>
       <div id="result" class="result" style="display:none"></div>
     </div>
 
-    <button id="toggle-settings" class="link-btn">设置</button>
+    <div id="settings-section" style="display:none">
+      <label><span data-i18n="portLabel"></span>
+        <input type="number" id="port-input" data-i18n-placeholder="portPlaceholder">
+      </label>
+      <div class="hint" data-i18n="portHint"></div>
+      <button id="save-port" data-i18n="portSave"></button>
+    </div>
+
+    <button id="toggle-settings" class="link-btn" data-i18n="settings"></button>
   </div>
-  <script src="popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>

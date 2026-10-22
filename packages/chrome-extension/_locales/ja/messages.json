@@ -1,0 +1,92 @@
+{
+  "extName": {
+    "message": "半巻閑書 Webクリッパー"
+  },
+  "extDescription": {
+    "message": "Webページの本文や選択範囲を半巻閑書のライブラリに保存します"
+  },
+  "menuClipPage": {
+    "message": "ページを半巻閑書に保存"
+  },
+  "menuClipSelection": {
+    "message": "選択範囲を半巻閑書に保存"
+  },
+  "statusChecking": {
+    "message": "半巻閑書を探しています…"
+  },
+  "statusConnected": {
+    "message": "接続済み · $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusNotRunning": {
+    "message": "半巻閑書が起動していません。アプリを開いてからもう一度お試しください。"
+  },
+  "statusNoLibrary": {
+    "message": "半巻閑書は起動していますが、ライブラリが開かれていません。先にライブラリを開いてください。"
+  },
+  "modeArticle": {
+    "message": "本文"
+  },
+  "modeSelection": {
+    "message": "選択範囲"
+  },
+  "tagsLabel": {
+    "message": "タグ（カンマ区切り）"
+  },
+  "tagsPlaceholder": {
+    "message": "読書, 研究"
+  },
+  "save": {
+    "message": "ライブラリに保存"
+  },
+  "saving": {
+    "message": "保存中…"
+  },
+  "saved": {
+    "message": "保存しました：$ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "failed": {
+    "message": "保存できませんでした：$ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "errNotRunning": {
+    "message": "半巻閑書に接続できません。アプリが起動しているか確認してください。"
+  },
+  "errNoLibrary": {
+    "message": "先に半巻閑書でライブラリを開いてください。"
+  },
+  "errCannotClip": {
+    "message": "このページはクリップできません（ブラウザの内部ページ、拡張機能ストア、内蔵 PDF ビューアは対象外です）。"
+  },
+  "settings": {
+    "message": "設定"
+  },
+  "portLabel": {
+    "message": "API ポート（任意）"
+  },
+  "portPlaceholder": {
+    "message": "自動検出"
+  },
+  "portHint": {
+    "message": "通常は自動で見つかります。~/.banjuan/api-port のポートと異なる場合のみ入力してください。"
+  },
+  "portSave": {
+    "message": "保存"
+  },
+  "untitled": {
+    "message": "（無題）"
+  }
+}

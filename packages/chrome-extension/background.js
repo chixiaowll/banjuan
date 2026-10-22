@@ -1,85 +1,39 @@
-const PORT_URL = 'http://127.0.0.1'
+import { clipTab, errorText } from './lib/clip.js'
 
-async function getApiPort() {
-  const stored = await chrome.storage.local.get('apiPort')
-  return stored.apiPort || null
-}
-
-async function checkStatus(port) {
-  try {
-    const res = await fetch(`${PORT_URL}:${port}/api/status`)
-    if (res.ok) {
-      const data = await res.json()
-      return data.status === 'ok'
-    }
-  } catch {}
-  return false
-}
-
-async function sendClip(port, data) {
-  const res = await fetch(`${PORT_URL}:${port}/api/clip`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
-  return res.json()
-}
+const t = (key, subs) => chrome.i18n.getMessage(key, subs)
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: 'save-selection',
-    title: '保存到半卷闲书',
-    contexts: ['selection'],
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({ id: 'clip-selection', title: t('menuClipSelection'), contexts: ['selection'] })
+    chrome.contextMenus.create({ id: 'clip-page', title: t('menuClipPage'), contexts: ['page'] })
   })
 })
 
+// Right-click clips have no popup, so the toolbar badge tells how it went
+// (… saving, ✓ saved, ! failed — the reason is in the button's tooltip).
+async function badge(tabId, text, color) {
+  try {
+    await chrome.action.setBadgeText({ tabId, text })
+    if (color) await chrome.action.setBadgeBackgroundColor({ tabId, color })
+  } catch { /* the tab may be gone */ }
+}
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === 'save-selection' && tab?.id) {
-    const port = await getApiPort()
-    if (!port) return
-
-    const [result] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: () => ({
-        url: window.location.href,
-        title: document.title,
-        html: document.documentElement.outerHTML,
-        selectedText: window.getSelection()?.toString() || '',
-      }),
-    })
-
-    if (result?.result) {
-      try {
-        await sendClip(port, result.result)
-      } catch (e) {
-        console.error('Failed to save clip:', e)
-      }
-    }
+  if (!tab?.id) return
+  const tabId = tab.id
+  const mode = info.menuItemId === 'clip-selection' ? 'selection' : 'article'
+  await badge(tabId, '…', '#888888')
+  try {
+    const res = await clipTab(tabId, mode)
+    await badge(tabId, '✓', '#2e7d32')
+    await chrome.action.setTitle({ tabId, title: t('saved', [res.title || '']) })
+  } catch (e) {
+    console.error('Clip failed:', e)
+    await badge(tabId, '!', '#c62828')
+    await chrome.action.setTitle({ tabId, title: errorText(e) })
   }
-})
-
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.type === 'CHECK_STATUS') {
-    getApiPort().then(port => {
-      if (!port) { sendResponse({ connected: false }); return }
-      checkStatus(port).then(ok => sendResponse({ connected: ok }))
-    })
-    return true
-  }
-
-  if (message.type === 'SAVE_CLIP') {
-    getApiPort().then(port => {
-      if (!port) { sendResponse({ error: 'API port not configured' }); return }
-      sendClip(port, message.data)
-        .then(res => sendResponse(res))
-        .catch(e => sendResponse({ error: e.message }))
-    })
-    return true
-  }
-
-  if (message.type === 'SET_PORT') {
-    chrome.storage.local.set({ apiPort: message.port })
-    sendResponse({ ok: true })
-    return true
-  }
+  setTimeout(() => {
+    badge(tabId, '')
+    chrome.action.setTitle({ tabId, title: t('extName') }).catch(() => {})
+  }, 5000)
 })

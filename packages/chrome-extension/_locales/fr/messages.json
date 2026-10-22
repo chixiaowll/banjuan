@@ -1,0 +1,92 @@
+{
+  "extName": {
+    "message": "Banjuan Web Clipper"
+  },
+  "extDescription": {
+    "message": "Enregistrez des articles et des sélections du web dans votre bibliothèque Banjuan"
+  },
+  "menuClipPage": {
+    "message": "Enregistrer la page dans Banjuan"
+  },
+  "menuClipSelection": {
+    "message": "Enregistrer la sélection dans Banjuan"
+  },
+  "statusChecking": {
+    "message": "Recherche de Banjuan…"
+  },
+  "statusConnected": {
+    "message": "Connecté · $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusNotRunning": {
+    "message": "Banjuan n’est pas lancé. Ouvrez l’application puis réessayez."
+  },
+  "statusNoLibrary": {
+    "message": "Banjuan est lancé mais aucune bibliothèque n’est ouverte. Ouvrez d’abord une bibliothèque."
+  },
+  "modeArticle": {
+    "message": "Article"
+  },
+  "modeSelection": {
+    "message": "Sélection"
+  },
+  "tagsLabel": {
+    "message": "Étiquettes (séparées par des virgules)"
+  },
+  "tagsPlaceholder": {
+    "message": "lecture, recherche"
+  },
+  "save": {
+    "message": "Enregistrer dans la bibliothèque"
+  },
+  "saving": {
+    "message": "Enregistrement…"
+  },
+  "saved": {
+    "message": "Enregistré : $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "failed": {
+    "message": "Échec de l’enregistrement : $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "errNotRunning": {
+    "message": "Impossible de joindre Banjuan. Vérifiez que l’application est ouverte."
+  },
+  "errNoLibrary": {
+    "message": "Ouvrez d’abord une bibliothèque dans Banjuan."
+  },
+  "errCannotClip": {
+    "message": "Cette page ne peut pas être enregistrée (pages internes du navigateur, boutique d’extensions et lecteur PDF intégré exclus)."
+  },
+  "settings": {
+    "message": "Réglages"
+  },
+  "portLabel": {
+    "message": "Port de l’API (facultatif)"
+  },
+  "portPlaceholder": {
+    "message": "Détection automatique"
+  },
+  "portHint": {
+    "message": "Il est normalement trouvé automatiquement. À remplir seulement si le port dans ~/.banjuan/api-port est différent."
+  },
+  "portSave": {
+    "message": "Enregistrer"
+  },
+  "untitled": {
+    "message": "(sans titre)"
+  }
+}

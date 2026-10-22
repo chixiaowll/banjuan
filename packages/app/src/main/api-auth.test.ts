@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isAuthorized, corsHeaders } from './api-auth.js'
+import { isAuthorized, isPublicRoute, isLoopbackHost, corsHeaders } from './api-auth.js'
 
 const TOKEN = 'a'.repeat(64)
 const req = (method: string, path: string, headers: { origin?: string; authorization?: string } = {}) => ({ method, path, ...headers })
@@ -39,5 +39,26 @@ describe('corsHeaders', () => {
   it('sends no CORS grant to web pages or non-browser clients', () => {
     expect(corsHeaders('https://evil.example')).toEqual({})
     expect(corsHeaders(undefined)).toEqual({})
+  })
+})
+
+describe('isPublicRoute', () => {
+  it('only the status probe is public', () => {
+    expect(isPublicRoute('GET', '/api/status')).toBe(true)
+    expect(isPublicRoute('POST', '/api/status')).toBe(false)
+    expect(isPublicRoute('POST', '/api/clip')).toBe(false)
+    expect(isPublicRoute('GET', '/api/notes')).toBe(false)
+  })
+})
+
+describe('isLoopbackHost', () => {
+  it('accepts the loopback address on our port', () => {
+    expect(isLoopbackHost('127.0.0.1:48720', 48720)).toBe(true)
+    expect(isLoopbackHost('localhost:48720', 48720)).toBe(true)
+  })
+  it('refuses other names (DNS rebinding), other ports and a missing Host', () => {
+    expect(isLoopbackHost('evil.example:48720', 48720)).toBe(false)
+    expect(isLoopbackHost('127.0.0.1:48721', 48720)).toBe(false)
+    expect(isLoopbackHost(undefined, 48720)).toBe(false)
   })
 })

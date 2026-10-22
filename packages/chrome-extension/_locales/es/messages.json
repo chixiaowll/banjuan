@@ -1,0 +1,92 @@
+{
+  "extName": {
+    "message": "Banjuan Web Clipper"
+  },
+  "extDescription": {
+    "message": "Guarda artículos y selecciones de la web en tu biblioteca de Banjuan"
+  },
+  "menuClipPage": {
+    "message": "Guardar página en Banjuan"
+  },
+  "menuClipSelection": {
+    "message": "Guardar selección en Banjuan"
+  },
+  "statusChecking": {
+    "message": "Buscando Banjuan…"
+  },
+  "statusConnected": {
+    "message": "Conectado · $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusNotRunning": {
+    "message": "Banjuan no se está ejecutando. Abre la aplicación y vuelve a intentarlo."
+  },
+  "statusNoLibrary": {
+    "message": "Banjuan se está ejecutando, pero no hay ninguna biblioteca abierta. Abre una biblioteca primero."
+  },
+  "modeArticle": {
+    "message": "Artículo"
+  },
+  "modeSelection": {
+    "message": "Selección"
+  },
+  "tagsLabel": {
+    "message": "Etiquetas (separadas por comas)"
+  },
+  "tagsPlaceholder": {
+    "message": "lectura, investigación"
+  },
+  "save": {
+    "message": "Guardar en la biblioteca"
+  },
+  "saving": {
+    "message": "Guardando…"
+  },
+  "saved": {
+    "message": "Guardado: $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "failed": {
+    "message": "No se pudo guardar: $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "errNotRunning": {
+    "message": "No se puede conectar con Banjuan. Comprueba que la aplicación esté abierta."
+  },
+  "errNoLibrary": {
+    "message": "Abre primero una biblioteca en Banjuan."
+  },
+  "errCannotClip": {
+    "message": "Esta página no se puede guardar (las páginas internas del navegador, la tienda de extensiones y el visor de PDF integrado no están permitidos)."
+  },
+  "settings": {
+    "message": "Ajustes"
+  },
+  "portLabel": {
+    "message": "Puerto de la API (opcional)"
+  },
+  "portPlaceholder": {
+    "message": "Detección automática"
+  },
+  "portHint": {
+    "message": "Normalmente se encuentra solo. Rellénalo solo si el puerto en ~/.banjuan/api-port es distinto."
+  },
+  "portSave": {
+    "message": "Guardar"
+  },
+  "untitled": {
+    "message": "(sin título)"
+  }
+}

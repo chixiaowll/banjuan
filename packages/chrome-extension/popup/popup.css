@@ -19,3 +19,8 @@ button.primary:hover { background: #74c7ec; }
 .result { margin-top: 8px; padding: 8px; border-radius: 4px; font-size: 12px; }
 .result.success { background: #1e3a2f; color: #a6e3a1; }
 .result.error { background: #3a1e1e; color: #f38ba8; }
+.modes { display: flex; gap: 16px; margin-bottom: 8px; }
+.mode { display: flex; align-items: center; gap: 4px; margin: 0; color: #cdd6f4; cursor: pointer; }
+.mode input { width: auto; margin: 0; }
+.mode.disabled { color: #6c7086; cursor: default; }
+.hint { font-size: 11px; color: #a6adc8; margin: -6px 0 10px; line-height: 1.5; }

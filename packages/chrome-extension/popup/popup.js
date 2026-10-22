@@ -1,100 +1,95 @@
-const statusEl = document.getElementById('status')
-const clipSection = document.getElementById('clip-section')
-const settingsSection = document.getElementById('settings-section')
-const pageTitleEl = document.getElementById('page-title')
-const pageUrlEl = document.getElementById('page-url')
-const selectionInfo = document.getElementById('selection-info')
-const selectedTextEl = document.getElementById('selected-text')
-const tagsInput = document.getElementById('tags-input')
-const clipBtn = document.getElementById('clip-btn')
-const resultEl = document.getElementById('result')
-const portInput = document.getElementById('port-input')
-const savePortBtn = document.getElementById('save-port')
-const toggleSettingsBtn = document.getElementById('toggle-settings')
+import { findApp } from '../lib/connection.js'
+import { clipTab, errorText } from '../lib/clip.js'
 
-let pageData = null
+const t = (key, subs) => chrome.i18n.getMessage(key, subs)
+const $ = (id) => document.getElementById(id)
+
+for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n)
+for (const el of document.querySelectorAll('[data-i18n-placeholder]')) el.placeholder = t(el.dataset.i18nPlaceholder)
+document.documentElement.lang = chrome.i18n.getUILanguage()
+
+let tab = null
 
 async function init() {
-  chrome.runtime.sendMessage({ type: 'CHECK_STATUS' }, (response) => {
-    if (response?.connected) {
-      statusEl.textContent = '已连接'
-      statusEl.className = 'status connected'
-      clipSection.style.display = 'block'
-      loadPageInfo()
-    } else {
-      statusEl.textContent = '未连接 — 请确保半卷闲书已启动，并在设置中配置端口'
-      statusEl.className = 'status disconnected'
-    }
-  })
-
   const stored = await chrome.storage.local.get('apiPort')
-  if (stored.apiPort) portInput.value = stored.apiPort
+  if (stored.apiPort) $('port-input').value = stored.apiPort
+
+  const app = await findApp()
+  const status = $('status')
+  if (!app) {
+    status.textContent = t('statusNotRunning')
+    status.className = 'status disconnected'
+    $('clip-section').style.display = 'none'
+    return
+  }
+  if (!app.libraryOpen) {
+    status.textContent = t('statusNoLibrary')
+    status.className = 'status disconnected'
+    $('clip-section').style.display = 'none'
+    return
+  }
+  status.textContent = t('statusConnected', [app.libraryName || ''])
+  status.className = 'status connected'
+  $('clip-section').style.display = 'block'
+  await loadPageInfo()
 }
 
 async function loadPageInfo() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  ;[tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab?.id) return
+  $('page-title').textContent = tab.title || t('untitled')
+  $('page-url').textContent = tab.url || ''
 
-  pageTitleEl.textContent = tab.title || '(无标题)'
-  pageUrlEl.textContent = tab.url || ''
+  let selected = ''
+  try {
+    const [res] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => window.getSelection()?.toString() || '' })
+    selected = (res?.result || '').trim()
+  } catch { /* not scriptable; saving will say so */ }
 
-  const [result] = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: () => ({
-      url: window.location.href,
-      title: document.title,
-      html: document.documentElement.outerHTML,
-      selectedText: window.getSelection()?.toString() || '',
-    }),
-  })
-
-  if (result?.result) {
-    pageData = result.result
-    if (pageData.selectedText) {
-      selectionInfo.style.display = 'block'
-      selectedTextEl.textContent = pageData.selectedText.slice(0, 200)
-    }
+  const radio = $('mode-selection')
+  radio.disabled = !selected
+  $('mode-selection-label').classList.toggle('disabled', !selected)
+  if (selected) {
+    radio.checked = true
+    $('selected-text').textContent = selected.length > 200 ? selected.slice(0, 200) + '…' : selected
+    $('selected-text').style.display = 'block'
   }
 }
 
-clipBtn.addEventListener('click', async () => {
-  if (!pageData) return
-
-  clipBtn.disabled = true
-  clipBtn.textContent = '保存中...'
-  resultEl.style.display = 'none'
-
-  const tags = tagsInput.value.split(',').map(t => t.trim()).filter(Boolean)
-
-  chrome.runtime.sendMessage({
-    type: 'SAVE_CLIP',
-    data: { ...pageData, tags },
-  }, (response) => {
-    clipBtn.disabled = false
-    clipBtn.textContent = '保存到书房'
-    resultEl.style.display = 'block'
-
-    if (response?.error) {
-      resultEl.className = 'result error'
-      resultEl.textContent = '失败：' + response.error
-    } else {
-      resultEl.className = 'result success'
-      resultEl.textContent = '✓ 已保存：' + (response?.title || '成功')
-    }
-  })
+$('clip-btn').addEventListener('click', async () => {
+  if (!tab?.id) return
+  const btn = $('clip-btn')
+  const result = $('result')
+  btn.disabled = true
+  btn.textContent = t('saving')
+  result.style.display = 'none'
+  const mode = document.querySelector('input[name="mode"]:checked')?.value || 'article'
+  const tags = $('tags-input').value.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
+  try {
+    const res = await clipTab(tab.id, mode, tags)
+    result.className = 'result success'
+    result.textContent = t('saved', [res.title || ''])
+  } catch (e) {
+    result.className = 'result error'
+    result.textContent = errorText(e)
+  } finally {
+    btn.disabled = false
+    btn.textContent = t('save')
+    result.style.display = 'block'
+  }
 })
 
-savePortBtn.addEventListener('click', () => {
-  const port = parseInt(portInput.value)
-  if (!port) return
-  chrome.runtime.sendMessage({ type: 'SET_PORT', port }, () => {
-    settingsSection.style.display = 'none'
-    init()
-  })
+$('save-port').addEventListener('click', async () => {
+  const port = parseInt($('port-input').value, 10)
+  if (port > 0 && port < 65536) await chrome.storage.local.set({ apiPort: port })
+  else await chrome.storage.local.remove('apiPort')
+  $('settings-section').style.display = 'none'
+  init()
 })
 
-toggleSettingsBtn.addEventListener('click', () => {
-  settingsSection.style.display = settingsSection.style.display === 'none' ? 'block' : 'none'
+$('toggle-settings').addEventListener('click', () => {
+  const s = $('settings-section')
+  s.style.display = s.style.display === 'none' ? 'block' : 'none'
 })
 
 init()

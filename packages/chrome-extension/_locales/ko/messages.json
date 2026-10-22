@@ -1,0 +1,92 @@
+{
+  "extName": {
+    "message": "Banjuan 웹 클리퍼"
+  },
+  "extDescription": {
+    "message": "웹 페이지의 본문이나 선택한 내용을 Banjuan 라이브러리에 저장합니다"
+  },
+  "menuClipPage": {
+    "message": "페이지를 Banjuan에 저장"
+  },
+  "menuClipSelection": {
+    "message": "선택한 내용을 Banjuan에 저장"
+  },
+  "statusChecking": {
+    "message": "Banjuan을 찾는 중…"
+  },
+  "statusConnected": {
+    "message": "연결됨 · $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusNotRunning": {
+    "message": "Banjuan이 실행 중이 아닙니다. 앱을 연 뒤 다시 시도하세요."
+  },
+  "statusNoLibrary": {
+    "message": "Banjuan은 실행 중이지만 열린 라이브러리가 없습니다. 먼저 라이브러리를 여세요."
+  },
+  "modeArticle": {
+    "message": "본문"
+  },
+  "modeSelection": {
+    "message": "선택한 내용"
+  },
+  "tagsLabel": {
+    "message": "태그(쉼표로 구분)"
+  },
+  "tagsPlaceholder": {
+    "message": "독서, 연구"
+  },
+  "save": {
+    "message": "라이브러리에 저장"
+  },
+  "saving": {
+    "message": "저장 중…"
+  },
+  "saved": {
+    "message": "저장됨: $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "failed": {
+    "message": "저장하지 못했습니다: $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "errNotRunning": {
+    "message": "Banjuan에 연결할 수 없습니다. 앱이 실행 중인지 확인하세요."
+  },
+  "errNoLibrary": {
+    "message": "먼저 Banjuan에서 라이브러리를 여세요."
+  },
+  "errCannotClip": {
+    "message": "이 페이지는 클리핑할 수 없습니다(브라우저 내부 페이지, 확장 프로그램 스토어, 내장 PDF 뷰어는 지원되지 않음)."
+  },
+  "settings": {
+    "message": "설정"
+  },
+  "portLabel": {
+    "message": "API 포트(선택)"
+  },
+  "portPlaceholder": {
+    "message": "자동 감지"
+  },
+  "portHint": {
+    "message": "보통 자동으로 찾습니다. ~/.banjuan/api-port의 포트가 다를 때만 입력하세요."
+  },
+  "portSave": {
+    "message": "저장"
+  },
+  "untitled": {
+    "message": "(제목 없음)"
+  }
+}

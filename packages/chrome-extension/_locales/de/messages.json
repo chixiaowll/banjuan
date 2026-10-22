@@ -1,0 +1,92 @@
+{
+  "extName": {
+    "message": "Banjuan Web Clipper"
+  },
+  "extDescription": {
+    "message": "Artikel und Auswahlen aus dem Web in deiner Banjuan-Bibliothek speichern"
+  },
+  "menuClipPage": {
+    "message": "Seite in Banjuan speichern"
+  },
+  "menuClipSelection": {
+    "message": "Auswahl in Banjuan speichern"
+  },
+  "statusChecking": {
+    "message": "Suche nach Banjuan…"
+  },
+  "statusConnected": {
+    "message": "Verbunden · $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusNotRunning": {
+    "message": "Banjuan läuft nicht. Öffne die App und versuche es erneut."
+  },
+  "statusNoLibrary": {
+    "message": "Banjuan läuft, aber es ist keine Bibliothek geöffnet. Öffne zuerst eine Bibliothek."
+  },
+  "modeArticle": {
+    "message": "Artikel"
+  },
+  "modeSelection": {
+    "message": "Auswahl"
+  },
+  "tagsLabel": {
+    "message": "Tags (durch Kommas getrennt)"
+  },
+  "tagsPlaceholder": {
+    "message": "Lesen, Recherche"
+  },
+  "save": {
+    "message": "In Bibliothek speichern"
+  },
+  "saving": {
+    "message": "Wird gespeichert…"
+  },
+  "saved": {
+    "message": "Gespeichert: $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "failed": {
+    "message": "Speichern fehlgeschlagen: $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "errNotRunning": {
+    "message": "Banjuan ist nicht erreichbar. Prüfe, ob die App geöffnet ist."
+  },
+  "errNoLibrary": {
+    "message": "Öffne zuerst eine Bibliothek in Banjuan."
+  },
+  "errCannotClip": {
+    "message": "Diese Seite kann nicht gespeichert werden (Browser-Seiten, der Erweiterungs-Store und der integrierte PDF-Viewer sind ausgenommen)."
+  },
+  "settings": {
+    "message": "Einstellungen"
+  },
+  "portLabel": {
+    "message": "API-Port (optional)"
+  },
+  "portPlaceholder": {
+    "message": "Automatisch erkennen"
+  },
+  "portHint": {
+    "message": "Wird normalerweise automatisch gefunden. Nur ausfüllen, wenn in ~/.banjuan/api-port ein anderer Port steht."
+  },
+  "portSave": {
+    "message": "Speichern"
+  },
+  "untitled": {
+    "message": "(ohne Titel)"
+  }
+}

@@ -10,7 +10,7 @@ import { blocksToMarkdown, markdownToBlocks } from '@banjuan/core'
 import { saveClip } from './clip-service.js'
 import { openLibraryForApi, initLibraryForApi, libraries, getLibraryHistory } from './ipc.js'
 import { extractDocumentText } from './pdf-text.js'
-import { isAuthorized, corsHeaders } from './api-auth.js'
+import { isAuthorized, isPublicRoute, isLoopbackHost, corsHeaders } from './api-auth.js'
 
 const MAX_TEXT_PAGES = 25
 /**
@@ -25,6 +25,7 @@ let server: ReturnType<typeof createServer> | null = null
 let portFilePath = ''
 let tokenFilePath = ''
 let apiToken = ''   // per launch; clients read it from ~/.banjuan/api-token
+let serverPort = 0
 let libraryGetter: () => Library | null = () => null
 let activeLibraryPath: string | null = null
 
@@ -127,21 +128,33 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     })
   }
 
+  if (!isLoopbackHost(req.headers.host, serverPort)) {
+    json(res, 403, { error: 'Forbidden host' })
+    return
+  }
   const authorized = isAuthorized({
     method: req.method ?? 'GET', path,
     origin: req.headers.origin, authorization: req.headers.authorization,
   }, apiToken)
-  if (!authorized) {
+  if (!authorized && !isPublicRoute(req.method ?? 'GET', path)) {
     json(res, 401, { error: 'Unauthorized: send the token from ~/.banjuan/api-token as "Authorization: Bearer <token>"' })
     return
   }
 
   if (path === '/api/status' && req.method === 'GET') {
     const lib = libraryGetter()
+    // The library clips go to (see requireLib), by name — the web clipper shows it.
+    const target = (activeLibraryPath && [...libraries.values()].find(l => l.rootPath === activeLibraryPath)) || lib
+    const libraryName = target ? await target.getName().catch(() => null) : null
+    if (!authorized) {
+      json(res, 200, { status: 'ok', app: 'banjuan', libraryOpen: lib !== null, libraryName })
+      return
+    }
     const openLibraries = [...libraries.values()].map(l => l.rootPath)
     json(res, 200, {
       status: 'ok',
       app: 'banjuan',
+      libraryName,
       libraryOpen: lib !== null,
       libraryPath: lib?.rootPath ?? null,
       libraries: openLibraries,
@@ -845,6 +858,7 @@ export function startApiServer(): Promise<number> {
         return
       }
       const port = addr.port
+      serverPort = port
 
       const banjuanDir = join(homedir(), '.banjuan')
       mkdirSync(banjuanDir, { recursive: true })

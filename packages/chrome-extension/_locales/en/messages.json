@@ -1,0 +1,92 @@
+{
+  "extName": {
+    "message": "Banjuan Web Clipper"
+  },
+  "extDescription": {
+    "message": "Save articles and selections from the web to your Banjuan library"
+  },
+  "menuClipPage": {
+    "message": "Save page to Banjuan"
+  },
+  "menuClipSelection": {
+    "message": "Save selection to Banjuan"
+  },
+  "statusChecking": {
+    "message": "Looking for Banjuan…"
+  },
+  "statusConnected": {
+    "message": "Connected · $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusNotRunning": {
+    "message": "Banjuan isn’t running. Open the app and try again."
+  },
+  "statusNoLibrary": {
+    "message": "Banjuan is running but no library is open. Open a library first."
+  },
+  "modeArticle": {
+    "message": "Article"
+  },
+  "modeSelection": {
+    "message": "Selection"
+  },
+  "tagsLabel": {
+    "message": "Tags (comma-separated)"
+  },
+  "tagsPlaceholder": {
+    "message": "reading, research"
+  },
+  "save": {
+    "message": "Save to library"
+  },
+  "saving": {
+    "message": "Saving…"
+  },
+  "saved": {
+    "message": "Saved: $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "failed": {
+    "message": "Couldn’t save: $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "errNotRunning": {
+    "message": "Couldn’t reach Banjuan. Make sure the app is running."
+  },
+  "errNoLibrary": {
+    "message": "Open a library in Banjuan first."
+  },
+  "errCannotClip": {
+    "message": "This page can’t be clipped (browser pages, the extension store and built-in PDF viewers are off-limits)."
+  },
+  "settings": {
+    "message": "Settings"
+  },
+  "portLabel": {
+    "message": "API port (optional)"
+  },
+  "portPlaceholder": {
+    "message": "Auto-detect"
+  },
+  "portHint": {
+    "message": "Normally found automatically. Only fill this in if Banjuan shows a different port in ~/.banjuan/api-port."
+  },
+  "portSave": {
+    "message": "Save"
+  },
+  "untitled": {
+    "message": "(untitled)"
+  }
+}

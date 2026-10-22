@@ -1,0 +1,92 @@
+{
+  "extName": {
+    "message": "半卷闲书 网页剪藏"
+  },
+  "extDescription": {
+    "message": "把网页正文或选中的内容保存到半卷闲书书库"
+  },
+  "menuClipPage": {
+    "message": "保存网页到半卷闲书"
+  },
+  "menuClipSelection": {
+    "message": "保存选中内容到半卷闲书"
+  },
+  "statusChecking": {
+    "message": "正在查找半卷闲书…"
+  },
+  "statusConnected": {
+    "message": "已连接 · $ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "statusNotRunning": {
+    "message": "半卷闲书没有运行，请先打开应用。"
+  },
+  "statusNoLibrary": {
+    "message": "半卷闲书已运行，但还没有打开书库，请先打开一个书库。"
+  },
+  "modeArticle": {
+    "message": "正文"
+  },
+  "modeSelection": {
+    "message": "选中内容"
+  },
+  "tagsLabel": {
+    "message": "标签（用逗号分隔）"
+  },
+  "tagsPlaceholder": {
+    "message": "阅读, 研究"
+  },
+  "save": {
+    "message": "保存到书库"
+  },
+  "saving": {
+    "message": "保存中…"
+  },
+  "saved": {
+    "message": "已保存：$ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "failed": {
+    "message": "保存失败：$ARG$",
+    "placeholders": {
+      "arg": {
+        "content": "$1"
+      }
+    }
+  },
+  "errNotRunning": {
+    "message": "连不上半卷闲书，请确认应用已打开。"
+  },
+  "errNoLibrary": {
+    "message": "请先在半卷闲书里打开一个书库。"
+  },
+  "errCannotClip": {
+    "message": "这个页面无法剪藏（浏览器内置页面、扩展商店和内置 PDF 阅读器都不允许）。"
+  },
+  "settings": {
+    "message": "设置"
+  },
+  "portLabel": {
+    "message": "接口端口（可选）"
+  },
+  "portPlaceholder": {
+    "message": "自动检测"
+  },
+  "portHint": {
+    "message": "一般会自动找到。只有当 ~/.banjuan/api-port 里的端口和这里不同时才需要填写。"
+  },
+  "portSave": {
+    "message": "保存"
+  },
+  "untitled": {
+    "message": "（无标题）"
+  }
+}
