@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { ChevronUp, ChevronDown, X } from 'lucide-react'
 import { useEpubViewer } from './EpubViewerContext.js'
 import { useT } from '../../i18n/index.js'
+import { useIsActiveTab } from '../tabActive.js'
 
 interface SearchResult {
   cfi: string
@@ -21,7 +22,9 @@ export default function EpubSearchPopup() {
     if (ctx.searchOpen) inputRef.current?.focus()
   }, [ctx.searchOpen])
 
+  const isActiveTab = useIsActiveTab()
   useEffect(() => {
+    if (!isActiveTab) return
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault()
@@ -33,7 +36,7 @@ export default function EpubSearchPopup() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [ctx.searchOpen])
+  }, [ctx.searchOpen, isActiveTab])
 
   const performSearch = useCallback(async (q: string) => {
     if (!q.trim() || !ctx.book) {

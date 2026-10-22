@@ -3,6 +3,8 @@ import TemplateRenderer from './TemplateRenderer.js'
 import HandwritingToolbar from './HandwritingToolbar.js'
 import { renderStroke, generateThumbnailDataUrl } from './renderStrokes.js'
 import type { HandwritingTemplate, CanvasSnapshot, Stroke, StrokePoint, CanvasImage } from '@banjuan/core'
+import { useIsActiveTab } from '../tabActive.js'
+import { isEditableTarget } from '../../utils/keyboard.js'
 
 interface Props {
   pageId: string
@@ -1153,11 +1155,14 @@ export default function HandwritingEditor({
     return () => vp.removeEventListener('wheel', onWheel)
   }, [])
 
+  const isActiveTab = useIsActiveTab()
   // --- Keyboard shortcuts ---
+  // Window-level, so: only while this tab is visible, and never while typing in
+  // another field — a rich-text editor is contentEditable, not INPUT/TEXTAREA.
   useEffect(() => {
+    if (!isActiveTab) return
     const onKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (isEditableTarget(e.target)) return
 
       if (e.code === 'Space' && !e.repeat) { e.preventDefault(); spaceHeldRef.current = true; return }
       if (e.code === 'Escape') {
@@ -1197,7 +1202,7 @@ export default function HandwritingEditor({
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
     return () => { window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp) }
-  }, [handleUndo, handleRedo, fitToViewport, handleZoomIn, handleZoomOut, clearSelection, deselectImage, redraw, pushSnapshot])
+  }, [isActiveTab, handleUndo, handleRedo, fitToViewport, handleZoomIn, handleZoomOut, clearSelection, deselectImage, redraw, pushSnapshot])
 
   // --- Cursor style ---
   const getCursorStyle = (): string => {

@@ -12,6 +12,7 @@ import ExportPanel from './ExportPanel.js'
 import MindmapExportHost from './MindmapExportHost.js'
 import { ResizeHandle, useResizable } from './ResizeHandle.js'
 import { useExportManagerStore } from '../stores/useExportManagerStore.js'
+import { TabActiveContext } from './tabActive.js'
 import '../styles/mobile.css'
 
 const LIBRARY_TAB_ID = 'library'
@@ -364,6 +365,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
                 pointerEvents: tab.id === activeTabId ? 'auto' : 'none',
               }}
             >
+              <TabActiveContext.Provider value={tab.id === activeTabId}>
               {tab.type === 'library' && (
                 <LibraryView
                   rootPath={libraryPath}
@@ -397,6 +399,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
               {tab.type === 'tag-manager' && (
                 <TagManagerView libraryName={libraryName} onBack={() => closeTab(tab.id)} />
               )}
+              </TabActiveContext.Provider>
             </div>
           ))}
           <MindmapExportHost />

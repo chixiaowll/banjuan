@@ -3,6 +3,8 @@ import { renderStroke, renderAllStrokes } from '../handwriting/renderStrokes.js'
 import type { Stroke } from '@banjuan/core'
 import { useMarkdownViewer } from './MarkdownViewerContext.js'
 import { useBanjuanAPI } from '../../api.js'
+import { useIsActiveTab } from '../tabActive.js'
+import { isEditableTarget } from '../../utils/keyboard.js'
 
 interface InkStroke {
   points: Array<{ x: number; y: number }>
@@ -323,9 +325,11 @@ export default function MarkdownInkLassoTool({ docId, annotations, scrollContain
     onUpdated()
   }, [inkAnnotations, onUpdated])
 
+  const isActiveTab = useIsActiveTab()
   useEffect(() => {
-    if (!active) return
+    if (!active || !isActiveTab) return
     const onKeyDown = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return   // Backspace in a note editor isn't "delete ink"
       if ((e.code === 'Backspace' || e.code === 'Delete') && selectedRef.current.size > 0) {
         e.preventDefault()
         deleteSelected()
@@ -333,7 +337,7 @@ export default function MarkdownInkLassoTool({ docId, annotations, scrollContain
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [active, deleteSelected])
+  }, [active, isActiveTab, deleteSelected])
 
   if (!active && allStrokes.length === 0) return null
 

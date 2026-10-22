@@ -3,6 +3,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useBanjuanAPI } from '../../api.js'
 import { useMindmapStore, useMindmapStoreApi } from './useMindmapStore.js'
 import { parseTextToBlocks } from './parseMarkdownBlocks.js'
+import { useIsActiveTab } from '../tabActive.js'
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'])
 const ATTACHMENT_PREFIX = 'banjuan-attachment://'
@@ -16,8 +17,10 @@ export function useKeyboardShortcuts() {
   } = useMindmapStore()
   const storeApi = useMindmapStoreApi()
   const { fitView, zoomIn, zoomOut } = useReactFlow()
+  const isActiveTab = useIsActiveTab()
 
   useEffect(() => {
+    if (!isActiveTab) return   // a hidden mind map must not react to Tab/Backspace/paste
     function isEditable(el: HTMLElement | null): boolean {
       while (el) {
         if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable) return true
@@ -210,5 +213,5 @@ export function useKeyboardShortcuts() {
       document.removeEventListener('keydown', handler)
       document.removeEventListener('paste', handlePaste)
     }
-  }, [rfNodes, selectedNodeIds, editingNodeId, addNode, addSiblingNode, removeNode, selectNode, setEditingNodeId, toggleCollapse, undo, redo, openSidePanel, fitView, zoomIn, zoomOut, storeApi])
+  }, [isActiveTab, rfNodes, selectedNodeIds, editingNodeId, addNode, addSiblingNode, removeNode, selectNode, setEditingNodeId, toggleCollapse, undo, redo, openSidePanel, fitView, zoomIn, zoomOut, storeApi])
 }

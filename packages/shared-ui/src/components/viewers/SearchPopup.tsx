@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useCallback } from 'react'
 import { ChevronUp, ChevronDown, X } from 'lucide-react'
 import { usePdfViewer, type SearchMatch } from './PdfViewerContext.js'
 import { useT } from '../../i18n/index.js'
+import { useIsActiveTab } from '../tabActive.js'
 
 export default function SearchPopup() {
   const t = useT()
@@ -13,7 +14,9 @@ export default function SearchPopup() {
     if (ctx.searchOpen) inputRef.current?.focus()
   }, [ctx.searchOpen])
 
+  const isActiveTab = useIsActiveTab()
   useEffect(() => {
+    if (!isActiveTab) return
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault()
@@ -28,7 +31,7 @@ export default function SearchPopup() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [ctx.searchOpen])
+  }, [ctx.searchOpen, isActiveTab])
 
   const performSearch = useCallback((query: string) => {
     if (!query.trim()) {

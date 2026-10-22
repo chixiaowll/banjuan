@@ -25,6 +25,7 @@ import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
 import { emitLinksSynced } from '../utils/linkEvents.js'
 import { useDebouncedSaver } from '../utils/debouncedSaver.js'
+import { useIsActiveTab } from '../components/tabActive.js'
 
 interface NoteInfo {
   id: string
@@ -58,7 +59,9 @@ function MindmapCenterContent({ noteId, onToggleLeftSidebar, onToggleRightSideba
     init(noteId)
   }, [noteId, init])
 
+  const isActiveTab = useIsActiveTab()
   useEffect(() => {
+    if (!isActiveTab) return
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault()
@@ -67,7 +70,7 @@ function MindmapCenterContent({ noteId, onToggleLeftSidebar, onToggleRightSideba
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [])
+  }, [isActiveTab])
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -386,7 +389,9 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     }
   }, [note.id, title, note.title])
 
+  const isActiveTab = useIsActiveTab()
   useEffect(() => {
+    if (!isActiveTab) return
     const handleKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
         e.preventDefault()
@@ -395,7 +400,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [])
+  }, [isActiveTab])
 
   useEffect(() => {
     if (!exportMenuOpen) return
