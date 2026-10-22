@@ -56,7 +56,7 @@ export default function EpubOutlinePanel() {
   const { toc, currentHref, navigateTo } = useEpubViewer()
 
   if (toc.length === 0) {
-    return <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)' }}>{t('epub.noOutline' as any)}</div>
+    return <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)' }}>{t('epub.noOutline')}</div>
   }
 
   return (

@@ -5,6 +5,7 @@ const en = {
   'screenshot.button': 'Screenshot',
   'video.loadFailed': "This video format can't be played in the built-in player.",
   'video.openNative': 'Play with system player',
+  'video.noScreenshots': 'No screenshots yet',
 
   // Welcome
   'welcome.selectDir': 'Select Directory',

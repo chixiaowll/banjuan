@@ -5,6 +5,7 @@ const zh = {
   'screenshot.button': '截图',
   'video.loadFailed': '此视频格式无法在内置播放器中播放。',
   'video.openNative': '用系统播放器播放',
+  'video.noScreenshots': '还没有截图',
 
   // Welcome
   'welcome.selectDir': '选择目录',

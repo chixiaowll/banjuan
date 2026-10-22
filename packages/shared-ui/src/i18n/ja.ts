@@ -4,6 +4,7 @@ const ja = {
   'screenshot.button': 'スクリーンショット',
   'video.loadFailed': 'この動画形式は内蔵プレーヤーで再生できません。',
   'video.openNative': 'システムプレーヤーで再生',
+  'video.noScreenshots': 'スクリーンショットはまだありません',
 
   'welcome.selectDir': 'ディレクトリを選択',
   'welcome.opening': '開いています...',
@@ -249,6 +250,7 @@ const ja = {
   'settings.appTheme': 'アプリテーマ',
   'settings.noteTheme': 'ノートテーマ',
   'pdf.eyeProtection': '目の保護',
+  'pdf.einkMode': '電子ペーパーモード',
   'pdf.hideAnnotations': '注釈を非表示',
   'pdf.showAnnotations': '注釈を表示',
 

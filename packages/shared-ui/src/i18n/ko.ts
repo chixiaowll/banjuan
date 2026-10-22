@@ -4,6 +4,7 @@ const ko = {
   'screenshot.button': '스크린샷',
   'video.loadFailed': '이 동영상 형식은 내장 플레이어에서 재생할 수 없습니다.',
   'video.openNative': '시스템 플레이어로 재생',
+  'video.noScreenshots': '아직 스크린샷이 없습니다',
 
   'welcome.selectDir': '디렉토리 선택',
   'welcome.opening': '여는 중...',
@@ -249,6 +250,7 @@ const ko = {
   'settings.appTheme': '앱 테마',
   'settings.noteTheme': '노트 테마',
   'pdf.eyeProtection': '눈 보호',
+  'pdf.einkMode': '전자잉크 모드',
   'pdf.hideAnnotations': '주석 숨기기',
   'pdf.showAnnotations': '주석 보기',
 

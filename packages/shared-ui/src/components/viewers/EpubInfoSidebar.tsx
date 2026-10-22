@@ -151,7 +151,7 @@ export default function EpubInfoSidebar({ doc, onDocUpdated, width = 280 }: Prop
         ))}
         <button onClick={addMetaRow}
           style={{ margin: '6px 12px', fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-          {t('info.addField' as any)}
+          {t('info.addField')}
         </button>
       </div>
     </div>

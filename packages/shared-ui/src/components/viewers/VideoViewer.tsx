@@ -302,7 +302,7 @@ export default function VideoViewer({ src, docPath, doc, onOpenNote }: Props) {
                   <div style={{ padding: 8 }}>
                     {screenshots.length === 0 && (
                       <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-                        {t('video.noScreenshots' as any) || 'No screenshots yet'}
+                        {t('video.noScreenshots')}
                       </div>
                     )}
                     {screenshots.map(s => (

@@ -106,7 +106,7 @@ export default function EpubSearchPopup() {
           value={query}
           onChange={(e) => handleQueryChange(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') e.shiftKey ? handlePrev() : handleNext() }}
-          placeholder={t('search.placeholder' as any)}
+          placeholder={t('search.placeholder')}
           style={{
             flex: 1, padding: '4px 8px', fontSize: 12,
             border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)',

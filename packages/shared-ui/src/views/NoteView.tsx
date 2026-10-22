@@ -425,7 +425,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
       onOpenNote(newNote)
     } catch (err: any) {
       if (err?.message?.includes('DUPLICATE_TITLE')) {
-        setTemplatePickerError(t('note.duplicateTitle' as any))
+        setTemplatePickerError(t('note.duplicateTitle'))
       } else {
         throw err
       }

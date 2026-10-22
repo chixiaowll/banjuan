@@ -4,6 +4,7 @@ const es = {
   'screenshot.button': 'Captura',
   'video.loadFailed': 'Este formato de vídeo no se puede reproducir en el reproductor integrado.',
   'video.openNative': 'Reproducir con el reproductor del sistema',
+  'video.noScreenshots': 'Aún no hay capturas',
 
   'welcome.selectDir': 'Seleccionar directorio',
   'welcome.opening': 'Abriendo...',
@@ -249,6 +250,7 @@ const es = {
   'settings.appTheme': 'Tema de la app',
   'settings.noteTheme': 'Tema de notas',
   'pdf.eyeProtection': 'Protección ocular',
+  'pdf.einkMode': 'Modo tinta electrónica',
   'pdf.hideAnnotations': 'Ocultar anotaciones',
   'pdf.showAnnotations': 'Mostrar anotaciones',
 

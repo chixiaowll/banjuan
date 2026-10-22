@@ -612,7 +612,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
       else onOpenNote(note)
     } catch (err: any) {
       if (err?.message?.includes('DUPLICATE_TITLE')) {
-        setNotePickerError(t('note.duplicateTitle' as any))
+        setNotePickerError(t('note.duplicateTitle'))
       } else {
         throw err
       }

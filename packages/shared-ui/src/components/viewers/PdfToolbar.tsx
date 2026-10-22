@@ -180,21 +180,21 @@ export default function PdfToolbar({ docId, metadata }: Props) {
         <button
           style={ctx.annotationsVisible ? btnStyle : activeBtnStyle}
           onClick={() => ctx.setAnnotationsVisible(!ctx.annotationsVisible)}
-          title={ctx.annotationsVisible ? t('pdf.hideAnnotations' as any) : t('pdf.showAnnotations' as any)}
+          title={ctx.annotationsVisible ? t('pdf.hideAnnotations') : t('pdf.showAnnotations')}
         >
           {ctx.annotationsVisible ? <Eye size={16} /> : <EyeOff size={16} />}
         </button>
         <button
           style={eyeProtection ? { ...btnStyle, color: '#d69e2e' } : btnStyle}
           onClick={toggleEyeProtection}
-          title={t('pdf.eyeProtection' as any)}
+          title={t('pdf.eyeProtection')}
         >
           <Sun size={16} />
         </button>
         <button
           style={einkMode ? { ...btnStyle, color: '#718096' } : btnStyle}
           onClick={toggleEinkMode}
-          title={t('pdf.einkMode' as any)}
+          title={t('pdf.einkMode')}
         >
           <Monitor size={16} />
         </button>

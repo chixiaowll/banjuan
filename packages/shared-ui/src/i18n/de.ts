@@ -4,6 +4,7 @@ const de = {
   'screenshot.button': 'Screenshot',
   'video.loadFailed': 'Dieses Videoformat kann im integrierten Player nicht abgespielt werden.',
   'video.openNative': 'Mit Systemplayer abspielen',
+  'video.noScreenshots': 'Noch keine Screenshots',
 
   'welcome.selectDir': 'Verzeichnis wählen',
   'welcome.opening': 'Wird geöffnet...',
@@ -249,6 +250,7 @@ const de = {
   'settings.appTheme': 'App-Design',
   'settings.noteTheme': 'Notiz-Design',
   'pdf.eyeProtection': 'Augenschutz',
+  'pdf.einkMode': 'E-Ink-Modus',
   'pdf.hideAnnotations': 'Anmerkungen ausblenden',
   'pdf.showAnnotations': 'Anmerkungen anzeigen',
 

@@ -50,7 +50,7 @@ export default function NoteList({ onOpenNote }: Props) {
       onOpenNote(note)
     } catch (err: any) {
       if (err?.message?.includes('DUPLICATE_TITLE')) {
-        setPickerError(t('note.duplicateTitle' as any))
+        setPickerError(t('note.duplicateTitle'))
       } else {
         throw err
       }

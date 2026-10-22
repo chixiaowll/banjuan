@@ -478,7 +478,7 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
         onOpenNote(newNote)
       } catch (err: any) {
         if (err?.message?.includes('DUPLICATE_TITLE')) {
-          alert(t('note.duplicateTitle' as any))
+          alert(t('note.duplicateTitle'))
         } else {
           throw err
         }
@@ -565,7 +565,7 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
       notifyChanged()
     } catch (err: any) {
       if (err?.message?.includes('DUPLICATE_TITLE')) {
-        alert(t('note.duplicateTitle' as any))
+        alert(t('note.duplicateTitle'))
       }
     }
   }, [load, t])

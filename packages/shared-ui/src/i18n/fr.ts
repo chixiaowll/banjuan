@@ -4,6 +4,7 @@ const fr = {
   'screenshot.button': 'Capture',
   'video.loadFailed': 'Ce format vidéo ne peut pas être lu dans le lecteur intégré.',
   'video.openNative': 'Lire avec le lecteur système',
+  'video.noScreenshots': 'Aucune capture pour l’instant',
 
   'welcome.selectDir': 'Sélectionner un dossier',
   'welcome.opening': 'Ouverture...',
@@ -249,6 +250,7 @@ const fr = {
   'settings.appTheme': "Thème de l'application",
   'settings.noteTheme': 'Thème des notes',
   'pdf.eyeProtection': 'Protection des yeux',
+  'pdf.einkMode': 'Mode encre électronique',
   'pdf.hideAnnotations': 'Masquer les annotations',
   'pdf.showAnnotations': 'Afficher les annotations',
 
