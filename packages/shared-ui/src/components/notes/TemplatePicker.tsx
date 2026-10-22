@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { FileText, Brain, PenTool } from 'lucide-react'
 import { useT } from '../../i18n/index.js'
+import { useEscapeKey } from '../../utils/useEscapeKey.js'
 
 export type NoteType = 'markdown' | 'mindmap' | 'handwriting'
 
@@ -17,6 +18,7 @@ const NOTE_TYPES: Array<{ type: NoteType; icon: React.ReactNode; color: string; 
 ]
 
 export default function TemplatePicker({ onSelect, onClose, error }: Props) {
+  useEscapeKey(true, onClose)
   const t = useT()
   const [title, setTitle] = useState('')
   const [noteType, setNoteType] = useState<NoteType>('markdown')

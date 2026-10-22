@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { Eraser, Lasso, Undo2, Redo2, Trash2, Highlighter, GripVertical, Eye, EyeOff } from 'lucide-react'
 import { INK_COLORS, STROKE_WIDTHS, DEFAULT_PRESETS, type InkPreset } from './inkConfig.js'
+import { useEscapeKey } from '../../utils/useEscapeKey.js'
 
 export interface InkToolbarAPI {
   activeColor: string
@@ -29,6 +30,7 @@ export default function InkToolbarBase({ api, onUndo, onRedo, canUndo, canRedo, 
   const [presets, setPresets] = useState<InkPreset[]>(() => DEFAULT_PRESETS.map(p => ({ ...p })))
   const [activePresetIndex, setActivePresetIndex] = useState(0)
   const [showColorPicker, setShowColorPicker] = useState(false)
+  useEscapeKey(showColorPicker, () => setShowColorPicker(false))
 
   const [pos, setPos] = useState({ x: -1, y: 16 })
   const dragging = useRef(false)

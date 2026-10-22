@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, FilePlus, FolderPlus, Pencil, Trash2, Folder
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { toast, alertDialog } from '../feedback.js'
+import { useEscapeKey } from '../../utils/useEscapeKey.js'
 
 interface NoteInfo {
   id: string
@@ -201,10 +202,10 @@ function ConfirmDialog({ message, onConfirm, onCancel }: {
   onCancel: () => void
 }) {
   const t = useT()
+  useEscapeKey(true, onCancel)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Enter') onConfirm()
-      if (e.key === 'Escape') onCancel()
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)

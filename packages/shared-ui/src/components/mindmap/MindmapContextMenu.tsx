@@ -1,6 +1,7 @@
 import React from 'react'
 import { useMindmapStore } from './useMindmapStore.js'
 import { useT } from '../../i18n/index.js'
+import { useEscapeKey } from '../../utils/useEscapeKey.js'
 
 interface Props {
   x: number
@@ -20,6 +21,7 @@ function hoverOn(e: React.MouseEvent<HTMLButtonElement>) { e.currentTarget.style
 function hoverOff(e: React.MouseEvent<HTMLButtonElement>) { e.currentTarget.style.background = 'none' }
 
 export default function MindmapContextMenu({ x, y, nodeId, onClose }: Props) {
+  useEscapeKey(true, onClose)
   const t = useT()
   const { addNode, addSiblingNode, removeNode, setEditingNodeId, openSidePanel, rfNodes } = useMindmapStore()
   const node = rfNodes.find(n => n.id === nodeId)

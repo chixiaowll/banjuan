@@ -22,6 +22,7 @@ import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 import { notifyNotesChanged, notifyDocumentsChanged } from '../utils/libraryEvents.js'
 import { toast, alertDialog, confirmDialog, errorMessage } from '../components/feedback.js'
 import { requestDocPage } from '../utils/docNavigation.js'
+import { useEscapeKey } from '../utils/useEscapeKey.js'
 
 interface Document {
   id: string
@@ -366,6 +367,13 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [noteDragOver, setNoteDragOver] = useState(false)
   const [exportDirPath, setExportDirPath] = useState<string | null>(null)
   const [showExportDialog, setShowExportDialog] = useState(false)
+  // Esc closes the topmost overlay (see useEscapeKey).
+  useEscapeKey(!!contextMenu, () => setContextMenu(null))
+  useEscapeKey(showFolderInput, () => setShowFolderInput(false))
+  useEscapeKey(showDocFolderInput, () => setShowDocFolderInput(false))
+  useEscapeKey(showRenameInput, () => setShowRenameInput(false))
+  useEscapeKey(showExportDialog, () => setShowExportDialog(false))
+  useEscapeKey(!!moveDocDialog, () => setMoveDocDialog(null))
   const composingRef = useRef(false)
   const [tagSearch, setTagSearch] = useState('')
   const [showAllTags, setShowAllTags] = useState(false)
@@ -2689,7 +2697,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                       const typeLabel = pill?.label ?? item.type
                       const coverColor = noteColorFor(item.type, item.title || '')
                       const { relative, absolute } = formatRelativeTime(item.updatedAt || item.createdAt, locale, t)
-                      const pathParts = item.path?.split('/').filter(Boolean) || []
+                      // A note's file is "<folder>/<uuid>.json": show the folder, never the id file name.
+                      const pathParts = (item.path?.split('/').filter(Boolean) || []).slice(0, -1)
                       return (
                         <div
                           key={item.id}
@@ -3316,6 +3325,7 @@ function SettingsPanel({ locale, setLocale, t }: { locale: string; setLocale: (l
   const api = useBanjuanAPI()
   const [rebuilding, setRebuilding] = React.useState(false)
   const [missingDocs, setMissingDocs] = React.useState<Array<{ id: string; title: string; path: string }> | null>(null)
+  useEscapeKey(!!missingDocs, () => setMissingDocs(null))
   const [purgeSel, setPurgeSel] = React.useState<Set<string>>(new Set())
 
   const runRebuild = useCallback(async (purgeIds: string[]) => {

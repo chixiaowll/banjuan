@@ -4,6 +4,7 @@ import { EdgeLabelRenderer, useInternalNode, type EdgeProps } from '@xyflow/reac
 import { useMindmapStore } from '../useMindmapStore.js'
 import { getTheme } from '../themes.js'
 import { useT } from '../../../i18n/index.js'
+import { useEscapeKey } from '../../../utils/useEscapeKey.js'
 
 interface EdgeStyle {
   sx: number; sy: number
@@ -108,6 +109,7 @@ export default function RelationEdge(props: EdgeProps) {
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  useEscapeKey(!!contextMenu, () => setContextMenu(null))
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null)
   const dragRef = useRef<{ startX: number; startY: number; orig: EdgeStyle } | null>(null)
   const [localStyle, setLocalStyle] = useState<EdgeStyle | null>(null)

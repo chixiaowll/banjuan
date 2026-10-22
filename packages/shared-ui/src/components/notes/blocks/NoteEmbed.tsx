@@ -5,6 +5,7 @@ import { renderAllStrokes } from '../../handwriting/renderStrokes.js'
 import type { Stroke } from '@banjuan/core'
 import { useBanjuanAPI } from '../../../api.js'
 import { useT } from '../../../i18n/index.js'
+import { useEscapeKey } from '../../../utils/useEscapeKey.js'
 
 const MindmapEmbedPreview = lazy(() => import('./MindmapEmbedPreview.js'))
 const HandwritingEmbedPreview = lazy(() => import('./HandwritingEmbedPreview.js'))
@@ -122,6 +123,7 @@ function NoteEmbedContent({
   const [pickerQuery, setPickerQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
   const [pagePicker, setPagePicker] = useState<PagePickerState | null>(null)
+  useEscapeKey(showPicker || !!pagePicker, () => { setShowPicker(false); setPagePicker(null) })
 
   useEffect(() => {
     if (!noteId) return

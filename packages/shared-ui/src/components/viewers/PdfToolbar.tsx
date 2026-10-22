@@ -4,6 +4,7 @@ import { usePdfViewer, ANNOTATION_COLORS, type AnnotationTool } from './PdfViewe
 import { useReadingTimer } from './useReadingTimer.js'
 import { useEyeProtection, useEinkMode } from './useEyeProtection.js'
 import { useT, type MessageKey } from '../../i18n/index.js'
+import { useEscapeKey } from '../../utils/useEscapeKey.js'
 
 const TOOL_IDS: Array<{ id: AnnotationTool; icon: React.ReactNode; key: string }> = [
   { id: 'highlight', icon: <Highlighter size={16} />, key: 'tool.highlight' },
@@ -24,6 +25,7 @@ export default function PdfToolbar({ docId, metadata }: Props) {
   const { einkMode, toggleEinkMode } = useEinkMode()
   const { formatted: readingTime } = useReadingTimer(docId, metadata)
   const [showColorPicker, setShowColorPicker] = useState(false)
+  useEscapeKey(showColorPicker, () => setShowColorPicker(false))
   const [pageInput, setPageInput] = useState('')
   const colorRef = useRef<HTMLDivElement>(null)
 

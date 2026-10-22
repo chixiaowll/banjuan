@@ -7,6 +7,7 @@ import { generateThumbnailDataUrl, renderAllStrokes } from './renderStrokes.js'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { toast } from '../feedback.js'
+import { useEscapeKey } from '../../utils/useEscapeKey.js'
 
 interface Props {
   noteId: string
@@ -42,6 +43,7 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
   }, [saveError, t])
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  useEscapeKey(exportMenuOpen, () => setExportMenuOpen(false))
 
   const renderPageToDataUrl = useCallback((pageData: any, format: 'png' | 'jpeg' = 'png') => {
     const dpr = 2

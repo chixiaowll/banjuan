@@ -4,6 +4,7 @@ import { Plus, CopyPlus, LayoutTemplate, Trash2 } from 'lucide-react'
 import { useHandwritingStore } from './useHandwritingStore.js'
 import { useT } from '../../i18n/index.js'
 import type { HandwritingTemplate } from '@banjuan/core'
+import { useEscapeKey } from '../../utils/useEscapeKey.js'
 
 const TEMPLATES: HandwritingTemplate[] = ['blank', 'lined', 'grid', 'dotted', 'cornell']
 
@@ -27,6 +28,8 @@ export default function PageListPanel() {
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [templatePicker, setTemplatePicker] = useState<number | null>(null)
+  useEscapeKey(!!contextMenu, () => setContextMenu(null))
+  useEscapeKey(templatePicker !== null, () => setTemplatePicker(null))
   const dragIndexRef = useRef<number | null>(null)
 
   const handleContextMenu = useCallback((e: React.MouseEvent, pageIndex: number) => {

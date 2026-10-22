@@ -4,6 +4,7 @@ import type { Node } from '@xyflow/react'
 import { useMindmapStore, type MindmapNodeData } from '../useMindmapStore.js'
 import { useNodeSizeStore } from '../useNodeSizeStore.js'
 import { useT } from '../../../i18n/index.js'
+import { useEscapeKey } from '../../../utils/useEscapeKey.js'
 
 const PADDING = 24
 const BORDER_RADIUS = 12
@@ -48,6 +49,7 @@ function BoundaryBox({ boundary, rfNodes, nodeSizes, onUpdateLabel, onRemove }: 
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(boundary.label)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  useEscapeKey(!!contextMenu, () => setContextMenu(null))
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {

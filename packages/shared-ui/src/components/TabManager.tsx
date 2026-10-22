@@ -20,6 +20,7 @@ import { TabActiveContext } from './tabActive.js'
 import { readTabSession, writeTabSession, tabShortcut, type SavedTab } from './tabSession.js'
 import SearchPalette from './SearchPalette.js'
 import '../styles/mobile.css'
+import { useEscapeKey } from '../utils/useEscapeKey.js'
 
 const LIBRARY_TAB_ID = 'library'
 
@@ -50,6 +51,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     return () => mq.removeEventListener('change', handler)
   }, [])
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  useEscapeKey(sidebarOpen, () => setSidebarOpen(false))
   const [tabs, setTabs] = useState<Tab[]>([
     { id: LIBRARY_TAB_ID, type: 'library', title: libraryName, closable: false },
   ])

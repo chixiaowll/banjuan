@@ -4,6 +4,7 @@ import { useEpubViewer, ANNOTATION_COLORS } from './EpubViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
 import { useEyeProtection, useEinkMode } from './useEyeProtection.js'
 import { useT, type MessageKey } from '../../i18n/index.js'
+import { useEscapeKey } from '../../utils/useEscapeKey.js'
 
 interface Props {
   docId: string
@@ -24,6 +25,7 @@ export default function EpubToolbar({ docId, metadata }: Props) {
   const { einkMode, toggleEinkMode } = useEinkMode()
   const { formatted: readingTime } = useReadingTimer(docId, metadata)
   const [showColorPicker, setShowColorPicker] = useState(false)
+  useEscapeKey(showColorPicker, () => setShowColorPicker(false))
   const colorRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

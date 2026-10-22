@@ -3,6 +3,7 @@ import { useMindmapStore, type MindmapNodeData } from '../useMindmapStore.js'
 import { useNodeSizeStore } from '../useNodeSizeStore.js'
 import { useT } from '../../../i18n/index.js'
 import type { Node } from '@xyflow/react'
+import { useEscapeKey } from '../../../utils/useEscapeKey.js'
 
 const BRACE_WIDTH = 20
 const GAP = 16
@@ -42,6 +43,7 @@ function SummaryBrace({ summary, rfNodes, nodeSizes, onRemove }: {
 }) {
   const t = useT()
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number } | null>(null)
+  useEscapeKey(!!contextMenu, () => setContextMenu(null))
 
   const allIds = new Set<string>()
   for (const id of summary.nodeIds) {
