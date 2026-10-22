@@ -52,3 +52,19 @@ export function placeToolbar(sel: Rect, bar: { w: number; h: number }, area: Rec
     : bottom - bar.h
   return { x, y }
 }
+
+/** Shortest distance from `p` to the segment a–b. */
+export function distToSegment(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x, dy = b.y - a.y
+  const len2 = dx * dx + dy * dy
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2))
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
+}
+
+export function clampPoint(p: Point, r: Rect): Point {
+  return { x: Math.min(r.x + r.w, Math.max(r.x, p.x)), y: Math.min(r.y + r.h, Math.max(r.y, p.y)) }
+}
+
+export function pointInRect(p: Point, r: Rect): boolean {
+  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h
+}

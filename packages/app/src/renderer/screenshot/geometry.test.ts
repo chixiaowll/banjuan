@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeRect, arrowHead, toDevicePx, isUsableSelection, placeToolbar, type Rect } from './geometry.js'
+import { normalizeRect, arrowHead, toDevicePx, isUsableSelection, placeToolbar, distToSegment, clampPoint, pointInRect, type Rect } from './geometry.js'
 
 describe('normalizeRect', () => {
   it('orders corners so width/height are positive when dragged up-left', () => {
@@ -59,5 +59,26 @@ describe('placeToolbar', () => {
   })
   it('pins to the bottom of the work area when neither side fits', () => {
     expect(placeToolbar({ x: 0, y: 0, w: 1512, h: 982 }, bar, area).y).toBe(38 + 884 - 40 - 8)
+  })
+})
+
+
+describe('distToSegment', () => {
+  it('is the perpendicular distance inside the segment and the end distance outside it', () => {
+    expect(distToSegment({ x: 5, y: 3 }, { x: 0, y: 0 }, { x: 10, y: 0 })).toBe(3)
+    expect(distToSegment({ x: 13, y: 4 }, { x: 0, y: 0 }, { x: 10, y: 0 })).toBe(5)
+    expect(distToSegment({ x: 2, y: 2 }, { x: 2, y: 2 }, { x: 2, y: 2 })).toBe(0)
+  })
+})
+
+describe('clampPoint / pointInRect', () => {
+  const r = { x: 10, y: 10, w: 100, h: 50 }
+  it('clamps into the rect', () => {
+    expect(clampPoint({ x: 0, y: 200 }, r)).toEqual({ x: 10, y: 60 })
+    expect(clampPoint({ x: 50, y: 30 }, r)).toEqual({ x: 50, y: 30 })
+  })
+  it('includes edges', () => {
+    expect(pointInRect({ x: 10, y: 60 }, r)).toBe(true)
+    expect(pointInRect({ x: 9, y: 30 }, r)).toBe(false)
   })
 })
