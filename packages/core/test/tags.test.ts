@@ -2,18 +2,22 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Library } from '../src/library.js'
-import { createTempDir, cleanupTempDir, createTestFile } from './helpers.js'
+import { createTempDir, cleanupTempDir, createTestFile, testDeps } from './helpers.js'
 
 describe('TagService (file-first)', () => {
   let tempDir: string
   let lib: Library
   let libPath: string
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTempDir()
     libPath = join(tempDir, 'lib')
-    lib = Library.init(libPath)
+    lib = await Library.init(libPath, testDeps())
   })
+
+  /** Notes and mindmaps share one JSON file layout: .banjuan/notes/<path> → { meta, ..., tags }. */
+  const readNoteFile = (notePath: string) =>
+    JSON.parse(readFileSync(join(libPath, '.banjuan', 'notes', notePath), 'utf-8'))
 
   afterEach(async () => {
     await lib.close()
@@ -72,14 +76,14 @@ describe('TagService (file-first)', () => {
   })
 
   describe('assign to note', () => {
-    it('embeds tag names in note frontmatter', async () => {
+    it('embeds tag names in note JSON file', async () => {
       await lib.tags.create({ name: 'Research' })
       const note = await lib.notes.create({ title: 'My Note', content: 'content' })
 
       await lib.tags.assign(note.id, 'note', ['Research'])
 
-      const raw = readFileSync(join(libPath, '.banjuan', 'notes', note.path), 'utf-8')
-      expect(raw).toContain('Research')
+      const fileData = readNoteFile(note.path)
+      expect(fileData.tags).toContain('Research')
 
       const tags = await lib.tags.forTarget(note.id, 'note')
       expect(tags).toHaveLength(1)
@@ -89,12 +93,11 @@ describe('TagService (file-first)', () => {
   describe('assign to mindmap', () => {
     it('embeds tag names in mindmap JSON file', async () => {
       await lib.tags.create({ name: 'Concepts' })
-      const mm = await lib.mindmaps.create({ title: 'Map' })
+      const mm = await lib.notes.create({ title: 'Map', type: 'mindmap' })
 
       await lib.tags.assign(mm.id, 'mindmap', ['Concepts'])
 
-      const jsonPath = join(libPath, '.banjuan', 'data', 'mindmaps', mm.id.slice(0, 2), `${mm.id}.json`)
-      const fileData = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+      const fileData = readNoteFile(mm.path)
       expect(fileData.tags).toContain('Concepts')
     })
   })
@@ -116,7 +119,7 @@ describe('TagService (file-first)', () => {
       expect(tags).toHaveLength(0)
     })
 
-    it('removes tag from note frontmatter and SQLite', async () => {
+    it('removes tag from note JSON file and SQLite', async () => {
       await lib.tags.create({ name: 'Gone' })
       const note = await lib.notes.create({ title: 'Unassign Note', content: 'c' })
       await lib.tags.assign(note.id, 'note', ['Gone'])
@@ -125,19 +128,19 @@ describe('TagService (file-first)', () => {
 
       const raw = readFileSync(join(libPath, '.banjuan', 'notes', note.path), 'utf-8')
       expect(raw).not.toContain('Gone')
+      expect(JSON.parse(raw).tags).not.toContain('Gone')
       const tags = await lib.tags.forTarget(note.id, 'note')
       expect(tags).toHaveLength(0)
     })
 
     it('removes tag from mindmap JSON and SQLite', async () => {
       await lib.tags.create({ name: 'Drop' })
-      const mm = await lib.mindmaps.create({ title: 'Unmap' })
+      const mm = await lib.notes.create({ title: 'Unmap', type: 'mindmap' })
       await lib.tags.assign(mm.id, 'mindmap', ['Drop'])
 
       await lib.tags.unassign(mm.id, 'mindmap', 'Drop')
 
-      const jsonPath = join(libPath, '.banjuan', 'data', 'mindmaps', mm.id.slice(0, 2), `${mm.id}.json`)
-      const fileData = JSON.parse(readFileSync(jsonPath, 'utf-8'))
+      const fileData = readNoteFile(mm.path)
       expect(fileData.tags).not.toContain('Drop')
       const tags = await lib.tags.forTarget(mm.id, 'mindmap')
       expect(tags).toHaveLength(0)

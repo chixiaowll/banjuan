@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Library } from '../src/library.js'
-import { createTempDir, cleanupTempDir, createTestFile } from './helpers.js'
+import { NodeFS } from '@banjuan/platform-node'
+import { createTempDir, cleanupTempDir, createTestFile, testDeps } from './helpers.js'
 import { IndexService } from '../src/indexing/service.js'
 import { FileWatcher } from '../src/indexing/watcher.js'
 
@@ -11,10 +12,10 @@ describe('IndexService', () => {
   let lib: Library
   let libPath: string
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTempDir()
     libPath = join(tempDir, 'lib')
-    lib = Library.init(libPath)
+    lib = await Library.init(libPath, testDeps())
   })
 
   afterEach(async () => {
@@ -30,10 +31,10 @@ describe('IndexService', () => {
       expect(await lib.documents.get(doc.id)).not.toBeNull()
 
       const db = (lib as any).db
-      db.prepare('DELETE FROM documents').run()
+      db.run('DELETE FROM documents')
       expect(await lib.documents.get(doc.id)).toBeNull()
 
-      const indexer = new IndexService(db, libPath)
+      const indexer = new IndexService(db, libPath, new NodeFS())
       await indexer.rebuildFull()
 
       const restored = await lib.documents.get(doc.id)
@@ -52,9 +53,9 @@ describe('IndexService', () => {
       })
 
       const db = (lib as any).db
-      db.prepare('DELETE FROM annotations').run()
+      db.run('DELETE FROM annotations')
 
-      const indexer = new IndexService(db, libPath)
+      const indexer = new IndexService(db, libPath, new NodeFS())
       await indexer.rebuildFull()
 
       const restored = await lib.annotations.get(ann.id)
@@ -67,9 +68,9 @@ describe('IndexService', () => {
       const note = await lib.notes.create({ title: 'Rebuild Note', content: JSON.stringify(blocks) })
 
       const db = (lib as any).db
-      db.prepare('DELETE FROM notes').run()
+      db.run('DELETE FROM notes')
 
-      const indexer = new IndexService(db, libPath)
+      const indexer = new IndexService(db, libPath, new NodeFS())
       await indexer.rebuildFull()
 
       const restored = await lib.notes.get(note.id)
@@ -78,23 +79,30 @@ describe('IndexService', () => {
       expect(JSON.parse(restored!.content)).toEqual(blocks)
     })
 
+    // Mindmaps are now notes of type 'mindmap' (.banjuan/notes/<id>.json holding
+    // { meta, nodes, edges }); the old standalone `mindmaps` table is gone, so the
+    // mindmap row lives in `notes`.
     it('rebuilds mindmaps with nodes and edges', async () => {
-      const mm = await lib.mindmaps.create({ title: 'Rebuild Map' })
+      const mm = await lib.notes.create({ title: 'Rebuild Map', type: 'mindmap' })
       const n1 = await lib.mindmaps.addNode(mm.id, { title: 'Node A' })
       const n2 = await lib.mindmaps.addNode(mm.id, { title: 'Node B' })
       await lib.mindmaps.addEdge(mm.id, { sourceId: n1.id, targetId: n2.id })
 
       const db = (lib as any).db
-      db.prepare('DELETE FROM mindmap_edges').run()
-      db.prepare('DELETE FROM mindmap_nodes').run()
-      db.prepare('DELETE FROM mindmaps').run()
+      db.run('DELETE FROM mindmap_edges')
+      db.run('DELETE FROM mindmap_nodes')
+      db.run('DELETE FROM notes')
 
-      const indexer = new IndexService(db, libPath)
+      const indexer = new IndexService(db, libPath, new NodeFS())
       await indexer.rebuildFull()
 
-      expect(await lib.mindmaps.get(mm.id)).not.toBeUndefined()
+      const restored = await lib.notes.get(mm.id)
+      expect(restored).not.toBeNull()
+      expect(restored!.type).toBe('mindmap')
+      // notes.create seeds a root node, so the map holds root + Node A + Node B
       const nodes = await lib.mindmaps.getNodes(mm.id)
-      expect(nodes).toHaveLength(2)
+      expect(nodes).toHaveLength(3)
+      expect(nodes.map(n => n.id)).toEqual(expect.arrayContaining([n1.id, n2.id]))
       const edges = await lib.mindmaps.getEdges(mm.id)
       expect(edges).toHaveLength(1)
     })
@@ -103,9 +111,9 @@ describe('IndexService', () => {
       await lib.tags.create({ name: 'TestTag', color: '#ff0000' })
 
       const db = (lib as any).db
-      db.prepare('DELETE FROM tags').run()
+      db.run('DELETE FROM tags')
 
-      const indexer = new IndexService(db, libPath)
+      const indexer = new IndexService(db, libPath, new NodeFS())
       await indexer.rebuildFull()
 
       const tags = await lib.tags.list()
@@ -120,9 +128,9 @@ describe('IndexService', () => {
       await lib.tags.assign(doc.id, 'document', ['Indexed'])
 
       const db = (lib as any).db
-      db.prepare('DELETE FROM doc_tags').run()
+      db.run('DELETE FROM doc_tags')
 
-      const indexer = new IndexService(db, libPath)
+      const indexer = new IndexService(db, libPath, new NodeFS())
       await indexer.rebuildFull()
 
       const tags = await lib.tags.forTarget(doc.id, 'document')
@@ -131,7 +139,7 @@ describe('IndexService', () => {
 
     it('writes timestamp to db.meta.json', async () => {
       const db = (lib as any).db
-      const indexer = new IndexService(db, libPath)
+      const indexer = new IndexService(db, libPath, new NodeFS())
       await indexer.rebuildFull()
 
       const meta = JSON.parse(readFileSync(join(libPath, '.banjuan', 'db.meta.json'), 'utf-8'))
@@ -146,10 +154,10 @@ describe('FileWatcher', () => {
   let lib: Library
   let libPath: string
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTempDir()
     libPath = join(tempDir, 'lib')
-    lib = Library.init(libPath)
+    lib = await Library.init(libPath, testDeps())
   })
 
   afterEach(async () => {
@@ -159,16 +167,16 @@ describe('FileWatcher', () => {
 
   it('can start and stop without errors', async () => {
     const db = (lib as any).db
-    const watcher = new FileWatcher(db, libPath)
-    watcher.start()
+    const watcher = new FileWatcher(db, libPath, new NodeFS())
+    await watcher.start()
     await new Promise(resolve => setTimeout(resolve, 100))
     watcher.stop()
   })
 
   it('detects new annotation JSON file', async () => {
     const db = (lib as any).db
-    const watcher = new FileWatcher(db, libPath)
-    watcher.start()
+    const watcher = new FileWatcher(db, libPath, new NodeFS())
+    await watcher.start()
 
     const annDir = join(libPath, '.banjuan', 'data', 'annotations', 'ab')
     mkdirSync(annDir, { recursive: true })
@@ -190,7 +198,7 @@ describe('FileWatcher', () => {
 
     watcher.stop()
 
-    const row = db.prepare('SELECT id FROM annotations WHERE id = ?').get('ab000000-test-file-watcher')
+    const row = db.queryOne('SELECT id FROM annotations WHERE id = ?', ['ab000000-test-file-watcher'])
     expect(row).toBeDefined()
   })
 })
