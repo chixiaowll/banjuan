@@ -369,6 +369,10 @@ export function registerIpcHandlers() {
     return getLib(event).tags.forTarget(targetId, targetType as any)
   })
 
+  ipcMain.handle('tags:namesByTarget', async (event, targetType: string) => {
+    return getLib(event).tags.namesByTarget(targetType as any)
+  })
+
   ipcMain.handle('tags:assign', async (event, targetId: string, targetType: string, tagNames: string[]) => {
     return getLib(event).tags.assign(targetId, targetType as any, tagNames)
   })

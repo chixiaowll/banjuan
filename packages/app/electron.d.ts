@@ -24,6 +24,7 @@ interface ElectronAPI {
     listWithCounts: () => Promise<Array<{ id: string; name: string; color: string | null; count: number }>>
     create: (input: { name: string; color?: string }) => Promise<any>
     forTarget: (id: string, type: string) => Promise<any[]>
+    namesByTarget: (type: string) => Promise<Record<string, string[]>>
     assign: (targetId: string, targetType: string, tagNames: string[]) => Promise<void>
     unassign: (targetId: string, targetType: string, tagName: string) => Promise<void>
     delete: (tagId: string) => Promise<void>

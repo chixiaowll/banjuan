@@ -436,25 +436,32 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     })
   }, [])
 
-  const loadDocStatuses = async (docs: Document[]) => {
-    const statuses: Record<string, string> = {}
-    for (const doc of docs) {
-      try { statuses[doc.id] = await api.sync.getDocStatus(doc.id) }
-      catch { statuses[doc.id] = 'local' }
-    }
-    setDocStatuses(statuses)
-  }
-
   const loadDocuments = async () => {
     const docs = await api.documents.list()
     try {
-      const tagResults = await Promise.all(docs.map(d => api.tags.forTarget(d.id, 'document').catch(() => [])))
-      docs.forEach((d: any, i) => { d.tags = tagResults[i].map((t: any) => t.name) })
+      if (api.tags.namesByTarget) {
+        // One call for every document's tags (was one IPC + query per document).
+        const byId = await api.tags.namesByTarget('document')
+        docs.forEach((d: any) => { d.tags = byId[d.id] ?? [] })
+      } else {
+        const tagResults = await Promise.all(docs.map(d => api.tags.forTarget(d.id, 'document').catch(() => [])))
+        docs.forEach((d: any, i) => { d.tags = tagResults[i].map((t: any) => t.name) })
+      }
     } catch {}
     setDocuments(docs)
-    loadDocStatuses(docs)
     try { const dirs = await api.documents.listDirs(); setDocExtraDirs(dirs) } catch {}
   }
+
+  // Sync status is shown only for the selected document, so fetch just that one
+  // (it used to be fetched serially for every document on each library load).
+  useEffect(() => {
+    if (selectedSection !== 'documents' || !selectedItemId) return
+    let cancelled = false
+    api.sync.getDocStatus(selectedItemId)
+      .then(s => { if (!cancelled) setDocStatuses(prev => ({ ...prev, [selectedItemId]: s })) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [selectedSection, selectedItemId])
 
   const loadNotes = async () => {
     const list = await api.notes.list()

@@ -42,6 +42,7 @@ const api = {
     listWithCounts: () => ipcRenderer.invoke('tags:listWithCounts'),
     create: (input: { name: string; color?: string }) => ipcRenderer.invoke('tags:create', input),
     forTarget: (id: string, type: string) => ipcRenderer.invoke('tags:forTarget', id, type),
+    namesByTarget: (type: string) => ipcRenderer.invoke('tags:namesByTarget', type),
     assign: (targetId: string, targetType: string, tagNames: string[]) =>
       ipcRenderer.invoke('tags:assign', targetId, targetType, tagNames),
     unassign: (targetId: string, targetType: string, tagName: string) =>

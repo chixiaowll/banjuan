@@ -251,6 +251,9 @@ export function createCapacitorAPI(): BanjuanAPI {
       async create(input) {
         return getLib().tags.create(input)
       },
+      async namesByTarget(type) {
+        return getLib().tags.namesByTarget(type as any)
+      },
       async forTarget(id, type) {
         return getLib().tags.forTarget(id, type as TagTarget)
       },
