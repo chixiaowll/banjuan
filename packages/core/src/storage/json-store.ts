@@ -1,5 +1,9 @@
 import type { PlatformFS } from '../platform/index.js'
 import { join } from '../platform/path.js'
+import { mapLimit } from './map-limit.js'
+
+// Parallel reads per listAll (bounded: thread pool / Capacitor bridge).
+const READ_CONCURRENCY = 32
 
 export class JsonStore<T extends { id: string }> {
   constructor(private baseDir: string, private fs: PlatformFS) {}
@@ -34,23 +38,21 @@ export class JsonStore<T extends { id: string }> {
 
   async listAll(): Promise<T[]> {
     if (!(await this.fs.exists(this.baseDir))) return []
-    const results: T[] = []
-    const prefixes = await this.fs.readdirWithTypes(this.baseDir)
-    for (const prefix of prefixes) {
-      if (!prefix.isDirectory) continue
-      const files = await this.fs.readdirWithTypes(join(this.baseDir, prefix.name))
-      for (const file of files) {
-        if (!file.name.endsWith('.json')) continue
-        const filePath = join(this.baseDir, prefix.name, file.name)
-        // One unreadable file (e.g. half-written by a crash before writes were
-        // atomic) must not take down every list, rebuild and sync that uses this.
-        try {
-          results.push(JSON.parse(await this.fs.readTextFile(filePath)))
-        } catch (e) {
-          console.warn('[JsonStore] skipping unreadable file', filePath, (e as Error)?.message)
-        }
+    const prefixes = (await this.fs.readdirWithTypes(this.baseDir)).filter(p => p.isDirectory)
+    const perPrefix = await mapLimit(prefixes, READ_CONCURRENCY, async (prefix) => {
+      const dir = join(this.baseDir, prefix.name)
+      return (await this.fs.readdirWithTypes(dir)).filter(f => f.name.endsWith('.json')).map(f => join(dir, f.name))
+    })
+    const parsed = await mapLimit(perPrefix.flat(), READ_CONCURRENCY, async (filePath) => {
+      // One unreadable file (e.g. half-written by a crash before writes were
+      // atomic) must not take down every list, rebuild and sync that uses this.
+      try {
+        return JSON.parse(await this.fs.readTextFile(filePath)) as T
+      } catch (e) {
+        console.warn('[JsonStore] skipping unreadable file', filePath, (e as Error)?.message)
+        return null
       }
-    }
-    return results
+    })
+    return parsed.filter((d): d is Awaited<T> => d !== null) as T[]
   }
 }
