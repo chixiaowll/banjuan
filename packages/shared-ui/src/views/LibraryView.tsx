@@ -23,6 +23,7 @@ import { notifyNotesChanged, notifyDocumentsChanged } from '../utils/libraryEven
 import { toast, alertDialog, confirmDialog, errorMessage } from '../components/feedback.js'
 import { requestDocPage } from '../utils/docNavigation.js'
 import { useEscapeKey } from '../utils/useEscapeKey.js'
+import { useFitInViewport } from '../utils/useFitInViewport.js'
 
 interface Document {
   id: string
@@ -339,6 +340,8 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [showNotePicker, setShowNotePicker] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: string; dirPath?: string; noteId?: string; noteTitle?: string; docId?: string; docTitle?: string } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useFitInViewport(menuRef)
   const [moveDocDialog, setMoveDocDialog] = useState<{ docId: string; docTitle: string } | null>(null)
   const [docDirs, setDocDirs] = useState<string[]>([])
   const [showDocFolderInput, setShowDocFolderInput] = useState(false)
@@ -3171,7 +3174,7 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
         </div>
       )}
       {contextMenu && (
-        <div style={{
+        <div ref={menuRef} style={{
           position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 2000,
           background: 'var(--surface, #fff)', border: '1px solid var(--border)',
           borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,0.15)',

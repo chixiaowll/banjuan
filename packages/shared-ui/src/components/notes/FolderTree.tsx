@@ -4,6 +4,7 @@ import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { toast, alertDialog } from '../feedback.js'
 import { useEscapeKey } from '../../utils/useEscapeKey.js'
+import { useFitInViewport } from '../../utils/useFitInViewport.js'
 
 interface NoteInfo {
   id: string
@@ -90,6 +91,7 @@ function ContextMenu({ state, onClose, onAction }: {
 }) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
+  useFitInViewport(ref)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

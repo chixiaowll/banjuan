@@ -6,6 +6,7 @@ import { useBanjuanAPI } from '../../api.js'
 import { useIsActiveTab } from '../tabActive.js'
 import { isEditableTarget } from '../../utils/keyboard.js'
 import { useT } from '../../i18n/index.js'
+import { useFitInViewport } from '../../utils/useFitInViewport.js'
 
 interface InkStroke {
   points: Array<{ x: number; y: number }>
@@ -305,6 +306,7 @@ export default function InkLassoTool({ active, pageNum, docId, existingAnnotatio
 
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const ctxMenuRef = useRef<HTMLDivElement>(null)
+  useFitInViewport(ctxMenuRef)
 
   useEffect(() => {
     if (!ctxMenu) return

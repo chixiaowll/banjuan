@@ -5,6 +5,7 @@ import { useMindmapStore } from '../useMindmapStore.js'
 import { getTheme } from '../themes.js'
 import { useT } from '../../../i18n/index.js'
 import { useEscapeKey } from '../../../utils/useEscapeKey.js'
+import { useFitInViewport } from '../../../utils/useFitInViewport.js'
 
 interface EdgeStyle {
   sx: number; sy: number
@@ -109,6 +110,8 @@ export default function RelationEdge(props: EdgeProps) {
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useFitInViewport(menuRef)
   useEscapeKey(!!contextMenu, () => setContextMenu(null))
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null)
   const dragRef = useRef<{ startX: number; startY: number; orig: EdgeStyle } | null>(null)
@@ -337,7 +340,7 @@ export default function RelationEdge(props: EdgeProps) {
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 999 }}
             onClick={() => setContextMenu(null)} onContextMenu={e => { e.preventDefault(); setContextMenu(null) }} />
-          <div style={{
+          <div ref={menuRef} style={{
             position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 1000,
             background: 'var(--surface, #fff)', border: '1px solid var(--border, #e0e0e0)',
             borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.15)',

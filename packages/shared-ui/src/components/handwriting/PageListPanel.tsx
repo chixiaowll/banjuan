@@ -5,6 +5,7 @@ import { useHandwritingStore } from './useHandwritingStore.js'
 import { useT } from '../../i18n/index.js'
 import type { HandwritingTemplate } from '@banjuan/core'
 import { useEscapeKey } from '../../utils/useEscapeKey.js'
+import { useFitInViewport } from '../../utils/useFitInViewport.js'
 
 const TEMPLATES: HandwritingTemplate[] = ['blank', 'lined', 'grid', 'dotted', 'cornell']
 
@@ -27,6 +28,8 @@ export default function PageListPanel() {
   const movePage = useHandwritingStore(s => s.movePage)
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useFitInViewport(menuRef)
   const [templatePicker, setTemplatePicker] = useState<number | null>(null)
   useEscapeKey(!!contextMenu, () => setContextMenu(null))
   useEscapeKey(templatePicker !== null, () => setTemplatePicker(null))
@@ -130,7 +133,7 @@ export default function PageListPanel() {
       {contextMenu && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={() => setContextMenu(null)} />
-          <div style={{
+          <div ref={menuRef} style={{
             position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 1000,
             background: 'var(--surface)', border: '1px solid var(--border)',
             borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',

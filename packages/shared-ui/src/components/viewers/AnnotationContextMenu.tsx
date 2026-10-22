@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { Trash2, Palette, Copy, StickyNote } from 'lucide-react'
 import { ANNOTATION_COLORS } from './PdfViewerContext.js'
 import { useT } from '../../i18n/index.js'
+import { useFitInViewport } from '../../utils/useFitInViewport.js'
 
 interface MenuPosition {
   x: number
@@ -25,6 +26,7 @@ export default function AnnotationContextMenu({
 }: Props) {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
+  useFitInViewport(ref)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
