@@ -31,10 +31,15 @@ describe('SearchService', () => {
     expect(results[0].type).toBe('document')
   })
 
-  // BUG(待确认): SearchService.query 把词元拼成未加引号的 `self-attention*`，FTS5 将 `-` 解析为列过滤而报错（no such column: attention），错误被 catch 吞掉，含连字符的词永远搜不到
-  it.skip('indexes notes on creation', async () => {
+  it('indexes notes on creation (hyphenated query)', async () => {
     const results = await lib.search.query('self-attention')
     expect(results.length).toBeGreaterThanOrEqual(1)
+    expect(results.some((r) => r.type === 'note')).toBe(true)
+  })
+
+  it('treats FTS5 syntax characters in the query as plain text', async () => {
+    await expect(lib.search.query('attention: (draft) NOT')).resolves.toBeDefined()
+    const results = await lib.search.query('self-attention mechanism')
     expect(results.some((r) => r.type === 'note')).toBe(true)
   })
 

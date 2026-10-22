@@ -63,7 +63,9 @@ export class SearchService {
       try {
         const tokens = queryStr.trim().split(/\s+/).filter(Boolean)
         if (tokens.length > 0) {
-          const ftsQuery = tokens.map(t => t.replace(/['"]/g, '') + '*').join(' ')
+          // Quote each token as a phrase: bare FTS5 syntax turns "self-attention"
+          // into a column filter, "note:x" into a column, AND/OR/NOT into operators.
+          const ftsQuery = tokens.map(t => `"${t.replace(/"/g, '')}"*`).join(' ')
           let sql = `SELECT title, content, type, rank FROM search_index WHERE search_index MATCH ?`
           const params: unknown[] = [ftsQuery]
           if (options?.type) {
@@ -82,7 +84,9 @@ export class SearchService {
             }
           }
         }
-      } catch { /* FTS query failed */ }
+      } catch (e) {
+        console.warn('[search] FTS query failed', queryStr, e)
+      }
     }
 
     return Array.from(results.values()).sort((a, b) => b.score - a.score).slice(0, limit)
