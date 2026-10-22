@@ -5,6 +5,7 @@ import { detectDocumentType, extractTitle } from './metadata.js'
 import type { SearchService } from '../search/service.js'
 import type { EventBus } from '../events/bus.js'
 import { JsonStore } from '../storage/json-store.js'
+import { escapeLike, LIKE_ESCAPE } from '../db/like.js'
 
 export class DocumentService {
   private store: JsonStore<DocumentFileData>
@@ -296,7 +297,7 @@ export class DocumentService {
 
   async deleteDir(dirPath: string): Promise<void> {
     const rows = this.db.query<{ id: string; path: string }>(
-      'SELECT id, path FROM documents WHERE path LIKE ?', [dirPath + '/%'],
+      `SELECT id, path FROM documents WHERE path LIKE ? ${LIKE_ESCAPE}`, [escapeLike(dirPath) + '/%'],
     )
     for (const row of rows) {
       await this.delete(row.id)

@@ -1,6 +1,7 @@
 import type { PlatformDatabase, PlatformFS } from '../platform/index.js'
 import { join, dirname } from '../platform/path.js'
 import { v4 as uuid } from 'uuid'
+import { escapeLike, LIKE_ESCAPE } from '../db/like.js'
 import type { Note, NoteCreateInput, NoteListOptions, Annotation, NoteFileData, NoteType, HandwritingNoteJsonFile } from '../types.js'
 import type { SearchService } from '../search/service.js'
 import type { EventBus } from '../events/bus.js'
@@ -153,7 +154,7 @@ export class NoteService {
     const fullPath = join(this.notesDir, dirPath)
     if (!(await this.fs.exists(fullPath))) return
     const prefix = dirPath + '/'
-    const notes = this.db.query<{ id: string }>('SELECT id FROM notes WHERE path LIKE ?', [prefix + '%'])
+    const notes = this.db.query<{ id: string }>(`SELECT id FROM notes WHERE path LIKE ? ${LIKE_ESCAPE}`, [escapeLike(prefix) + '%'])
     for (const note of notes) {
       await this.delete(note.id)
     }
@@ -169,7 +170,7 @@ export class NoteService {
     await this.fs.mkdir(dirname(newFull), { recursive: true })
     await this.fs.rename(oldFull, newFull)
     const prefix = oldPath + '/'
-    const notes = this.db.query<{ id: string; path: string }>('SELECT id, path FROM notes WHERE path LIKE ?', [prefix + '%'])
+    const notes = this.db.query<{ id: string; path: string }>(`SELECT id, path FROM notes WHERE path LIKE ? ${LIKE_ESCAPE}`, [escapeLike(prefix) + '%'])
     const now = new Date().toISOString()
     for (const note of notes) {
       this.db.run('UPDATE notes SET path = ?, updated_at = ? WHERE id = ?', [newPath + '/' + note.path.substring(prefix.length), now, note.id])
@@ -193,8 +194,8 @@ export class NoteService {
       const pathPrefix = folder ? folder + '/' : ''
       const dup = pathPrefix
         ? this.db.queryOne<{ id: string }>(
-            'SELECT id FROM notes WHERE title = ? AND path LIKE ? AND path NOT LIKE ?',
-            [input.title, pathPrefix + '%', pathPrefix + '%/%'])
+            `SELECT id FROM notes WHERE title = ? AND path LIKE ? ${LIKE_ESCAPE} AND path NOT LIKE ? ${LIKE_ESCAPE}`,
+            [input.title, escapeLike(pathPrefix) + '%', escapeLike(pathPrefix) + '%/%'])
         : this.db.queryOne<{ id: string }>(
             'SELECT id FROM notes WHERE title = ? AND path NOT LIKE ? AND doc_id IS NULL',
             [input.title, '%/%'])
@@ -307,7 +308,7 @@ export class NoteService {
     if (options?.type) { conditions.push('type = ?'); params.push(options.type) }
     if (options?.docId) { conditions.push('doc_id = ?'); params.push(options.docId) }
     if (options?.folderId) { conditions.push('folder_id = ?'); params.push(options.folderId) }
-    if (options?.folder) { conditions.push('path LIKE ?'); params.push(options.folder + '/%') }
+    if (options?.folder) { conditions.push(`path LIKE ? ${LIKE_ESCAPE}`); params.push(escapeLike(options.folder) + '/%') }
     if (options?.tag) {
       conditions.push(`(id IN (SELECT note_id FROM note_tags JOIN tags ON tags.id = note_tags.tag_id WHERE tags.name = ?) OR id IN (SELECT mindmap_id FROM mindmap_tags JOIN tags ON tags.id = mindmap_tags.tag_id WHERE tags.name = ?))`)
       params.push(options.tag, options.tag)
@@ -417,8 +418,8 @@ export class NoteService {
     const pathPrefix = targetFolder ? targetFolder + '/' : ''
     const dup = pathPrefix
       ? this.db.queryOne<{ id: string }>(
-          'SELECT id FROM notes WHERE title = ? AND id != ? AND path LIKE ? AND path NOT LIKE ?',
-          [row.title, id, pathPrefix + '%', pathPrefix + '%/%'])
+          `SELECT id FROM notes WHERE title = ? AND id != ? AND path LIKE ? ${LIKE_ESCAPE} AND path NOT LIKE ? ${LIKE_ESCAPE}`,
+          [row.title, id, escapeLike(pathPrefix) + '%', escapeLike(pathPrefix) + '%/%'])
       : this.db.queryOne<{ id: string }>(
           'SELECT id FROM notes WHERE title = ? AND id != ? AND path NOT LIKE ? AND doc_id IS NULL',
           [row.title, id, '%/%'])
