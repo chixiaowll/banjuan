@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronDown, ChevronRight, FilePlus, FolderPlus, Pencil, Trash2, Folder, FolderOpen, FileText, Brain, PenTool } from 'lucide-react'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
+import { toast, alertDialog } from '../feedback.js'
 
 interface NoteInfo {
   id: string
@@ -394,7 +395,7 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
   }, [load])
 
   const children = buildFileTree(dirs, notes)
-  const rootNode: TreeNode = { type: 'dir', name: 'Notes', path: '__root', children }
+  const rootNode: TreeNode = { type: 'dir', name: t('note.notes'), path: '__root', children }
 
   const handleToggle = (path: string) => {
     setExpandedSet(prev => {
@@ -478,7 +479,7 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
         onOpenNote(newNote)
       } catch (err: any) {
         if (err?.message?.includes('DUPLICATE_TITLE')) {
-          alert(t('note.duplicateTitle' as any))
+          toast.error(t('note.duplicateTitle'))
         } else {
           throw err
         }
@@ -543,7 +544,7 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
         const results = await api.notes.importMarkdown(paths, targetFolder)
         const failed = results.filter(r => !r.success && r.error !== 'NOT_MARKDOWN')
         if (failed.length > 0) {
-          alert(failed.map(r => `${r.title}: ${r.error}`).join('\n'))
+          void alertDialog({ title: t('import.someFailed'), message: failed.map(r => `${r.title}: ${r.error}`).join('\n') })
         }
         await load()
         notifyChanged()
@@ -565,7 +566,7 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
       notifyChanged()
     } catch (err: any) {
       if (err?.message?.includes('DUPLICATE_TITLE')) {
-        alert(t('note.duplicateTitle' as any))
+        toast.error(t('note.duplicateTitle'))
       }
     }
   }, [load, t])

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { renderAllStrokes } from '../../handwriting/renderStrokes.js'
 import type { HandwritingPage } from '@banjuan/core'
 import { useBanjuanAPI } from '../../../api.js'
+import { useT } from '../../../i18n/index.js'
 
 interface Props {
   noteId: string
@@ -53,6 +54,7 @@ function PageCanvas({ page, pageSize, maxWidth }: {
 
 export default function HandwritingEmbedPreview({ noteId, noteTitle, pageIndex }: Props) {
   const api = useBanjuanAPI()
+  const t = useT()
   const [data, setData] = useState<HandwritingData | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(600)
@@ -82,7 +84,9 @@ export default function HandwritingEmbedPreview({ noteId, noteTitle, pageIndex }
     })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+    // The container only exists once data has loaded (before that we render
+    // "Loading…"), so attach then — with [] it never attached at all.
+  }, [!!data])
 
   const targetPage = pageIndex != null && data ? data.pages[pageIndex] : undefined
 
@@ -116,11 +120,11 @@ export default function HandwritingEmbedPreview({ noteId, noteTitle, pageIndex }
   }, [handleScreenshot])
 
   if (!data) {
-    return <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading...</span>
+    return <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('common.loading')}</span>
   }
 
   if (data.pages.length === 0) {
-    return <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Empty handwriting note</span>
+    return <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('embed.emptyHandwriting')}</span>
   }
 
   if (targetPage) {
@@ -162,7 +166,7 @@ export default function HandwritingEmbedPreview({ noteId, noteTitle, pageIndex }
       </div>
       {hasMore && (
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-          +{data.pages.length - 3} more pages
+          {t('embed.morePages', data.pages.length - 3)}
         </div>
       )}
     </div>

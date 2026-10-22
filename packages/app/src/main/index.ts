@@ -1,9 +1,9 @@
-import { app, protocol, net, Menu } from 'electron'
+import { app, protocol, net, Menu, BrowserWindow, ipcMain } from 'electron'
 import { registerIpcHandlers, getLibraryRootPath, installBundledPlugins } from './ipc.js'
 import { registerExportWindowHandlers } from './export-window.js'
 import { startApiServer, stopApiServer } from './api-server.js'
 import { installCli } from './install-cli.js'
-import { createWindow, getWindowCount } from './windows.js'
+import { createWindow, getWindowCount, isLibraryWindow } from './windows.js'
 import { initScreenshot, disposeScreenshot } from './screenshot-service.js'
 import { join } from 'node:path'
 
@@ -37,6 +37,17 @@ app.whenReady().then(() => {
   installCli().catch(console.error)
 
   const isMac = process.platform === 'darwin'
+  // ⌘W closes the current tab: the renderer decides, and when it has no tab to
+  // close (welcome screen, library tab) it sends window:close back. ⇧⌘W always
+  // closes the window. Other windows (screenshot overlay) are left alone.
+  const closeTab = () => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (isLibraryWindow(win)) win.webContents.send('menu:close-tab')
+  }
+  ipcMain.on('window:close', (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (isLibraryWindow(win)) win.close()
+  })
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac ? [{ role: 'appMenu' as const }] : []),
     {
@@ -44,7 +55,8 @@ app.whenReady().then(() => {
       submenu: [
         { label: 'Open Another Library', click: () => createWindow() },
         { type: 'separator' as const },
-        isMac ? { role: 'close' as const } : { role: 'quit' as const },
+        { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: closeTab },
+        isMac ? { role: 'close' as const, accelerator: 'CmdOrCtrl+Shift+W' } : { role: 'quit' as const },
       ],
     },
     { role: 'editMenu' as const },

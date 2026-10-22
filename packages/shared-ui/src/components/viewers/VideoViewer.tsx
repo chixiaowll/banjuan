@@ -186,7 +186,7 @@ export default function VideoViewer({ src, docPath, doc, onOpenNote }: Props) {
       }
     }
     if (note) setSidebarNoteId(note.id)
-  }, [doc])
+  }, [doc, t])
 
   const handleOpenNote = useCallback((note: any) => {
     setSidebarNoteId(note.id)
@@ -225,7 +225,7 @@ export default function VideoViewer({ src, docPath, doc, onOpenNote }: Props) {
   if (!src) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
-        Loading...
+        {t('common.loading')}
       </div>
     )
   }
@@ -245,19 +245,19 @@ export default function VideoViewer({ src, docPath, doc, onOpenNote }: Props) {
         display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
         background: 'var(--surface)',
       }}>
-        <button style={btnStyle} onClick={() => setLeftOpen(v => !v)} title="Toggle left sidebar">
+        <button style={btnStyle} onClick={() => setLeftOpen(v => !v)} title={t('viewer.toggleLeftSidebar')}>
           <PanelLeft size={16} />
         </button>
         <div style={{ flex: 1 }} />
         <button
           style={{ ...btnStyle, gap: 4, fontSize: 12, color: 'var(--accent)' }}
           onClick={takeScreenshot}
-          title="Screenshot"
+          title={t('screenshot.button')}
         >
           <Camera size={16} />
         </button>
         <div style={{ flex: 1 }} />
-        <button style={btnStyle} onClick={() => setRightOpen(v => !v)} title="Toggle right sidebar">
+        <button style={btnStyle} onClick={() => setRightOpen(v => !v)} title={t('viewer.toggleRightSidebar')}>
           <PanelRight size={16} />
         </button>
       </div>
@@ -302,7 +302,7 @@ export default function VideoViewer({ src, docPath, doc, onOpenNote }: Props) {
                   <div style={{ padding: 8 }}>
                     {screenshots.length === 0 && (
                       <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-                        {t('video.noScreenshots' as any) || 'No screenshots yet'}
+                        {t('video.noScreenshots')}
                       </div>
                     )}
                     {screenshots.map(s => (
@@ -420,15 +420,15 @@ export default function VideoViewer({ src, docPath, doc, onOpenNote }: Props) {
                 </div>
                 <div style={{ padding: '8px 0', fontSize: 12 }}>
                   <div style={{ display: 'flex', padding: '4px 12px', gap: 8 }}>
-                    <span style={{ width: 80, textAlign: 'right', color: 'var(--text-muted)', flexShrink: 0 }}>Type</span>
+                    <span style={{ width: 80, textAlign: 'right', color: 'var(--text-muted)', flexShrink: 0 }}>{t('detail.type')}</span>
                     <span>{doc.type.toUpperCase()}</span>
                   </div>
                   <div style={{ display: 'flex', padding: '4px 12px', gap: 8 }}>
-                    <span style={{ width: 80, textAlign: 'right', color: 'var(--text-muted)', flexShrink: 0 }}>Path</span>
+                    <span style={{ width: 80, textAlign: 'right', color: 'var(--text-muted)', flexShrink: 0 }}>{t('detail.path')}</span>
                     <span style={{ wordBreak: 'break-all' }}>{doc.path}</span>
                   </div>
                   <div style={{ display: 'flex', padding: '4px 12px', gap: 8 }}>
-                    <span style={{ width: 80, textAlign: 'right', color: 'var(--text-muted)', flexShrink: 0 }}>Created</span>
+                    <span style={{ width: 80, textAlign: 'right', color: 'var(--text-muted)', flexShrink: 0 }}>{t('detail.createdAt')}</span>
                     <span>{new Date(doc.createdAt).toLocaleString()}</span>
                   </div>
                 </div>

@@ -6,13 +6,13 @@ export type AppTheme = 'minimal' | 'notebook'
 
 export interface ThemeInfo {
   key: AppTheme
-  label: string
-  labelZh: string
+  /** i18n key of the display name — render with t(labelKey). */
+  labelKey: 'theme.notebook' | 'theme.minimal'
 }
 
 export const APP_THEMES: ThemeInfo[] = [
-  { key: 'notebook', label: 'Notebook', labelZh: '笔记本' },
-  { key: 'minimal', label: 'Minimal', labelZh: '极简' },
+  { key: 'notebook', labelKey: 'theme.notebook' },
+  { key: 'minimal', labelKey: 'theme.minimal' },
 ]
 
 interface ThemeContextValue {

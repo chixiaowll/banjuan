@@ -2,6 +2,7 @@ import React, { useState, useCallback, lazy, Suspense } from 'react'
 import { createReactBlockSpec } from '@blocknote/react'
 import { FLOWCHART_TEMPLATE, MERMAID_TEMPLATES, MERMAID_THEMES } from './mermaidTemplates.js'
 import type { MermaidTheme } from './mermaidTemplates.js'
+import { useT } from '../../../i18n/index.js'
 
 const MermaidCodeEditor = lazy(() => import('./MermaidCodeEditor.js'))
 const MermaidPreview = lazy(() => import('./MermaidPreview.js'))
@@ -69,6 +70,7 @@ interface ContentProps {
 }
 
 function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange, onViewModeChange, onThemeChange, onRenderWidthChange, readOnly }: ContentProps) {
+  const t = useT()
   const [localCode, setLocalCode] = useState(code)
   const [localWidth, setLocalWidth] = useState(renderWidth)
   const [templateOpen, setTemplateOpen] = useState(false)
@@ -151,7 +153,7 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
   if (readOnly) {
     return (
       <div className="mermaid-block" style={{ width: localWidth, maxWidth: '100%' }} contentEditable={false}>
-        <Suspense fallback={<div className="mermaid-loading">Loading diagram...</div>}>
+        <Suspense fallback={<div className="mermaid-loading">{t('mermaid.loading')}</div>}>
           <MermaidPreview code={localCode} theme={theme} renderWidth={localWidth} />
         </Suspense>
       </div>
@@ -159,7 +161,7 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
   }
 
   const activeMode = viewMode || 'split'
-  const currentThemeLabel = MERMAID_THEMES.find(t => t.value === theme)?.label || 'Default'
+  const currentThemeLabel = MERMAID_THEMES.find(th => th.value === theme)?.label || 'Default'
 
   return (
     <div className="mermaid-block" style={{ width: localWidth, maxWidth: '100%' }} contentEditable={false}>
@@ -169,21 +171,21 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
             <button
               className={`mermaid-toolbar__btn ${activeMode === 'code' ? 'mermaid-toolbar__btn--active' : ''}`}
               onClick={() => onViewModeChange('code')}
-              title="Code"
+              title={t('mermaid.viewCode')}
             >
               {'</>'}
             </button>
             <button
               className={`mermaid-toolbar__btn ${activeMode === 'split' ? 'mermaid-toolbar__btn--active' : ''}`}
               onClick={() => onViewModeChange('split')}
-              title="Split"
+              title={t('mermaid.viewSplit')}
             >
               ⬜⬜
             </button>
             <button
               className={`mermaid-toolbar__btn ${activeMode === 'preview' ? 'mermaid-toolbar__btn--active' : ''}`}
               onClick={() => onViewModeChange('preview')}
-              title="Preview"
+              title={t('mermaid.viewPreview')}
             >
               ▶
             </button>
@@ -200,13 +202,13 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
             </button>
             {themeOpen && (
               <div className="mermaid-dropdown__menu">
-                {MERMAID_THEMES.map((t) => (
+                {MERMAID_THEMES.map((th) => (
                   <button
-                    key={t.value}
-                    className={`mermaid-dropdown__item ${theme === t.value ? 'mermaid-dropdown__item--active' : ''}`}
-                    onClick={() => { onThemeChange(t.value); setThemeOpen(false) }}
+                    key={th.value}
+                    className={`mermaid-dropdown__item ${theme === th.value ? 'mermaid-dropdown__item--active' : ''}`}
+                    onClick={() => { onThemeChange(th.value); setThemeOpen(false) }}
                   >
-                    {t.label}
+                    {th.label}
                   </button>
                 ))}
               </div>
@@ -218,18 +220,18 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
               className="mermaid-toolbar__btn"
               onClick={() => { setTemplateOpen(!templateOpen); setThemeOpen(false) }}
             >
-              📋 Template
+              📋 {t('mermaid.template')}
             </button>
             {templateOpen && (
               <div className="mermaid-dropdown__menu">
-                {MERMAID_TEMPLATES.map((t) => (
+                {MERMAID_TEMPLATES.map((tpl) => (
                   <button
-                    key={t.label}
+                    key={tpl.labelKey}
                     className="mermaid-dropdown__item"
-                    onClick={() => handleTemplateSelect(t.code)}
+                    onClick={() => handleTemplateSelect(tpl.code)}
                   >
-                    <span className="mermaid-dropdown__icon">{t.icon}</span>
-                    {t.label}
+                    <span className="mermaid-dropdown__icon">{tpl.icon}</span>
+                    {t(tpl.labelKey)}
                   </button>
                 ))}
               </div>
@@ -238,7 +240,7 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
         </div>
       </div>
 
-      <Suspense fallback={<div className="mermaid-loading">Loading...</div>}>
+      <Suspense fallback={<div className="mermaid-loading">{t('common.loading')}</div>}>
         <div className={`mermaid-body mermaid-body--${activeMode}`}>
           {(activeMode === 'code' || activeMode === 'split') && (
             <div className="mermaid-body__editor">
@@ -254,7 +256,7 @@ function MermaidBlockContent({ code, viewMode, theme, renderWidth, onCodeChange,
       </Suspense>
 
       {!readOnly && (
-        <div className="mermaid-resize-handle" onPointerDown={handleResizeStart} title="Drag to resize diagram" />
+        <div className="mermaid-resize-handle" onPointerDown={handleResizeStart} title={t('mermaid.resizeHint')} />
       )}
     </div>
   )

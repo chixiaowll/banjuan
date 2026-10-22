@@ -1,3 +1,5 @@
+import type { MessageKey } from '../../../i18n/index.js'
+
 export const FLOWCHART_TEMPLATE = `flowchart TD
     A([Start]) --> B{Decision?}
     B -->|Yes| C[Process A]
@@ -88,21 +90,23 @@ export const MINDMAP_TEMPLATE = `mindmap
             Q2`
 
 export interface MermaidTemplate {
-  label: string
+  /** i18n key of the template's menu label. */
+  labelKey: MessageKey
   icon: string
   code: string
 }
 
-export const MERMAID_TEMPLATES: MermaidTemplate[] = [
-  { label: 'Flowchart', icon: '🔀', code: FLOWCHART_TEMPLATE },
-  { label: 'Sequence', icon: '🔄', code: SEQUENCE_TEMPLATE },
-  { label: 'Gantt', icon: '📅', code: GANTT_TEMPLATE },
-  { label: 'State', icon: '🔁', code: STATE_TEMPLATE },
-  { label: 'Class', icon: '🏗', code: CLASS_TEMPLATE },
-  { label: 'ER Diagram', icon: '🗃', code: ER_TEMPLATE },
-  { label: 'Pie Chart', icon: '📊', code: PIE_TEMPLATE },
-  { label: 'Mindmap', icon: '🧠', code: MINDMAP_TEMPLATE },
-]
+// `as const` keeps each labelKey a literal key type for t().
+export const MERMAID_TEMPLATES = [
+  { labelKey: 'mermaid.tplFlowchart', icon: '🔀', code: FLOWCHART_TEMPLATE },
+  { labelKey: 'mermaid.tplSequence', icon: '🔄', code: SEQUENCE_TEMPLATE },
+  { labelKey: 'mermaid.tplGantt', icon: '📅', code: GANTT_TEMPLATE },
+  { labelKey: 'mermaid.tplState', icon: '🔁', code: STATE_TEMPLATE },
+  { labelKey: 'mermaid.tplClass', icon: '🏗', code: CLASS_TEMPLATE },
+  { labelKey: 'mermaid.tplEr', icon: '🗃', code: ER_TEMPLATE },
+  { labelKey: 'mermaid.tplPie', icon: '📊', code: PIE_TEMPLATE },
+  { labelKey: 'mermaid.tplMindmap', icon: '🧠', code: MINDMAP_TEMPLATE },
+] as const
 
 export type MermaidTheme = string
 

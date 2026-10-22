@@ -6,6 +6,7 @@ import { useHandwritingStore } from './useHandwritingStore.js'
 import { generateThumbnailDataUrl, renderAllStrokes } from './renderStrokes.js'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
+import { toast } from '../feedback.js'
 
 interface Props {
   noteId: string
@@ -22,6 +23,7 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
   const currentPageIndex = useHandwritingStore(s => s.currentPageIndex)
   const pageSize = useHandwritingStore(s => s.pageSize)
   const saving = useHandwritingStore(s => s.saving)
+  const saveError = useHandwritingStore(s => s.saveError)
   const init = useHandwritingStore(s => s.init)
   const saveCurrentPageSnapshot = useHandwritingStore(s => s.saveCurrentPageSnapshot)
   const cancelPendingSave = useHandwritingStore(s => s.cancelPendingSave)
@@ -34,6 +36,10 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
     api.setDrawingMode?.(true)
     return () => { api.setDrawingMode?.(false) }
   }, [api])
+
+  useEffect(() => {
+    if (saveError) toast.error(t('note.saveFailedDetail', saveError), { key: 'note-save' })
+  }, [saveError, t])
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
 
@@ -146,8 +152,8 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
         }}>
           {title}
         </span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-          {saving ? t('note.saving') : t('note.saved')}
+        <span title={saveError ?? undefined} style={{ fontSize: 11, color: saveError && !saving ? '#c0392b' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+          {saving ? t('note.saving') : saveError ? t('note.saveFailed') : t('note.saved')}
         </span>
         <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
           <button

@@ -352,7 +352,7 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
               }}
             >
               <ChevronLeft size={14} />
-              {t('epub.prevChapter' as any)}
+              {t('epub.prevChapter')}
             </button>
             <button
               onClick={ctx.goNext}
@@ -365,7 +365,7 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
                 boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
               }}
             >
-              {t('epub.nextChapter' as any)}
+              {t('epub.nextChapter')}
               <ChevronRight size={14} />
             </button>
           </div>

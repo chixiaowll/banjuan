@@ -405,6 +405,12 @@ export class NoteService {
         // Content may have added/removed wiki-links — keep link tables current
         // so we don't depend on a full rebuild to fix them.
         if (updates.content !== undefined) await this.syncLinksFromBlocks(id, raw.blocks)
+        // Keep full-text search current: it was only written on create, so
+        // search kept finding a note's first draft until a full rebuild.
+        if (updates.content !== undefined || updates.title !== undefined) {
+          this.search.removeById(id)
+          this.search.index({ id, title: raw.meta.title, content: this.blocksToText(raw.blocks ?? []), type: 'note' })
+        }
       }
     }
 

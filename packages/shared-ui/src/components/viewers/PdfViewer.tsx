@@ -16,6 +16,7 @@ import type { TextSelectInfo } from './PdfPage.js'
 import TagInput from '../tags/TagInput.js'
 import { useResizable, ResizeHandle } from '../ResizeHandle.js'
 import { useBanjuanAPI } from '../../api.js'
+import DocumentLoadError from './DocumentLoadError.js'
 import TextSelectionToolbar from './TextSelectionToolbar.js'
 import AnnotationContextMenu from './AnnotationContextMenu.js'
 
@@ -434,6 +435,8 @@ export default function PdfViewer(props: Props) {
   const [rawPageSize, setRawPageSize] = useState<{ w: number; h: number } | null>(null)
   const [rawPageSizes, setRawPageSizes] = useState<Array<{ w: number; h: number }>>([])
   const [pageSizes, setPageSizesLocal] = useState<Array<{ w: number; h: number }>>([])
+  const [loadError, setLoadError] = useState<unknown>(null)
+  const [attempt, setAttempt] = useState(0)
 
   // Mobile streams the PDF via URL (getFileSrc); desktop reads it over IPC and
   // must not wait for — or reload when — fileSrc arrives: that second effect run
@@ -445,6 +448,7 @@ export default function PdfViewer(props: Props) {
     if (streamViaUrl && !props.fileSrc) return
     let cancelled = false
     let loaded: pdfjsLib.PDFDocumentProxy | null = null
+    setLoadError(null)
     const load = async () => {
       try {
         const commonOpts = { cMapUrl, cMapPacked: true, standardFontDataUrl, disableFontFace: true, useSystemFonts: false }
@@ -487,13 +491,18 @@ export default function PdfViewer(props: Props) {
       } catch (err) {
         const e = err as any
         console.error('[PdfViewer] failed to load PDF:', 'name=' + e?.name, 'message=' + e?.message, 'str=' + String(err), 'stack=' + e?.stack)
+        // Only a failure before the document opened leaves the viewer empty;
+        // a later page-size read failing still has pages to show.
+        if (!cancelled && !loaded) setLoadError(err)
       }
     }
     load()
     // Free the worker-side document (parsed objects, fonts, page caches) when
     // the tab closes or the source changes — it was never destroyed before.
     return () => { cancelled = true; void loaded?.destroy() }
-  }, [props.fileData, props.docPath, streamViaUrl ? props.fileSrc : null])
+  }, [props.fileData, props.docPath, streamViaUrl ? props.fileSrc : null, attempt])
+
+  if (loadError) return <DocumentLoadError error={loadError} onRetry={() => setAttempt(a => a + 1)} />
 
   return (
     <PdfViewerProvider pdfDoc={pdfDoc} numPages={numPages} initialPageSizes={pageSizes} rawPageSize={rawPageSize} rawPageSizes={rawPageSizes}>

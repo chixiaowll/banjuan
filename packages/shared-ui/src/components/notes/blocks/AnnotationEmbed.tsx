@@ -1,5 +1,6 @@
 import React from 'react'
 import { createReactBlockSpec } from '@blocknote/react'
+import { useT } from '../../../i18n/index.js'
 
 export const AnnotationEmbed = createReactBlockSpec(
   {
@@ -16,12 +17,13 @@ export const AnnotationEmbed = createReactBlockSpec(
   },
   {
     render: (props) => {
+      const t = useT()
       const { quote, comment, docTitle, page } = props.block.props
 
       return (
         <div className="annotation-embed" contentEditable={false}>
           <div className="embed-source">
-            📄 {docTitle || 'Document'} {page ? `p.${page}` : ''}
+            📄 {docTitle || t('embed.document')} {page ? t('embed.pageShort', page) : ''}
           </div>
           {quote && (
             <div className="embed-quote">"{quote}"</div>
@@ -30,7 +32,7 @@ export const AnnotationEmbed = createReactBlockSpec(
             <div style={{ marginBottom: 8 }}>{comment}</div>
           )}
           <div className="embed-jump">
-            跳转到原文 →
+            {t('embed.jumpToSource')} →
           </div>
         </div>
       )

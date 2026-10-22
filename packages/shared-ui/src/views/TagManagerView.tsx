@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { Plus, Pencil, Trash2, Search, Check, X, ChevronRight } from 'lucide-react'
 import ColorPicker from '../components/tags/ColorPicker.js'
-import { useT, useI18n } from '../i18n/index.js'
+import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
 import { useThemeLayout } from '../theme/index.js'
 
@@ -20,7 +20,6 @@ interface Props {
 export default function TagManagerView({ libraryName, onBack }: Props) {
   const api = useBanjuanAPI()
   const t = useT()
-  const { locale } = useI18n()
   const layout = useThemeLayout()
   const [tags, setTags] = useState<TagWithCount[]>([])
   const [search, setSearch] = useState('')

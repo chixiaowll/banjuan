@@ -1,9 +1,10 @@
 // API context
 export { BanjuanAPIProvider, useBanjuanAPI } from './api.js'
+export { FeedbackHost, toast, confirmDialog, alertDialog, promptDialog, errorMessage } from './components/feedback.js'
 export type { BanjuanAPI } from './api.js'
 
 // i18n
-export { I18nProvider, useT, useI18n } from './i18n/index.js'
+export { I18nProvider, useT, useI18n, LOCALE_TAGS } from './i18n/index.js'
 export type { Locale } from './i18n/index.js'
 
 // Theme

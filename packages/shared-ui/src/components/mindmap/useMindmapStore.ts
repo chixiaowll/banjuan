@@ -4,6 +4,7 @@ import type { Node, Edge } from '@xyflow/react'
 import { useNodeSizeStore } from './useNodeSizeStore.js'
 import { layoutMindmap } from './useLayoutEngine.js'
 import type { BanjuanAPI } from '../../api.js'
+import { toast, errorMessage } from '../feedback.js'
 
 export interface MindmapNodeData {
   [key: string]: unknown
@@ -206,6 +207,12 @@ export const MindmapStoreContext = createContext<MindmapStoreApi | null>(null)
 
 export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
   let persistTimer: ReturnType<typeof setTimeout> | null = null
+  // Background writes (node edits, layout/theme) must not fail silently: the
+  // canvas already shows the change, so tell the user it didn't reach disk.
+  const reportSaveError = (e: unknown) => {
+    console.error('[Mindmap] save failed', e)
+    toast.error({ key: 'note.saveFailedDetail', args: [errorMessage(e)] }, { key: 'note-save' })
+  }
 
   return createStore<MindmapState>((set, get) => ({
     mindmapId: null,
@@ -445,7 +452,7 @@ export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
         ),
       })
       get().pushHistory()
-      api.mindmaps.updateNode(id, updates).catch(() => {})
+      api.mindmaps.updateNode(id, updates).catch(reportSaveError)
     },
 
     reparentNode: async (nodeId, newParentId, insertIndex) => {
@@ -647,7 +654,7 @@ export function createMindmapStore(api: BanjuanAPI): MindmapStoreApi {
         for (const [id, s] of sizes) {
           nodeSizes[id] = { w: s.width, h: s.height }
         }
-        await api.notes.update(mindmapId, { title: mindmapTitle, typeMeta: { layout, theme, nodeSizes } })
+        await api.notes.update(mindmapId, { title: mindmapTitle, typeMeta: { layout, theme, nodeSizes } }).catch(reportSaveError)
       }, 500)
     },
   }))

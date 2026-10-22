@@ -3,7 +3,7 @@ import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, ChevronDown, Search, P
 import { useEpubViewer, ANNOTATION_COLORS } from './EpubViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
 import { useEyeProtection, useEinkMode } from './useEyeProtection.js'
-import { useT } from '../../i18n/index.js'
+import { useT, type MessageKey } from '../../i18n/index.js'
 
 interface Props {
   docId: string
@@ -72,18 +72,18 @@ export default function EpubToolbar({ docId, metadata }: Props) {
       gap: 2,
       fontSize: 13,
     }}>
-      <button style={btnStyle} onClick={() => ctx.setLeftSidebarOpen(!ctx.leftSidebarOpen)} title="Toggle left sidebar">
+      <button style={btnStyle} onClick={() => ctx.setLeftSidebarOpen(!ctx.leftSidebarOpen)} title={t('viewer.toggleLeftSidebar')}>
         <PanelLeft size={16} />
       </button>
       <div style={sepStyle} />
 
-      <button style={btnStyle} onClick={() => ctx.setFontSize(s => Math.max(50, s - 10))} title="Decrease font">
+      <button style={btnStyle} onClick={() => ctx.setFontSize(s => Math.max(50, s - 10))} title={t('viewer.decreaseFont')}>
         <MinusIcon size={16} />
       </button>
       <span style={{ fontSize: 11, minWidth: 36, textAlign: 'center', color: 'var(--text-muted)' }}>
         {ctx.fontSize}%
       </span>
-      <button style={btnStyle} onClick={() => ctx.setFontSize(s => Math.min(200, s + 10))} title="Increase font">
+      <button style={btnStyle} onClick={() => ctx.setFontSize(s => Math.min(200, s + 10))} title={t('viewer.increaseFont')}>
         <PlusIcon size={16} />
       </button>
 
@@ -110,7 +110,7 @@ export default function EpubToolbar({ docId, metadata }: Props) {
             <button
               style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 3 }}
               onClick={() => setShowColorPicker(!showColorPicker)}
-              title="Color"
+              title={t('tags.color')}
             >
               <span style={{
                 width: 14, height: 14, borderRadius: '50%',
@@ -135,7 +135,7 @@ export default function EpubToolbar({ docId, metadata }: Props) {
                       background: c.value, border: ctx.activeColor === c.value ? '2px solid var(--accent)' : '1px solid var(--border)',
                       cursor: 'pointer', padding: 0,
                     }}
-                    title={c.name}
+                    title={t(`annotation.color.${c.name}` as MessageKey)}
                   />
                 ))}
               </div>
@@ -147,38 +147,38 @@ export default function EpubToolbar({ docId, metadata }: Props) {
         <button
           style={ctx.annotationsVisible ? btnStyle : activeBtnStyle}
           onClick={() => ctx.setAnnotationsVisible(!ctx.annotationsVisible)}
-          title={ctx.annotationsVisible ? t('pdf.hideAnnotations' as any) : t('pdf.showAnnotations' as any)}
+          title={ctx.annotationsVisible ? t('pdf.hideAnnotations') : t('pdf.showAnnotations')}
         >
           {ctx.annotationsVisible ? <Eye size={16} /> : <EyeOff size={16} />}
         </button>
         <button
           style={eyeProtection ? { ...btnStyle, color: '#d69e2e' } : btnStyle}
           onClick={toggleEyeProtection}
-          title={t('pdf.eyeProtection' as any)}
+          title={t('pdf.eyeProtection')}
         >
           <Sun size={16} />
         </button>
         <button
           style={einkMode ? { ...btnStyle, color: '#718096' } : btnStyle}
           onClick={toggleEinkMode}
-          title={t('pdf.einkMode' as any)}
+          title={t('pdf.einkMode')}
         >
           <Monitor size={16} />
         </button>
       </div>
 
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }} title="Reading time">
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }} title={t('viewer.readingTime')}>
         <Clock size={12} />
         {readingTime}
       </span>
       <button
         style={ctx.searchOpen ? activeBtnStyle : btnStyle}
         onClick={() => ctx.setSearchOpen(!ctx.searchOpen)}
-        title="Search (Cmd+F)"
+        title={t('viewer.searchWithShortcut', 'Cmd+F')}
       >
         <Search size={16} />
       </button>
-      <button style={btnStyle} onClick={() => ctx.setRightSidebarOpen(!ctx.rightSidebarOpen)} title="Toggle right sidebar">
+      <button style={btnStyle} onClick={() => ctx.setRightSidebarOpen(!ctx.rightSidebarOpen)} title={t('viewer.toggleRightSidebar')}>
         <PanelRight size={16} />
       </button>
     </div>

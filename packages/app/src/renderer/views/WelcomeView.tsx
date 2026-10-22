@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useBanjuanAPI, useI18n, PoetryCard } from '@banjuan/shared-ui'
+import { useBanjuanAPI, useI18n, LOCALE_TAGS, PoetryCard, toast, alertDialog, confirmDialog } from '@banjuan/shared-ui'
 import type { Locale } from '@banjuan/shared-ui'
 import { FolderOpen, Plus, X, ChevronRight } from 'lucide-react'
 
@@ -30,18 +30,14 @@ export default function WelcomeView({ onOpen }: Props) {
   const warnIfTruncated = (result: any) => {
     if (!result?.truncated) return
     const n = result.limit
-    alert(locale === 'zh'
-      ? `该目录文件数超过上限（${n}），未导入任何文件。请选择文件更少的目录或更小的子目录重新打开。`
-      : `This folder exceeds the ${n}-file limit, so nothing was imported. Please pick a folder with fewer files (or a smaller subfolder).`)
+    void alertDialog({ message: t('welcome.tooManyFilesImported', n) })
   }
 
   // A recent library may have been moved, deleted, or emptied since it was last
   // opened. Offer to forget it instead of surfacing a raw "not a library" error.
   const promptForgetMissing = async (dir: string) => {
     const name = recentLibraries.find(l => l.path === dir)?.name || dir.split('/').pop() || dir
-    const remove = confirm(locale === 'zh'
-      ? `「${name}」已不存在或不再是一个书房（可能已被移动或删除）。是否从“最近打开”中移除？`
-      : `"${name}" no longer exists or isn't a library (it may have been moved or deleted). Remove it from "Recent"?`)
+    const remove = await confirmDialog({ message: t('welcome.forgetMissing', name), confirmText: t('welcome.removeFromRecent') })
     if (remove) {
       await api.library.removeHistory?.(dir)
       const h = await api.library.getHistory?.() ?? []
@@ -66,7 +62,7 @@ export default function WelcomeView({ onOpen }: Props) {
       if (typeof e?.message === 'string' && e.message.includes('not a library')) {
         await promptForgetMissing(dir)
       } else {
-        alert(e.message)
+        toast.error(e.message)
       }
     } finally {
       setLoading(false)
@@ -85,9 +81,7 @@ export default function WelcomeView({ onOpen }: Props) {
       // leave behind a .banjuan / database.
       const size = await api.library.checkSize?.(dir)
       if (size?.exceeds) {
-        alert(locale === 'zh'
-          ? `该目录文件数超过上限（${size.limit}），不能作为资料库。请选择文件更少的目录，或更小的子目录。`
-          : `This folder exceeds the ${size.limit}-file limit and can't be used as a library. Please pick a folder with fewer files (or a smaller subfolder).`)
+        void alertDialog({ message: t('welcome.tooManyFiles', size.limit) })
         return
       }
       setPendingDir(dir)
@@ -105,7 +99,7 @@ export default function WelcomeView({ onOpen }: Props) {
       warnIfTruncated(result)
       onOpen((result as any).rootPath, name)
     } catch (e: any) {
-      alert(e.message)
+      toast.error(e.message)
     } finally {
       setLoading(false)
       setShowNameDialog(false)
@@ -131,10 +125,10 @@ export default function WelcomeView({ onOpen }: Props) {
       const now = new Date()
       const diffMs = now.getTime() - d.getTime()
       const diffDays = Math.floor(diffMs / 86400000)
-      if (diffDays === 0) return locale === 'zh' ? '今天' : 'Today'
-      if (diffDays === 1) return locale === 'zh' ? '昨天' : 'Yesterday'
-      if (diffDays < 7) return locale === 'zh' ? `${diffDays} 天前` : `${diffDays}d ago`
-      return d.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' })
+      if (diffDays === 0) return t('welcome.today')
+      if (diffDays === 1) return t('welcome.yesterday')
+      if (diffDays < 7) return t('welcome.daysAgo', diffDays)
+      return d.toLocaleDateString(LOCALE_TAGS[locale], { month: 'short', day: 'numeric' })
     } catch { return '' }
   }
 
@@ -164,6 +158,11 @@ export default function WelcomeView({ onOpen }: Props) {
         >
           <option value="zh">中文</option>
           <option value="en">English</option>
+          <option value="ja">日本語</option>
+          <option value="ko">한국어</option>
+          <option value="fr">Français</option>
+          <option value="de">Deutsch</option>
+          <option value="es">Español</option>
         </select>
       </div>
 
@@ -194,7 +193,7 @@ export default function WelcomeView({ onOpen }: Props) {
                 fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
                 marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em',
               }}>
-                {t('welcome.recentLibraries') ?? 'Recent Libraries'}
+                {t('welcome.recentLibraries')}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {recentLibraries.map((lib, i) => (
@@ -249,7 +248,7 @@ export default function WelcomeView({ onOpen }: Props) {
                           opacity: hoveredIdx === i ? 0.6 : 0,
                           transition: 'opacity 0.15s ease',
                         }}
-                        title="Remove">
+                        title={t('welcome.removeFromRecent')}>
                         <X size={13} />
                       </button>
                       <ChevronRight size={14} style={{ color: 'var(--text-muted)', opacity: 0.4 }} />

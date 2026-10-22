@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react'
 import { useTheme } from '../theme/index.js'
+import { useI18n, LOCALE_TAGS } from '../i18n/index.js'
 
 const POETRY_FONT = '"Noto Serif SC", "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC", "SimSun", serif'
 
@@ -494,8 +495,12 @@ const arrowBtnStyle: React.CSSProperties = {
   zIndex: 2,
 }
 
+const NOTEBOOK_BASE_W = 960
+
 export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
   const { theme: appTheme } = useTheme()
+  const { t, locale: uiLocale } = useI18n()
+  const dateTag = LOCALE_TAGS[uiLocale]
   const isEn = locale === 'en'
   const poems = isEn ? EN_POEMS : POEMS
 
@@ -508,6 +513,22 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
   const [hovered, setHovered] = useState(false)
   const dragRef = useRef<{ startX: number; startY: number; locked: boolean } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // The notebook card is laid out at a fixed width and scaled to fit. These
+  // hooks used to sit inside the notebook branch, so switching app theme
+  // changed the hook count and React threw.
+  const scaleRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(1)
+  useEffect(() => {
+    const el = scaleRef.current?.parentElement
+    if (!el) return
+    const obs = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect.width ?? 0
+      if (w > 0) setScale(w / NOTEBOOK_BASE_W)
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [appTheme])
 
   const poem = poems[index]
 
@@ -557,12 +578,12 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
       <button
         onClick={(e) => { e.stopPropagation(); navigate() }}
         style={{ ...arrowBtnStyle, left: 8, opacity: hovered ? 0.8 : 0 }}
-        aria-label="Previous"
+        aria-label={t('poetry.previous')}
       >‹</button>
       <button
         onClick={(e) => { e.stopPropagation(); navigate() }}
         style={{ ...arrowBtnStyle, right: 8, opacity: hovered ? 0.8 : 0 }}
-        aria-label="Next"
+        aria-label={t('poetry.next')}
       >›</button>
     </>
   )
@@ -571,10 +592,6 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
   if (appTheme === 'notebook') {
     const flowPoem = isEn ? null : POEMS_FLOW[index % POEMS_FLOW.length]
     const now = new Date()
-    const weekdays = isEn
-      ? ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
-      : ['日','一','二','三','四','五','六']
-    const monthNames = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月']
     const monthNamesEn = ['January','February','March','April','May','June','July','August','September','October','November','December']
     let lunarStr = ''
     const solarTerms: [number, string, number][] = [
@@ -683,21 +700,8 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
     const dayOfYear = Math.floor((now.getTime() - new Date(yearNo, 0, 0).getTime()) / 86400000)
     const dailyQuote = dailyQuotes[dayOfYear % dailyQuotes.length]
 
-    const BASE_W = 960
+    const BASE_W = NOTEBOOK_BASE_W
     const BASE_H = 260
-
-    const scaleRef = useRef<HTMLDivElement>(null)
-    const [scale, setScale] = useState(1)
-    useEffect(() => {
-      const el = scaleRef.current?.parentElement
-      if (!el) return
-      const obs = new ResizeObserver(entries => {
-        const w = entries[0]?.contentRect.width ?? 0
-        if (w > 0) setScale(w / BASE_W)
-      })
-      obs.observe(el)
-      return () => obs.disconnect()
-    }, [])
 
     return (
       <div style={{ width: '100%', height: BASE_H * scale, position: 'relative', overflow: 'hidden' }}>
@@ -728,7 +732,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             }}>
               {isEn
                 ? monthNamesEn[m].toUpperCase()
-                : `${monthNames[m]} · ${monthNamesEn[m].substring(0, 3).toUpperCase()}`
+                : `${now.toLocaleDateString(dateTag, { month: 'long' })} · ${monthNamesEn[m].substring(0, 3).toUpperCase()}`
               }
             </div>
           </div>
@@ -741,7 +745,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             }}>{dd}</div>
             {/* Weekday */}
             <div style={{ textAlign: 'center', fontSize: 14, color: 'var(--ink-soft, #5C564E)', fontWeight: 500, marginTop: 6 }}>
-              {isEn ? weekdays[now.getDay()] : `周${weekdays[now.getDay()]}`}
+              {now.toLocaleDateString(dateTag, { weekday: uiLocale === 'zh' ? 'short' : 'long' })}
             </div>
             {/* Divider */}
             <div style={{ height: 1, background: 'var(--border, #F0EBE0)', margin: '14px 0' }} />
@@ -808,7 +812,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--ink-mute, #8A8377)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 <span style={{ fontSize: 14 }}>✦</span>
-                {isEn ? 'Daily Verse' : '今日一首'}
+                {t('poetry.dailyVerse')}
               </span>
               <span style={{ fontSize: 11, color: 'var(--ink-faint, #B8B0A0)' }}>
                 {yearNo} · No.{String(dayOfYear).padStart(3, '0')}
@@ -863,7 +867,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             fontFamily: '"Caveat", "Kalam", cursive', fontSize: 16,
             color: calendarAccent, transform: 'rotate(-3deg)', pointerEvents: 'none',
           }}>
-            ⌐ {isEn ? 'poetic' : (flowPoem?.mood ?? '诗意')} ☂
+            ⌐ {flowPoem?.mood ?? t('poetry.poetic')} ☂
           </div>
         </div>
       </div>
@@ -875,9 +879,6 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
   if (appTheme === 'minimal') {
     const flowPoem = isEn ? null : POEMS_FLOW[index % POEMS_FLOW.length]
     const now = new Date()
-    const weekdays = isEn
-      ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-      : ['日','一','二','三','四','五','六']
     const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
     let lunarStr = ''
     const solarTerms: [number, string, number][] = [
@@ -1004,7 +1005,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
             {now.getDate()}
           </div>
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--ink-mute)' }}>
-            {isEn ? weekdays[now.getDay()] : `周${weekdays[now.getDay()]}`}
+            {now.toLocaleDateString(dateTag, { weekday: 'short' })}
             {lunarStr && ` · ${lunarStr}`}
           </div>
           <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -1207,7 +1208,7 @@ export function PoetryCard({ locale = 'zh' }: PoetryCardProps) {
           <div style={{
             fontFamily: POETRY_FONT, color: '#6E6862', fontSize: 13, letterSpacing: '0.1em',
           }}>
-            今日卷 · <span style={{ color: '#3D3935', fontWeight: 500 }}>《{poem.title}》</span>
+            {t('poetry.todayScroll')} · <span style={{ color: '#3D3935', fontWeight: 500 }}>《{poem.title}》</span>
           </div>
         </div>
 

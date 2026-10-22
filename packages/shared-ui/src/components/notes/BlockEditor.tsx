@@ -15,6 +15,9 @@ import '@blocknote/mantine/style.css'
 import './BlockEditor.css'
 import { useBanjuanAPI } from '../../api.js'
 import type { BanjuanAPI } from '../../api.js'
+import * as blockNoteLocales from '@blocknote/core/locales'
+import { useI18n } from '../../i18n/index.js'
+import type { MessageKey } from '../../i18n/index.js'
 import {
   exportBlocksToMarkdown, exportBlocksToHTML,
   extractExportAttachmentPaths,
@@ -193,11 +196,12 @@ function migrateRefNodes(nodes: any[]): void {
   }
 }
 
-function getMermaidSlashItem(editor: any) {
+function getMermaidSlashItem(editor: any, t: (key: MessageKey) => string) {
   return {
-    title: 'Mermaid Diagram',
-    subtext: 'Insert a Mermaid diagram',
-    group: 'Media',
+    title: t('mermaid.slashTitle'),
+    subtext: t('mermaid.slashSubtext'),
+    // Same (localized) group as BlockNote's own image/video/audio/file items.
+    group: editor.dictionary.slash_menu.image.group,
     onItemClick: () => {
       insertOrUpdateBlockForSlashMenu(editor, {
         type: 'mermaidBlock' as any,
@@ -303,10 +307,14 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     return `banjuan-attachment://${relativePath}`
   }, [noteId])
 
+  const { locale, t } = useI18n()
   const editor = useCreateBlockNote({
     schema,
     initialContent: parsedContent,
     uploadFile: handleUploadFile,
+    // Slash menu, placeholders and toolbars in the UI language (BlockNote ships
+    // all seven); taken at creation — a note opened after switching follows it.
+    dictionary: blockNoteLocales[locale] ?? blockNoteLocales.en,
   })
   editorRef.current = editor
 
@@ -447,7 +455,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     const noteItems = allNotes.map(note => ({
       title: note.title,
       aliases: [] as string[],
-      group: 'Notes',
+      group: t('note.notes'),
       onItemClick: () => {
         stripBracketBeforeCursor()
         editor.insertInlineContent([
@@ -459,7 +467,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     const docItems = allDocs.map(doc => ({
       title: doc.title,
       aliases: [] as string[],
-      group: 'Documents',
+      group: t('library.documents'),
       onItemClick: () => {
         stripBracketBeforeCursor()
         editor.insertInlineContent([
@@ -469,14 +477,14 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       },
     }))
     return filterSuggestionItems([...noteItems, ...docItems], query)
-  }, [allNotes, allDocs, editor, stripBracketBeforeCursor])
+  }, [allNotes, allDocs, editor, stripBracketBeforeCursor, t])
 
   const getNoteEmbedItems = useCallback(async (query: string) => {
     return filterSuggestionItems(
       allNotes.map(note => ({
         title: note.title,
         aliases: [] as string[],
-        group: 'Notes',
+        group: t('note.notes'),
         onItemClick: () => {
           const currentBlock = editor.getTextCursorPosition().block
           editor.insertBlocks(
@@ -491,13 +499,13 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       })),
       query,
     )
-  }, [allNotes, editor])
+  }, [allNotes, editor, t])
 
   const getSlashMenuItems = useCallback(async (query: string) => {
     const defaultItems = getDefaultReactSlashMenuItems(editor)
-    const mermaidItem = getMermaidSlashItem(editor)
+    const mermaidItem = getMermaidSlashItem(editor, t)
     return filterSuggestionItems([...defaultItems, mermaidItem], query)
-  }, [editor])
+  }, [editor, t])
 
   useEffect(() => {
     const handler = (e: PointerEvent) => {

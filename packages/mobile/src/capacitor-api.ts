@@ -198,6 +198,9 @@ export function createCapacitorAPI(): BanjuanAPI {
       async move(id, destDir) {
         return getLib().documents.move(id, destDir)
       },
+      async renameDir(oldPath, newPath) {
+        return getLib().documents.renameDir(oldPath, newPath)
+      },
       async listDirs() {
         return getLib().documents.listDirs()
       },

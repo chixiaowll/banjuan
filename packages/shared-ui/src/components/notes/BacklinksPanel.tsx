@@ -52,7 +52,7 @@ export default function BacklinksPanel({ noteId, docId, onOpenNote, onOpenMindma
       const enrichedBacks = await Promise.all(
         backs.map(async (link: Backlink) => {
           const note = await api.notes.get(link.sourceId)
-          return { ...link, sourceTitle: note?.title ?? 'Untitled', sourceType: note?.type ?? 'markdown' }
+          return { ...link, sourceTitle: note?.title ?? t('note.untitled'), sourceType: note?.type ?? 'markdown' }
         })
       )
       setBacklinks(enrichedBacks)
@@ -60,7 +60,7 @@ export default function BacklinksPanel({ noteId, docId, onOpenNote, onOpenMindma
       const enrichedForwards = await Promise.all(
         forwards.map(async (link: Backlink) => {
           const note = await api.notes.get(link.targetId)
-          return { ...link, targetTitle: note?.title ?? 'Untitled', targetType: note?.type ?? 'markdown' }
+          return { ...link, targetTitle: note?.title ?? t('note.untitled'), targetType: note?.type ?? 'markdown' }
         })
       )
       setForwardLinks(enrichedForwards)
@@ -77,7 +77,7 @@ export default function BacklinksPanel({ noteId, docId, onOpenNote, onOpenMindma
       const enrichedDocRefs = await Promise.all(
         docForwards.map(async (link: any) => {
           const doc = await api.documents.get(link.targetId)
-          return { docId: link.targetId, docTitle: doc?.title ?? 'Untitled', context: link.context }
+          return { docId: link.targetId, docTitle: doc?.title ?? t('embed.untitledDocument'), context: link.context }
         })
       )
       setDocRefs(enrichedDocRefs)
@@ -98,7 +98,7 @@ export default function BacklinksPanel({ noteId, docId, onOpenNote, onOpenMindma
       console.error('[BacklinksPanel] failed to load mindmap refs:', err)
       setMindmapRefs([])
     }
-  }, [noteId, docId])
+  }, [noteId, docId, t])
 
   useEffect(() => { load() }, [load])
 
@@ -250,7 +250,7 @@ export default function BacklinksPanel({ noteId, docId, onOpenNote, onOpenMindma
           {annotations.map(ann => (
             <div key={ann.id}
               style={{ padding: '6px 10px', marginBottom: 4, borderRadius: 4, fontSize: 12, borderLeft: '3px solid #ebcb8b' }}>
-              {ann.selectedText || ann.content || '(empty)'}
+              {ann.selectedText || ann.content || t('backlinks.emptyAnnotation')}
             </div>
           ))}
         </div>

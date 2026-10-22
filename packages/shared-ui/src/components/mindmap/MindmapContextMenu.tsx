@@ -1,5 +1,6 @@
 import React from 'react'
 import { useMindmapStore } from './useMindmapStore.js'
+import { useT } from '../../i18n/index.js'
 
 interface Props {
   x: number
@@ -19,7 +20,8 @@ function hoverOn(e: React.MouseEvent<HTMLButtonElement>) { e.currentTarget.style
 function hoverOff(e: React.MouseEvent<HTMLButtonElement>) { e.currentTarget.style.background = 'none' }
 
 export default function MindmapContextMenu({ x, y, nodeId, onClose }: Props) {
-  const { addNode, addFloatingNode, addSiblingNode, removeNode, setEditingNodeId, openSidePanel, rfNodes } = useMindmapStore()
+  const t = useT()
+  const { addNode, addSiblingNode, removeNode, setEditingNodeId, openSidePanel, rfNodes } = useMindmapStore()
   const node = rfNodes.find(n => n.id === nodeId)
   const isRoot = !node?.data.parentId && !node?.data.floating
   const canDelete = !isRoot
@@ -39,23 +41,23 @@ export default function MindmapContextMenu({ x, y, nodeId, onClose }: Props) {
       <div style={menuStyle}>
         <button style={itemStyle} onClick={() => { addNode(nodeId); onClose() }}
           onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-          Add Child
+          {t('mindmap.addChildNode')}
         </button>
 
         {!isRoot && (
           <button style={itemStyle} onClick={() => { addSiblingNode(nodeId); onClose() }}
             onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-            Add Sibling
+            {t('mindmap.addSibling')}
           </button>
         )}
 
         <button style={itemStyle} onClick={() => { setEditingNodeId(nodeId); onClose() }}
           onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-          Edit Title
+          {t('mindmap.editTitle')}
         </button>
         <button style={itemStyle} onClick={() => { openSidePanel('contentEditor', nodeId); onClose() }}
           onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-          <span>Edit Content</span>
+          <span>{t('mindmap.editContent')}</span>
           <span style={{ fontSize: 11, opacity: 0.4 }}>Enter</span>
         </button>
 
@@ -63,7 +65,7 @@ export default function MindmapContextMenu({ x, y, nodeId, onClose }: Props) {
 
         <button style={itemStyle} onClick={() => { openSidePanel('properties', nodeId); onClose() }}
           onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-          Properties
+          {t('mindmap.properties')}
         </button>
 
         {divider}
@@ -72,7 +74,7 @@ export default function MindmapContextMenu({ x, y, nodeId, onClose }: Props) {
           <button style={{ ...itemStyle, color: '#e74c3c' }}
             onClick={() => { removeNode(nodeId); onClose() }}
             onMouseEnter={hoverOn} onMouseLeave={hoverOff}>
-            Delete
+            {t('mindmap.delete')}
           </button>
         )}
       </div>

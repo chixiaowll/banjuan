@@ -98,6 +98,8 @@ export interface BanjuanAPI {
     move(id: string, destDir: string): Promise<Document | null>
     listDirs(): Promise<string[]>
     deleteDir?(dirPath: string): Promise<void>
+    /** Rename/move a folder of documents. Rejects with 'DIR_EXISTS' if the target exists. */
+    renameDir?(oldPath: string, newPath: string): Promise<void>
     importFiles?(filePaths: string[], destDir?: string): Promise<Array<{ title: string; success: boolean; error?: string }>>
     importFilesDialog?(destDir?: string): Promise<Array<{ title: string; success: boolean; error?: string }> | null>
     update(id: string, updates: DocumentUpdateInput): Promise<Document>
@@ -318,6 +320,12 @@ export interface BanjuanAPI {
   noteRender?: {
     onRequest(handler: (noteId: string, requestId: string) => void): () => void
     sendResult(requestId: string, dataUrl: string | null): void
+  }
+
+  /** Desktop only: application-menu commands routed to the renderer. */
+  menu?: {
+    /** File › Close Tab (⌘W). Return true if a tab was closed; false lets the window close. */
+    onCloseTab(handler: () => boolean): () => void
   }
 
   /** Desktop only: Feishu-style screen capture. Absent on mobile. */

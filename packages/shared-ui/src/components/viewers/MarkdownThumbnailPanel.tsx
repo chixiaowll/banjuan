@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react'
 import type { HeadingItem } from '../notes/NoteOutlinePanel.js'
+import { useT } from '../../i18n/index.js'
 
 interface Section {
   heading: HeadingItem
@@ -17,7 +18,7 @@ function stripMarkdown(text: string): string {
     .trim()
 }
 
-function parseSections(content: string, headings: HeadingItem[]): Section[] {
+function parseSections(content: string, headings: HeadingItem[], noHeadingsLabel: string): Section[] {
   const headingRegex = /^(#{1,6})\s+(.*)/gm
   const mdHeadings: Array<{ level: number; text: string; start: number; end: number }> = []
   let match: RegExpExecArray | null
@@ -30,7 +31,7 @@ function parseSections(content: string, headings: HeadingItem[]): Section[] {
   if (headings.length === 0 && mdHeadings.length === 0) {
     const preview = stripMarkdown(content)
     return preview ? [{
-      heading: { id: '__root__', text: '(No headings)', level: 1 },
+      heading: { id: '__root__', text: noHeadingsLabel, level: 1 },
       preview: preview.slice(0, 200),
     }] : []
   }
@@ -81,12 +82,14 @@ interface Props {
 }
 
 export default function MarkdownThumbnailPanel({ content, headings, onSectionClick }: Props) {
-  const sections = useMemo(() => parseSections(content, headings), [content, headings])
+  const t = useT()
+  const noHeadingsLabel = t('md.noHeadings')
+  const sections = useMemo(() => parseSections(content, headings, noHeadingsLabel), [content, headings, noHeadingsLabel])
 
   if (sections.length === 0) {
     return (
       <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)' }}>
-        暂无章节
+        {t('md.noSections')}
       </div>
     )
   }
@@ -122,7 +125,7 @@ export default function MarkdownThumbnailPanel({ content, headings, onSectionCli
                 {'H' + section.heading.level}
               </span>
             )}
-            {section.heading.text || '(空标题)'}
+            {section.heading.text || t('md.emptyHeading')}
           </div>
           {section.preview && (
             <div style={{

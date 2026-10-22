@@ -311,6 +311,10 @@ export function registerIpcHandlers() {
     return getLib(event).documents.deleteDir(dirPath)
   })
 
+  ipcMain.handle('documents:renameDir', async (event, oldPath: string, newPath: string) => {
+    return getLib(event).documents.renameDir(oldPath, newPath)
+  })
+
   ipcMain.handle('documents:importFiles', async (event, filePaths: string[], destDir?: string) => {
     const library = getLib(event)
     return importDocumentFiles(library, filePaths, destDir ?? null)

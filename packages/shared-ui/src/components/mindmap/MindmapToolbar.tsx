@@ -169,9 +169,9 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
       />
 
       <select value={layout} onChange={e => setLayout(e.target.value)} style={selectStyle}>
-        <option value="mindmap">Mindmap</option>
-        <option value="logical">Logical</option>
-        <option value="organization">Org</option>
+        <option value="mindmap">{t('mindmap.layoutMindmap')}</option>
+        <option value="logical">{t('mindmap.layoutLogical')}</option>
+        <option value="organization">{t('mindmap.layoutOrg')}</option>
       </select>
 
       <select value={theme} onChange={e => setTheme(e.target.value)} style={selectStyle}>
@@ -304,12 +304,12 @@ export function MindmapFloatingToolbar() {
 
       <div style={{ width: 1, height: 20, background: 'var(--border, #e0e0e0)', flexShrink: 0 }} />
 
-      <button onClick={() => setConnectMode(!connectMode)} title="Relationship"
+      <button onClick={() => setConnectMode(!connectMode)} title={t('mindmap.relationship')}
         style={{ ...btnStyle, background: connectMode ? 'rgba(74,144,217,0.15)' : 'none', color: connectMode ? '#4A90D9' : undefined }}>
         <Link2 size={15} />
       </button>
 
-      <button onClick={() => addBoundary(selectedNodeIds)} title="Add Boundary (select 2+ nodes)"
+      <button onClick={() => addBoundary(selectedNodeIds)} title={t('mindmap.addBoundary')}
         disabled={selectedNodeIds.length < 2}
         style={{
           ...btnStyle,
@@ -318,7 +318,7 @@ export function MindmapFloatingToolbar() {
         }}>
         <Square size={15} strokeWidth={2} />
       </button>
-      <button onClick={() => addSummary(selectedNodeIds)} title="Add Summary (select 2+ nodes)"
+      <button onClick={() => addSummary(selectedNodeIds)} title={t('mindmap.addSummary')}
         disabled={selectedNodeIds.length < 2}
         style={{
           ...btnStyle,

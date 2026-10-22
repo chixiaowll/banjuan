@@ -123,6 +123,36 @@ describe('DocumentService (file-first)', () => {
     })
   })
 
+  describe('renameDir', () => {
+    it('renames the folder on disk and updates every document path inside it', async () => {
+      createTestFile(libPath, 'papers/a.pdf', Buffer.from('A'))
+      createTestFile(libPath, 'papers/sub/b.pdf', Buffer.from('B'))
+      createTestFile(libPath, 'papers-old/c.pdf', Buffer.from('C'))     // look-alike sibling stays put
+      const a = await lib.documents.import('papers/a.pdf')
+      const b = await lib.documents.import('papers/sub/b.pdf')
+      const c = await lib.documents.import('papers-old/c.pdf')
+
+      await lib.documents.renameDir('papers', 'articles')
+
+      expect((await lib.documents.get(a.id))!.path).toBe('articles/a.pdf')
+      expect((await lib.documents.get(b.id))!.path).toBe('articles/sub/b.pdf')
+      expect((await lib.documents.get(c.id))!.path).toBe('papers-old/c.pdf')
+      expect(readFileSync(join(libPath, 'articles/sub/b.pdf'), 'utf-8')).toBe('B')
+      expect(existsSync(join(libPath, 'papers'))).toBe(false)
+      // the JSON metadata (source of truth for rebuilds) follows too
+      const json = JSON.parse(readFileSync(join(libPath, '.banjuan/data/documents', a.id.slice(0, 2), a.id + '.json'), 'utf-8'))
+      expect(json.path).toBe('articles/a.pdf')
+    })
+
+    it('refuses to merge into a folder that already exists', async () => {
+      createTestFile(libPath, 'x/a.pdf', Buffer.from('A'))
+      createTestFile(libPath, 'y/b.pdf', Buffer.from('B'))
+      await lib.documents.import('x/a.pdf')
+      await expect(lib.documents.renameDir('x', 'y')).rejects.toThrow('DIR_EXISTS')
+      expect(existsSync(join(libPath, 'x/a.pdf'))).toBe(true)
+    })
+  })
+
   describe('delete', () => {
     it('deletes original file, metadata JSON, and DB record', async () => {
       createTestFile(libPath, 'deleteme.txt', 'content')

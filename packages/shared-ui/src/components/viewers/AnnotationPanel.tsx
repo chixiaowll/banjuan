@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useT } from '../../i18n/index.js'
+import { useT, type MessageKey } from '../../i18n/index.js'
 import InkThumbnail from './InkThumbnail.js'
 
 interface AnnotationData {
@@ -11,6 +11,15 @@ interface AnnotationData {
   type: string
   position: any
   createdAt: string
+}
+
+/** Label for an annotation shown without text/thumbnail (e.g. a PDF point note). */
+const TYPE_LABEL_KEYS: Record<string, MessageKey> = {
+  highlight: 'annotation.highlight',
+  note: 'annotation.note',
+  ink: 'tool.ink',
+  area: 'tool.area',
+  text: 'tool.text',
 }
 
 interface Props {
@@ -73,7 +82,7 @@ export default function AnnotationPanel({ annotations, onAnnotationClick, onAnno
               color: 'var(--text-muted)', background: 'var(--surface)',
               textTransform: 'uppercase' as const, letterSpacing: '0.06em',
             }}>
-              {isEpub ? `Loc ${page}` : t('pdf.page', page)}
+              {isEpub ? t('annotation.location', page) : t('pdf.page', page)}
             </div>
           )}
           {grouped.get(page)!.map(ann => (
@@ -108,7 +117,7 @@ export default function AnnotationPanel({ annotations, onAnnotationClick, onAnno
                       }} />
                     ) : (
                       <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        {t('pdf.areaSelect')} ({t('pdf.page', ann.page ?? 0)})
+                        {t('annotation.areaOnPage', ann.page ?? 0)}
                       </span>
                     )
                   ) : ann.position?.type === 'ink' && ann.position?.strokes?.length > 0 ? (
@@ -125,7 +134,7 @@ export default function AnnotationPanel({ annotations, onAnnotationClick, onAnno
                       {ann.selectedText}
                     </span>
                   ) : (
-                    <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{ann.type}</span>
+                    <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{TYPE_LABEL_KEYS[ann.type] ? t(TYPE_LABEL_KEYS[ann.type]) : ann.type}</span>
                   )}
                 </div>
               </div>

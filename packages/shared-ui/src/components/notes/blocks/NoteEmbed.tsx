@@ -4,6 +4,7 @@ import { createReactBlockSpec } from '@blocknote/react'
 import { renderAllStrokes } from '../../handwriting/renderStrokes.js'
 import type { Stroke } from '@banjuan/core'
 import { useBanjuanAPI } from '../../../api.js'
+import { useT } from '../../../i18n/index.js'
 
 const MindmapEmbedPreview = lazy(() => import('./MindmapEmbedPreview.js'))
 const HandwritingEmbedPreview = lazy(() => import('./HandwritingEmbedPreview.js'))
@@ -113,6 +114,7 @@ function NoteEmbedContent({
   onRemove: () => void
 }) {
   const api = useBanjuanAPI()
+  const t = useT()
   const [content, setContent] = useState<string | null>(null)
   const [noteType, setNoteType] = useState<string | null>(null)
   const [showPicker, setShowPicker] = useState(false)
@@ -204,8 +206,8 @@ function NoteEmbedContent({
 
   const icon = noteType === 'mindmap' ? '🧠' : noteType === 'handwriting' ? '✏️' : '📝'
   const parsedPageIndex = pageIndex !== '' ? parseInt(pageIndex, 10) : -1
-  const pageLabel = noteType === 'handwriting' && parsedPageIndex >= 0 ? ` · Page ${parsedPageIndex + 1}` : ''
-  const title = (noteTitle || (noteType === 'mindmap' ? 'Untitled Mindmap' : noteType === 'handwriting' ? 'Untitled Handwriting' : 'Untitled')) + pageLabel
+  const pageLabel = noteType === 'handwriting' && parsedPageIndex >= 0 ? ` · ${t('pdf.page', parsedPageIndex + 1)}` : ''
+  const title = (noteTitle || (noteType === 'mindmap' ? t('library.untitledMindmap') : noteType === 'handwriting' ? t('library.untitledHandwriting') : t('note.untitled'))) + pageLabel
 
   const filteredNotes = pickerQuery
     ? pickerNotes.filter(n => n.title.toLowerCase().includes(pickerQuery.toLowerCase()))
@@ -222,7 +224,7 @@ function NoteEmbedContent({
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
             <button
               onClick={(e) => { e.stopPropagation(); openPicker() }}
-              title="Change note"
+              title={t('embed.changeNote')}
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px',
@@ -235,7 +237,7 @@ function NoteEmbedContent({
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onRemove() }}
-              title="Remove embed"
+              title={t('embed.remove')}
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px',
@@ -276,7 +278,7 @@ function NoteEmbedContent({
                     <ChevronLeft size={16} />
                   </button>
                   <span style={{ fontSize: 13, color: 'var(--text)' }}>
-                    ✏️ {pagePicker.noteTitle || 'Untitled'} — Select page
+                    ✏️ {t('embed.selectPage', pagePicker.noteTitle || t('note.untitled'))}
                   </span>
                 </div>
                 <div style={{ flex: 1, overflow: 'auto', padding: 8, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
@@ -295,7 +297,7 @@ function NoteEmbedContent({
                     >
                       <PageThumb strokes={p.strokes} pageSize={pagePicker.pageSize} />
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        Page {i + 1}
+                        {t('pdf.page', i + 1)}
                       </span>
                     </button>
                   ))}
@@ -308,7 +310,7 @@ function NoteEmbedContent({
                     ref={searchRef}
                     value={pickerQuery}
                     onChange={e => setPickerQuery(e.target.value)}
-                    placeholder="Search notes..."
+                    placeholder={t('embed.searchNotes')}
                     style={{
                       width: '100%', padding: '6px 10px', border: '1px solid var(--border, #e1e4e8)',
                       borderRadius: 6, fontSize: 13, outline: 'none',
@@ -325,7 +327,7 @@ function NoteEmbedContent({
                 <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
                   {filteredNotes.length === 0 ? (
                     <div style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text-muted)' }}>
-                      No notes found
+                      {t('embed.noNotesFound')}
                     </div>
                   ) : filteredNotes.map(n => (
                     <button
@@ -343,10 +345,10 @@ function NoteEmbedContent({
                     >
                       <span>{noteIcon(n.type)}</span>
                       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {n.title || 'Untitled'}
+                        {n.title || t('note.untitled')}
                       </span>
                       {n.id === noteId && (
-                        <span style={{ fontSize: 11, color: 'var(--accent, #3182ce)' }}>current</span>
+                        <span style={{ fontSize: 11, color: 'var(--accent, #3182ce)' }}>{t('embed.current')}</span>
                       )}
                     </button>
                   ))}
@@ -359,19 +361,19 @@ function NoteEmbedContent({
 
       <div className="note-embed-clean-body">
         {noteType === 'mindmap' ? (
-          <Suspense fallback={<span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading mindmap...</span>}>
+          <Suspense fallback={<span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('embed.loadingMindmap')}</span>}>
             <MindmapEmbedPreview noteId={noteId} noteTitle={noteTitle} />
           </Suspense>
         ) : noteType === 'handwriting' ? (
-          <Suspense fallback={<span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading...</span>}>
+          <Suspense fallback={<span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('common.loading')}</span>}>
             <HandwritingEmbedPreview noteId={noteId} noteTitle={noteTitle} pageIndex={parsedPageIndex >= 0 ? parsedPageIndex : undefined} />
           </Suspense>
         ) : content === null ? (
-          <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading...</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('common.loading')}</span>
         ) : !content ? (
-          <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Empty note</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('embed.emptyNote')}</span>
         ) : (
-          <Suspense fallback={<span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading...</span>}>
+          <Suspense fallback={<span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('common.loading')}</span>}>
             <BlockEditor
               initialContent={content}
               onChange={noop}

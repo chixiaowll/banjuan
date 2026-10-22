@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { useBanjuanAPI, PoetryCard, useT } from '@banjuan/shared-ui'
+import { useBanjuanAPI, PoetryCard, useI18n } from '@banjuan/shared-ui'
 import { listLibraries, getLibrariesRoot, type LibraryEntry } from './capacitor-api.js'
 
 interface Props {
@@ -99,7 +99,7 @@ type NearbyShare = { deviceId: string; deviceName: string; libraryName: string; 
 
 export function WelcomeView({ onOpen }: Props) {
   const api = useBanjuanAPI()
-  const t = useT()
+  const { t, locale } = useI18n()
   const [libraries, setLibraries] = useState<LibraryEntry[]>([])
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -164,7 +164,7 @@ export function WelcomeView({ onOpen }: Props) {
   }
 
   const handleCreate = async () => {
-    const name = newName.trim() || 'My Library'
+    const name = newName.trim() || t('welcome.defaultLibraryName')
     const path = `${getLibrariesRoot()}/${slugDir(name)}`
     setLoading(path)
     setError(null)
@@ -208,7 +208,7 @@ export function WelcomeView({ onOpen }: Props) {
     if (!joinTarget) return
     if (!/^\d{6}$/.test(joinPin)) { setError(t('welcome.pinRequired')); return }
     const h = joinTarget
-    const name = h.libraryName || h.deviceName || 'Library'
+    const name = h.libraryName || h.deviceName || t('welcome.fallbackLibraryName')
     const path = `${getLibrariesRoot()}/${slugDir(name)}`
     setLoading(path)
     setError(null)
@@ -268,9 +268,9 @@ export function WelcomeView({ onOpen }: Props) {
   return (
     <div style={containerStyle}>
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 8px' }}>Banjuan</h1>
-        <p style={{ fontSize: 15, color: 'var(--text-muted, #888)', margin: '0 0 20px' }}>Knowledge Management</p>
-        <PoetryCard />
+        <h1 style={{ fontSize: 28, fontWeight: 700, margin: '0 0 8px' }}>{t('app.name')}</h1>
+        <p style={{ fontSize: 15, color: 'var(--text-muted, #888)', margin: '0 0 20px' }}>{t('welcome.tagline')}</p>
+        <PoetryCard locale={locale} />
       </div>
 
       {error && (

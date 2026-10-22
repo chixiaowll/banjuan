@@ -8,9 +8,17 @@ import de from './de.js'
 import es from './es.js'
 
 export type Locale = 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es'
-type Messages = Record<keyof typeof zh, string>
 
-const locales: Record<Locale, Messages> = { zh, en, ja: ja as Messages, ko: ko as Messages, fr: fr as Messages, de: de as Messages, es: es as Messages }
+/** BCP 47 tag of each UI language, for Intl / toLocaleDateString / toLocaleTimeString. */
+export const LOCALE_TAGS: Record<Locale, string> = {
+  zh: 'zh-CN', en: 'en-US', ja: 'ja-JP', ko: 'ko-KR', fr: 'fr-FR', de: 'de-DE', es: 'es-ES',
+}
+export type MessageKey = keyof typeof zh
+type Messages = Record<MessageKey, string>
+
+// No casts: a locale missing any key is a compile error (a missing key used to
+// render as the raw key, e.g. "video.noScreenshots").
+const locales: Record<Locale, Messages> = { zh, en, ja, ko, fr, de, es }
 
 interface I18nContextValue {
   locale: Locale

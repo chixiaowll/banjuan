@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
-import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService } from '@banjuan/shared-ui'
+import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService, FeedbackHost, useT } from '@banjuan/shared-ui'
 import WelcomeView from './views/WelcomeView.js'
 import ScreenshotOverlay from './views/ScreenshotOverlay.js'
 import { electronAPI } from './electron-api.js'
@@ -31,6 +31,11 @@ function ExportWorkerRoot() {
       </ThemeProvider>
     </BanjuanAPIProvider>
   )
+}
+
+function LoadingLabel() {
+  const t = useT()
+  return <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>{t('common.loading')}</div>
 }
 
 export default function App() {
@@ -75,7 +80,7 @@ function MainApp() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             height: '100vh', background: 'var(--bg)',
           }}>
-            <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading...</div>
+            <LoadingLabel />
           </div>
         </I18nProvider>
         </ThemeProvider>
@@ -96,6 +101,7 @@ function MainApp() {
               onLibraryRenamed={(name) => setLibrary(prev => prev ? { ...prev, name } : prev)}
             />}
         <NoteRenderService />
+        <FeedbackHost />
       </I18nProvider>
       </ThemeProvider>
     </BanjuanAPIProvider>

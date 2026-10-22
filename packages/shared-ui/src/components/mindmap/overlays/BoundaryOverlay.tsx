@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { Node } from '@xyflow/react'
 import { useMindmapStore, type MindmapNodeData } from '../useMindmapStore.js'
 import { useNodeSizeStore } from '../useNodeSizeStore.js'
+import { useT } from '../../../i18n/index.js'
 
 const PADDING = 24
 const BORDER_RADIUS = 12
@@ -43,6 +44,7 @@ function BoundaryBox({ boundary, rfNodes, nodeSizes, onUpdateLabel, onRemove }: 
   onUpdateLabel: (label: string) => void
   onRemove: () => void
 }) {
+  const t = useT()
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(boundary.label)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
@@ -147,7 +149,7 @@ function BoundaryBox({ boundary, rfNodes, nodeSizes, onUpdateLabel, onRemove }: 
             padding: '0 4px',
             userSelect: 'none',
           }}>
-            {boundary.label || 'Boundary'}
+            {boundary.label || t('mindmap.boundary')}
           </span>
         )}
       </div>
@@ -170,7 +172,7 @@ function BoundaryBox({ boundary, rfNodes, nodeSizes, onUpdateLabel, onRemove }: 
               onMouseLeave={e => e.currentTarget.style.background = 'none'}
               onClick={() => { setContextMenu(null); onRemove() }}
             >
-              Remove Boundary
+              {t('mindmap.removeBoundary')}
             </button>
           </div>
         </>,

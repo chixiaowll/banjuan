@@ -27,9 +27,9 @@ export default function TemplatePicker({ onSelect, onClose, error }: Props) {
   }
 
   const typeLabels: Record<NoteType, string> = {
-    markdown: t('template.typeMarkdown' as any),
-    mindmap: t('template.typeMindmap' as any),
-    handwriting: t('template.typeHandwriting' as any),
+    markdown: t('template.typeMarkdown'),
+    mindmap: t('template.typeMindmap'),
+    handwriting: t('template.typeHandwriting'),
   }
 
   return (
@@ -46,7 +46,7 @@ export default function TemplatePicker({ onSelect, onClose, error }: Props) {
         <input
           autoFocus
           type="text"
-          placeholder={t('template.titlePlaceholder' as any)}
+          placeholder={t('template.titlePlaceholder')}
           value={title}
           onChange={e => setTitle(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') handleConfirm() }}
@@ -58,7 +58,7 @@ export default function TemplatePicker({ onSelect, onClose, error }: Props) {
         />
         {error && <div style={{ fontSize: 12, color: '#e53e3e', marginBottom: 12 }}>{error}</div>}
 
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{t('template.noteType' as any)}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{t('template.noteType')}</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           {NOTE_TYPES.map(({ type, icon, color, bg }) => (
             <div

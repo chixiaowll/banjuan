@@ -56,7 +56,7 @@ export default function AnnotationContextMenu({
           onMouseEnter={e => (e.currentTarget.style.background = 'var(--selected)')}
           onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           onClick={() => { navigator.clipboard.writeText(selectedText); onClose() }}>
-          <Copy size={14} /> {t('common.copy' as any) || '复制文字'}
+          <Copy size={14} /> {t('common.copy')}
         </button>
       )}
       <div style={{ padding: '4px 12px', display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -73,7 +73,7 @@ export default function AnnotationContextMenu({
         onMouseEnter={e => (e.currentTarget.style.background = 'var(--selected)')}
         onMouseLeave={e => (e.currentTarget.style.background = 'none')}
         onClick={() => { onDelete(annotationId); onClose() }}>
-        <Trash2 size={14} /> {t('common.delete' as any) || '删除'}
+        <Trash2 size={14} /> {t('common.delete')}
       </button>
     </div>
   )

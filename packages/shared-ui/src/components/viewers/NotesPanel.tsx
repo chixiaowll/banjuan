@@ -4,6 +4,7 @@ import TemplatePicker, { type NoteType } from '../notes/TemplatePicker.js'
 import { useBanjuanAPI } from '../../api.js'
 import { useLongPress } from '../../hooks/useLongPress.js'
 import { notifyNotesChanged } from '../../utils/libraryEvents.js'
+import { confirmDialog } from '../feedback.js'
 
 interface NoteInfo {
   id: string
@@ -57,7 +58,7 @@ export default function NotesPanel({ docId, onOpenNote, onCreateNote, onDeleteNo
       onOpenNote(note)
     } catch (err: any) {
       if (err?.message?.includes('DUPLICATE_TITLE')) {
-        setPickerError(t('note.duplicateTitle' as any))
+        setPickerError(t('note.duplicateTitle'))
       } else {
         throw err
       }
@@ -67,7 +68,7 @@ export default function NotesPanel({ docId, onOpenNote, onCreateNote, onDeleteNo
   const handleDeleteNote = useCallback(async (noteId: string) => {
     setContextMenu(null)
     const title = notes.find(n => n.id === noteId)?.title ?? ''
-    if (!window.confirm(t('folderTree.confirmDeleteNote', title))) return
+    if (!await confirmDialog({ message: t('folderTree.confirmDeleteNote', title), danger: true, confirmText: t('common.delete') })) return
     await api.notes.delete(noteId)
     onDeleteNote?.(noteId)
     loadNotes()

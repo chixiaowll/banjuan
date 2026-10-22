@@ -187,7 +187,7 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
                   fontFamily: 'var(--font-serif, "Noto Serif SC", serif)',
                   fontSize: 11, fontWeight: 600,
                   boxShadow: isNotebook ? '0 1px 3px rgba(224,120,86,.3)' : 'none',
-                }}>藏</span>
+                }}>{t('library.sealChar')}</span>
               ) : isNotebook ? (
                 tab.type === 'document' ? '📄' : tab.type === 'tag-manager' ? '🏷' : tab.type === 'plugin' ? '🧩' : '📝'
               ) : (
@@ -199,7 +199,7 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
               <button
                 className="title-bar-tab-close"
                 onClick={(e) => { e.stopPropagation(); onCloseTab(tab.id) }}
-                title="Close"
+                title={t('tabs.close')}
               >
                 <X size={12} />
               </button>
@@ -227,7 +227,7 @@ export default function TitleBar({ tabs, activeTabId, onSelectTab, onCloseTab, o
         <button
           className="title-bar-rail-toggle"
           onClick={onToggleRail}
-          title={railCollapsed ? '显示工具栏' : '隐藏工具栏'}
+          title={railCollapsed ? t('tabs.showRail') : t('tabs.hideRail')}
           aria-pressed={!railCollapsed}
           style={{
             background: 'none', border: 'none', borderRadius: 5, cursor: 'pointer', padding: '5px',

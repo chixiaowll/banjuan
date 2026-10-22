@@ -5,6 +5,7 @@ import type { Stroke } from '@banjuan/core'
 import { useBanjuanAPI } from '../../api.js'
 import { useIsActiveTab } from '../tabActive.js'
 import { isEditableTarget } from '../../utils/keyboard.js'
+import { useT } from '../../i18n/index.js'
 
 interface InkStroke {
   points: Array<{ x: number; y: number }>
@@ -61,6 +62,7 @@ const SEL_MARGIN = 0.02
 
 export default function InkLassoTool({ active, pageNum, docId, existingAnnotationId, existingStrokes, onUpdated }: Props) {
   const api = useBanjuanAPI()
+  const t = useT()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -359,7 +361,7 @@ export default function InkLassoTool({ active, pageNum, docId, existingAnnotatio
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--selected)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
           >
-            <Trash2 size={14} /> 删除
+            <Trash2 size={14} /> {t('common.delete')}
           </button>
         </div>
       )}

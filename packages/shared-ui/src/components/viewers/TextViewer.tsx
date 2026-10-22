@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useBanjuanAPI } from '../../api.js'
 import { useEyeProtection, EYE_PROTECTION_TINT } from './useEyeProtection.js'
+import { useT } from '../../i18n/index.js'
 
 interface Props {
   docPath: string
@@ -8,6 +9,7 @@ interface Props {
 
 export default function TextViewer({ docPath }: Props) {
   const api = useBanjuanAPI()
+  const t = useT()
   const [content, setContent] = useState<string>('')
   const [loading, setLoading] = useState(true)
 
@@ -20,7 +22,7 @@ export default function TextViewer({ docPath }: Props) {
 
   const { eyeProtection } = useEyeProtection()
 
-  if (loading) return <div style={{ padding: 24, color: 'var(--text-muted)' }}>Loading...</div>
+  if (loading) return <div style={{ padding: 24, color: 'var(--text-muted)' }}>{t('common.loading')}</div>
 
   const lines = content.split('\n')
 

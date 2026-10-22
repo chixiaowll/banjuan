@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
+// ⌘W (File › Close Tab): the renderer closes its current tab and returns true;
+// with no handler, or nothing closable, the window closes instead.
+let closeTabHandler: (() => boolean) | null = null
+ipcRenderer.on('menu:close-tab', () => {
+  if (!closeTabHandler?.()) ipcRenderer.send('window:close')
+})
+
 const api = {
   library: {
     check: (path: string) => ipcRenderer.invoke('library:check', path),
@@ -28,6 +35,7 @@ const api = {
     move: (id: string, destDir: string) => ipcRenderer.invoke('documents:move', id, destDir),
     listDirs: () => ipcRenderer.invoke('documents:listDirs'),
     deleteDir: (dirPath: string) => ipcRenderer.invoke('documents:deleteDir', dirPath),
+    renameDir: (oldPath: string, newPath: string) => ipcRenderer.invoke('documents:renameDir', oldPath, newPath),
     importFiles: (filePaths: string[], destDir?: string) => ipcRenderer.invoke('documents:importFiles', filePaths, destDir),
     importFilesDialog: (destDir?: string) => ipcRenderer.invoke('documents:importFilesDialog', destDir),
     update: (id: string, updates: { title?: string; authors?: string[]; metadata?: Record<string, unknown> }) =>
@@ -285,6 +293,12 @@ const api = {
     },
     sendResult: (requestId: string, dataUrl: string | null) => {
       ipcRenderer.send(`note-render-result:${requestId}`, dataUrl)
+    },
+  },
+  menu: {
+    onCloseTab: (handler: () => boolean) => {
+      closeTabHandler = handler
+      return () => { if (closeTabHandler === handler) closeTabHandler = null }
     },
   },
   screenshot: {

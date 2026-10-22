@@ -48,6 +48,22 @@ describe('SearchService', () => {
     expect(results.every((r) => r.type === 'note')).toBe(true)
   })
 
+  it('re-indexes a note when its content or title is edited', async () => {
+    const note = await lib.notes.create({
+      title: 'Draft',
+      content: JSON.stringify([{ type: 'paragraph', content: [{ type: 'text', text: 'original wording' }] }]),
+    })
+    await lib.notes.update(note.id, {
+      title: 'Quantum Draft',
+      content: JSON.stringify([{ type: 'paragraph', content: [{ type: 'text', text: 'entanglement experiment' }] }]),
+    })
+    expect((await lib.search.query('entanglement')).map(r => r.id)).toContain(note.id)
+    expect((await lib.search.query('original')).map(r => r.id)).not.toContain(note.id)
+    // one index row per note, not one more per save
+    const db = (lib as any).db
+    expect(db.query("SELECT rowid FROM search_index WHERE type = ?", ['note:' + note.id])).toHaveLength(1)
+  })
+
   it('returns empty for no match', async () => {
     const results = await lib.search.query('quantum computing')
     expect(results).toHaveLength(0)

@@ -151,7 +151,7 @@ export default function TagInput({ targetId, targetType, compact }: Props) {
                     onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
-                    + Create "{query.trim()}"
+                    {t('tags.create', query.trim())}
                   </div>
                 )}
               </div>

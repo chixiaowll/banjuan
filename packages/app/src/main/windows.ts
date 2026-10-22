@@ -55,6 +55,11 @@ export function createWindow(): BrowserWindow {
   return win
 }
 
+/** True for library windows (not the screenshot overlay or hidden export window). */
+export function isLibraryWindow(win: BrowserWindow | null | undefined): win is BrowserWindow {
+  return !!win && windows.has(win)
+}
+
 export function getWindowCount(): number {
   return windows.size
 }

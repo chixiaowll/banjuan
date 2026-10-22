@@ -250,6 +250,7 @@ function MarkdownInfoSidebar({ doc, onDocUpdated, width = 280 }: {
   doc: DocInfo; onDocUpdated: (doc: DocInfo) => void; width?: number
 }) {
   const api = useBanjuanAPI()
+  const t = useT()
   const { rightSidebarOpen } = useMarkdownViewer()
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -273,12 +274,12 @@ function MarkdownInfoSidebar({ doc, onDocUpdated, width = 280 }: {
         {doc.title}
       </div>
       <div style={{ padding: '8px 0' }}>
-        <EditableField label="Title" value={doc.title} onSave={(val) => saveDoc({ title: val })} />
-        <EditableField label="Authors" value={doc.authors.join(', ')} onSave={(val) => saveDoc({ authors: val.split(',').map(a => a.trim()).filter(Boolean) })} />
-        <EditableField label="Type" value={doc.type.toUpperCase()} readOnly />
-        <EditableField label="Path" value={doc.path} readOnly />
-        <EditableField label="Created" value={new Date(doc.createdAt).toLocaleString()} readOnly />
-        <EditableField label="Updated" value={new Date(doc.updatedAt).toLocaleString()} readOnly />
+        <EditableField label={t('detail.docTitle')} value={doc.title} onSave={(val) => saveDoc({ title: val })} />
+        <EditableField label={t('detail.authors')} value={doc.authors.join(', ')} onSave={(val) => saveDoc({ authors: val.split(',').map(a => a.trim()).filter(Boolean) })} />
+        <EditableField label={t('detail.type')} value={doc.type.toUpperCase()} readOnly />
+        <EditableField label={t('detail.path')} value={doc.path} readOnly />
+        <EditableField label={t('detail.createdAt')} value={new Date(doc.createdAt).toLocaleString()} readOnly />
+        <EditableField label={t('detail.updatedAt')} value={new Date(doc.updatedAt).toLocaleString()} readOnly />
       </div>
     </div>
   )

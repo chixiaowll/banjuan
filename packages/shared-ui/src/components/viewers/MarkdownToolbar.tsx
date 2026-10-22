@@ -3,6 +3,7 @@ import { PanelLeft, Minus as MinusIcon, Plus as PlusIcon, PanelRight, Clock, Che
 import { useMarkdownViewer, ANNOTATION_COLORS } from './MarkdownViewerContext.js'
 import { useReadingTimer } from './useReadingTimer.js'
 import { useEyeProtection, useEinkMode } from './useEyeProtection.js'
+import { useT, type MessageKey } from '../../i18n/index.js'
 
 interface Props {
   docId: string
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function MarkdownToolbar({ docId, metadata }: Props) {
+  const t = useT()
   const ctx = useMarkdownViewer()
   const { eyeProtection, toggleEyeProtection } = useEyeProtection()
   const { einkMode, toggleEinkMode } = useEinkMode()
@@ -65,18 +67,18 @@ export default function MarkdownToolbar({ docId, metadata }: Props) {
       gap: 2,
       fontSize: 13,
     }}>
-      <button style={btnStyle} onClick={() => ctx.setLeftSidebarOpen(!ctx.leftSidebarOpen)} title="Toggle left sidebar">
+      <button style={btnStyle} onClick={() => ctx.setLeftSidebarOpen(!ctx.leftSidebarOpen)} title={t('viewer.toggleLeftSidebar')}>
         <PanelLeft size={16} />
       </button>
       <div style={sepStyle} />
 
-      <button style={btnStyle} onClick={() => ctx.setFontSize(s => Math.max(50, s - 10))} title="Decrease font">
+      <button style={btnStyle} onClick={() => ctx.setFontSize(s => Math.max(50, s - 10))} title={t('viewer.decreaseFont')}>
         <MinusIcon size={16} />
       </button>
       <span style={{ fontSize: 11, minWidth: 36, textAlign: 'center', color: 'var(--text-muted)' }}>
         {ctx.fontSize}%
       </span>
-      <button style={btnStyle} onClick={() => ctx.setFontSize(s => Math.min(200, s + 10))} title="Increase font">
+      <button style={btnStyle} onClick={() => ctx.setFontSize(s => Math.min(200, s + 10))} title={t('viewer.increaseFont')}>
         <PlusIcon size={16} />
       </button>
 
@@ -85,7 +87,7 @@ export default function MarkdownToolbar({ docId, metadata }: Props) {
           <button
             style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 3 }}
             onClick={() => setShowColorPicker(!showColorPicker)}
-            title="Highlight color"
+            title={t('annotation.highlightColor')}
           >
             <span style={{
               width: 14, height: 14, borderRadius: '50%',
@@ -110,7 +112,7 @@ export default function MarkdownToolbar({ docId, metadata }: Props) {
                     background: c.value, border: ctx.activeColor === c.value ? '2px solid var(--accent)' : '1px solid var(--border)',
                     cursor: 'pointer', padding: 0,
                   }}
-                  title={c.name}
+                  title={t(`annotation.color.${c.name}` as MessageKey)}
                 />
               ))}
             </div>
@@ -122,7 +124,7 @@ export default function MarkdownToolbar({ docId, metadata }: Props) {
         <button
           style={inkActive ? activeBtnStyle : btnStyle}
           onClick={() => ctx.setActiveTool(inkActive ? 'none' : 'ink')}
-          title="Ink / Handwriting"
+          title={t('tool.ink')}
         >
           <PenTool size={16} />
         </button>
@@ -131,31 +133,31 @@ export default function MarkdownToolbar({ docId, metadata }: Props) {
         <button
           style={ctx.annotationsVisible ? btnStyle : activeBtnStyle}
           onClick={() => ctx.setAnnotationsVisible(!ctx.annotationsVisible)}
-          title={ctx.annotationsVisible ? 'Hide annotations' : 'Show annotations'}
+          title={ctx.annotationsVisible ? t('pdf.hideAnnotations') : t('pdf.showAnnotations')}
         >
           {ctx.annotationsVisible ? <Eye size={16} /> : <EyeOff size={16} />}
         </button>
         <button
           style={eyeProtection ? { ...btnStyle, color: '#d69e2e' } : btnStyle}
           onClick={toggleEyeProtection}
-          title="Eye Protection"
+          title={t('pdf.eyeProtection')}
         >
           <Sun size={16} />
         </button>
         <button
           style={einkMode ? { ...btnStyle, color: '#718096' } : btnStyle}
           onClick={toggleEinkMode}
-          title="E-Ink Mode"
+          title={t('pdf.einkMode')}
         >
           <Monitor size={16} />
         </button>
       </div>
 
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }} title="Reading time">
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }} title={t('viewer.readingTime')}>
         <Clock size={12} />
         {readingTime}
       </span>
-      <button style={btnStyle} onClick={() => ctx.setRightSidebarOpen(!ctx.rightSidebarOpen)} title="Toggle right sidebar">
+      <button style={btnStyle} onClick={() => ctx.setRightSidebarOpen(!ctx.rightSidebarOpen)} title={t('viewer.toggleRightSidebar')}>
         <PanelRight size={16} />
       </button>
     </div>
