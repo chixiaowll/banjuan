@@ -35,6 +35,7 @@ const api = {
     move: (id: string, destDir: string) => ipcRenderer.invoke('documents:move', id, destDir),
     listDirs: () => ipcRenderer.invoke('documents:listDirs'),
     deleteDir: (dirPath: string) => ipcRenderer.invoke('documents:deleteDir', dirPath),
+    renameDir: (oldPath: string, newPath: string) => ipcRenderer.invoke('documents:renameDir', oldPath, newPath),
     importFiles: (filePaths: string[], destDir?: string) => ipcRenderer.invoke('documents:importFiles', filePaths, destDir),
     importFilesDialog: (destDir?: string) => ipcRenderer.invoke('documents:importFilesDialog', destDir),
     update: (id: string, updates: { title?: string; authors?: string[]; metadata?: Record<string, unknown> }) =>

@@ -297,6 +297,37 @@ export class DocumentService {
     await this.fs.mkdir(absPath, { recursive: true })
   }
 
+  /**
+   * Rename (or move) a folder of documents: the directory on disk, then each
+   * document's path in the DB and its JSON metadata. Refuses to merge into an
+   * existing folder — that would silently interleave two folders' files.
+   */
+  async renameDir(oldPath: string, newPath: string): Promise<void> {
+    const oldAbs = join(this.rootPath, oldPath)
+    const newAbs = join(this.rootPath, newPath)
+    if (!(await this.fs.exists(oldAbs))) throw new Error('Directory not found')
+    if (await this.fs.exists(newAbs)) throw new Error('DIR_EXISTS')
+    await this.fs.mkdir(dirname(newAbs), { recursive: true })
+    await this.fs.rename(oldAbs, newAbs)
+
+    const prefix = oldPath + '/'
+    const rows = this.db.query<{ id: string; path: string }>(
+      `SELECT id, path FROM documents WHERE path LIKE ? ${LIKE_ESCAPE}`, [escapeLike(prefix) + '%'],
+    )
+    const now = new Date().toISOString()
+    for (const row of rows) {
+      const to = newPath + '/' + row.path.substring(prefix.length)
+      this.db.run('UPDATE documents SET path = ?, updated_at = ? WHERE id = ?', [to, now, row.id])
+      const fileData = await this.store.read(row.id)
+      if (fileData) {
+        fileData.path = to
+        fileData.updatedAt = now
+        await this.store.write(fileData)
+      }
+      this.events.emit('document:moved', { id: row.id, from: row.path, to })
+    }
+  }
+
   async listDirs(): Promise<string[]> {
     const dirs = new Set<string>()
     const rows = this.db.query<{ path: string }>('SELECT DISTINCT path FROM documents', [])

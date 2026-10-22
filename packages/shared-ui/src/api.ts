@@ -98,6 +98,8 @@ export interface BanjuanAPI {
     move(id: string, destDir: string): Promise<Document | null>
     listDirs(): Promise<string[]>
     deleteDir?(dirPath: string): Promise<void>
+    /** Rename/move a folder of documents. Rejects with 'DIR_EXISTS' if the target exists. */
+    renameDir?(oldPath: string, newPath: string): Promise<void>
     importFiles?(filePaths: string[], destDir?: string): Promise<Array<{ title: string; success: boolean; error?: string }>>
     importFilesDialog?(destDir?: string): Promise<Array<{ title: string; success: boolean; error?: string }> | null>
     update(id: string, updates: DocumentUpdateInput): Promise<Document>
