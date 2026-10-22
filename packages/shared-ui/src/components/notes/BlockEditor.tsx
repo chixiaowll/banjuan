@@ -67,7 +67,9 @@ const supportedLanguages = {
 
 const codeBlock = createCodeBlockSpec({
   supportedLanguages,
-  createHighlighter: () => import('shiki').then(m => m.createHighlighter({ themes: ['github-light', 'github-dark'], langs: Object.keys(supportedLanguages) })),
+  // No grammars up front: BlockNote loads each language the first time a code
+  // block uses it (loadLanguage), instead of fetching all of them on the first block.
+  createHighlighter: () => import('shiki').then(m => m.createHighlighter({ themes: ['github-light', 'github-dark'], langs: [] })),
 })
 
 export const schema = BlockNoteSchema.create({

@@ -15,8 +15,6 @@ import type { Locale } from '../i18n/index.js'
 import { useTheme, useThemeLayout, APP_THEMES } from '../theme/index.js'
 import type { AppTheme } from '../theme/index.js'
 import { useBanjuanAPI } from '../api.js'
-import { BlockNoteEditor } from '@blocknote/core'
-import { schema as blockNoteSchema } from '../components/notes/BlockEditor.js'
 import { exportToDirectory, newRunId } from '../utils/exportToDirectory.js'
 import { listExportNotes, buildExportEntries } from '../utils/exportEntries.js'
 import { useExportManagerStore } from '../stores/useExportManagerStore.js'
@@ -3050,6 +3048,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   // Fallback: run in-window (platforms without a background window).
                   const notes = await listExportNotes(api, folder)
                   if (notes.length === 0) return
+                  // Loaded on demand: keeps BlockNote out of the library view's startup bundle.
+                  const [{ BlockNoteEditor }, { schema: blockNoteSchema }] = await Promise.all([
+                    import('@blocknote/core'), import('../components/notes/BlockEditor.js'),
+                  ])
                   const editor = BlockNoteEditor.create({ schema: blockNoteSchema } as any)
                   const entries = buildExportEntries(api, notes, fmt, editor)
                   exportToDirectory(api, entries, fmt)

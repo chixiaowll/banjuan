@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
+  "sideEffects": [
+    "**/*.css",
+    "./src/components/notes/noteThemes.ts"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
