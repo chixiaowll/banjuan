@@ -219,14 +219,18 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
   }, [tabs, tabData])
 
   // Live reading state reported by viewers, keyed so it survives tab switches.
-  const [pageByDoc, setPageByDoc] = useState<Record<string, { currentPage?: number; totalPages?: number }>>({})
-  const [selection, setSelection] = useState<{ text?: string; page?: number; docId?: string }>({})
+  // Live reading state for the plugin / AI context. Refs, not state: it's never
+  // rendered, and as state every PDF page turn re-rendered every open tab.
+  const pageByDocRef = useRef<Record<string, { currentPage?: number; totalPages?: number }>>({})
+  const selectionRef = useRef<{ text?: string; page?: number; docId?: string }>({})
 
   // Assemble the context handed to plugins — and thence to the AI assistant.
   // Single source of truth, rebuilt whenever tabs, the active tab, or the live
   // reading state change. Shaped for an LLM: what's open, what's active, where
   // the user is (page), and what they've selected.
-  useEffect(() => {
+  const publishContext = useCallback(() => {
+    const pageByDoc = pageByDocRef.current
+    const selection = selectionRef.current
     const activeTab = tabs.find(t => t.id === activeTabId)
     const summarize = (t: Tab) => {
       const d = tabData.get(t.id)
@@ -261,7 +265,10 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
       ctx.selectedFromDocId = selection.docId
     }
     ;(window as any).__banjuanContext = ctx
-  }, [activeTabId, tabs, tabData, libraryName, pageByDoc, selection])
+  }, [activeTabId, tabs, tabData, libraryName])
+  const publishContextRef = useRef(publishContext)
+  publishContextRef.current = publishContext
+  useEffect(() => { publishContext() }, [publishContext])
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -276,17 +283,18 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
       const detail = (e as CustomEvent).detail
       if (!detail) return
       if (detail.docId && (detail.currentPage != null || detail.totalPages != null)) {
-        setPageByDoc(prev => ({
-          ...prev,
+        pageByDocRef.current = {
+          ...pageByDocRef.current,
           [detail.docId]: { currentPage: detail.currentPage, totalPages: detail.totalPages },
-        }))
+        }
       }
       // selectedText is set to a string on select, and null when cleared.
       if (detail.selectedText !== undefined) {
-        setSelection(detail.selectedText
+        selectionRef.current = detail.selectedText
           ? { text: detail.selectedText, page: detail.selectedPage, docId: detail.docId }
-          : {})
+          : {}
       }
+      publishContextRef.current()
     }
     document.addEventListener('banjuan:context-update', handler)
     return () => document.removeEventListener('banjuan:context-update', handler)
