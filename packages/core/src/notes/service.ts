@@ -451,18 +451,27 @@ export class NoteService {
     id = this.resolveId(id)
     const row = this.db.queryOne<{ path: string; type: string }>('SELECT path, type FROM notes WHERE id = ?', [id])
     if (!row) return
+    // Database first, in one transaction, children before parents — note_links
+    // and mindmap_* reference notes, mindmap_summaries references mindmap_nodes —
+    // and the file only after it commits. Previously the file went first and a
+    // mind map with a summary/boundary then failed its FK, leaving a broken row.
+    this.db.transaction(() => {
+      this.db.run('DELETE FROM note_links WHERE source_id = ? OR target_id = ?', [id, id])  // = LinkService.removeAllForNote
+      this.db.run('DELETE FROM doc_links WHERE source_id = ?', [id])                        // = DocLinkService.removeAllForNote
+      this.db.run('DELETE FROM note_annotations WHERE note_id = ?', [id])
+      if (row.type === 'mindmap') {
+        this.db.run('DELETE FROM mindmap_summaries WHERE mindmap_id = ?', [id])
+        this.db.run('DELETE FROM mindmap_boundaries WHERE mindmap_id = ?', [id])
+        this.db.run('DELETE FROM mindmap_edges WHERE mindmap_id = ?', [id])
+        this.db.run('DELETE FROM mindmap_nodes WHERE mindmap_id = ?', [id])
+        this.db.run('DELETE FROM mindmap_tags WHERE mindmap_id = ?', [id])
+      }
+      this.db.run('DELETE FROM note_tags WHERE note_id = ?', [id])
+      this.db.run('DELETE FROM notes WHERE id = ?', [id])
+    })
+    this.search.removeById(id)
     const filePath = join(this.notesDir, row.path)
     if (await this.fs.exists(filePath)) { await this.fs.remove(filePath) }
-    this.search.removeById(id)
-    if (this.linkService) { await this.linkService.removeAllForNote(id) }
-    if (this.docLinkService) { await this.docLinkService.removeAllForNote(id) }
-    this.db.run('DELETE FROM note_annotations WHERE note_id = ?', [id])
-    if (row.type === 'mindmap') {
-      this.db.run('DELETE FROM mindmap_edges WHERE mindmap_id = ?', [id])
-      this.db.run('DELETE FROM mindmap_nodes WHERE mindmap_id = ?', [id])
-    }
-    this.db.run('DELETE FROM note_tags WHERE note_id = ?', [id])
-    this.db.run('DELETE FROM notes WHERE id = ?', [id])
     this.events.emit('note:deleted', { id })
   }
 

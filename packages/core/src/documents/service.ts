@@ -277,14 +277,20 @@ export class DocumentService {
     const doc = await this.get(id)
     if (!doc) return
 
+    // Database first, in one transaction, children before the row (doc_links has
+    // a foreign key to documents); disk only after it commits. The old order
+    // deleted the file first, so an FK failure left a row with no file behind.
+    this.db.transaction(() => {
+      this.db.run('DELETE FROM doc_links WHERE target_id = ?', [id])
+      this.db.run('DELETE FROM doc_tags WHERE doc_id = ?', [id])
+      this.db.run('DELETE FROM documents WHERE id = ?', [id])
+    })
+    this.search.removeById(id)
+    await this.store.delete(id)
     const absPath = join(this.rootPath, doc.path)
     if (await this.fs.exists(absPath)) {
       await this.fs.remove(absPath)
     }
-
-    await this.store.delete(id)
-    this.search.removeById(id)
-    this.db.run('DELETE FROM documents WHERE id = ?', [id])
     this.events.emit('document:deleted', { id })
   }
 
