@@ -10,6 +10,7 @@ import HandwritingEditor from '../handwriting/HandwritingEditor.js'
 import { createHandwritingStore, HandwritingStoreContext, useHandwritingStore } from '../handwriting/useHandwritingStore.js'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
+import { emitLinksSynced } from '../../utils/linkEvents.js'
 
 interface NoteInfo {
   id: string
@@ -213,6 +214,7 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
     saveTimer.current = setTimeout(async () => {
       await api.notes.update(noteId, { content: json })
       setSaving(false)
+      emitLinksSynced()
     }, 800)
   }, [noteId])
 

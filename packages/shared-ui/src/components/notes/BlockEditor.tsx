@@ -406,15 +406,9 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   const handleChange = useCallback(() => {
     const blocks = editor.document
     const json = JSON.stringify(blocks)
+    // Links are synced by core when the (debounced) save lands — see
+    // notes.update → syncLinksFromBlocks — not here on every keystroke.
     onChange(json)
-    if (noteId && !skipLinkSync && allNotesRef.current.length > 0) {
-      const links = extractNoteLinks(blocks, t => allNotesRef.current.find(n => n.title === t)?.id)
-      api.noteLinks.sync(noteId, links).then(() => {
-        document.dispatchEvent(new Event('note-links-synced'))
-      })
-      const docLinks = extractDocumentLinks(blocks)
-      api.docLinks.sync(noteId, docLinks)
-    }
     // Never delete attachment files here: an image block leaving the document
     // is also what undo, cut→paste and moving a block look like mid-edit, and a
     // block copied into another note still points at this note's file.

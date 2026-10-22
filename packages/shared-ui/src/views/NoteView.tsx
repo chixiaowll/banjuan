@@ -23,6 +23,7 @@ import TagInput from '../components/tags/TagInput.js'
 import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
 import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
+import { emitLinksSynced } from '../utils/linkEvents.js'
 
 interface NoteInfo {
   id: string
@@ -370,6 +371,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
       setSaving(true)
       await api.notes.update(note.id, { content: json })
       setSaving(false)
+      emitLinksSynced()
     }, 800)
   }, [note.id])
 
