@@ -367,6 +367,14 @@ const zh = {
   'settings.rebuildDone': '重建完成：重新导入 {0} 个文档，彻底清理 {1} 个，标记缺失 {2} 个。将刷新以加载最新数据。',
   'settings.rebuildFailed': '重建失败：{0}',
   'settings.detectFailed': '检测失败：{0}',
+  'common.retry': '重试',
+  'note.saveFailed': '保存失败',
+  'note.saveFailedDetail': '笔记保存失败：{0}。内容仍在编辑器里，继续编辑会自动重试。',
+  'viewer.loadFailed': '无法打开这个文档',
+  'viewer.fileMissing': '找不到文件，它可能已被移动、重命名或删除。',
+  'viewer.openInSystem': '用系统默认应用打开',
+  'viewer.openedInSystem': '已用系统应用打开',
+  'viewer.openInSystemFailed': '无法用系统应用打开：{0}',
 } as const
 
 export default zh

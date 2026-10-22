@@ -338,6 +338,14 @@ const de = {
   'settings.rebuildDone': 'Neuaufbau fertig: {0} neu importiert, {1} bereinigt, {2} als fehlend markiert. Wird neu geladen, um die aktuellen Daten zu zeigen.',
   'settings.rebuildFailed': 'Neuaufbau fehlgeschlagen: {0}',
   'settings.detectFailed': 'Prüfung fehlgeschlagen: {0}',
+  'common.retry': 'Erneut versuchen',
+  'note.saveFailed': 'Speichern fehlgeschlagen',
+  'note.saveFailedDetail': 'Notiz konnte nicht gespeichert werden: {0}. Der Inhalt bleibt im Editor; beim Weiterschreiben wird es erneut versucht.',
+  'viewer.loadFailed': 'Dieses Dokument kann nicht geöffnet werden',
+  'viewer.fileMissing': 'Die Datei wurde nicht gefunden. Sie wurde möglicherweise verschoben, umbenannt oder gelöscht.',
+  'viewer.openInSystem': 'Mit Standard-App öffnen',
+  'viewer.openedInSystem': 'In Standard-App geöffnet',
+  'viewer.openInSystemFailed': 'Öffnen in der Standard-App fehlgeschlagen: {0}',
 } as const
 
 export default de

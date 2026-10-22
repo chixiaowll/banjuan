@@ -338,6 +338,14 @@ const fr = {
   'settings.rebuildDone': 'Reconstruction terminée : {0} réimportés, {1} purgés, {2} marqués manquants. Rechargement pour afficher les dernières données.',
   'settings.rebuildFailed': 'Échec de la reconstruction : {0}',
   'settings.detectFailed': 'Échec de la détection : {0}',
+  'common.retry': 'Réessayer',
+  'note.saveFailed': 'Échec de l’enregistrement',
+  'note.saveFailedDetail': 'Impossible d’enregistrer la note : {0}. Le contenu reste dans l’éditeur ; une nouvelle tentative aura lieu pendant que vous continuez à écrire.',
+  'viewer.loadFailed': 'Impossible d’ouvrir ce document',
+  'viewer.fileMissing': 'Fichier introuvable. Il a peut-être été déplacé, renommé ou supprimé.',
+  'viewer.openInSystem': 'Ouvrir avec l’application par défaut',
+  'viewer.openedInSystem': 'Ouvert dans l’application par défaut',
+  'viewer.openInSystemFailed': 'Impossible d’ouvrir dans l’application par défaut : {0}',
 } as const
 
 export default fr

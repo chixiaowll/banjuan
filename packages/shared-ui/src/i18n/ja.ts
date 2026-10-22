@@ -338,6 +338,14 @@ const ja = {
   'settings.rebuildDone': '再構築完了：{0} 件を再取り込み、{1} 件を完全削除、{2} 件を欠落として記録しました。最新データを表示するため再読み込みします。',
   'settings.rebuildFailed': '再構築に失敗しました：{0}',
   'settings.detectFailed': '検出に失敗しました：{0}',
+  'common.retry': '再試行',
+  'note.saveFailed': '保存に失敗',
+  'note.saveFailedDetail': 'ノートを保存できませんでした：{0}。内容はエディターに残っています。編集を続けると自動的に再試行します。',
+  'viewer.loadFailed': 'このドキュメントを開けません',
+  'viewer.fileMissing': 'ファイルが見つかりません。移動、名前変更、または削除された可能性があります。',
+  'viewer.openInSystem': '既定のアプリで開く',
+  'viewer.openedInSystem': '既定のアプリで開きました',
+  'viewer.openInSystemFailed': '既定のアプリで開けませんでした：{0}',
 } as const
 
 export default ja

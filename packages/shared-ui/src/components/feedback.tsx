@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
 import { useT } from '../i18n/index.js'
+import type { MessageKey } from '../i18n/index.js'
 
 /**
  * App-wide feedback: toasts and promise-based dialogs replacing window.alert /
@@ -10,7 +11,12 @@ import { useT } from '../i18n/index.js'
  */
 
 type ToastKind = 'info' | 'success' | 'error'
-interface ToastItem { id: number; kind: ToastKind; message: string }
+/**
+ * Plain text, or an i18n key translated when rendered — lets code without
+ * access to t() (zustand stores) show localized toasts.
+ */
+export type ToastMessage = string | { key: MessageKey; args?: Array<string | number> }
+interface ToastItem { id: number; kind: ToastKind; message: ToastMessage; key?: string }
 
 interface DialogRequest {
   id: number
@@ -33,9 +39,13 @@ interface FeedbackState {
 const useFeedbackStore = create<FeedbackState>(() => ({ toasts: [], dialogs: [] }))
 let nextId = 1
 
-function pushToast(kind: ToastKind, message: string, ms: number): void {
+function pushToast(kind: ToastKind, message: ToastMessage, ms: number, key?: string): void {
   const id = nextId++
-  useFeedbackStore.setState(s => ({ toasts: [...s.toasts.slice(-3), { id, kind, message }] }))
+  // A keyed toast replaces the visible one with the same key (and restarts its
+  // timer), so a failure that repeats on every autosave shows once, not a stack.
+  useFeedbackStore.setState(s => ({
+    toasts: [...s.toasts.filter(t => !key || t.key !== key).slice(-3), { id, kind, message, key }],
+  }))
   setTimeout(() => dismissToast(id), ms)
 }
 
@@ -43,11 +53,16 @@ function dismissToast(id: number): void {
   useFeedbackStore.setState(s => ({ toasts: s.toasts.filter(t => t.id !== id) }))
 }
 
+interface ToastOptions {
+  /** Replace a visible toast with the same key instead of stacking another. */
+  key?: string
+}
+
 export const toast = {
-  info: (message: string) => pushToast('info', message, 3500),
-  success: (message: string) => pushToast('success', message, 3500),
+  info: (message: ToastMessage, opts?: ToastOptions) => pushToast('info', message, 3500, opts?.key),
+  success: (message: ToastMessage, opts?: ToastOptions) => pushToast('success', message, 3500, opts?.key),
   /** Errors stay longer — the user needs time to read what went wrong. */
-  error: (message: string) => pushToast('error', message, 7000),
+  error: (message: ToastMessage, opts?: ToastOptions) => pushToast('error', message, 7000, opts?.key),
 }
 
 function openDialog<T>(req: Omit<DialogRequest, 'id' | 'resolve'>): Promise<T> {
@@ -85,6 +100,20 @@ export function alertDialog(opts: Omit<DialogOptions, 'cancelText' | 'danger'>):
 /** Resolves the entered text, or null on cancel. */
 export function promptDialog(opts: DialogOptions & { defaultValue?: string; placeholder?: string }): Promise<string | null> {
   return openDialog<string | null>({ kind: 'prompt', ...opts })
+}
+
+/**
+ * Human-readable text for an error. Strips Electron's IPC wrapper
+ * ("Error invoking remote method 'notes:update': Error: …") and the syscall +
+ * path tail of Node fs errors (", open '/…/.x.json.123.banjuan-tmp'") so the
+ * user sees the cause, e.g. "EACCES: permission denied".
+ */
+export function errorMessage(err: unknown): string {
+  const raw = String((err as any)?.message ?? err)
+  return raw
+    .replace(/^Error invoking remote method '[^']*':\s*/, '')
+    .replace(/^Error:\s*/, '')
+    .replace(/^(E[A-Z]+: [^,]+), \w+ '.*'$/, '$1')
 }
 
 const TOAST_ACCENT: Record<ToastKind, string> = { info: 'var(--accent)', success: '#2f9e44', error: '#c0392b' }
@@ -137,6 +166,7 @@ function Dialog({ d }: { d: DialogRequest }) {
 
 /** Mount once at the app root (inside the i18n/theme providers). */
 export function FeedbackHost() {
+  const t = useT()
   const toasts = useFeedbackStore(s => s.toasts)
   const dialog = useFeedbackStore(s => s.dialogs[0])   // one at a time, in order
   return (
@@ -144,11 +174,11 @@ export function FeedbackHost() {
       {dialog && <Dialog key={dialog.id} d={dialog} />}
       {toasts.length > 0 && (
         <div style={{ position: 'fixed', left: '50%', bottom: 24, transform: 'translateX(-50%)', zIndex: 10001, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', pointerEvents: 'none' }}>
-          {toasts.map(t => (
-            <div key={t.id} role={t.kind === 'error' ? 'alert' : 'status'} onClick={() => dismissToast(t.id)}
+          {toasts.map(item => (
+            <div key={item.id} role={item.kind === 'error' ? 'alert' : 'status'} onClick={() => dismissToast(item.id)}
               style={{ pointerEvents: 'auto', cursor: 'pointer', maxWidth: 480, padding: '9px 14px', fontSize: 13, lineHeight: 1.5, borderRadius: 8, whiteSpace: 'pre-wrap',
-                background: 'var(--surface-raised, #fff)', color: 'var(--text)', border: '1px solid var(--border)', borderLeft: `3px solid ${TOAST_ACCENT[t.kind]}`, boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}>
-              {t.message}
+                background: 'var(--surface-raised, #fff)', color: 'var(--text)', border: '1px solid var(--border)', borderLeft: `3px solid ${TOAST_ACCENT[item.kind]}`, boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}>
+              {typeof item.message === 'string' ? item.message : t(item.message.key, ...(item.message.args ?? []))}
             </div>
           ))}
         </div>

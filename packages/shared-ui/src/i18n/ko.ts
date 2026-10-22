@@ -338,6 +338,14 @@ const ko = {
   'settings.rebuildDone': '재구성 완료: {0}개 다시 가져옴, {1}개 정리, {2}개 누락으로 표시. 최신 데이터를 보려면 새로고침합니다.',
   'settings.rebuildFailed': '재구성 실패: {0}',
   'settings.detectFailed': '검사 실패: {0}',
+  'common.retry': '다시 시도',
+  'note.saveFailed': '저장 실패',
+  'note.saveFailedDetail': '노트를 저장하지 못했습니다: {0}. 내용은 편집기에 그대로 있으며, 계속 편집하면 자동으로 다시 시도합니다.',
+  'viewer.loadFailed': '이 문서를 열 수 없습니다',
+  'viewer.fileMissing': '파일을 찾을 수 없습니다. 이동, 이름 변경 또는 삭제되었을 수 있습니다.',
+  'viewer.openInSystem': '기본 앱으로 열기',
+  'viewer.openedInSystem': '기본 앱에서 열었습니다',
+  'viewer.openInSystemFailed': '기본 앱으로 열 수 없습니다: {0}',
 } as const
 
 export default ko

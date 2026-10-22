@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react'
 import { createStore, useStore, type StoreApi } from 'zustand'
 import type { HandwritingPage, HandwritingTemplate, CanvasSnapshot } from '@banjuan/core'
 import type { BanjuanAPI } from '../../api.js'
+import { errorMessage } from '../feedback.js'
 
 export interface HandwritingState {
   noteId: string | null
@@ -10,6 +11,8 @@ export interface HandwritingState {
   pageSize: { width: number; height: number }
   defaultTemplate: HandwritingTemplate
   saving: boolean
+  /** Last save failure; cleared by the next successful save. */
+  saveError: string | null
   thumbnails: Map<string, string>
 
   init: (noteId: string) => Promise<void>
@@ -45,6 +48,7 @@ export function createHandwritingStore(api: BanjuanAPI): HandwritingStoreApi {
     pageSize: { width: 1024, height: 768 },
     defaultTemplate: 'blank',
     saving: false,
+    saveError: null,
     thumbnails: new Map(),
 
     init: async (noteId: string) => {
@@ -141,6 +145,12 @@ export function createHandwritingStore(api: BanjuanAPI): HandwritingStoreApi {
       set({ saving: true })
       try {
         await api.notes.update(noteId, { content: JSON.stringify({ pages, currentPageIndex }) })
+        set({ saveError: null })
+      } catch (e) {
+        // Callers fire-and-forget save(); swallowing here (after recording it)
+        // keeps a failure from becoming an unhandled rejection — the UI shows it.
+        console.error('[Handwriting] save failed', noteId, e)
+        set({ saveError: errorMessage(e) })
       } finally {
         set({ saving: false })
       }

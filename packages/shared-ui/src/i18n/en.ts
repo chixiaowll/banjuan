@@ -367,6 +367,14 @@ const en = {
   'settings.rebuildDone': 'Rebuild done: {0} reimported, {1} purged, {2} marked missing. Reloading to show the latest data.',
   'settings.rebuildFailed': 'Rebuild failed: {0}',
   'settings.detectFailed': 'Detection failed: {0}',
+  'common.retry': 'Retry',
+  'note.saveFailed': 'Save failed',
+  'note.saveFailedDetail': 'Couldn’t save the note: {0}. Your content is still in the editor; it will retry as you keep editing.',
+  'viewer.loadFailed': 'Can’t open this document',
+  'viewer.fileMissing': 'The file can’t be found. It may have been moved, renamed or deleted.',
+  'viewer.openInSystem': 'Open with default app',
+  'viewer.openedInSystem': 'Opened in default app',
+  'viewer.openInSystemFailed': 'Couldn’t open in the default app: {0}',
 } as const
 
 export default en

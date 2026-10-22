@@ -12,6 +12,7 @@ import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { emitLinksSynced } from '../../utils/linkEvents.js'
 import { useDebouncedSaver } from '../../utils/debouncedSaver.js'
+import { toast, errorMessage } from '../feedback.js'
 
 interface NoteInfo {
   id: string
@@ -183,6 +184,7 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
   const [note, setNote] = useState<NoteInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const saver = useDebouncedSaver(800, noteId)   // flushes on unmount / window close, never drops the last edit
 
   const noteType = (note?.type ?? 'markdown') as string
@@ -215,14 +217,17 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
     saver.schedule(async () => {
       try {
         await api.notes.update(id, { content: json })
+        setSaveError(null)
         emitLinksSynced()
       } catch (e) {
         console.error('[PdfNoteSidebar] save failed', id, e)
+        setSaveError(errorMessage(e))
+        toast.error(t('note.saveFailedDetail', errorMessage(e)), { key: 'note-save' })
       } finally {
         setSaving(false)
       }
     })
-  }, [noteId, saver])
+  }, [noteId, saver, t])
 
   if (loading) {
     return (
@@ -290,6 +295,7 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
           {note.title}
         </span>
         {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('note.saving')}</span>}
+        {!saving && saveError && <span title={saveError} style={{ fontSize: 10, color: '#c0392b' }}>{t('note.saveFailed')}</span>}
         <button
           onClick={onClose}
           style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex' }}

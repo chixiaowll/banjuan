@@ -25,6 +25,7 @@ import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
 import { emitLinksSynced } from '../utils/linkEvents.js'
 import { useDebouncedSaver } from '../utils/debouncedSaver.js'
+import { toast, errorMessage } from '../components/feedback.js'
 import { useIsActiveTab } from '../components/tabActive.js'
 
 interface NoteInfo {
@@ -200,6 +201,8 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
   const [content, setContent] = useState<string | null>(null)
   const [docId, setDocId] = useState<string | null>(note.docId ?? null)
   const [saving, setSaving] = useState(false)
+  // Last autosave failure; cleared by the next successful save.
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [readingMode, setReadingMode] = useState(false)
   const [noteFontSize, setNoteFontSize] = useState(() => {
     const saved = localStorage.getItem('banjuan-note-font-size')
@@ -375,14 +378,17 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
       setSaving(true)
       try {
         await api.notes.update(id, { content: json })
+        setSaveError(null)
         emitLinksSynced()
       } catch (e) {
         console.error('[NoteView] save failed', id, e)
+        setSaveError(errorMessage(e))
+        toast.error(t('note.saveFailedDetail', errorMessage(e)), { key: 'note-save' })
       } finally {
         setSaving(false)
       }
     })
-  }, [note.id, saver])
+  }, [note.id, saver, t])
 
   const saveTitle = useCallback(async () => {
     if (title !== note.title) {
@@ -516,8 +522,8 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
             }}>
               {title}
             </span>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-              {saving ? t('note.saving') : t('note.saved')}
+            <span title={saveError ?? undefined} style={{ fontSize: 11, color: saveError && !saving ? '#c0392b' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              {saving ? t('note.saving') : saveError ? t('note.saveFailed') : t('note.saved')}
             </span>
             {/* Font-size control (distinct from page zoom): small-A / big-A, snapping
                 to multiples of 10 so an off-grid value (e.g. 147%) can reach 100%. */}

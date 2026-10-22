@@ -8,7 +8,8 @@ import de from './de.js'
 import es from './es.js'
 
 export type Locale = 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es'
-type Messages = Record<keyof typeof zh, string>
+export type MessageKey = keyof typeof zh
+type Messages = Record<MessageKey, string>
 
 // No casts: a locale missing any key is a compile error (a missing key used to
 // render as the raw key, e.g. "video.noScreenshots").

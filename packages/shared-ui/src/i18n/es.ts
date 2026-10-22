@@ -338,6 +338,14 @@ const es = {
   'settings.rebuildDone': 'Reconstrucción terminada: {0} reimportados, {1} purgados, {2} marcados como faltantes. Recargando para mostrar los datos actuales.',
   'settings.rebuildFailed': 'Error al reconstruir: {0}',
   'settings.detectFailed': 'Error en la detección: {0}',
+  'common.retry': 'Reintentar',
+  'note.saveFailed': 'Error al guardar',
+  'note.saveFailedDetail': 'No se pudo guardar la nota: {0}. El contenido sigue en el editor; se reintentará mientras sigas editando.',
+  'viewer.loadFailed': 'No se puede abrir este documento',
+  'viewer.fileMissing': 'No se encuentra el archivo. Puede que se haya movido, renombrado o eliminado.',
+  'viewer.openInSystem': 'Abrir con la app predeterminada',
+  'viewer.openedInSystem': 'Abierto en la app predeterminada',
+  'viewer.openInSystemFailed': 'No se pudo abrir en la app predeterminada: {0}',
 } as const
 
 export default es
