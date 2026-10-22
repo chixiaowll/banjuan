@@ -1,17 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
 import { Library } from '../src/library.js'
-import { createTempDir, cleanupTempDir } from './helpers.js'
+import { createTempDir, cleanupTempDir, testDeps } from './helpers.js'
 
 describe('TemplateService', () => {
   let tempDir: string
   let lib: Library
   let libPath: string
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTempDir()
     libPath = join(tempDir, 'lib')
-    lib = Library.init(libPath)
+    lib = await Library.init(libPath, testDeps())
   })
 
   afterEach(async () => {

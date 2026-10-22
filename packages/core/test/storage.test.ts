@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { NodeFS } from '@banjuan/platform-node'
 import { createTempDir, cleanupTempDir } from './helpers.js'
 import { JsonStore } from '../src/storage/json-store.js'
 import { parseFrontmatter, serializeFrontmatter } from '../src/storage/frontmatter.js'
@@ -16,16 +17,16 @@ describe('JsonStore', () => {
 
   beforeEach(() => {
     tempDir = createTempDir()
-    store = new JsonStore<TestEntity>(join(tempDir, 'data'))
+    store = new JsonStore<TestEntity>(join(tempDir, 'data'), new NodeFS())
   })
 
   afterEach(() => {
     cleanupTempDir(tempDir)
   })
 
-  it('writes and reads a JSON file with prefix subdirectory', () => {
+  it('writes and reads a JSON file with prefix subdirectory', async () => {
     const entity = { id: '9d087c54-3519-4175-950e-aa68410e05c5', name: 'test' }
-    store.write(entity)
+    await store.write(entity)
 
     const filePath = join(tempDir, 'data', '9d', '9d087c54-3519-4175-950e-aa68410e05c5.json')
     expect(existsSync(filePath)).toBe(true)
@@ -34,50 +35,50 @@ describe('JsonStore', () => {
     expect(raw.id).toBe(entity.id)
     expect(raw.name).toBe('test')
 
-    const read = store.read('9d087c54-3519-4175-950e-aa68410e05c5')
+    const read = await store.read('9d087c54-3519-4175-950e-aa68410e05c5')
     expect(read).toEqual(entity)
   })
 
-  it('returns null for non-existent entity', () => {
-    expect(store.read('nonexistent-id')).toBeNull()
+  it('returns null for non-existent entity', async () => {
+    expect(await store.read('nonexistent-id')).toBeNull()
   })
 
-  it('deletes a JSON file', () => {
+  it('deletes a JSON file', async () => {
     const entity = { id: 'a4fbbc5e-1234-5678-9012-abcdef123456', name: 'deleteme' }
-    store.write(entity)
-    expect(store.read(entity.id)).not.toBeNull()
+    await store.write(entity)
+    expect(await store.read(entity.id)).not.toBeNull()
 
-    const deleted = store.delete(entity.id)
+    const deleted = await store.delete(entity.id)
     expect(deleted).toBe(true)
-    expect(store.read(entity.id)).toBeNull()
+    expect(await store.read(entity.id)).toBeNull()
   })
 
-  it('returns false when deleting non-existent entity', () => {
-    expect(store.delete('nonexistent')).toBe(false)
+  it('returns false when deleting non-existent entity', async () => {
+    expect(await store.delete('nonexistent')).toBe(false)
   })
 
-  it('lists all entities across prefix subdirectories', () => {
-    store.write({ id: '9d087c54-aaaa', name: 'first' })
-    store.write({ id: 'a4fbbc5e-bbbb', name: 'second' })
-    store.write({ id: '9d123456-cccc', name: 'third' })
+  it('lists all entities across prefix subdirectories', async () => {
+    await store.write({ id: '9d087c54-aaaa', name: 'first' })
+    await store.write({ id: 'a4fbbc5e-bbbb', name: 'second' })
+    await store.write({ id: '9d123456-cccc', name: 'third' })
 
-    const all = store.listAll()
+    const all = await store.listAll()
     expect(all).toHaveLength(3)
     const names = all.map(e => e.name).sort()
     expect(names).toEqual(['first', 'second', 'third'])
   })
 
-  it('returns empty array when base directory does not exist', () => {
-    const emptyStore = new JsonStore<TestEntity>(join(tempDir, 'nonexistent'))
-    expect(emptyStore.listAll()).toEqual([])
+  it('returns empty array when base directory does not exist', async () => {
+    const emptyStore = new JsonStore<TestEntity>(join(tempDir, 'nonexistent'), new NodeFS())
+    expect(await emptyStore.listAll()).toEqual([])
   })
 
-  it('overwrites existing entity on write', () => {
+  it('overwrites existing entity on write', async () => {
     const entity = { id: 'ab000000-1111', name: 'original' }
-    store.write(entity)
-    store.write({ ...entity, name: 'updated' })
+    await store.write(entity)
+    await store.write({ ...entity, name: 'updated' })
 
-    const read = store.read(entity.id)
+    const read = await store.read(entity.id)
     expect(read?.name).toBe('updated')
   })
 })

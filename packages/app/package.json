@@ -4,15 +4,17 @@
   "private": true,
   "main": "dist/main/index.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "pnpm run build:deps && vite",
     "clean": "rm -rf dist",
-    "build": "rm -rf dist && vite build",
+    "build": "pnpm run build:deps && rm -rf dist && vite build",
     "start": "electron dist/main/index.js",
     "bundle-cli": "node scripts/bundle-cli.mjs",
-    "pack": "rm -rf dist && vite build && node scripts/bundle-cli.mjs && electron-builder --dir",
-    "dist": "rm -rf dist && vite build && node scripts/bundle-cli.mjs && electron-builder",
+    "pack": "pnpm run build && node scripts/bundle-cli.mjs && electron-builder --dir",
+    "dist": "pnpm run build && node scripts/bundle-cli.mjs && electron-builder",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build:deps": "pnpm --filter @banjuan/platform-node --filter @banjuan/core build"
   },
   "dependencies": {
     "@banjuan/core": "workspace:*",

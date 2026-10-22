@@ -3,7 +3,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlin
 import { readFile } from 'node:fs/promises'
 import { join, basename, dirname, resolve, sep, parse as parsePath } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
-import { Library, MAX_LIBRARY_FILES, type MindmapNodeCreateInput, type MindmapNode, type PlatformDeps } from '@banjuan/core'
+import { Library, MAX_LIBRARY_FILES, type MindmapNodeCreateInput, type MindmapNode, type PlatformDeps, type SearchOptions } from '@banjuan/core'
 import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
 import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
@@ -844,7 +844,8 @@ export function registerIpcHandlers() {
     const { SyncService, WebDAVAdapter } = await import('@banjuan/core')
     const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect(config)
-    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, config.remotePath)
+    // crypto enables content hashes (false-conflict check); the device name labels conflict copies — as on mobile.
+    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, config.remotePath, deps.crypto, getDeviceIdentity().deviceName)
     try {
       const result = await svc.sync((p) => {
         event.sender.send('sync:progress', p)
@@ -1016,7 +1017,7 @@ export function registerIpcHandlers() {
 
     const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect({ type: 'webdav', url: base, username: 'banjuan', password: token, remotePath: '/' })
-    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, '/')
+    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, '/', deps.crypto, getDeviceIdentity().deviceName)
     try {
       const result = await svc.sync((p) => { event.sender.send('sync:progress', p) })
       event.sender.send('sync:progress', { phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
@@ -1270,7 +1271,7 @@ img { max-width: 100%; } table { border-collapse: collapse; width: 100%; } th, t
     return result.filePath
   })
 
-  ipcMain.handle('search:query', async (event, query: string, options?: { type?: string; limit?: number }) => {
+  ipcMain.handle('search:query', async (event, query: string, options?: SearchOptions) => {
     return getLib(event).search.query(query, options)
   })
 

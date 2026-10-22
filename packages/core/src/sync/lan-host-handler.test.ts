@@ -3,7 +3,9 @@ import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { NodeFS } from '@banjuan/platform-node'
-import { handleDavRequest, type DavContext } from './lan-host-handler.js'
+import { handleDavRequest, isDavAuthorized, isPublicDavRoute, type DavContext } from './lan-host-handler.js'
+import { PairLimiter } from './lan-pairing.js'
+import { isExcluded } from './exclusions.js'
 
 function basic(token: string): string {
   return 'Basic ' + Buffer.from('banjuan:' + token).toString('base64')
@@ -165,5 +167,56 @@ describe('lan-host-handler', () => {
     expect(body.token).toBe('minted-token')
     expect(body.deviceId).toBe('HOSTDEV')
     expect(recorded[0]).toEqual({ peerDeviceId: 'CLIENTDEV', peerDeviceName: 'iPad', peerLibraryId: 'CLIENTLIB' })
+  })
+})
+
+describe('lan-host-handler hardening', () => {
+  let root: string
+  let ctx: DavContext
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'lanhost-'))
+    mkdirSync(join(root, '.banjuan'), { recursive: true })
+    writeFileSync(join(root, '.banjuan', 'sync.json'), JSON.stringify({ url: 'https://dav.example', password: 'hunter2' }))
+    ctx = { rootPath: root, fs: new NodeFS(), token: 'secrettoken', pin: '123456' }
+  })
+  const pair = (pin: string) => handleDavRequest({ method: 'GET', path: '/.banjuan-pair', headers: {}, query: { pin } }, ctx)
+
+  it('never serves the WebDAV credentials in .banjuan/sync.json, even to a paired peer', async () => {
+    const res = await handleDavRequest({ method: 'GET', path: '/.banjuan/sync.json', headers: { authorization: basic('secrettoken') } }, ctx)
+    expect(res.status).toBe(403)
+    const put = await handleDavRequest({ method: 'PUT', path: '/.banjuan/sync.json', headers: { authorization: basic('secrettoken') }, body: new Uint8Array([1]) }, ctx)
+    expect(put.status).toBe(403)
+  })
+
+  it('locks pairing after 5 wrong PINs, then unlocks after the lock window', async () => {
+    let now = 1_000_000
+    ctx.pairLimiter = new PairLimiter(5, 60_000, () => now)
+    for (let i = 0; i < 5; i++) expect((await pair('000000')).status).toBe(403)
+    expect((await pair('123456')).status).toBe(429)   // even the right PIN, while locked
+    now += 60_001
+    expect((await pair('123456')).status).toBe(200)
+  })
+
+  it('tells the host to rotate the PIN after a successful pairing (one-time PIN)', async () => {
+    let rotated = 0
+    ctx.onPaired = () => { rotated++ }
+    expect((await pair('123456')).status).toBe(200)
+    expect(rotated).toBe(1)
+    await pair('000000')
+    expect(rotated).toBe(1)
+  })
+
+  it('isDavAuthorized checks the Basic-auth token without needing the body', async () => {
+    expect(await isDavAuthorized({ authorization: basic('secrettoken') }, ctx)).toBe(true)
+    expect(await isDavAuthorized({ authorization: basic('wrong') }, ctx)).toBe(false)
+    expect(await isDavAuthorized({}, ctx)).toBe(false)
+    expect(isPublicDavRoute('GET', '/.banjuan-pair', ctx)).toBe(true)
+    expect(isPublicDavRoute('PUT', '/book.pdf', ctx)).toBe(false)
+  })
+
+  it('excludes atomic-write temp files from sync and serving', () => {
+    expect(isExcluded('.note.json.123-abc.banjuan-tmp', false)).toBe(true)
+    expect(isExcluded('note.json', false)).toBe(false)
   })
 })

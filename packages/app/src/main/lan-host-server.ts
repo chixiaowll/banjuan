@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
-import { handleDavRequest, generatePairing, LAN_PREFERRED_PORTS, type DavContext } from '@banjuan/core'
+import { handleDavRequest, isDavAuthorized, isPublicDavRoute, generatePairing, PairLimiter, LAN_PREFERRED_PORTS, type DavContext } from '@banjuan/core'
 import { PairingStore } from '@banjuan/core'
 import type { PlatformFS } from '@banjuan/core'
 import { getDeviceIdentity } from './device-identity.js'
@@ -66,32 +66,56 @@ export class LanHostServer {
         await pairingStore.addOrUpdate({ peerDeviceId, peerDeviceName, peerLibraryId, token })
         return token
       },
+      // 5 wrong PINs → pairing refused for 60s; a used PIN is replaced (one-time).
+      pairLimiter: new PairLimiter(),
+      onPaired: () => {
+        this.pin = generatePairing((n) => new Uint8Array(randomBytes(n))).pin
+        ctx.pin = this.pin
+      },
     }
 
-    this.server = createServer((req, res) => {
-      const chunks: Buffer[] = []
+    this.server = createServer(async (req, res) => {
       req.on('error', () => { /* aborted/erroring request stream — drop it, don't crash */ })
-      req.on('data', (c) => chunks.push(c))
-      req.on('end', async () => {
-        try {
-          const u = new URL(req.url || '/', 'http://localhost')
-          const headers: Record<string, string> = {}
-          for (const [k, v] of Object.entries(req.headers)) headers[k.toLowerCase()] = Array.isArray(v) ? v.join(',') : (v ?? '')
-          const query: Record<string, string> = {}
-          u.searchParams.forEach((v, k) => { query[k] = v })
-          const body = chunks.length ? new Uint8Array(Buffer.concat(chunks)) : undefined
-          const out = await handleDavRequest(
-            { method: req.method || 'GET', path: decodeURIComponent(u.pathname), headers, query, body }, ctx)
-          res.statusCode = out.status
-          for (const [k, v] of Object.entries(out.headers)) res.setHeader(k, v)
-          if (out.body == null) res.end()
-          else if (typeof out.body === 'string') res.end(out.body)
-          else res.end(Buffer.from(out.body))
-        } catch (err) {
-          res.statusCode = 500
-          res.end(String((err as Error)?.message ?? err))
+      try {
+        const u = new URL(req.url || '/', 'http://localhost')
+        const method = req.method || 'GET'
+        const path = decodeURIComponent(u.pathname)
+        const headers: Record<string, string> = {}
+        for (const [k, v] of Object.entries(req.headers)) headers[k.toLowerCase()] = Array.isArray(v) ? v.join(',') : (v ?? '')
+        const query: Record<string, string> = {}
+        u.searchParams.forEach((v, k) => { query[k] = v })
+
+        // Authenticate from the headers BEFORE reading the body: buffering first
+        // let any stranger on the LAN fill this process's memory with one upload.
+        let body: Uint8Array | undefined
+        if (isPublicDavRoute(method, path, ctx)) {
+          req.resume()   // public routes take no body; discard it
+        } else if (!(await isDavAuthorized(headers, ctx))) {
+          res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="banjuan"', Connection: 'close' })
+          res.end('Unauthorized')
+          // Discard (never buffer) the body so a normal client still reads the
+          // 401; cut the connection if a stranger keeps streaming past 1 MB.
+          let discarded = 0
+          req.on('data', (c: Buffer) => { discarded += c.length; if (discarded > 1 << 20) req.destroy() })
+          req.resume()
+          return
+        } else {
+          const chunks: Buffer[] = []
+          for await (const c of req) chunks.push(c as Buffer)
+          body = chunks.length ? new Uint8Array(Buffer.concat(chunks)) : undefined
         }
-      })
+
+        const out = await handleDavRequest({ method, path, headers, query, body }, ctx)
+        res.statusCode = out.status
+        for (const [k, v] of Object.entries(out.headers)) res.setHeader(k, v)
+        if (out.body == null) res.end()
+        else if (typeof out.body === 'string') res.end(out.body)
+        else res.end(Buffer.from(out.body))
+      } catch (err) {
+        if (res.headersSent) { res.destroy(); return }
+        res.statusCode = 500
+        res.end(String((err as Error)?.message ?? err))
+      }
     })
 
     // Try the preferred fixed ports in order (so clients can probe known

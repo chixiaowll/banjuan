@@ -296,23 +296,12 @@ export class TagService {
       tagIdByName.set(t.name, t.id)
     }
 
-    const docDataDir = join(this.rootPath, '.banjuan', 'data', 'documents')
-    if (await this.fs.exists(docDataDir)) {
-      const entries = await this.fs.readdirWithTypes(docDataDir)
-      for (const entry of entries) {
-        if (!entry.isDirectory && entry.name.endsWith('.json')) {
-          try {
-            const raw = JSON.parse(await this.fs.readTextFile(join(docDataDir, entry.name)))
-            const docId = raw.id as string
-            const docTags = (raw.tags as string[]) ?? []
-            for (const name of docTags) {
-              const tagId = tagIdByName.get(name)
-              if (tagId) {
-                this.db.run('INSERT OR IGNORE INTO doc_tags (doc_id, tag_id) VALUES (?, ?)', [docId, tagId])
-              }
-            }
-          } catch {}
-        }
+    // Document JSON is sharded into two-char prefix folders — read it through
+    // the store (a flat readdir of data/documents finds nothing).
+    for (const doc of await this.docStore.listAll()) {
+      for (const name of doc.tags ?? []) {
+        const tagId = tagIdByName.get(name)
+        if (tagId) this.db.run('INSERT OR IGNORE INTO doc_tags (doc_id, tag_id) VALUES (?, ?)', [doc.id, tagId])
       }
     }
 

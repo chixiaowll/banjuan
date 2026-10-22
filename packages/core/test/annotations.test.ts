@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
 import { existsSync, readFileSync } from 'node:fs'
-import { createTempDir, cleanupTempDir, createTestFile } from './helpers.js'
+import { createTempDir, cleanupTempDir, createTestFile, testDeps } from './helpers.js'
 import { Library } from '../src/library.js'
 import type { AnnotationCreateInput, AnnotationFileData, PdfPosition } from '../src/types.js'
 
@@ -14,13 +14,13 @@ describe('AnnotationService', () => {
   beforeEach(async () => {
     tempDir = createTempDir()
     libPath = join(tempDir, 'lib')
-    lib = Library.init(libPath)
+    lib = await Library.init(libPath, testDeps())
     createTestFile(libPath, 'test.pdf', Buffer.from('fake pdf'))
     const doc = await lib.documents.import('test.pdf')
     docId = doc.id
   })
 
-  afterEach(() => { lib.close(); cleanupTempDir(tempDir) })
+  afterEach(async () => { await lib.close(); cleanupTempDir(tempDir) })
 
   const makeInput = (overrides?: Partial<AnnotationCreateInput>): AnnotationCreateInput => ({
     docId,

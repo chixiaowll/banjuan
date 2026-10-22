@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
 import { existsSync, readFileSync } from 'node:fs'
-import { createTempDir, cleanupTempDir, createTestFile } from './helpers.js'
+import { createTempDir, cleanupTempDir, createTestFile, testDeps } from './helpers.js'
 import { Library } from '../src/library.js'
 
 describe('Library', () => {
@@ -16,64 +16,66 @@ describe('Library', () => {
   })
 
   describe('init', () => {
-    it('creates .banjuan directory structure', () => {
+    it('creates .banjuan directory structure', async () => {
       const libPath = join(tempDir, 'my-library')
-      const lib = Library.init(libPath)
+      const lib = await Library.init(libPath, testDeps())
 
       expect(existsSync(join(libPath, '.banjuan', 'db.sqlite'))).toBe(true)
       expect(existsSync(join(libPath, '.banjuan', 'config.json'))).toBe(true)
       expect(existsSync(join(libPath, '.banjuan', 'data', 'documents'))).toBe(true)
       expect(existsSync(join(libPath, '.banjuan', 'data', 'annotations'))).toBe(true)
-      expect(existsSync(join(libPath, '.banjuan', 'data', 'mindmaps'))).toBe(true)
+      // Mind maps are now notes (type='mindmap') stored under .banjuan/notes —
+      // the old dedicated data/mindmaps directory is no longer created.
+      expect(existsSync(join(libPath, '.banjuan', 'data', 'mindmaps'))).toBe(false)
       expect(existsSync(join(libPath, '.banjuan', 'stubs'))).toBe(true)
       expect(existsSync(join(libPath, '.banjuan', 'notes'))).toBe(true)
 
-      lib.close()
+      await lib.close()
     })
 
-    it('does not create documents/ directory at root level', () => {
+    it('does not create documents/ directory at root level', async () => {
       const libPath = join(tempDir, 'my-library')
-      const lib = Library.init(libPath)
+      const lib = await Library.init(libPath, testDeps())
 
       expect(existsSync(join(libPath, 'documents'))).toBe(false)
 
-      lib.close()
+      await lib.close()
     })
 
-    it('creates tags.json with empty array', () => {
+    it('creates tags.json with empty array', async () => {
       const libPath = join(tempDir, 'my-library')
-      const lib = Library.init(libPath)
+      const lib = await Library.init(libPath, testDeps())
 
       const tagsPath = join(libPath, '.banjuan', 'tags.json')
       expect(existsSync(tagsPath)).toBe(true)
       expect(readFileSync(tagsPath, 'utf-8')).toBe('[]')
 
-      lib.close()
+      await lib.close()
     })
 
-    it('throws if directory already has .banjuan', () => {
+    it('throws if directory already has .banjuan', async () => {
       const libPath = join(tempDir, 'my-library')
-      const lib = Library.init(libPath)
-      lib.close()
+      const lib = await Library.init(libPath, testDeps())
+      await lib.close()
 
-      expect(() => Library.init(libPath)).toThrow('already exists')
+      await expect(Library.init(libPath, testDeps())).rejects.toThrow('already exists')
     })
   })
 
   describe('open', () => {
-    it('opens an existing library', () => {
+    it('opens an existing library', async () => {
       const libPath = join(tempDir, 'my-library')
-      const lib1 = Library.init(libPath)
-      lib1.close()
+      const lib1 = await Library.init(libPath, testDeps())
+      await lib1.close()
 
-      const lib2 = Library.open(libPath)
+      const lib2 = await Library.open(libPath, testDeps())
       expect(lib2).toBeDefined()
-      lib2.close()
+      await lib2.close()
     })
 
-    it('throws if .banjuan does not exist', () => {
+    it('throws if .banjuan does not exist', async () => {
       const libPath = join(tempDir, 'empty')
-      expect(() => Library.open(libPath)).toThrow('not a library')
+      await expect(Library.open(libPath, testDeps())).rejects.toThrow('not a library')
     })
   })
 
@@ -88,7 +90,7 @@ describe('Library', () => {
       createTestFile(libPath, 'photo.jpg', Buffer.from('img'))
       createTestFile(libPath, 'data.xyz', 'nope')
 
-      const lib = Library.init(libPath)
+      const lib = await Library.init(libPath, testDeps())
       const result = await lib.scanAndImport()
 
       expect(result.imported).toBe(6)
@@ -107,7 +109,7 @@ describe('Library', () => {
 
     it('skips .banjuan directory', async () => {
       const libPath = join(tempDir, 'lib2')
-      const lib = Library.init(libPath)
+      const lib = await Library.init(libPath, testDeps())
 
       createTestFile(libPath, 'real.pdf', Buffer.from('pdf'))
 
@@ -126,7 +128,7 @@ describe('Library', () => {
       createTestFile(libPath, 'a.pdf', Buffer.from('same content'))
       createTestFile(libPath, 'b.pdf', Buffer.from('same content'))
 
-      const lib = Library.init(libPath)
+      const lib = await Library.init(libPath, testDeps())
       const result = await lib.scanAndImport()
 
       expect(result.imported).toBe(2)
@@ -137,9 +139,9 @@ describe('Library', () => {
   })
 
   describe('properties', () => {
-    it('exposes rootPath and service accessors', () => {
+    it('exposes rootPath and service accessors', async () => {
       const libPath = join(tempDir, 'my-library')
-      const lib = Library.init(libPath)
+      const lib = await Library.init(libPath, testDeps())
 
       expect(lib.rootPath).toBe(libPath)
       expect(lib.documents).toBeDefined()
@@ -148,7 +150,7 @@ describe('Library', () => {
       expect(lib.tags).toBeDefined()
       expect(lib.search).toBeDefined()
 
-      lib.close()
+      await lib.close()
     })
   })
 })

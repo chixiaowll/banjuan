@@ -170,6 +170,20 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
     load()
   }, [])
 
+  // While sharing, refresh the PIN (the host replaces it after each successful
+  // pairing) and the paired-device list, so neither goes stale on screen.
+  useEffect(() => {
+    if (!hostStatus.running) return
+    const timer = setInterval(async () => {
+      try {
+        const s = await api.lan.getHostStatus()
+        setHostStatus(s.running ? { running: true, url: s.url, pin: s.pin } : { running: false, url: null, pin: null })
+      } catch { /* ignore */ }
+      void loadPaired()
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [hostStatus.running])
+
   const handleSave = async () => {
     setSaving(true)
     setStatus(null)

@@ -1,19 +1,19 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
 import { readFileSync, existsSync } from 'node:fs'
-import { createTempDir, cleanupTempDir, createTestFile } from './helpers.js'
+import { createTempDir, cleanupTempDir, createTestFile, testDeps } from './helpers.js'
 import { Library } from '../src/library.js'
 
 describe('NoteService', () => {
   let tempDir: string
   let lib: Library
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTempDir()
-    lib = Library.init(join(tempDir, 'lib'))
+    lib = await Library.init(join(tempDir, 'lib'), testDeps())
   })
 
-  afterEach(() => { lib.close(); cleanupTempDir(tempDir) })
+  afterEach(async () => { await lib.close(); cleanupTempDir(tempDir) })
 
   describe('create', () => {
     it('writes .json file with meta and blocks', async () => {
@@ -158,26 +158,38 @@ describe('NoteService', () => {
   })
 
   describe('move', () => {
+    // 笔记文件夹已改为 .banjuan/notes/<folder>/ 目录：move(id, folderPath) 移动文件
+    // 并更新 path（见 src/notes/service.ts move），不再通过 folderId 归属。
     it('moves note to a folder', async () => {
       const note = await lib.notes.create({ title: 'Movable' })
-      const folder = await lib.folders.create({ name: 'Target' })
-      const moved = await lib.notes.move(note.id, folder.id)
-      expect(moved.folderId).toBe(folder.id)
+      const moved = await lib.notes.move(note.id, 'Target')
+      expect(moved.path).toBe(`Target/${note.id}.json`)
 
-      const filePath = join(lib.rootPath, '.banjuan', 'notes', note.path)
+      const oldPath = join(lib.rootPath, '.banjuan', 'notes', note.path)
+      const filePath = join(lib.rootPath, '.banjuan', 'notes', moved.path)
+      expect(existsSync(oldPath)).toBe(false)
       const raw = JSON.parse(readFileSync(filePath, 'utf-8'))
-      expect(raw.meta.folderId).toBe(folder.id)
+      expect(raw.meta.id).toBe(note.id)
+      expect(raw.meta.title).toBe('Movable')
+
+      const inFolder = await lib.notes.list({ folder: 'Target' })
+      expect(inFolder.map(n => n.id)).toEqual([note.id])
     })
 
     it('moves note to root (null)', async () => {
-      const folder = await lib.folders.create({ name: 'Origin' })
-      const note = await lib.notes.create({ title: 'In Folder', folderId: folder.id })
+      const note = await lib.notes.create({ title: 'In Folder', folder: 'Origin' })
+      expect(note.path).toBe(`Origin/${note.id}.json`)
       const moved = await lib.notes.move(note.id, null)
       expect(moved.folderId).toBeNull()
+      expect(moved.path).toBe(`${note.id}.json`)
 
-      const filePath = join(lib.rootPath, '.banjuan', 'notes', note.path)
+      const oldPath = join(lib.rootPath, '.banjuan', 'notes', note.path)
+      const filePath = join(lib.rootPath, '.banjuan', 'notes', moved.path)
+      expect(existsSync(oldPath)).toBe(false)
       const raw = JSON.parse(readFileSync(filePath, 'utf-8'))
       expect(raw.meta.folderId).toBeNull()
+
+      expect(await lib.notes.list({ folder: 'Origin' })).toHaveLength(0)
     })
   })
 

@@ -148,11 +148,11 @@ export default function WelcomeView({ onOpen }: Props) {
       {/* Drag region */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 40,
-        WebkitAppRegion: 'drag' as any,
+        ['WebkitAppRegion' as any]: 'drag',
       }} />
 
       {/* Language switcher */}
-      <div style={{ position: 'absolute', top: 12, right: 16, WebkitAppRegion: 'no-drag' as any }}>
+      <div style={{ position: 'absolute', top: 12, right: 16, ['WebkitAppRegion' as any]: 'no-drag' }}>
         <select
           value={locale}
           onChange={(e) => setLocale(e.target.value as Locale)}

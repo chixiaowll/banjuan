@@ -41,8 +41,14 @@ export class JsonStore<T extends { id: string }> {
       const files = await this.fs.readdirWithTypes(join(this.baseDir, prefix.name))
       for (const file of files) {
         if (!file.name.endsWith('.json')) continue
-        const content = await this.fs.readTextFile(join(this.baseDir, prefix.name, file.name))
-        results.push(JSON.parse(content))
+        const filePath = join(this.baseDir, prefix.name, file.name)
+        // One unreadable file (e.g. half-written by a crash before writes were
+        // atomic) must not take down every list, rebuild and sync that uses this.
+        try {
+          results.push(JSON.parse(await this.fs.readTextFile(filePath)))
+        } catch (e) {
+          console.warn('[JsonStore] skipping unreadable file', filePath, (e as Error)?.message)
+        }
       }
     }
     return results

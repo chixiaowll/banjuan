@@ -1,18 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
-import { createTempDir, cleanupTempDir } from './helpers.js'
+import { createTempDir, cleanupTempDir, testDeps } from './helpers.js'
 import { Library } from '../src/library.js'
 
 describe('FolderService', () => {
   let tempDir: string
   let lib: Library
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tempDir = createTempDir()
-    lib = Library.init(join(tempDir, 'lib'))
+    lib = await Library.init(join(tempDir, 'lib'), testDeps())
   })
 
-  afterEach(() => { lib.close(); cleanupTempDir(tempDir) })
+  afterEach(async () => { await lib.close(); cleanupTempDir(tempDir) })
 
   describe('create', () => {
     it('creates a root folder', async () => {

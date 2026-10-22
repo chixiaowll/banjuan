@@ -6,7 +6,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "test": "node ../../scripts/vitest-electron.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@banjuan/core": "workspace:*",
