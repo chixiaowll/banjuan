@@ -1,6 +1,7 @@
 import type { PlatformDatabase, PlatformFS } from '../platform/index.js'
 import { join, dirname } from '../platform/path.js'
 import { v4 as uuid } from 'uuid'
+import { escapeLike, LIKE_ESCAPE } from '../db/like.js'
 import type { Note, NoteCreateInput, NoteListOptions, Annotation, NoteFileData, NoteType, HandwritingNoteJsonFile } from '../types.js'
 import type { SearchService } from '../search/service.js'
 import type { EventBus } from '../events/bus.js'
@@ -153,7 +154,7 @@ export class NoteService {
     const fullPath = join(this.notesDir, dirPath)
     if (!(await this.fs.exists(fullPath))) return
     const prefix = dirPath + '/'
-    const notes = this.db.query<{ id: string }>('SELECT id FROM notes WHERE path LIKE ?', [prefix + '%'])
+    const notes = this.db.query<{ id: string }>(`SELECT id FROM notes WHERE path LIKE ? ${LIKE_ESCAPE}`, [escapeLike(prefix) + '%'])
     for (const note of notes) {
       await this.delete(note.id)
     }
@@ -169,7 +170,7 @@ export class NoteService {
     await this.fs.mkdir(dirname(newFull), { recursive: true })
     await this.fs.rename(oldFull, newFull)
     const prefix = oldPath + '/'
-    const notes = this.db.query<{ id: string; path: string }>('SELECT id, path FROM notes WHERE path LIKE ?', [prefix + '%'])
+    const notes = this.db.query<{ id: string; path: string }>(`SELECT id, path FROM notes WHERE path LIKE ? ${LIKE_ESCAPE}`, [escapeLike(prefix) + '%'])
     const now = new Date().toISOString()
     for (const note of notes) {
       this.db.run('UPDATE notes SET path = ?, updated_at = ? WHERE id = ?', [newPath + '/' + note.path.substring(prefix.length), now, note.id])
@@ -193,8 +194,8 @@ export class NoteService {
       const pathPrefix = folder ? folder + '/' : ''
       const dup = pathPrefix
         ? this.db.queryOne<{ id: string }>(
-            'SELECT id FROM notes WHERE title = ? AND path LIKE ? AND path NOT LIKE ?',
-            [input.title, pathPrefix + '%', pathPrefix + '%/%'])
+            `SELECT id FROM notes WHERE title = ? AND path LIKE ? ${LIKE_ESCAPE} AND path NOT LIKE ? ${LIKE_ESCAPE}`,
+            [input.title, escapeLike(pathPrefix) + '%', escapeLike(pathPrefix) + '%/%'])
         : this.db.queryOne<{ id: string }>(
             'SELECT id FROM notes WHERE title = ? AND path NOT LIKE ? AND doc_id IS NULL',
             [input.title, '%/%'])
@@ -307,7 +308,7 @@ export class NoteService {
     if (options?.type) { conditions.push('type = ?'); params.push(options.type) }
     if (options?.docId) { conditions.push('doc_id = ?'); params.push(options.docId) }
     if (options?.folderId) { conditions.push('folder_id = ?'); params.push(options.folderId) }
-    if (options?.folder) { conditions.push('path LIKE ?'); params.push(options.folder + '/%') }
+    if (options?.folder) { conditions.push(`path LIKE ? ${LIKE_ESCAPE}`); params.push(escapeLike(options.folder) + '/%') }
     if (options?.tag) {
       conditions.push(`(id IN (SELECT note_id FROM note_tags JOIN tags ON tags.id = note_tags.tag_id WHERE tags.name = ?) OR id IN (SELECT mindmap_id FROM mindmap_tags JOIN tags ON tags.id = mindmap_tags.tag_id WHERE tags.name = ?))`)
       params.push(options.tag, options.tag)
@@ -354,6 +355,9 @@ export class NoteService {
 
   async update(id: string, updates: { title?: string; content?: string; typeMeta?: Record<string, unknown> }): Promise<Note> {
     id = this.resolveId(id)
+    // A late save from an editor whose note was just deleted: fail clearly
+    // instead of a TypeError on the missing row below.
+    if (!this.db.queryOne('SELECT id FROM notes WHERE id = ?', [id])) throw new Error('Note not found')
     const now = new Date().toISOString()
     const sets: string[] = ['updated_at = ?']
     const params: unknown[] = [now]
@@ -417,8 +421,8 @@ export class NoteService {
     const pathPrefix = targetFolder ? targetFolder + '/' : ''
     const dup = pathPrefix
       ? this.db.queryOne<{ id: string }>(
-          'SELECT id FROM notes WHERE title = ? AND id != ? AND path LIKE ? AND path NOT LIKE ?',
-          [row.title, id, pathPrefix + '%', pathPrefix + '%/%'])
+          `SELECT id FROM notes WHERE title = ? AND id != ? AND path LIKE ? ${LIKE_ESCAPE} AND path NOT LIKE ? ${LIKE_ESCAPE}`,
+          [row.title, id, escapeLike(pathPrefix) + '%', escapeLike(pathPrefix) + '%/%'])
       : this.db.queryOne<{ id: string }>(
           'SELECT id FROM notes WHERE title = ? AND id != ? AND path NOT LIKE ? AND doc_id IS NULL',
           [row.title, id, '%/%'])
@@ -451,18 +455,27 @@ export class NoteService {
     id = this.resolveId(id)
     const row = this.db.queryOne<{ path: string; type: string }>('SELECT path, type FROM notes WHERE id = ?', [id])
     if (!row) return
+    // Database first, in one transaction, children before parents — note_links
+    // and mindmap_* reference notes, mindmap_summaries references mindmap_nodes —
+    // and the file only after it commits. Previously the file went first and a
+    // mind map with a summary/boundary then failed its FK, leaving a broken row.
+    this.db.transaction(() => {
+      this.db.run('DELETE FROM note_links WHERE source_id = ? OR target_id = ?', [id, id])  // = LinkService.removeAllForNote
+      this.db.run('DELETE FROM doc_links WHERE source_id = ?', [id])                        // = DocLinkService.removeAllForNote
+      this.db.run('DELETE FROM note_annotations WHERE note_id = ?', [id])
+      if (row.type === 'mindmap') {
+        this.db.run('DELETE FROM mindmap_summaries WHERE mindmap_id = ?', [id])
+        this.db.run('DELETE FROM mindmap_boundaries WHERE mindmap_id = ?', [id])
+        this.db.run('DELETE FROM mindmap_edges WHERE mindmap_id = ?', [id])
+        this.db.run('DELETE FROM mindmap_nodes WHERE mindmap_id = ?', [id])
+        this.db.run('DELETE FROM mindmap_tags WHERE mindmap_id = ?', [id])
+      }
+      this.db.run('DELETE FROM note_tags WHERE note_id = ?', [id])
+      this.db.run('DELETE FROM notes WHERE id = ?', [id])
+    })
+    this.search.removeById(id)
     const filePath = join(this.notesDir, row.path)
     if (await this.fs.exists(filePath)) { await this.fs.remove(filePath) }
-    this.search.removeById(id)
-    if (this.linkService) { await this.linkService.removeAllForNote(id) }
-    if (this.docLinkService) { await this.docLinkService.removeAllForNote(id) }
-    this.db.run('DELETE FROM note_annotations WHERE note_id = ?', [id])
-    if (row.type === 'mindmap') {
-      this.db.run('DELETE FROM mindmap_edges WHERE mindmap_id = ?', [id])
-      this.db.run('DELETE FROM mindmap_nodes WHERE mindmap_id = ?', [id])
-    }
-    this.db.run('DELETE FROM note_tags WHERE note_id = ?', [id])
-    this.db.run('DELETE FROM notes WHERE id = ?', [id])
     this.events.emit('note:deleted', { id })
   }
 

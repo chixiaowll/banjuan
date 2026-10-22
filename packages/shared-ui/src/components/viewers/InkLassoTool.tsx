@@ -3,6 +3,8 @@ import { Trash2 } from 'lucide-react'
 import { renderStroke } from '../handwriting/renderStrokes.js'
 import type { Stroke } from '@banjuan/core'
 import { useBanjuanAPI } from '../../api.js'
+import { useIsActiveTab } from '../tabActive.js'
+import { isEditableTarget } from '../../utils/keyboard.js'
 
 interface InkStroke {
   points: Array<{ x: number; y: number }>
@@ -285,9 +287,11 @@ export default function InkLassoTool({ active, pageNum, docId, existingAnnotatio
     onUpdated()
   }, [existingStrokes, existingAnnotationId, pageNum, onUpdated])
 
+  const isActiveTab = useIsActiveTab()
   useEffect(() => {
-    if (!active) return
+    if (!active || !isActiveTab) return
     const onKeyDown = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return   // Backspace in a note editor isn't "delete ink"
       if ((e.code === 'Backspace' || e.code === 'Delete') && selectedRef.current.size > 0) {
         e.preventDefault()
         deleteSelected()
@@ -295,7 +299,7 @@ export default function InkLassoTool({ active, pageNum, docId, existingAnnotatio
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [active, deleteSelected])
+  }, [active, isActiveTab, deleteSelected])
 
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const ctxMenuRef = useRef<HTMLDivElement>(null)

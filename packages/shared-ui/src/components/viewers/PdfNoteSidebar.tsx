@@ -10,6 +10,8 @@ import HandwritingEditor from '../handwriting/HandwritingEditor.js'
 import { createHandwritingStore, HandwritingStoreContext, useHandwritingStore } from '../handwriting/useHandwritingStore.js'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
+import { emitLinksSynced } from '../../utils/linkEvents.js'
+import { useDebouncedSaver } from '../../utils/debouncedSaver.js'
 
 interface NoteInfo {
   id: string
@@ -181,7 +183,7 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
   const [note, setNote] = useState<NoteInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saver = useDebouncedSaver(800, noteId)   // flushes on unmount / window close, never drops the last edit
 
   const noteType = (note?.type ?? 'markdown') as string
 
@@ -208,19 +210,19 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
   }, [noteId])
 
   const handleChange = useCallback((json: string) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current)
+    const id = noteId
     setSaving(true)
-    saveTimer.current = setTimeout(async () => {
-      await api.notes.update(noteId, { content: json })
-      setSaving(false)
-    }, 800)
-  }, [noteId])
-
-  useEffect(() => {
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-    }
-  }, [])
+    saver.schedule(async () => {
+      try {
+        await api.notes.update(id, { content: json })
+        emitLinksSynced()
+      } catch (e) {
+        console.error('[PdfNoteSidebar] save failed', id, e)
+      } finally {
+        setSaving(false)
+      }
+    })
+  }, [noteId, saver])
 
   if (loading) {
     return (

@@ -1,21 +1,24 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { mkdirSync, writeFileSync, unlinkSync, existsSync } from 'node:fs'
+import { mkdirSync, writeFileSync, unlinkSync, existsSync, chmodSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { BrowserWindow, ipcMain } from 'electron'
-import { randomUUID } from 'node:crypto'
+import { randomUUID, randomBytes } from 'node:crypto'
 import { app } from 'electron'
 import type { Library } from '@banjuan/core'
 import { blocksToMarkdown, markdownToBlocks } from '@banjuan/core'
 import { saveClip } from './clip-service.js'
 import { openLibraryForApi, initLibraryForApi, libraries, getLibraryHistory } from './ipc.js'
 import { extractDocumentText } from './pdf-text.js'
+import { isAuthorized, corsHeaders } from './api-auth.js'
 
 const MAX_TEXT_PAGES = 25
 const TEXT_SUPPORTED = new Set(['pdf', 'epub', 'txt', 'md', 'html'])
 
 let server: ReturnType<typeof createServer> | null = null
 let portFilePath = ''
+let tokenFilePath = ''
+let apiToken = ''   // per launch; clients read it from ~/.banjuan/api-token
 let libraryGetter: () => Library | null = () => null
 let activeLibraryPath: string | null = null
 
@@ -61,9 +64,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 function json(res: ServerResponse, status: number, data: unknown): void {
   res.writeHead(status, {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    ...corsHeaders(res.req?.headers.origin),
   })
   res.end(JSON.stringify(data))
 }
@@ -100,6 +101,15 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   const { path, query } = parseUrl(req.url ?? '')
+
+  const authorized = isAuthorized({
+    method: req.method ?? 'GET', path,
+    origin: req.headers.origin, authorization: req.headers.authorization,
+  }, apiToken)
+  if (!authorized) {
+    json(res, 401, { error: 'Unauthorized: send the token from ~/.banjuan/api-token as "Authorization: Bearer <token>"' })
+    return
+  }
 
   if (path === '/api/status' && req.method === 'GET') {
     const lib = libraryGetter()
@@ -795,6 +805,11 @@ export function startApiServer(): Promise<number> {
 
       const banjuanDir = join(homedir(), '.banjuan')
       mkdirSync(banjuanDir, { recursive: true })
+      // Token first: a client that sees the port file can then always read it.
+      apiToken = randomBytes(32).toString('hex')
+      tokenFilePath = join(banjuanDir, 'api-token')
+      writeFileSync(tokenFilePath, apiToken, { encoding: 'utf-8', mode: 0o600 })
+      chmodSync(tokenFilePath, 0o600)   // mode only applies on create
       portFilePath = join(banjuanDir, 'api-port')
       writeFileSync(portFilePath, String(port), 'utf-8')
 
@@ -813,5 +828,8 @@ export function stopApiServer(): void {
   }
   if (portFilePath && existsSync(portFilePath)) {
     unlinkSync(portFilePath)
+  }
+  if (tokenFilePath && existsSync(tokenFilePath)) {
+    unlinkSync(tokenFilePath)
   }
 }

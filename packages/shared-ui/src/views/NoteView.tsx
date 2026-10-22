@@ -23,6 +23,9 @@ import TagInput from '../components/tags/TagInput.js'
 import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
 import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
+import { emitLinksSynced } from '../utils/linkEvents.js'
+import { useDebouncedSaver } from '../utils/debouncedSaver.js'
+import { useIsActiveTab } from '../components/tabActive.js'
 
 interface NoteInfo {
   id: string
@@ -56,7 +59,9 @@ function MindmapCenterContent({ noteId, onToggleLeftSidebar, onToggleRightSideba
     init(noteId)
   }, [noteId, init])
 
+  const isActiveTab = useIsActiveTab()
   useEffect(() => {
+    if (!isActiveTab) return
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault()
@@ -65,7 +70,7 @@ function MindmapCenterContent({ noteId, onToggleLeftSidebar, onToggleRightSideba
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [])
+  }, [isActiveTab])
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -324,7 +329,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     setNaturalH(el.offsetHeight)
   }, [])
   const editorRef = useRef<BlockEditorHandle>(null)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saver = useDebouncedSaver(800, note.id)   // flushes on unmount / window close, never drops the last edit
   const leftPanel = useResizable(240, 160, 480, 'left')
   const rightPanel = useResizable(260, 180, 720, 'right')
 
@@ -365,13 +370,19 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
   }, [note.id, title])
 
   const saveContent = useCallback((json: string) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(async () => {
+    const id = note.id
+    saver.schedule(async () => {
       setSaving(true)
-      await api.notes.update(note.id, { content: json })
-      setSaving(false)
-    }, 800)
-  }, [note.id])
+      try {
+        await api.notes.update(id, { content: json })
+        emitLinksSynced()
+      } catch (e) {
+        console.error('[NoteView] save failed', id, e)
+      } finally {
+        setSaving(false)
+      }
+    })
+  }, [note.id, saver])
 
   const saveTitle = useCallback(async () => {
     if (title !== note.title) {
@@ -380,7 +391,9 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     }
   }, [note.id, title, note.title])
 
+  const isActiveTab = useIsActiveTab()
   useEffect(() => {
+    if (!isActiveTab) return
     const handleKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
         e.preventDefault()
@@ -389,7 +402,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [])
+  }, [isActiveTab])
 
   useEffect(() => {
     if (!exportMenuOpen) return

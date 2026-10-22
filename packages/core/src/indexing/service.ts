@@ -151,7 +151,7 @@ export class IndexService {
 
   private async indexNoteJsonFile(relPath: string, pendingLinks: Array<{ sourceId: string; targetId: string; targetTitle?: string; context: string }>, pendingDocLinks: Array<{ sourceId: string; targetId: string; context: string }>): Promise<void> {
     const filePath = join(this.notesDir, relPath)
-    let raw: { meta: NoteFileData; blocks?: unknown[]; nodes?: any[]; edges?: any[]; boundaries?: any[]; summaries?: any[] }
+    let raw: { meta: NoteFileData; tags?: string[]; blocks?: unknown[]; nodes?: any[]; edges?: any[]; boundaries?: any[]; summaries?: any[] }
     try {
       raw = JSON.parse(await this.fs.readTextFile(filePath))
     } catch (e) {
@@ -191,11 +191,14 @@ export class IndexService {
       }
     }
 
-    if (data.tags?.length) {
-      for (const tagName of data.tags) {
-        const tag = this.db.queryOne<{ id: string }>('SELECT id FROM tags WHERE name = ?', [tagName])
-        if (tag) this.db.run('INSERT OR IGNORE INTO note_tags (note_id, tag_id) VALUES (?, ?)', [data.id, tag.id])
-      }
+    // TagService writes note tags to the file's top-level `tags` (older files may
+    // have them in meta), and keeps mind-map tags in mindmap_tags — mirror both,
+    // or every sync (which ends in rebuildFull) wipes the tags from the UI.
+    const tagNames = [...new Set([...(raw.tags ?? []), ...(data.tags ?? [])])]
+    const [tagTable, tagIdCol] = noteType === 'mindmap' ? ['mindmap_tags', 'mindmap_id'] : ['note_tags', 'note_id']
+    for (const tagName of tagNames) {
+      const tag = this.db.queryOne<{ id: string }>('SELECT id FROM tags WHERE name = ?', [tagName])
+      if (tag) this.db.run(`INSERT OR IGNORE INTO ${tagTable} (${tagIdCol}, tag_id) VALUES (?, ?)`, [data.id, tag.id])
     }
 
     const noteLinks = extractNoteLinks(Array.isArray(raw.blocks) ? raw.blocks : [])

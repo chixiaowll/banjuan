@@ -61,7 +61,9 @@ app.on('activate', () => {
   if (getWindowCount() === 0) createWindow()
 })
 
-app.on('will-quit', () => { disposeScreenshot() })
+// Remove ~/.banjuan/api-port and api-token on every platform's quit, so clients
+// don't mistake a stale port for a running app.
+app.on('will-quit', () => { disposeScreenshot(); stopApiServer() })
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

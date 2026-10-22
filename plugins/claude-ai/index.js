@@ -189,6 +189,15 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
     }
   }
 
+  getApiHeaders() {
+    try {
+      const token = readFileSync(join(homedir(), '.banjuan', 'api-token'), 'utf-8').trim()
+      return token ? { Authorization: `Bearer ${token}` } : {}
+    } catch {
+      return {}
+    }
+  }
+
   getApiBase() {
     const port = this.getApiPort()
     return port ? `http://127.0.0.1:${port}` : null
@@ -198,7 +207,7 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
     const base = this.getApiBase()
     if (!base) return null
     try {
-      const res = await fetch(`${base}/api/documents/${encodeURIComponent(docId)}/text?page=${page}`)
+      const res = await fetch(`${base}/api/documents/${encodeURIComponent(docId)}/text?page=${page}`, { headers: this.getApiHeaders() })
       if (!res.ok) return null
       const data = await res.json()
       return data.pages?.[0]?.text || null

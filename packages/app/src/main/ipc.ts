@@ -1,8 +1,7 @@
 import { ipcMain, dialog, clipboard, shell, BrowserWindow, app } from 'electron'
 import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join, basename, dirname, parse as parsePath } from 'node:path'
-import { execSync } from 'node:child_process'
+import { join, basename, dirname, resolve, sep, parse as parsePath } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
 import { Library, MAX_LIBRARY_FILES, type MindmapNodeCreateInput, type MindmapNode, type PlatformDeps } from '@banjuan/core'
 import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
@@ -10,6 +9,7 @@ import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
 import { LanHostServer, type HostStatus } from './lan-host-server.js'
 import { getDeviceIdentity } from './device-identity.js'
+import { writeZip } from './zip.js'
 import { DiscoveryService } from './discovery-service.js'
 
 // Global plugins live here (shared by every library), à la Claude Code's
@@ -50,6 +50,26 @@ export function installBundledPlugins(): void {
       copyFileSync(join(srcDir, file), join(destDir, file))
     }
   }
+}
+
+/**
+ * Absolute path of a note attachment for export, or null if it is missing or
+ * resolves outside the library's .banjuan dir (a `..` in the renderer-supplied path).
+ */
+function attachmentSource(lib: Library, relPath: string): string | null {
+  const root = resolve(lib.attachments.getFullPath(''))
+  const p = resolve(lib.attachments.getFullPath(relPath))
+  return p.startsWith(root + sep) && existsSync(p) ? p : null
+}
+
+/** Zip entries for a list of attachments under `prefix` (e.g. "Title/attachments"). */
+function attachmentEntries(lib: Library, relPaths: string[], prefix: string): Record<string, Uint8Array> {
+  const out: Record<string, Uint8Array> = {}
+  for (const relPath of relPaths) {
+    const src = attachmentSource(lib, relPath)
+    if (src) out[`${prefix}/${basename(src)}`] = readFileSync(src)
+  }
+  return out
 }
 
 function uniquePath(filePath: string): string {
@@ -1090,21 +1110,10 @@ export function registerIpcHandlers() {
     })
     if (result.canceled || !result.filePath) return null
 
-    const tmpDir = join(tmpdir(), `banjuan-export-${Date.now()}`)
-    const contentDir = join(tmpDir, safeTitle)
-    const attDir = join(contentDir, 'attachments')
-    mkdirSync(attDir, { recursive: true })
-    writeFileSync(join(contentDir, `${safeTitle}.md`), input.markdown, 'utf-8')
-
-    for (const relPath of input.attachments) {
-      const srcPath = lib.attachments.getFullPath(relPath)
-      if (existsSync(srcPath)) {
-        copyFileSync(srcPath, join(attDir, basename(srcPath)))
-      }
-    }
-
-    execSync(`cd "${tmpDir}" && zip -r "${result.filePath}" "${safeTitle}"`)
-    execSync(`rm -rf "${tmpDir}"`)
+    writeZip(result.filePath, {
+      [`${safeTitle}/${safeTitle}.md`]: input.markdown,
+      ...attachmentEntries(lib, input.attachments, `${safeTitle}/attachments`),
+    })
     return result.filePath
   })
 
@@ -1201,19 +1210,10 @@ ${contentHtml}
           filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
         })
         if (result.canceled || !result.filePath) return null
-        const tmpDir = join(tmpdir(), `banjuan-export-${Date.now()}`)
-        const contentDir = join(tmpDir, safeTitle)
-        const attDir = join(contentDir, 'attachments')
-        mkdirSync(attDir, { recursive: true })
-        writeFileSync(join(contentDir, `${safeTitle}.pdf`), pdfBuffer)
-        for (const relPath of input.attachments) {
-          const srcPath = lib.attachments.getFullPath(relPath)
-          if (existsSync(srcPath)) {
-            copyFileSync(srcPath, join(attDir, basename(srcPath)))
-          }
-        }
-        execSync(`cd "${tmpDir}" && zip -r "${result.filePath}" "${safeTitle}"`)
-        execSync(`rm -rf "${tmpDir}"`)
+        writeZip(result.filePath, {
+          [`${safeTitle}/${safeTitle}.pdf`]: pdfBuffer,
+          ...attachmentEntries(lib, input.attachments, `${safeTitle}/attachments`),
+        })
         return result.filePath
       }
     } finally {
@@ -1234,25 +1234,16 @@ ${contentHtml}
     })
     if (result.canceled || !result.filePath) return null
 
-    const tmpDir = join(tmpdir(), `banjuan-export-${Date.now()}`)
-    const contentDir = join(tmpDir, safeFolderName)
-    mkdirSync(contentDir, { recursive: true })
-
+    const files: Record<string, Uint8Array | string> = {}
     for (const entry of entries) {
       const safeTitle = entry.title.replace(/[/\\:*?"<>|]/g, '_')
-      const outputDir = entry.subPath ? join(contentDir, entry.subPath) : contentDir
-      mkdirSync(outputDir, { recursive: true })
+      // subPath mirrors the folder tree; drop '.'/'..' segments so entries stay inside the archive root.
+      const sub = (entry.subPath || '').split('/').filter(seg => seg && seg !== '.' && seg !== '..').join('/')
+      const outputDir = sub ? `${safeFolderName}/${sub}` : safeFolderName
 
       if (format === 'markdown') {
-        writeFileSync(join(outputDir, `${safeTitle}.md`), entry.content, 'utf-8')
-        if (entry.attachments.length > 0) {
-          const attDir = join(outputDir, 'attachments')
-          mkdirSync(attDir, { recursive: true })
-          for (const relPath of entry.attachments) {
-            const srcPath = lib.attachments.getFullPath(relPath)
-            if (existsSync(srcPath)) copyFileSync(srcPath, join(attDir, basename(srcPath)))
-          }
-        }
+        files[`${outputDir}/${safeTitle}.md`] = entry.content
+        Object.assign(files, attachmentEntries(lib, entry.attachments, `${outputDir}/attachments`))
       } else {
         const fullHtml = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
@@ -1269,14 +1260,13 @@ img { max-width: 100%; } table { border-collapse: collapse; width: 100%; } th, t
           await hiddenWin.loadFile(tmpHtml)
           await new Promise(r => setTimeout(r, 500))
           const pdfBuffer = await hiddenWin.webContents.printToPDF({ printBackground: true, margins: { marginType: 'default' }, pageSize: 'A4' })
-          writeFileSync(join(outputDir, `${safeTitle}.pdf`), pdfBuffer)
+          files[`${outputDir}/${safeTitle}.pdf`] = pdfBuffer
           try { unlinkSync(tmpHtml) } catch {}
         } finally { hiddenWin.close() }
       }
     }
 
-    execSync(`cd "${tmpDir}" && zip -r "${result.filePath}" "${safeFolderName}"`)
-    execSync(`rm -rf "${tmpDir}"`)
+    writeZip(result.filePath, files)
     return result.filePath
   })
 

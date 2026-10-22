@@ -38,6 +38,7 @@ export function resolveFolderArg(input: string, dirs: string[], opts: { allowCre
 
 const BANJUAN_DIR = join(homedir(), '.banjuan')
 const PORT_FILE = join(BANJUAN_DIR, 'api-port')
+const TOKEN_FILE = join(BANJUAN_DIR, 'api-token')
 const HISTORY_FILE = join(BANJUAN_DIR, 'library-history.json')
 
 export function readLibraryHistory(): Array<{ path: string; name: string; lastOpened: string }> {
@@ -46,6 +47,21 @@ export function readLibraryHistory(): Array<{ path: string; name: string; lastOp
   } catch {
     return []
   }
+}
+
+/** Per-launch API token written by the app (re-read each time: it changes on restart). */
+function getApiToken(): string | null {
+  try {
+    const token = readFileSync(TOKEN_FILE, 'utf-8').trim()
+    return /^[0-9a-f]+$/.test(token) ? token : null
+  } catch {
+    return null
+  }
+}
+
+function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const token = getApiToken()
+  return token ? { ...extra, Authorization: `Bearer ${token}` } : extra
 }
 
 function getApiPort(): number | null {
@@ -82,7 +98,7 @@ async function waitForApp(timeoutMs = 15000): Promise<number> {
     const port = getApiPort()
     if (port) {
       try {
-        const res = await fetch(`http://127.0.0.1:${port}/api/status`)
+        const res = await fetch(`http://127.0.0.1:${port}/api/status`, { headers: authHeaders() })
         if (res.ok) return port
       } catch {}
     }
@@ -96,7 +112,7 @@ export async function ensureApp(): Promise<string> {
   const port = getApiPort()
   if (port) {
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/api/status`)
+      const res = await fetch(`http://127.0.0.1:${port}/api/status`, { headers: authHeaders() })
       if (res.ok) return `http://127.0.0.1:${port}`
     } catch {}
   }
@@ -109,8 +125,9 @@ export async function ensureApp(): Promise<string> {
 export function isAppRunning(): boolean {
   const port = getApiPort()
   if (!port) return false
+  const token = getApiToken()   // hex-only (validated), safe to interpolate
   try {
-    execSync(`curl -sf http://127.0.0.1:${port}/api/status`, { stdio: 'ignore' })
+    execSync(`curl -sf ${token ? `-H "Authorization: Bearer ${token}" ` : ''}http://127.0.0.1:${port}/api/status`, { stdio: 'ignore' })
     return true
   } catch {
     return false
@@ -153,7 +170,7 @@ function handleError(status: number, body: string): never {
 
 export async function apiGet(path: string): Promise<any> {
   const base = await getBaseUrl()
-  const res = await fetch(`${base}${appendLibrary(path)}`)
+  const res = await fetch(`${base}${appendLibrary(path)}`, { headers: authHeaders() })
   if (!res.ok) handleError(res.status, await res.text())
   return res.json()
 }
@@ -162,7 +179,7 @@ export async function apiPost(path: string, body?: unknown): Promise<any> {
   const base = await getBaseUrl()
   const res = await fetch(`${base}${appendLibrary(path)}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body ?? {}),
   })
   if (!res.ok) handleError(res.status, await res.text())
@@ -173,7 +190,7 @@ export async function apiPut(path: string, body: unknown): Promise<any> {
   const base = await getBaseUrl()
   const res = await fetch(`${base}${appendLibrary(path)}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
   })
   if (!res.ok) handleError(res.status, await res.text())
@@ -182,7 +199,7 @@ export async function apiPut(path: string, body: unknown): Promise<any> {
 
 export async function apiDelete(path: string): Promise<any> {
   const base = await getBaseUrl()
-  const res = await fetch(`${base}${appendLibrary(path)}`, { method: 'DELETE' })
+  const res = await fetch(`${base}${appendLibrary(path)}`, { method: 'DELETE', headers: authHeaders() })
   if (!res.ok) handleError(res.status, await res.text())
   return res.json()
 }
