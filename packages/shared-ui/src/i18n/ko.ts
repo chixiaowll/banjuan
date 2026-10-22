@@ -576,6 +576,10 @@ const ko = {
   'trash.restored': '"{0}"을(를) 복원했습니다',
   'trash.restoreFailed': '복원 실패: {0}',
   'trash.deletedAt': '{0} 삭제됨',
+
+  // mindmap
+  'mindmap.newTopic': '새 주제',
+  'mindmap.summaryTopic': '요약',
 } as const
 
 export default ko

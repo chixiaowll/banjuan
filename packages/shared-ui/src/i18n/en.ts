@@ -605,6 +605,10 @@ const en = {
   'trash.restored': 'Restored "{0}"',
   'trash.restoreFailed': 'Couldn’t restore: {0}',
   'trash.deletedAt': 'Deleted {0}',
+
+  // mindmap
+  'mindmap.newTopic': 'New Topic',
+  'mindmap.summaryTopic': 'Summary',
 } as const
 
 export default en

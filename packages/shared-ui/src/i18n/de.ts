@@ -576,6 +576,10 @@ const de = {
   'trash.restored': '„{0}“ wiederhergestellt',
   'trash.restoreFailed': 'Wiederherstellen fehlgeschlagen: {0}',
   'trash.deletedAt': 'Gelöscht am {0}',
+
+  // mindmap
+  'mindmap.newTopic': 'Neues Thema',
+  'mindmap.summaryTopic': 'Zusammenfassung',
 } as const
 
 export default de

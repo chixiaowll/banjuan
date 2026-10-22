@@ -576,6 +576,10 @@ const ja = {
   'trash.restored': '「{0}」を元に戻しました',
   'trash.restoreFailed': '元に戻せませんでした：{0}',
   'trash.deletedAt': '{0} に削除',
+
+  // mindmap
+  'mindmap.newTopic': '新しいトピック',
+  'mindmap.summaryTopic': '要約',
 } as const
 
 export default ja

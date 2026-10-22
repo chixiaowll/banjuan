@@ -5,7 +5,7 @@ import BlockEditor from '../notes/BlockEditor.js'
 import MindmapCanvas from '../mindmap/MindmapCanvas.js'
 import { MindmapTitleBar, MindmapFloatingToolbar } from '../mindmap/MindmapToolbar.js'
 import { useKeyboardShortcuts } from '../mindmap/useKeyboardShortcuts.js'
-import { createMindmapStore, MindmapStoreContext, useMindmapStore } from '../mindmap/useMindmapStore.js'
+import { createMindmapStore, MindmapStoreContext, useMindmapStore, useMindmapLabels } from '../mindmap/useMindmapStore.js'
 import HandwritingEditor from '../handwriting/HandwritingEditor.js'
 import { createHandwritingStore, HandwritingStoreContext, useHandwritingStore } from '../handwriting/useHandwritingStore.js'
 import { useT } from '../../i18n/index.js'
@@ -190,8 +190,9 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
 
   const noteType = (note?.type ?? 'markdown') as string
 
+  const mindmapLabels = useMindmapLabels()
   const mindmapStore = useMemo(
-    () => noteType === 'mindmap' ? createMindmapStore(api) : null,
+    () => noteType === 'mindmap' ? createMindmapStore(api, mindmapLabels) : null,
     [noteId, noteType],
   )
   const hwStore = useMemo(

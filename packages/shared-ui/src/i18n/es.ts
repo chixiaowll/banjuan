@@ -576,6 +576,10 @@ const es = {
   'trash.restored': '«{0}» restaurado',
   'trash.restoreFailed': 'No se pudo restaurar: {0}',
   'trash.deletedAt': 'Eliminado el {0}',
+
+  // mindmap
+  'mindmap.newTopic': 'Nuevo tema',
+  'mindmap.summaryTopic': 'Resumen',
 } as const
 
 export default es

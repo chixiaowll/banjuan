@@ -605,6 +605,10 @@ const zh = {
   'trash.restored': '已恢复「{0}」',
   'trash.restoreFailed': '恢复失败：{0}',
   'trash.deletedAt': '{0} 删除',
+
+  // mindmap
+  'mindmap.newTopic': '分支主题',
+  'mindmap.summaryTopic': '概要',
 } as const
 
 export default zh

@@ -12,7 +12,7 @@ import MindmapSearch from '../components/mindmap/MindmapSearch.js'
 import NodePropertyPanel from '../components/mindmap/panels/NodePropertyPanel.js'
 import NodeContentEditor from '../components/mindmap/panels/NodeContentEditor.js'
 import ThemePanel from '../components/mindmap/panels/ThemePanel.js'
-import { useMindmapStore, createMindmapStore, MindmapStoreContext } from '../components/mindmap/useMindmapStore.js'
+import { useMindmapStore, createMindmapStore, MindmapStoreContext, useMindmapLabels } from '../components/mindmap/useMindmapStore.js'
 import { useKeyboardShortcuts } from '../components/mindmap/useKeyboardShortcuts.js'
 import HandwritingCenterContent from '../components/handwriting/HandwritingCenterContent.js'
 import PageListPanel from '../components/handwriting/PageListPanel.js'
@@ -716,7 +716,8 @@ export default function NoteView(props: Props) {
   const api = useBanjuanAPI()
   const isMindmap = (props.note.type ?? 'markdown') === 'mindmap'
   const isHandwriting = (props.note.type ?? 'markdown') === 'handwriting'
-  const store = useMemo(() => isMindmap ? createMindmapStore(api) : null, [props.note.id, api])
+  const mindmapLabels = useMindmapLabels()
+  const store = useMemo(() => isMindmap ? createMindmapStore(api, mindmapLabels) : null, [props.note.id, api])
   const hwStore = useMemo(() => isHandwriting ? createHandwritingStore(api) : null, [props.note.id, api])
   // Pending mind-map layout/title and handwriting saves are written before the
   // window closes or the app quits (see flushRegistry).
