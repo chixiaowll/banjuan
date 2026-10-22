@@ -1,4 +1,5 @@
 import * as fs from 'node:fs'
+import * as fsp from 'node:fs/promises'
 import * as path from 'node:path'
 import type { PlatformFS } from '@banjuan/core'
 
@@ -31,13 +32,16 @@ function writeAtomic(filePath: string, data: Uint8Array | string): void {
   }
 }
 
+// Reads go through fs/promises so long scans (index rebuild, sync, import) don't
+// block the Electron main process — IPC from the UI keeps being served between
+// reads. Writes stay synchronous (see writeAtomic).
 export class NodeFS implements PlatformFS {
   async readFile(filePath: string): Promise<Uint8Array> {
-    return fs.readFileSync(filePath)
+    return fsp.readFile(filePath)
   }
 
   async readTextFile(filePath: string): Promise<string> {
-    return fs.readFileSync(filePath, 'utf-8')
+    return fsp.readFile(filePath, 'utf-8')
   }
 
   async writeFile(filePath: string, data: Uint8Array): Promise<void> {
@@ -49,7 +53,7 @@ export class NodeFS implements PlatformFS {
   }
 
   async exists(filePath: string): Promise<boolean> {
-    return fs.existsSync(filePath)
+    return fsp.access(filePath).then(() => true, () => false)
   }
 
   async mkdir(dirPath: string, options?: { recursive?: boolean }): Promise<void> {
@@ -57,11 +61,11 @@ export class NodeFS implements PlatformFS {
   }
 
   async readdir(dirPath: string): Promise<string[]> {
-    return fs.readdirSync(dirPath)
+    return fsp.readdir(dirPath)
   }
 
   async readdirWithTypes(dirPath: string): Promise<Array<{ name: string; isDirectory: boolean }>> {
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    const entries = await fsp.readdir(dirPath, { withFileTypes: true })
     return entries.map((entry) => ({
       name: entry.name,
       isDirectory: entry.isDirectory(),
@@ -77,7 +81,7 @@ export class NodeFS implements PlatformFS {
   }
 
   async stat(filePath: string): Promise<{ mtime: number; size: number }> {
-    const s = fs.statSync(filePath)
+    const s = await fsp.stat(filePath)
     return { mtime: s.mtimeMs, size: s.size }
   }
 

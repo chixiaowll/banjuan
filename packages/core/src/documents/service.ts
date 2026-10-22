@@ -25,6 +25,39 @@ export class DocumentService {
     filePath: string,
     options?: { title?: string; tags?: string[] },
   ): Promise<Document> {
+    return this.importOne(filePath, options, null)
+  }
+
+  /**
+   * Import many files, reading the document store at most once for the whole
+   * batch. Calling import() in a loop used to re-read every document JSON per
+   * file — O(N²) for a library scan or a multi-file import.
+   */
+  async importMany(filePaths: string[]): Promise<Array<{ path: string; doc?: Document; error?: string }>> {
+    let index: Map<string, DocumentFileData> | null = null
+    const lazyIndex = async () => {
+      if (!index) {
+        index = new Map()
+        for (const d of await this.store.listAll()) index.set(d.path, d)
+      }
+      return index
+    }
+    const results: Array<{ path: string; doc?: Document; error?: string }> = []
+    for (const p of filePaths) {
+      try {
+        results.push({ path: p, doc: await this.importOne(p, undefined, lazyIndex) })
+      } catch (e) {
+        results.push({ path: p, error: (e as Error).message })
+      }
+    }
+    return results
+  }
+
+  private async importOne(
+    filePath: string,
+    options: { title?: string; tags?: string[] } | undefined,
+    pathIndex: (() => Promise<Map<string, DocumentFileData>>) | null,
+  ): Promise<Document> {
     const absPath = isAbsolute(filePath) ? filePath : join(this.rootPath, filePath)
     if (!(await this.fs.exists(absPath))) {
       throw new Error(`File not found: ${absPath}`)
@@ -45,10 +78,10 @@ export class DocumentService {
     // or hashes file contents. Both `id` and `hash` derive from the path hash
     // (dedup is path-based; `hash`'s only consumer is a cosmetic detail field),
     // so importing is O(1) per file regardless of file size.
-    const existing = await this.findExistingByPath(relPath)
+    const pathHash = await this.crypto.sha256(new TextEncoder().encode(relPath))
+    const existing = await this.findExistingByPath(relPath, pathHash.slice(0, 32), pathIndex)
     const type = detectDocumentType(absPath)
     const title = options?.title ?? existing?.title ?? extractTitle(absPath)
-    const pathHash = await this.crypto.sha256(new TextEncoder().encode(relPath))
     const id = existing?.id ?? pathHash.slice(0, 32)
     const hash = existing?.hash ?? pathHash
     const now = new Date().toISOString()
@@ -60,6 +93,7 @@ export class DocumentService {
     }
     if (!existing) {
       await this.store.write(fileData)
+      if (pathIndex) (await pathIndex()).set(relPath, fileData)
     }
 
     this.db.run(
@@ -78,7 +112,19 @@ export class DocumentService {
     return doc
   }
 
-  private async findExistingByPath(relPath: string): Promise<DocumentFileData | null> {
+  /**
+   * Metadata already on disk for this path (e.g. after the index was wiped, or
+   * synced from another device). Current ids derive from the path, so try that
+   * file directly; only legacy ids need a scan — once per batch via `pathIndex`.
+   */
+  private async findExistingByPath(
+    relPath: string,
+    pathId: string,
+    pathIndex: (() => Promise<Map<string, DocumentFileData>>) | null,
+  ): Promise<DocumentFileData | null> {
+    const byId = await this.store.read(pathId)
+    if (byId && byId.path === relPath) return byId
+    if (pathIndex) return (await pathIndex()).get(relPath) ?? null
     for (const doc of await this.store.listAll()) {
       if (doc.path === relPath) return doc
     }

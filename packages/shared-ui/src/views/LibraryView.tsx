@@ -16,8 +16,6 @@ import type { Locale } from '../i18n/index.js'
 import { useTheme, useThemeLayout, APP_THEMES } from '../theme/index.js'
 import type { AppTheme } from '../theme/index.js'
 import { useBanjuanAPI } from '../api.js'
-import { BlockNoteEditor } from '@blocknote/core'
-import { schema as blockNoteSchema } from '../components/notes/BlockEditor.js'
 import { exportToDirectory, newRunId } from '../utils/exportToDirectory.js'
 import { listExportNotes, buildExportEntries } from '../utils/exportEntries.js'
 import { useExportManagerStore } from '../stores/useExportManagerStore.js'
@@ -437,25 +435,32 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
     })
   }, [])
 
-  const loadDocStatuses = async (docs: Document[]) => {
-    const statuses: Record<string, string> = {}
-    for (const doc of docs) {
-      try { statuses[doc.id] = await api.sync.getDocStatus(doc.id) }
-      catch { statuses[doc.id] = 'local' }
-    }
-    setDocStatuses(statuses)
-  }
-
   const loadDocuments = async () => {
     const docs = await api.documents.list()
     try {
-      const tagResults = await Promise.all(docs.map(d => api.tags.forTarget(d.id, 'document').catch(() => [])))
-      docs.forEach((d: any, i) => { d.tags = tagResults[i].map((t: any) => t.name) })
+      if (api.tags.namesByTarget) {
+        // One call for every document's tags (was one IPC + query per document).
+        const byId = await api.tags.namesByTarget('document')
+        docs.forEach((d: any) => { d.tags = byId[d.id] ?? [] })
+      } else {
+        const tagResults = await Promise.all(docs.map(d => api.tags.forTarget(d.id, 'document').catch(() => [])))
+        docs.forEach((d: any, i) => { d.tags = tagResults[i].map((t: any) => t.name) })
+      }
     } catch {}
     setDocuments(docs)
-    loadDocStatuses(docs)
     try { const dirs = await api.documents.listDirs(); setDocExtraDirs(dirs) } catch {}
   }
+
+  // Sync status is shown only for the selected document, so fetch just that one
+  // (it used to be fetched serially for every document on each library load).
+  useEffect(() => {
+    if (selectedSection !== 'documents' || !selectedItemId) return
+    let cancelled = false
+    api.sync.getDocStatus(selectedItemId)
+      .then(s => { if (!cancelled) setDocStatuses(prev => ({ ...prev, [selectedItemId]: s })) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [selectedSection, selectedItemId])
 
   const loadNotes = async () => {
     const list = await api.notes.list()
@@ -3044,6 +3049,10 @@ export default function LibraryView({ rootPath, libraryName, onOpenDoc, onOpenNo
                   // Fallback: run in-window (platforms without a background window).
                   const notes = await listExportNotes(api, folder)
                   if (notes.length === 0) return
+                  // Loaded on demand: keeps BlockNote out of the library view's startup bundle.
+                  const [{ BlockNoteEditor }, { schema: blockNoteSchema }] = await Promise.all([
+                    import('@blocknote/core'), import('../components/notes/BlockEditor.js'),
+                  ])
                   const editor = BlockNoteEditor.create({ schema: blockNoteSchema } as any)
                   const entries = buildExportEntries(api, notes, fmt, editor)
                   exportToDirectory(api, entries, fmt)

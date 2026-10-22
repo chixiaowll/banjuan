@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService, ExportWorkerApp } from '@banjuan/shared-ui'
+import React, { useState, useEffect, lazy, Suspense } from 'react'
+import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService } from '@banjuan/shared-ui'
 import WelcomeView from './views/WelcomeView.js'
 import ScreenshotOverlay from './views/ScreenshotOverlay.js'
 import { electronAPI } from './electron-api.js'
@@ -17,12 +17,16 @@ interface LibraryInfo {
 const IS_EXPORT_WORKER = window.location.hash === '#export-worker'
 const IS_SCREENSHOT_OVERLAY = window.location.hash === '#screenshot-overlay'
 
+// Only the hidden export window runs the worker (BlockNote + mind-map export):
+// load it on demand so the main window's startup bundle doesn't carry it.
+const ExportWorkerApp = lazy(() => import('@banjuan/shared-ui/src/components/ExportWorkerApp'))
+
 function ExportWorkerRoot() {
   return (
     <BanjuanAPIProvider value={electronAPI}>
       <ThemeProvider>
         <I18nProvider>
-          <ExportWorkerApp />
+          <Suspense fallback={null}><ExportWorkerApp /></Suspense>
         </I18nProvider>
       </ThemeProvider>
     </BanjuanAPIProvider>

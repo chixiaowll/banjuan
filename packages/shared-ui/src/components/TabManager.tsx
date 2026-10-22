@@ -1,15 +1,19 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react'
 import { Menu, X, Info } from 'lucide-react'
 import TitleBar, { type Tab, type PluginViewInfo } from './TitleBar.js'
 import LibraryView from '../views/LibraryView.js'
-import DocumentViewer from './viewers/DocumentViewer.js'
-import NoteView from '../views/NoteView.js'
+// Readers and editors (pdf.js, epub.js, BlockNote, React Flow, …) load on first
+// use instead of being parsed before the library view can show.
+const DocumentViewer = lazy(() => import('./viewers/DocumentViewer.js'))
+const NoteView = lazy(() => import('../views/NoteView.js'))
+// Off-screen renderer for mind-map export snapshots: always mounted, but only
+// needed when an export runs — don't let it pull BlockNote + React Flow into startup.
+const MindmapExportHost = lazy(() => import('./MindmapExportHost.js'))
 import TagManagerView from '../views/TagManagerView.js'
 import PluginViewHost from '../views/PluginViewHost.js'
 import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
 import ExportPanel from './ExportPanel.js'
-import MindmapExportHost from './MindmapExportHost.js'
 import { ResizeHandle, useResizable } from './ResizeHandle.js'
 import { useExportManagerStore } from '../stores/useExportManagerStore.js'
 import { TabActiveContext } from './tabActive.js'
@@ -386,6 +390,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
               }}
             >
               <TabActiveContext.Provider value={tab.id === activeTabId}>
+              <Suspense fallback={null}>
               {tab.type === 'library' && (
                 <LibraryView
                   rootPath={libraryPath}
@@ -419,10 +424,11 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
               {tab.type === 'tag-manager' && (
                 <TagManagerView libraryName={libraryName} onBack={() => closeTab(tab.id)} />
               )}
+              </Suspense>
               </TabActiveContext.Provider>
             </div>
           ))}
-          <MindmapExportHost />
+          <Suspense fallback={null}><MindmapExportHost /></Suspense>
         </div>
         {(sidePanel || detailOpen) && (
           <>

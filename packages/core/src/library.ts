@@ -297,13 +297,9 @@ export class Library {
     const result = { imported: 0, skipped: 0, errors: [] as string[], truncated, limit: MAX_LIBRARY_FILES }
     // Over the cap → import nothing; the directory is almost certainly wrong.
     if (truncated) return result
-    for (const file of files) {
-      try {
-        await this.documents.import(file)
-        result.imported++
-      } catch {
-        result.skipped++
-      }
+    for (const r of await this.documents.importMany(files)) {
+      if (r.doc) result.imported++
+      else result.skipped++
     }
     return result
   }
@@ -326,16 +322,9 @@ export class Library {
     // per call (a Capacitor bridge round-trip on mobile), so skipping known
     // paths keeps a normal open to just the directory walk above.
     const known = await this.documents.listImportedPaths()
-    let imported = 0
-    for (const relPath of diskFiles) {
-      if (known.has(relPath)) continue
-      try {
-        await this.documents.import(relPath)
-        imported++
-      } catch {
-        // unsupported or a race — safe to skip
-      }
-    }
+    // Unsupported files or races just come back with an error — safe to skip.
+    const fresh = [...diskFiles].filter(p => !known.has(p))
+    const imported = (await this.documents.importMany(fresh)).filter(r => r.doc).length
 
     return { imported, removed: 0, missing, truncated, limit: MAX_LIBRARY_FILES }
   }

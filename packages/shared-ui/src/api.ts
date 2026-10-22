@@ -119,6 +119,8 @@ export interface BanjuanAPI {
     listWithCounts(): Promise<Array<Tag & { count: number }>>
     create(input: { name: string; color?: string }): Promise<Tag>
     forTarget(id: string, type: string): Promise<Tag[]>
+    /** Tag names of every tagged item of a type, keyed by id (one call instead of one per item). */
+    namesByTarget?(type: string): Promise<Record<string, string[]>>
     assign(targetId: string, targetType: string, tagNames: string[]): Promise<void>
     unassign(targetId: string, targetType: string, tagName: string): Promise<void>
     delete(tagId: string): Promise<void>

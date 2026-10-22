@@ -167,6 +167,21 @@ export class TagService {
     }
   }
 
+  /** Tag names of every tagged target of `targetType`, keyed by target id — one query instead of one per item. */
+  async namesByTarget(targetType: TagTarget): Promise<Record<string, string[]>> {
+    const { table, idCol } = ({
+      document: { table: 'doc_tags', idCol: 'doc_id' },
+      note: { table: 'note_tags', idCol: 'note_id' },
+      mindmap: { table: 'mindmap_tags', idCol: 'mindmap_id' },
+    } as const)[targetType]
+    const map: Record<string, string[]> = {}
+    for (const r of this.db.query<{ id: string; name: string }>(
+      `SELECT ${table}.${idCol} AS id, tags.name AS name FROM ${table} JOIN tags ON tags.id = ${table}.tag_id ORDER BY tags.name`)) {
+      (map[r.id] ??= []).push(r.name)
+    }
+    return map
+  }
+
   async forTarget(targetId: string, targetType: TagTarget): Promise<Tag[]> {
     const tableMap: Record<TagTarget, { table: string; idCol: string }> = {
       document: { table: 'doc_tags', idCol: 'doc_id' },

@@ -435,14 +435,19 @@ export default function PdfViewer(props: Props) {
   const [rawPageSizes, setRawPageSizes] = useState<Array<{ w: number; h: number }>>([])
   const [pageSizes, setPageSizesLocal] = useState<Array<{ w: number; h: number }>>([])
 
+  // Mobile streams the PDF via URL (getFileSrc); desktop reads it over IPC and
+  // must not wait for — or reload when — fileSrc arrives: that second effect run
+  // read and parsed the whole file again and leaked the first document.
+  const streamViaUrl = !!api.documents.getFileSrc && !props.fileData
   useEffect(() => {
+    // Mobile: wait for the URL. A full base64 read of a large PDF via Capacitor
+    // fails/hangs on iOS, so don't start one while the URL is still pending.
+    if (streamViaUrl && !props.fileSrc) return
     let cancelled = false
+    let loaded: pdfjsLib.PDFDocumentProxy | null = null
     const load = async () => {
       try {
         const commonOpts = { cMapUrl, cMapPacked: true, standardFontDataUrl, disableFontFace: true, useSystemFonts: false }
-        // On mobile (getFileSrc present) stream via URL — reading a large PDF
-        // fully into memory with Capacitor's base64 read fails/hangs on iOS.
-        const streamViaUrl = !!props.fileSrc && !!api.documents.getFileSrc && !props.fileData
         console.log('[PdfViewer] load start', { streamViaUrl, fileSrc: props.fileSrc, hasFileData: !!props.fileData, workerSrc: pdfjsLib.GlobalWorkerOptions.workerSrc, cMapUrl })
         let doc
         if (streamViaUrl) {
@@ -455,28 +460,40 @@ export default function PdfViewer(props: Props) {
           if (cancelled) return
           doc = await pdfjsLib.getDocument({ data: new Uint8Array(fileData), ...commonOpts }).promise
         }
-        if (cancelled) return
+        loaded = doc
+        if (cancelled) { void doc.destroy(); return }
 
         setNumPages(doc.numPages)
         setPdfDoc(doc)
 
-        const sizes: Array<{ w: number; h: number }> = []
-        for (let i = 1; i <= doc.numPages; i++) {
-          const p = await doc.getPage(i)
-          if (cancelled) return
-          const vp = p.getViewport({ scale: 1 })
-          sizes.push({ w: vp.width, h: vp.height })
-        }
+        // The first paint only needs page 1's size: use it for every page now and
+        // fill in real sizes in the background. Awaiting getPage() for every page
+        // first kept a long document blank until all of them had loaded.
+        const first = (await doc.getPage(1)).getViewport({ scale: 1 })
+        if (cancelled) return
+        const sizes = Array.from({ length: doc.numPages }, () => ({ w: first.width, h: first.height }))
         setRawPageSize(sizes[0])
         setRawPageSizes(sizes)
+        let differs = false
+        for (let i = 2; i <= doc.numPages; i++) {
+          const vp = (await doc.getPage(i)).getViewport({ scale: 1 })
+          if (cancelled) return
+          if (vp.width !== sizes[i - 1].w || vp.height !== sizes[i - 1].h) {
+            sizes[i - 1] = { w: vp.width, h: vp.height }
+            differs = true
+          }
+        }
+        if (differs) setRawPageSizes([...sizes])
       } catch (err) {
         const e = err as any
         console.error('[PdfViewer] failed to load PDF:', 'name=' + e?.name, 'message=' + e?.message, 'str=' + String(err), 'stack=' + e?.stack)
       }
     }
     load()
-    return () => { cancelled = true }
-  }, [props.fileData, props.docPath, props.fileSrc])
+    // Free the worker-side document (parsed objects, fonts, page caches) when
+    // the tab closes or the source changes — it was never destroyed before.
+    return () => { cancelled = true; void loaded?.destroy() }
+  }, [props.fileData, props.docPath, streamViaUrl ? props.fileSrc : null])
 
   return (
     <PdfViewerProvider pdfDoc={pdfDoc} numPages={numPages} initialPageSizes={pageSizes} rawPageSize={rawPageSize} rawPageSizes={rawPageSizes}>

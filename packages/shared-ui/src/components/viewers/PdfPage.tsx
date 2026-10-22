@@ -10,6 +10,9 @@ import EraserTool from './EraserTool.js'
 import { useBanjuanAPI } from '../../api.js'
 import { useEyeProtection, EYE_PROTECTION_TINT, useEinkMode, EINK_FILTER } from './useEyeProtection.js'
 
+// Max canvas backing-store pixels per page (pdf.js viewer default, 2^24).
+const MAX_CANVAS_PIXELS = 16_777_216
+
 export interface TextSelectInfo {
   page: number
   rects: Array<{ x: number; y: number; w: number; h: number }>
@@ -156,11 +159,22 @@ export default function PdfPage({
     return uc
   }, [])
 
+  // Virtualized-away pages: release the canvas bitmap right away (an
+  // off-screen canvas otherwise holds its full backing store until GC).
+  useEffect(() => () => {
+    const c = canvasRef.current
+    if (c) { c.width = 0; c.height = 0 }
+  }, [])
+
   // Render canvas + text layer + extract chars[] when mounted or scale changes.
   useEffect(() => {
     if (renderedScaleRef.current === scale && ready) return
 
     let cancelled = false
+    // Kept so a scale change / unmount cancels the in-flight render instead of
+    // letting it race the next one on the same canvas.
+    let renderTask: ReturnType<pdfjsLib.PDFPageProxy['render']> | null = null
+    let textLayer: InstanceType<typeof pdfjsLib.TextLayer> | null = null
     setReady(false)
 
     const init = async () => {
@@ -175,13 +189,19 @@ export default function PdfPage({
       const dpr = window.devicePixelRatio || 1
       let ctx: CanvasRenderingContext2D | null = null
       if (canvas) {
-        canvas.width = Math.floor(viewport.width * dpr)
-        canvas.height = Math.floor(viewport.height * dpr)
+        // Cap the backing store like pdf.js's own viewer (maxCanvasPixels): at
+        // high zoom a page at full devicePixelRatio can reach hundreds of
+        // megapixels and exhaust memory. Above the cap, render at a lower
+        // resolution and let CSS stretch it.
+        const outputScale = Math.min(dpr, Math.sqrt(MAX_CANVAS_PIXELS / (viewport.width * viewport.height)))
+        canvas.width = Math.floor(viewport.width * outputScale)
+        canvas.height = Math.floor(viewport.height * outputScale)
         canvas.style.width = viewport.width + 'px'
         canvas.style.height = viewport.height + 'px'
         ctx = canvas.getContext('2d')!
-        const transform = dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] as [number, number, number, number, number, number] : undefined
-        await page.render({ canvasContext: ctx, viewport, transform }).promise.catch(() => {})
+        const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] as [number, number, number, number, number, number] : undefined
+        renderTask = page.render({ canvasContext: ctx, viewport, transform })
+        await renderTask.promise.catch(() => {})   // RenderingCancelledException when superseded
       }
       if (cancelled) return
 
@@ -200,64 +220,65 @@ export default function PdfPage({
             )
           ),
         }
-        const textLayer = new pdfjsLib.TextLayer({
+        textLayer = new pdfjsLib.TextLayer({
           textContentSource: patchedContent,
           container: textLayerEl,
           viewport,
         })
         await textLayer.render()
+        if (cancelled) return
 
         const textItems = (patchedContent.items as any[]).filter((it: any) => it.str !== undefined && it.str !== '')
         const allSpans = textLayerEl.querySelectorAll('span[role="presentation"]')
         const getLocalWidth = (el: HTMLElement) => parseFloat(getComputedStyle(el).width) || el.offsetWidth
 
 
-        // Pass 1: calculate pure character width ratio from space-free spans
-        const measurements: Array<{ el: HTMLElement, expectedWidth: number, restTransform: string, originalTransform: string }> = []
-        let charRatioSum = 0, charRatioCount = 0
+        // Calibrate each span's width to the canvas glyph widths. Writes and
+        // reads are batched (write all → read all → write all …): interleaving
+        // them per span forced a synchronous layout for every span on the page.
+        type Measure = { el: HTMLElement; expectedWidth: number; restTransform: string; originalTransform: string; text: string; natural: number }
+        const measurements: Measure[] = []
+        // Write 1: strip scaleX so natural widths can be measured.
         for (let i = 0; i < allSpans.length && i < textItems.length; i++) {
           const el = allSpans[i] as HTMLElement
-          const item = textItems[i]
-          const canvasWidth = item.width || 0
-          if (canvasWidth <= 0) { measurements.push({ el, expectedWidth: 0, restTransform: '', originalTransform: '' }); continue }
-          const expectedWidth = canvasWidth * scale
+          const canvasWidth = textItems[i].width || 0
           const currentTransform = el.style.transform || ''
-          if (!currentTransform.includes('scaleX(')) { measurements.push({ el, expectedWidth: 0, restTransform: '', originalTransform: '' }); continue }
+          if (canvasWidth <= 0 || !currentTransform.includes('scaleX(')) continue
           const restTransform = currentTransform.replace(/scaleX\([^)]+\)\s*/, '').trim()
           el.style.transform = restTransform || 'none'
-          const naturalWidth = getLocalWidth(el)
-          const text = el.textContent || ''
-          if (naturalWidth > 0 && !text.includes(' ')) {
-            charRatioSum += expectedWidth / naturalWidth
+          measurements.push({ el, expectedWidth: canvasWidth * scale, restTransform, originalTransform: currentTransform, text: el.textContent || '', natural: 0 })
+        }
+        // Read 1: natural widths → pure character width ratio from space-free spans.
+        let charRatioSum = 0, charRatioCount = 0
+        for (const m of measurements) {
+          m.natural = getLocalWidth(m.el)
+          if (m.natural > 0 && !m.text.includes(' ')) {
+            charRatioSum += m.expectedWidth / m.natural
             charRatioCount++
           }
-          measurements.push({ el, expectedWidth, restTransform, originalTransform: currentTransform })
         }
         const charRatio = charRatioCount > 0 ? charRatioSum / charRatioCount : 1.0
-
-        // Pass 2: apply scaleX for characters + word-spacing for spaces
-        for (let i = 0; i < measurements.length && i < textItems.length; i++) {
-          const { el, expectedWidth, restTransform, originalTransform } = measurements[i]
-          if (expectedWidth <= 0) continue
-          const text = el.textContent || ''
-          const spaceCount = (text.match(/ /g) || []).length
-
-          if (spaceCount > 0) {
-            el.style.transform = `${restTransform ? restTransform + ' ' : ''}scaleX(${charRatio})`
-            const widthAfterCharScale = getLocalWidth(el)
-            if (widthAfterCharScale > 0) {
-              const spaceDiff = (expectedWidth / charRatio - widthAfterCharScale) / spaceCount
-              el.style.wordSpacing = `${spaceDiff}px`
-            }
+        // Write 2: scaleX for characters (spans with spaces get the shared ratio).
+        const spaced: Measure[] = []
+        for (const m of measurements) {
+          const prefix = m.restTransform ? m.restTransform + ' ' : ''
+          if (m.text.includes(' ')) {
+            m.el.style.transform = `${prefix}scaleX(${charRatio})`
+            spaced.push(m)
+          } else if (m.natural > 0) {
+            m.el.style.transform = `${prefix}scaleX(${m.expectedWidth / m.natural})`
           } else {
-            const naturalWidth = getLocalWidth(el)
-            if (naturalWidth > 0) {
-              el.style.transform = `${restTransform ? restTransform + ' ' : ''}scaleX(${expectedWidth / naturalWidth})`
-            } else {
-              el.style.transform = originalTransform
-            }
+            m.el.style.transform = m.originalTransform
           }
         }
+        // Read 2 + write 3: word-spacing makes up the rest for spans with spaces.
+        const scaledWidths = spaced.map(m => getLocalWidth(m.el))
+        spaced.forEach((m, i) => {
+          if (scaledWidths[i] > 0) {
+            const spaceCount = (m.text.match(/ /g) || []).length
+            m.el.style.wordSpacing = `${(m.expectedWidth / charRatio - scaledWidths[i]) / spaceCount}px`
+          }
+        })
 
         for (const el of textLayerEl.querySelectorAll('span, br')) {
           ;(el as HTMLElement).style.color = 'transparent'
@@ -283,9 +304,9 @@ export default function PdfPage({
       }
     }
 
-    init().catch((err) => console.error('[PdfPage] init error:', err))
+    init().catch((err) => { if (!cancelled) console.error('[PdfPage] init error:', err) })
 
-    return () => { cancelled = true }
+    return () => { cancelled = true; renderTask?.cancel(); textLayer?.cancel() }
   }, [pdfDoc, pageNum, scale])
 
   const handleAreaResized = useCallback(async (annId: string, newRect: { x: number; y: number; w: number; h: number }, imageData: string | undefined) => {
