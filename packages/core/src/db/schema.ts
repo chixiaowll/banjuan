@@ -159,8 +159,30 @@ CREATE TABLE IF NOT EXISTS mindmap_summaries (
 );
 `
 
+// Secondary indexes. Composite primary keys only cover their FIRST column, so
+// lookups by the second (backlinks by target, items by tag) and by document
+// path / mind-map id otherwise scan the whole table. Created on every open, so
+// existing libraries get them too.
+const INDEX_SQL = `
+CREATE INDEX IF NOT EXISTS idx_documents_path ON documents(path);
+CREATE INDEX IF NOT EXISTS idx_annotations_doc ON annotations(doc_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_notes_doc ON notes(doc_id);
+CREATE INDEX IF NOT EXISTS idx_note_links_target ON note_links(target_id);
+CREATE INDEX IF NOT EXISTS idx_doc_links_target ON doc_links(target_id);
+CREATE INDEX IF NOT EXISTS idx_note_annotations_annotation ON note_annotations(annotation_id);
+CREATE INDEX IF NOT EXISTS idx_doc_tags_tag ON doc_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_note_tags_tag ON note_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_mindmap_tags_tag ON mindmap_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_mindmap_nodes_mindmap ON mindmap_nodes(mindmap_id);
+CREATE INDEX IF NOT EXISTS idx_mindmap_nodes_parent ON mindmap_nodes(parent_id);
+CREATE INDEX IF NOT EXISTS idx_mindmap_edges_mindmap ON mindmap_edges(mindmap_id);
+CREATE INDEX IF NOT EXISTS idx_mindmap_boundaries_mindmap ON mindmap_boundaries(mindmap_id);
+CREATE INDEX IF NOT EXISTS idx_mindmap_summaries_mindmap ON mindmap_summaries(mindmap_id);
+`
+
 export function initSchema(db: PlatformDatabase): void {
   db.execute(SCHEMA_SQL)
+  db.execute(INDEX_SQL)
 
   try {
     db.execute(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(title, content, type, tokenize='unicode61')`)
