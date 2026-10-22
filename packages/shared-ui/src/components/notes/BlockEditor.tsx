@@ -15,6 +15,8 @@ import '@blocknote/mantine/style.css'
 import './BlockEditor.css'
 import { useBanjuanAPI } from '../../api.js'
 import type { BanjuanAPI } from '../../api.js'
+import * as blockNoteLocales from '@blocknote/core/locales'
+import { useI18n } from '../../i18n/index.js'
 import {
   exportBlocksToMarkdown, exportBlocksToHTML,
   extractExportAttachmentPaths,
@@ -303,10 +305,14 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     return `banjuan-attachment://${relativePath}`
   }, [noteId])
 
+  const { locale } = useI18n()
   const editor = useCreateBlockNote({
     schema,
     initialContent: parsedContent,
     uploadFile: handleUploadFile,
+    // Slash menu, placeholders and toolbars in the UI language (BlockNote ships
+    // all seven); taken at creation — a note opened after switching follows it.
+    dictionary: blockNoteLocales[locale] ?? blockNoteLocales.en,
   })
   editorRef.current = editor
 
