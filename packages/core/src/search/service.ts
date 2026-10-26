@@ -201,15 +201,21 @@ export class SearchService {
     const order = ranked ? 'doc_text.rank' : 'doc_text.page'
     let rows: Array<{ doc_id: string; page: number; content: string; title: string; type: string; hits: number }>
     try {
+      // Rank on row ids only; the page text (megabytes over many matches) is
+      // read just for the pages picked.
       rows = this.db.query(
-        `SELECT doc_id, page, content, title, type, hits FROM (
-           SELECT doc_text.doc_id AS doc_id, doc_text.page AS page, doc_text.content AS content, d.title AS title, d.type AS type,
-                  ${order} AS ord,
-                  ROW_NUMBER() OVER (PARTITION BY doc_text.doc_id ORDER BY ${order}) AS rn,
-                  COUNT(*) OVER (PARTITION BY doc_text.doc_id) AS hits
-             FROM doc_text JOIN documents d ON d.id = doc_text.doc_id
-            WHERE ${where.join(' AND ')}
-         ) WHERE rn = 1 ORDER BY ord LIMIT ?`,
+        `WITH hits AS (
+           SELECT doc_text.rowid AS rid, doc_text.doc_id AS doc_id, ${order} AS ord
+             FROM doc_text WHERE ${where.join(' AND ')}
+         ), best AS (
+           SELECT rid, doc_id, ord,
+                  ROW_NUMBER() OVER (PARTITION BY doc_id ORDER BY ord) AS rn,
+                  COUNT(*) OVER (PARTITION BY doc_id) AS hits
+             FROM hits
+         )
+         SELECT b.doc_id AS doc_id, t.page AS page, t.content AS content, d.title AS title, d.type AS type, b.hits AS hits
+           FROM best b JOIN doc_text t ON t.rowid = b.rid JOIN documents d ON d.id = b.doc_id
+          WHERE b.rn = 1 ORDER BY b.ord LIMIT ?`,
         [...params, limit],
       )
     } catch (e) {
