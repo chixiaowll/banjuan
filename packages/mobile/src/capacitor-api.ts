@@ -67,42 +67,49 @@ async function pickAndImportDocuments(destDir?: string): Promise<ImportResult[] 
 
 /** Pick Markdown files and make each a note (in `targetFolder`). Null when cancelled. */
 async function pickAndImportMarkdown(targetFolder: string | null): Promise<ImportResult[] | null> {
-  const lib = getLib()
   // Staged outside every library, read, then removed.
   const staging = `${LIBRARIES_ROOT}/.import-${Date.now().toString(36)}`
   try {
     const { files } = await FilePreview.pickFiles({ dest: await documentsUri(staging), extensions: ['md', 'markdown', 'txt'], multiple: true })
     if (!files.length) return null
-    const results: ImportResult[] = []
-    for (const f of files) {
-      if (f.error) { results.push({ title: f.name, success: false, error: f.error }); continue }
-      const baseName = f.name.replace(/\.(md|markdown|txt)$/i, '')
-      let content: string
-      // Read straight from Documents: the staging folder is outside the library,
-      // and a library-rooted CapacitorFS prefixed the path a second time.
-      try { content = (await Filesystem.readFile({ path: `${staging}/${f.name}`, directory: Directory.Documents, encoding: Encoding.UTF8 })).data as string } catch (e) {
-        results.push({ title: baseName, success: false, error: (e as Error)?.message ?? String(e) }); continue
-      }
-      let done = false
-      for (let attempt = 0; attempt < 100 && !done; attempt++) {
-        const title = attempt === 0 ? baseName : `${baseName} (${attempt + 1})`
-        try {
-          await lib.notes.create({ title, type: 'markdown', content, folder: targetFolder ?? undefined })
-          results.push({ title, success: true })
-          done = true
-        } catch (e) {
-          if ((e as Error)?.message === 'DUPLICATE_TITLE') continue
-          results.push({ title, success: false, error: (e as Error)?.message ?? String(e) })
-          done = true
-        }
-      }
-      if (!done) results.push({ title: baseName, success: false, error: 'TOO_MANY_DUPLICATES' })
-    }
-    try { await lib.flush() } catch { /* ignore */ }
-    return results
+    return await importStagedMarkdown(staging, files, targetFolder)
   } finally {
     await Filesystem.rmdir({ path: staging, directory: Directory.Documents, recursive: true }).catch(() => {})
   }
+}
+
+/** Markdown files copied into `staging` (a folder under Documents) become notes in the open library. */
+export async function importStagedMarkdown(
+  staging: string, files: Array<{ name: string; error?: string }>, targetFolder: string | null,
+): Promise<ImportResult[]> {
+  const lib = getLib()
+  const results: ImportResult[] = []
+  for (const f of files) {
+    if (f.error) { results.push({ title: f.name, success: false, error: f.error }); continue }
+    const baseName = f.name.replace(/\.(md|markdown|txt)$/i, '')
+    let content: string
+    // Read straight from Documents: the staging folder is outside the library,
+    // and a library-rooted CapacitorFS prefixed the path a second time.
+    try { content = (await Filesystem.readFile({ path: `${staging}/${f.name}`, directory: Directory.Documents, encoding: Encoding.UTF8 })).data as string } catch (e) {
+      results.push({ title: baseName, success: false, error: (e as Error)?.message ?? String(e) }); continue
+    }
+    let done = false
+    for (let attempt = 0; attempt < 100 && !done; attempt++) {
+      const title = attempt === 0 ? baseName : `${baseName} (${attempt + 1})`
+      try {
+        await lib.notes.create({ title, type: 'markdown', content, folder: targetFolder ?? undefined })
+        results.push({ title, success: true })
+        done = true
+      } catch (e) {
+        if ((e as Error)?.message === 'DUPLICATE_TITLE') continue
+        results.push({ title, success: false, error: (e as Error)?.message ?? String(e) })
+        done = true
+      }
+    }
+    if (!done) results.push({ title: baseName, success: false, error: 'TOO_MANY_DUPLICATES' })
+  }
+  try { await lib.flush() } catch { /* ignore */ }
+  return results
 }
 
 let library: Library | null = null

@@ -3,6 +3,7 @@
 // Documents/selftest-report.json; `shot` markers tell the test script on the
 // Mac when to take a screenshot.
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
+import { importStagedMarkdown } from './capacitor-api'
 
 const D = Directory.Documents
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
@@ -103,6 +104,29 @@ export async function runSelftest() {
     }
     const head = (await Filesystem.readFile({ path: `${exportDir}/导出测试.pdf`, directory: D })).data as string
     return { dir: exportDir, files: await list(exportDir), pdfMagic: atob(head.slice(0, 8)).slice(0, 5) }
+  })
+
+  await step('markdown import (staged outside the library)', async () => {
+    const staging = `BanJuanLibrary/.import-selftest`
+    await Filesystem.writeFile({ path: `${staging}/导入的笔记.md`, data: '# 导入的笔记\n\n来自文件的正文', directory: D, encoding: Encoding.UTF8, recursive: true })
+    const results = await importStagedMarkdown(staging, [{ name: '导入的笔记.md' }], null)
+    await Filesystem.rmdir({ path: staging, directory: D, recursive: true }).catch(() => {})
+    const created = (await api.notes.list()).find((n: any) => n.title === '导入的笔记')
+    const body = created ? (await api.notes.get(created.id))?.content ?? '' : ''
+    return results.every((r: any) => r.success) && body.includes('来自文件的正文') ? results : false
+  })
+
+  await step('a note imported (and the index saved) during a rebuild survives it', async () => {
+    const staging = `BanJuanLibrary/.import-selftest2`
+    await Filesystem.writeFile({ path: `${staging}/重建时导入.md`, data: '重建时导入的正文', directory: D, encoding: Encoding.UTF8, recursive: true })
+    const before = (await api.notes.list()).length
+    // The import ends with a save of the in-memory index, while the rebuild reads files.
+    const [, results] = await Promise.all([api.index.rebuild(), importStagedMarkdown(staging, [{ name: '重建时导入.md' }], null)])
+    await Filesystem.rmdir({ path: staging, directory: D, recursive: true }).catch(() => {})
+    const after = await api.notes.list()
+    const ok = after.length === before + 1 && after.some((n: any) => n.title === '重建时导入')
+    if (!ok) throw new Error(JSON.stringify({ before, after: after.map((n: any) => n.title), results }))
+    return { before, after: after.length, results }
   })
 
   await step('rebuild library', async () => {
