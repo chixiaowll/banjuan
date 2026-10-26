@@ -353,9 +353,18 @@ export class IndexService {
     if (!(await this.fs.exists(this.metaPath))) return true
     try {
       const meta = JSON.parse(await this.fs.readTextFile(this.metaPath)) as { indexVersion?: number }
-      return meta.indexVersion !== INDEX_VERSION
+      if (meta.indexVersion !== INDEX_VERSION) return true
     } catch {
       return true
+    }
+    // Notes but an empty text index: built where it couldn't be stored (iPad
+    // before search_index had a non-FTS fallback) — fill it now.
+    try {
+      const notes = this.db.queryOne<{ n: number }>('SELECT COUNT(*) AS n FROM notes')?.n ?? 0
+      const indexed = this.db.queryOne<{ n: number }>('SELECT COUNT(*) AS n FROM search_index')?.n ?? 0
+      return notes > 0 && indexed === 0
+    } catch {
+      return false
     }
   }
 }

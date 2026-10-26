@@ -231,7 +231,9 @@ function ensureSearchIndex(db: PlatformDatabase): void {
     if (trigram && existing && !/trigram/i.test(existing.sql)) db.execute('DROP TABLE search_index')
     db.execute(`CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(title, content, type, tokenize='${trigram ? 'trigram' : 'unicode61'}')`)
   } catch {
-    // FTS5 not available (e.g. sql.js on mobile)
+    // No FTS5 (sql.js on iPad): a plain table, searched by substring scans —
+    // without any table, note bodies weren't searchable there at all.
+    db.execute('CREATE TABLE IF NOT EXISTS search_index (title TEXT, content TEXT, type TEXT)')
   }
 }
 
@@ -256,4 +258,7 @@ function ensureDocTextIndex(db: PlatformDatabase): void {
       return
     } catch { /* trigram (SQLite < 3.34) or FTS5 unavailable */ }
   }
+  // No FTS5 (sql.js on iPad): a plain table, searched by substring scans.
+  db.execute('CREATE TABLE IF NOT EXISTS doc_text (content TEXT, doc_id TEXT, page INTEGER)')
+  db.execute('CREATE INDEX IF NOT EXISTS idx_doc_text_doc ON doc_text(doc_id)')
 }
