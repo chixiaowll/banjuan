@@ -73,12 +73,14 @@ export default function TextNoteTool({ active, color, pageNum, docId, pointAnnot
       style={{
         position: 'absolute', inset: 0,
         cursor: active ? 'crosshair' : 'default',
-        pointerEvents: active || pageAnns.length > 0 ? 'auto' : 'none',
+        // Only the placing tool covers the page; otherwise just the pins take
+        // clicks — the whole-page layer blocked text selection on any page with a note.
+        pointerEvents: active ? 'auto' : 'none',
         zIndex: active ? 10 : 5,
       }}
     >
       {pageAnns.map(ann => (
-        <div key={ann.id} style={{ position: 'absolute', left: `${ann.position.x * 100}%`, top: `${ann.position.y * 100}%`, transform: 'translate(-50%, -50%)' }}>
+        <div key={ann.id} style={{ position: 'absolute', left: `${ann.position.x * 100}%`, top: `${ann.position.y * 100}%`, transform: 'translate(-50%, -50%)', pointerEvents: 'auto' }}>
           <div
             onClick={(e) => { e.stopPropagation(); if (onContextMenu) { onContextMenu(e, ann.id) } else { startEdit(ann) } }}
             style={{ fontSize: 18, cursor: 'pointer', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }}

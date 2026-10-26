@@ -3,6 +3,7 @@ import { ChevronUp, ChevronDown, X } from 'lucide-react'
 import { usePdfViewer, type SearchMatch } from './PdfViewerContext.js'
 import { useT } from '../../i18n/index.js'
 import { useIsActiveTab } from '../tabActive.js'
+import { loadPageInfo, charsToPageRects } from './pdfText.js'
 
 export default function SearchPopup() {
   const t = useT()
@@ -33,7 +34,11 @@ export default function SearchPopup() {
     return () => window.removeEventListener('keydown', handler)
   }, [ctx.searchOpen, isActiveTab])
 
-  const performSearch = useCallback((query: string) => {
+  // Every page is searched, not only those rendered so far: text of the
+  // others is loaded (and cached) on demand. A newer query cancels an older one.
+  const searchSeq = useRef(0)
+  const performSearch = useCallback(async (query: string, optionOverrides?: Partial<{ caseSensitive: boolean; wholeWord: boolean }>) => {
+    const seq = ++searchSeq.current
     if (!query.trim()) {
       ctx.setSearchMatches([])
       ctx.setCurrentMatchIndex(0)
@@ -41,55 +46,36 @@ export default function SearchPopup() {
     }
 
     const matches: SearchMatch[] = []
-    const { pageInfoMap, searchOptions } = ctx
+    const { pageInfoMap, pdfDoc, numPages } = ctx
+    const searchOptions = { ...ctx.searchOptions, ...optionOverrides }   // a just-toggled option isn't in ctx yet
+    const needle = searchOptions.caseSensitive ? query : query.toLowerCase()
 
-    for (const [pageNum, info] of pageInfoMap.entries()) {
-      const pageText = info.chars.map(c => c.c).join('')
-      let searchText = pageText
-      let searchQuery = query
-      if (!searchOptions.caseSensitive) {
-        searchText = searchText.toLowerCase()
-        searchQuery = searchQuery.toLowerCase()
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      let info = pageInfoMap.get(pageNum)
+      if (!info && pdfDoc) {
+        try { info = await loadPageInfo(pdfDoc, pageNum) } catch { continue }
+        if (seq !== searchSeq.current) return
+        if (!pageInfoMap.has(pageNum)) pageInfoMap.set(pageNum, info)
       }
+      if (!info) continue
+      const pageText = info.chars.map(c => c.c).join('')
+      const searchText = searchOptions.caseSensitive ? pageText : pageText.toLowerCase()
 
       let pos = 0
       while (true) {
-        const idx = searchText.indexOf(searchQuery, pos)
+        const idx = searchText.indexOf(needle, pos)
         if (idx < 0) break
-
         if (searchOptions.wholeWord) {
           const before = idx > 0 ? searchText[idx - 1] : ' '
-          const after = idx + searchQuery.length < searchText.length ? searchText[idx + searchQuery.length] : ' '
-          if (/\w/.test(before) || /\w/.test(after)) {
-            pos = idx + 1
-            continue
-          }
+          const after = idx + needle.length < searchText.length ? searchText[idx + needle.length] : ' '
+          if (/\w/.test(before) || /\w/.test(after)) { pos = idx + 1; continue }
         }
-
-        const charSlice = info.chars.slice(idx, idx + query.length)
-        const pageW = info.width
-        const pageH = info.height
-
-        const rects: Array<{ x: number; y: number; w: number; h: number }> = []
-        for (const ch of charSlice) {
-          const [x1, y1, x2, y2] = ch.rect
-          const rx = Math.min(x1, x2) / pageW
-          const ry = 1 - (Math.max(y1, y2) / pageH)
-          const rw = Math.abs(x2 - x1) / pageW
-          const rh = Math.abs(y2 - y1) / pageH
-          const last = rects[rects.length - 1]
-          if (last && Math.abs(last.y - ry) < rh * 0.5) {
-            const newRight = Math.max(last.x + last.w, rx + rw)
-            last.w = newRight - last.x
-          } else {
-            rects.push({ x: rx, y: ry, w: rw, h: rh })
-          }
-        }
-
+        const rects = charsToPageRects(info, info.chars.slice(idx, idx + query.length))
         matches.push({ page: pageNum, charStart: idx, charEnd: idx + query.length - 1, rects })
         pos = idx + 1
       }
     }
+    if (seq !== searchSeq.current) return
 
     matches.sort((a, b) => a.page - b.page || a.charStart - b.charStart)
     ctx.setSearchMatches(matches)
@@ -100,7 +86,7 @@ export default function SearchPopup() {
   const handleQueryChange = (query: string) => {
     ctx.setSearchQuery(query)
     if (searchTimer.current) clearTimeout(searchTimer.current)
-    searchTimer.current = setTimeout(() => performSearch(query), 300)
+    searchTimer.current = setTimeout(() => { void performSearch(query) }, 300)
   }
 
   const handleNext = () => {
@@ -151,12 +137,12 @@ export default function SearchPopup() {
       <div style={{ display: 'flex', gap: 12, marginTop: 6, alignItems: 'center' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
           <input type="checkbox" checked={ctx.searchOptions.caseSensitive}
-            onChange={(e) => { ctx.setSearchOptions({ caseSensitive: e.target.checked }); performSearch(ctx.searchQuery) }} />
+            onChange={(e) => { ctx.setSearchOptions({ caseSensitive: e.target.checked }); void performSearch(ctx.searchQuery, { caseSensitive: e.target.checked }) }} />
           {t('search.caseSensitive')}
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
           <input type="checkbox" checked={ctx.searchOptions.wholeWord}
-            onChange={(e) => { ctx.setSearchOptions({ wholeWord: e.target.checked }); performSearch(ctx.searchQuery) }} />
+            onChange={(e) => { ctx.setSearchOptions({ wholeWord: e.target.checked }); void performSearch(ctx.searchQuery, { wholeWord: e.target.checked }) }} />
           {t('search.wholeWord')}
         </label>
         <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>

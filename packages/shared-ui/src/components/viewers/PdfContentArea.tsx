@@ -265,7 +265,8 @@ export default function PdfContentArea({ annotations, docId, onTextSelect, onHig
       }
 
       const range = getVisibleRange(pageOffsets, pageSizes, scrollTop, viewH)
-      setVisibleRange(range)
+      // Same range → same array: a new one every scroll frame re-rendered the whole page list.
+      setVisibleRange(prev => (prev[0] === range[0] && prev[1] === range[1] ? prev : range))
     }
 
     // Initial computation

@@ -9,6 +9,7 @@ import InkLassoTool from './InkLassoTool.js'
 import EraserTool from './EraserTool.js'
 import { useBanjuanAPI } from '../../api.js'
 import { useEyeProtection, EYE_PROTECTION_TINT, useEinkMode, EINK_FILTER } from './useEyeProtection.js'
+import { pageInfoFrom } from './pdfText.js'
 
 // Max canvas backing-store pixels per page (pdf.js viewer default, 2^24).
 const MAX_CANVAS_PIXELS = 16_777_216
@@ -34,6 +35,10 @@ export interface PageInfo {
   width: number
   height: number
   chars: PdfChar[]
+  /** The page's viewport at scale 1 (rotation + crop box): PDF space → displayed page. */
+  transform?: [number, number, number, number, number, number]
+  viewWidth?: number
+  viewHeight?: number
 }
 
 interface AnnotationData {
@@ -286,17 +291,7 @@ export default function PdfPage({
         }
       }
 
-      const chars: PdfChar[] = []
-      const items = textContent.items as any[]
-      for (const item of items) {
-        if (Array.isArray(item.chars)) {
-          for (const c of item.chars) {
-            if (c?.rect) chars.push(c)
-          }
-        }
-      }
-      const [, , vbW, vbH] = (page as any).view as [number, number, number, number]
-      pageInfoRef.current = { width: vbW, height: vbH, chars }
+      pageInfoRef.current = pageInfoFrom(page, textContent)
       onPageReady?.(pageNum, pageInfoRef.current)
 
       if (!cancelled) {
