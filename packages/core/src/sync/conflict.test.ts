@@ -35,3 +35,26 @@ describe('rewriteNoteConflict', () => {
     expect(rewriteNoteConflict('%PDF-1.7 binary…', { newId: 'x', ts: 1, deviceId: 'd' })).toBeNull()
   })
 })
+
+describe('rewriteNoteConflict for a mind map', () => {
+  it('gives nodes, edges, boundaries and summaries new ids and keeps references consistent', () => {
+    let n = 0
+    const makeId = () => `new-${++n}`
+    const map = JSON.stringify({
+      meta: { id: 'mm-1', title: 'Map' },
+      nodes: [{ id: 'r', parentId: null }, { id: 'a', parentId: 'r' }, { id: 's', parentId: null, floating: true }],
+      edges: [{ id: 'e1', sourceId: 'a', targetId: 'r' }],
+      boundaries: [{ id: 'b1', nodeIds: ['a'] }],
+      summaries: [{ id: 'sm1', nodeIds: ['a'], summaryNodeId: 's' }],
+    })
+    const out = JSON.parse(rewriteNoteConflict(map, { newId: 'mm-2', ts: 1700, deviceId: 'iPad', makeId })!)
+    const ids = out.nodes.map((x: any) => x.id)
+    expect(ids.some((id: string) => ['r', 'a', 's'].includes(id))).toBe(false)
+    const [r, a, s] = out.nodes
+    expect(a.parentId).toBe(r.id)
+    expect(out.edges[0]).toMatchObject({ sourceId: a.id, targetId: r.id })
+    expect(out.edges[0].id).not.toBe('e1')
+    expect(out.boundaries[0].nodeIds).toEqual([a.id])
+    expect(out.summaries[0]).toMatchObject({ nodeIds: [a.id], summaryNodeId: s.id })
+  })
+})

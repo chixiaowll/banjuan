@@ -460,10 +460,27 @@ export class SyncService {
     if (rel.startsWith('.banjuan/notes/') && rel.endsWith('.json')) {
       try {
         const text = await this.fs.readTextFile(localAbs)
-        const rewritten = rewriteNoteConflict(text, { newId: uuid(), ts, deviceId: this.deviceId })
+        const rewritten = rewriteNoteConflict(text, { newId: uuid(), ts, deviceId: this.deviceId, makeId: uuid })
         if (rewritten !== null) {
           await this.fs.writeTextFile(conflictAbs, rewritten)
           return conflictRel
+        }
+      } catch { /* fall back to a raw byte copy */ }
+    }
+    // An annotation edited on both sides: keep the local one as a separate
+    // annotation (new id, at its own store path) so both stay visible. A raw
+    // copy next to the original had the same id inside — read as a duplicate.
+    const annDir = '.banjuan/data/annotations/'
+    if (rel.startsWith(annDir) && rel.endsWith('.json')) {
+      try {
+        const ann = JSON.parse(await this.fs.readTextFile(localAbs))
+        if (ann && typeof ann.id === 'string') {
+          const id = uuid()
+          const copyRel = `${annDir}${id.slice(0, 2)}/${id}.json`
+          const copyAbs = join(this.rootPath, copyRel)
+          await this.fs.mkdir(dirname(copyAbs), { recursive: true })
+          await this.fs.writeTextFile(copyAbs, JSON.stringify({ ...ann, id, conflictOf: ann.id, conflictDevice: this.deviceId, conflictAt: ts }, null, 2))
+          return copyRel
         }
       } catch { /* fall back to a raw byte copy */ }
     }

@@ -32,12 +32,15 @@ function stampLabel(ts: number): string {
  */
 export function rewriteNoteConflict(
   text: string,
-  opts: { newId: string; ts: number; deviceId: string },
+  opts: { newId: string; ts: number; deviceId: string; makeId?: () => string },
 ): string | null {
   let data: any
   try { data = JSON.parse(text) } catch { return null }
   const meta = data?.meta
   if (!meta || typeof meta.id !== 'string') return null
+  // A mind map's node / edge / boundary / summary ids are global keys too: the
+  // copy keeping them collided with the original map's rows when indexed.
+  if (opts.makeId && Array.isArray(data.nodes)) renewMindmapIds(data, opts.makeId)
 
   const originalId = meta.id
   const originalTitle = typeof meta.title === 'string' && meta.title ? meta.title : 'Untitled'
@@ -47,4 +50,30 @@ export function rewriteNoteConflict(
   meta.conflictDevice = opts.deviceId || 'device'
   meta.conflictAt = opts.ts
   return JSON.stringify(data, null, 2)
+}
+
+/** Give every node, edge, boundary and summary of a mind-map file a new id, keeping all references consistent. */
+function renewMindmapIds(data: any, makeId: () => string): void {
+  const nodeIds = new Map<string, string>()
+  for (const n of data.nodes) if (n && typeof n.id === 'string') nodeIds.set(n.id, makeId())
+  const mapId = (id: unknown) => (typeof id === 'string' ? nodeIds.get(id) ?? id : id)
+  for (const n of data.nodes) {
+    if (!n) continue
+    n.id = mapId(n.id)
+    if (n.parentId) n.parentId = mapId(n.parentId)
+  }
+  for (const e of Array.isArray(data.edges) ? data.edges : []) {
+    e.id = makeId()
+    e.sourceId = mapId(e.sourceId)
+    e.targetId = mapId(e.targetId)
+  }
+  for (const b of Array.isArray(data.boundaries) ? data.boundaries : []) {
+    b.id = makeId()
+    b.nodeIds = Array.isArray(b.nodeIds) ? b.nodeIds.map(mapId) : b.nodeIds
+  }
+  for (const s of Array.isArray(data.summaries) ? data.summaries : []) {
+    s.id = makeId()
+    s.nodeIds = Array.isArray(s.nodeIds) ? s.nodeIds.map(mapId) : s.nodeIds
+    s.summaryNodeId = mapId(s.summaryNodeId)
+  }
 }

@@ -61,6 +61,10 @@ export class JsonStore<T extends { id: string }> {
           console.warn('[JsonStore] skipping file with an unsafe id or path', filePath)
           return null
         }
+        // Only `<id>.json` is the record. Anything else (a sync conflict copy
+        // `<id>.sync-conflict-….json`) carries the same id and would be read as
+        // a second, older copy of it; it stays on disk for manual recovery.
+        if (!filePath.endsWith(`/${data.id}.json`)) return null
         return data
       } catch (e) {
         console.warn('[JsonStore] skipping unreadable file', filePath, (e as Error)?.message)

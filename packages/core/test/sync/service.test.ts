@@ -181,6 +181,29 @@ describe('SyncService', () => {
     })
   })
 
+  describe('annotation edited on both sides', () => {
+    it('keeps the local edit as a separate annotation with a new id', async () => {
+      createTestFile(libPath, 'paper.txt', 'text')
+      const doc = await lib.documents.import('paper.txt')
+      const ann = await lib.annotations.create({ docId: doc.id, type: 'highlight', color: '#ff0', content: 'base', position: { type: 'text', start: 0, end: 4, text: 'text' } as any })
+      await syncService.sync()
+
+      const rel = `.banjuan/data/annotations/${ann.id.slice(0, 2)}/${ann.id}.json`
+      const localAbs = join(libPath, rel)
+      writeFileSync(localAbs, JSON.stringify({ ...JSON.parse(readFileSync(localAbs, 'utf-8')), content: 'local edit' }, null, 2))
+      adapter.seed('/' + rel, JSON.stringify({ ...JSON.parse(adapter.getContent('/' + rel)), content: 'remote edit' }), Date.now() + 60000)
+
+      const result = await syncService.sync()
+      expect(result.conflicts).toBe(1)
+      expect(JSON.parse(readFileSync(localAbs, 'utf-8')).content).toBe('remote edit')
+      const all = await new (await import('../../src/storage/json-store.js')).JsonStore<any>(join(libPath, '.banjuan', 'data', 'annotations'), deps.fs).listAll()
+      const copy = all.find(a => a.conflictOf === ann.id)
+      expect(copy).toMatchObject({ content: 'local edit', docId: doc.id })
+      expect(copy.id).not.toBe(ann.id)
+      expect(all.filter(a => a.id === ann.id)).toHaveLength(1)
+    })
+  })
+
   describe('events', () => {
     it('emits sync:started and sync:completed', async () => {
       const { EventBus } = await import('../../src/events/bus.js')

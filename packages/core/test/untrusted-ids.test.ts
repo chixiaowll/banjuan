@@ -34,6 +34,16 @@ describe('JsonStore with untrusted files', () => {
   })
 })
 
+describe('JsonStore and sync conflict copies', () => {
+  it('reads only <id>.json, not a conflict copy carrying the same id', async () => {
+    const dir = createTempDir()
+    const store = new JsonStore<{ id: string; v: number }>(dir, new NodeFS())
+    await store.write({ id: 'aa111', v: 2 })
+    writeFileSync(join(dir, 'aa', 'aa111.sync-conflict-1700-iPad.json'), JSON.stringify({ id: 'aa111', v: 1 }))
+    expect(await store.listAll()).toEqual([{ id: 'aa111', v: 2 }])
+  })
+})
+
 describe('a synced note file with a malicious id', () => {
   it('is not indexed, and attachment cleanup cannot reach outside the attachments folder', async () => {
     const parent = createTempDir()
