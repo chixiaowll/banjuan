@@ -46,6 +46,36 @@ async function documentsUri(path: string): Promise<string> {
 type ImportResult = { title: string; success: boolean; error?: string }
 
 /** Pick files in the system picker; they land in `destDir` of the library and are imported. Null when cancelled. */
+/** Files dropped onto the app (no paths here): copied into the library, then imported. */
+async function importDroppedDocuments(files: File[], destDir?: string): Promise<ImportResult[]> {
+  const lib = getLib()
+  const results: ImportResult[] = []
+  for (const file of files) {
+    const dot = file.name.lastIndexOf('.')
+    const ext = dot > 0 ? file.name.slice(dot) : ''
+    const stem = ext ? file.name.slice(0, -ext.length) : file.name
+    let name = file.name
+    const relOf = (n: string) => (destDir ? `${destDir}/${n}` : n)
+    const exists = (n: string) => Filesystem.stat({ path: `${lib.rootPath}/${relOf(n)}`, directory: Directory.Documents }).then(() => true, () => false)
+    for (let i = 2; await exists(name); i++) name = `${stem} (${i})${ext}`
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(file)
+      })
+      await Filesystem.writeFile({ path: `${lib.rootPath}/${relOf(name)}`, data: base64, directory: Directory.Documents, recursive: true })
+      await lib.documents.import(relOf(name))
+      results.push({ title: name, success: true })
+    } catch (e) {
+      results.push({ title: name, success: false, error: (e as Error)?.message ?? String(e) })
+    }
+  }
+  try { await lib.flush() } catch { /* the index is rebuilt from files if needed */ }
+  return results
+}
+
 async function pickAndImportDocuments(destDir?: string): Promise<ImportResult[] | null> {
   const lib = getLib()
   const dir = destDir ? `${lib.rootPath}/${destDir}` : lib.rootPath
@@ -82,15 +112,26 @@ async function pickAndImportMarkdown(targetFolder: string | null): Promise<Impor
 export async function importStagedMarkdown(
   staging: string, files: Array<{ name: string; error?: string }>, targetFolder: string | null,
 ): Promise<ImportResult[]> {
+  // Read straight from Documents: the staging folder is outside the library,
+  // and a library-rooted CapacitorFS prefixed the path a second time.
+  return importMarkdownTexts(files.map(f => ({
+    name: f.name,
+    content: async () => {
+      if (f.error) throw new Error(f.error)
+      return (await Filesystem.readFile({ path: `${staging}/${f.name}`, directory: Directory.Documents, encoding: Encoding.UTF8 })).data as string
+    },
+  })), targetFolder)
+}
+
+/** Each text becomes a markdown note titled after its file (numbered on a clash). */
+async function importMarkdownTexts(files: Array<{ name: string; content: () => Promise<string> }>, targetFolder: string | null): Promise<ImportResult[]> {
   const lib = getLib()
   const results: ImportResult[] = []
   for (const f of files) {
-    if (f.error) { results.push({ title: f.name, success: false, error: f.error }); continue }
     const baseName = f.name.replace(/\.(md|markdown|txt)$/i, '')
+    if (!/\.(md|markdown|txt)$/i.test(f.name)) { results.push({ title: f.name, success: false, error: 'NOT_MARKDOWN' }); continue }
     let content: string
-    // Read straight from Documents: the staging folder is outside the library,
-    // and a library-rooted CapacitorFS prefixed the path a second time.
-    try { content = (await Filesystem.readFile({ path: `${staging}/${f.name}`, directory: Directory.Documents, encoding: Encoding.UTF8 })).data as string } catch (e) {
+    try { content = await f.content() } catch (e) {
       results.push({ title: baseName, success: false, error: (e as Error)?.message ?? String(e) }); continue
     }
     let done = false
@@ -183,6 +224,17 @@ function createDeps(baseDir: string): PlatformDeps {
   }
 }
 
+/** Save pending edits and the index of the open library, then close it. */
+async function leaveCurrentLibrary(): Promise<void> {
+  const old = library
+  if (!old) return
+  try { await flushAll() } catch { /* each flusher reports its own failure */ }
+  library = null
+  currentLibraryPath = null
+  try { await old.flush() } catch { /* rebuilt from files if needed */ }
+  try { await old.close() } catch (e) { console.warn('[lib] closing the previous library failed', e) }
+}
+
 function getLib(): Library {
   if (!library) throw new Error('Library not open')
   return library
@@ -199,13 +251,20 @@ export function createCapacitorAPI(): BanjuanAPI {
         return JSON.parse(config)
       },
       async init(path, name) {
+        await leaveCurrentLibrary()
         library = await Library.init(path, createDeps(path), name)
         currentLibraryPath = path
         return { rootPath: library.rootPath, name: await library.getName(), imported: 0, skipped: 0, truncated: false, limit: MAX_LIBRARY_FILES }
       },
       async open(path) {
-        library = await Library.open(path, createDeps(path))
-        currentLibraryPath = path
+        // The same library again: keep its instance (reconciled below). Another:
+        // the one open now is saved and closed first — it used to stay open
+        // in the background, its database still in memory.
+        if (!(library && currentLibraryPath === path)) {
+          await leaveCurrentLibrary()
+          library = await Library.open(path, createDeps(path))
+          currentLibraryPath = path
+        }
         const indexSvc = library.createIndexService()
         // Whether the persisted DB came up populated. Checked BEFORE the syncs
         // below repopulate it, so we can tell a genuinely-cached open from a
@@ -236,22 +295,19 @@ export function createCapacitorAPI(): BanjuanAPI {
       async detectMissing() {
         return getLib().detectMissingFiles()
       },
-      // Same as the desktop: purge the chosen missing documents, then reopen and
-      // rebuild everything from the files on disk.
+      // Same as the desktop: purge the chosen missing documents, then rebuild
+      // everything from the files on disk — on the open instance. Closing and
+      // reopening it left anything running meanwhile (the text indexer, an
+      // import, a save) writing to a closed database.
       async rebuild(purgeIds: string[] = []) {
         const lib = getLib()
-        const rootPath = lib.rootPath
         const purged = await lib.purgeDocuments(purgeIds)
-        await lib.close()
-        library = null
-        const fresh = await Library.open(rootPath, createDeps(rootPath))
-        library = fresh
-        await Library.migrateNotes(rootPath, createDeps(rootPath).fs)
-        const sync = await fresh.syncWithDisk()
-        try { await fresh.notes.syncDisk() } catch { /* non-critical */ }
-        try { await fresh.tags.syncFromFiles() } catch { /* non-critical */ }
-        await fresh.createIndexService().rebuildFull()
-        try { await fresh.flush() } catch { /* ignore */ }
+        await Library.migrateNotes(lib.rootPath, createDeps(lib.rootPath).fs)
+        const sync = await lib.syncWithDisk()
+        try { await lib.notes.syncDisk() } catch { /* non-critical */ }
+        try { await lib.tags.syncFromFiles() } catch { /* non-critical */ }
+        await lib.createIndexService().rebuildFull()
+        try { await lib.flush() } catch { /* ignore */ }
         return { reimported: sync.imported, purged, markedMissing: sync.missing }
       },
       async rename(name: string) {
@@ -326,6 +382,9 @@ export function createCapacitorAPI(): BanjuanAPI {
       },
       async importFilesDialog(destDir?: string) {
         return pickAndImportDocuments(destDir)
+      },
+      async importDropped(files: File[], destDir?: string) {
+        return importDroppedDocuments(files, destDir)
       },
       async deleteDir(dirPath: string) {
         return getLib().documents.deleteDir(dirPath)
@@ -493,6 +552,9 @@ export function createCapacitorAPI(): BanjuanAPI {
       },
       async importMarkdownDialog(targetFolder: string | null) {
         return pickAndImportMarkdown(targetFolder)
+      },
+      async importDroppedMarkdown(files, targetFolder) {
+        return importMarkdownTexts(files.map(f => ({ name: f.name, content: () => f.text() })), targetFolder)
       },
       async renameDir(oldPath, newPath) {
         return getLib().notes.renameDir(oldPath, newPath)

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { translate } from '../i18n/index.js'
 
 vi.mock('../components/MindmapExportService.js', () => ({ renderMindmapToImage: vi.fn(async () => 'data:image/png;base64,AAAA') }))
 vi.mock('../components/handwriting/renderStrokes.js', () => ({ renderStroke: vi.fn() }))
@@ -58,7 +59,8 @@ describe('exportBlocksToMarkdown', () => {
       para('After'),
     ]
     const { markdown } = await exportBlocksToMarkdown(editor, blocks, api)
-    const i = markdown.indexOf('Before'), j = markdown.indexOf('> 📄 Book p.3'), k = markdown.indexOf('After')
+    // The page label is in the UI's language (here the default one).
+    const i = markdown.indexOf('Before'), j = markdown.indexOf(`> 📄 Book · ${translate('embed.pageShort', 3)}`), k = markdown.indexOf('After')
     expect(i).toBeGreaterThanOrEqual(0)
     expect(j).toBeGreaterThan(i)
     expect(k).toBeGreaterThan(j)

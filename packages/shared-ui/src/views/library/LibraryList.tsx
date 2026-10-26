@@ -418,13 +418,27 @@ export default function LibraryList() {
         onDrop={async (e) => {
           e.preventDefault()
           setNoteDragOver(false)
-          if (!e.dataTransfer.files.length || !api.getPathForFile) return
+          if (!e.dataTransfer.files.length) return
+          const dropped = Array.from(e.dataTransfer.files)
           const paths: string[] = []
-          for (const file of Array.from(e.dataTransfer.files)) {
-            const p = api.getPathForFile(file)
+          for (const file of dropped) {
+            const p = api.getPathForFile?.(file)
             if (p) paths.push(p)
           }
-          if (paths.length === 0) return
+          if (paths.length === 0) {
+            // No file paths (iPad): import the dropped files' contents — this
+            // used to do nothing at all.
+            let results: Array<{ title: string; success: boolean; error?: string }> | null = null
+            if (selectedSection === 'notes' && api.notes.importDroppedMarkdown) results = await api.notes.importDroppedMarkdown(dropped, selectedNoteDir)
+            else if (selectedSection === 'documents' && api.documents.importDropped) results = await api.documents.importDropped(dropped, selectedDir || undefined)
+            if (!results) return
+            const failed = results.filter(r => !r.success && r.error !== 'NOT_MARKDOWN' && r.error !== 'ALREADY_IN_LIBRARY')
+            if (failed.length > 0) {
+              void alertDialog({ title: t('import.someFailed'), message: failed.map(r => `${r.title}: ${r.error}`).join('\n') })
+            }
+            if (selectedSection === 'notes') { await loadNotes(); await loadNoteDirs() } else await loadDocuments()
+            return
+          }
           if (selectedSection === 'notes' && api.notes.importMarkdown) {
             const results = await api.notes.importMarkdown(paths, selectedNoteDir)
             const failed = results.filter((r: any) => !r.success && r.error !== 'NOT_MARKDOWN')

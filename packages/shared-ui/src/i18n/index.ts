@@ -69,3 +69,10 @@ export function useI18n() {
 export function useT() {
   return useContext(I18nContext).t
 }
+
+/** For code outside components (exports): a message in the language the UI is set to. */
+export function translate(key: MessageKey, ...args: Array<string | number>): string {
+  const locale = getInitialLocale()
+  const msg: string = locales[locale][key] ?? locales.zh[key] ?? key
+  return formatMessage(msg, args, LOCALE_TAGS[locale])
+}

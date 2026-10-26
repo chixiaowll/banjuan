@@ -3,6 +3,7 @@ import { renderStroke, renderAllStrokes } from '../handwriting/renderStrokes.js'
 import type { Stroke, StrokePoint } from '@banjuan/core'
 import { useBanjuanAPI } from '../../api.js'
 import { canvasScale } from './canvasScale.js'
+import { announceInkStroke } from './inkWrites.js'
 
 /** Ink overlays sit on top of the page's own canvas: keep them smaller. */
 const MAX_INK_PIXELS = 8_388_608
@@ -218,6 +219,7 @@ export default function InkTool({ active, eraserActive, color, lineWidth, pageNu
         })
         ownIdRef.current = created.id
       }
+      announceInkStroke({ docId, page: pageNum, annotationId: ownIdRef.current! })
     })
     onCreated()
   }, [drawing, docId, pageNum, color, lineWidth, onCreated, enqueue, storedInk, api])

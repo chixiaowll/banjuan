@@ -1,8 +1,9 @@
 import { utilityProcess, type UtilityProcess } from 'electron'
 import { join, dirname } from 'node:path'
 import { existsSync } from 'node:fs'
+import { stat } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import type { Library, DocTextJob } from '@banjuan/core'
+import { fileStamp, type Library, type DocTextJob } from '@banjuan/core'
 import { pdfjsLocation } from './pdf-text.js'
 
 /**
@@ -145,9 +146,19 @@ export function stopDocTextIndexer(): void {
   onDemand.stop()
 }
 
+const RECHECK_MS = 5 * 60_000
+const lastRecheck = new WeakMap<Library, number>()
+const stampOfFile = (abs: string) => stat(abs).then(s => fileStamp(s.size, s.mtimeMs), () => null)
+
 async function indexLibrary(lib: Library, stillOpen: () => boolean): Promise<void> {
   if (!lib.docText.available) return
   lib.docText.prune()
+  // Files replaced since they were read (edited elsewhere, synced in) — now and then.
+  if (Date.now() - (lastRecheck.get(lib) ?? 0) > RECHECK_MS) {
+    lastRecheck.set(lib, Date.now())
+    const changed = await lib.docText.recheckChanged(rel => stampOfFile(join(lib.rootPath, rel)))
+    if (changed) console.log(`[doc-text] ${changed} document(s) changed since they were read`)
+  }
   // New and changed documents, each once per pass.
   const tried = new Set<string>()
   for (;;) {
@@ -169,16 +180,18 @@ async function indexLibrary(lib: Library, stillOpen: () => boolean): Promise<voi
 async function indexOne(lib: Library, job: DocTextJob, stillOpen: () => boolean): Promise<void> {
   current = { library: lib.rootPath, title: job.path }
   const started = Date.now()
-  const r = await worker!.extract(join(lib.rootPath, job.path), job.type)
+  const abs = join(lib.rootPath, job.path)
+  const stamp = await stampOfFile(abs)
+  const r = await worker!.extract(abs, job.type)
   if (!stillOpen()) return   // closed meanwhile: its database is gone
   if (r.pages) {
     timedOutOnce.delete(job.id)
-    lib.docText.store(job.id, job.hash, r.pages)
+    lib.docText.store(job.id, job.hash, r.pages, stamp)
     console.log(`[doc-text] ${job.path}: ${r.pages.length} pages in ${Date.now() - started}ms`)
   } else {
     const retry = r.missing || (r.timedOut && !timedOutOnce.has(job.id))
     if (r.timedOut) timedOutOnce.add(job.id)
-    lib.docText.markFailed(job.id, job.hash, retry ? 'missing' : 'failed', r.error ?? 'unknown error')
+    lib.docText.markFailed(job.id, job.hash, retry ? 'missing' : 'failed', r.error ?? 'unknown error', stamp)
     console.warn(`[doc-text] ${job.path}: ${r.error}`)
   }
 }

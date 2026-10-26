@@ -581,7 +581,8 @@ export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLab
         ),
       })
       get().pushHistory()
-      api.mindmaps.updateNode(id, updates).catch(reportSaveError)
+      // Resolves once written (callers that must know — a flush on close — await it).
+      await api.mindmaps.updateNode(id, updates).catch(reportSaveError)
     },
 
     reparentNode: async (nodeId, newParentId, insertIndex) => {

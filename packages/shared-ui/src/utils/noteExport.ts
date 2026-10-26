@@ -1,6 +1,7 @@
 import type { BanjuanAPI } from '../api.js'
 import { renderStroke } from '../components/handwriting/renderStrokes.js'
 import { renderMindmapToImage } from '../components/MindmapExportService.js'
+import { translate } from '../i18n/index.js'
 
 const ATTACHMENT_PREFIX = 'banjuan-attachment://'
 
@@ -45,7 +46,7 @@ export function renderMindmapTreeMd(title: string, nodes: any[]): string {
   const walk = (nodeId: string, depth: number) => {
     const children = childrenMap.get(nodeId) ?? []
     for (const child of children) {
-      lines.push(`${'  '.repeat(depth)}- ${child.title || 'Untitled'}`)
+      lines.push(`${'  '.repeat(depth)}- ${child.title || translate('note.untitled')}`)
       walk(child.id, depth + 1)
     }
   }
@@ -61,7 +62,7 @@ export function renderMindmapTreeHtml(title: string, nodes: any[]): string {
     const children = childrenMap.get(nodeId) ?? []
     if (children.length === 0) return ''
     const items = children.map(c =>
-      `<li>${c.title || 'Untitled'}${renderList(c.id)}</li>`
+      `<li>${escapeHtml(c.title || translate('note.untitled'))}${renderList(c.id)}</li>`
     ).join('')
     return `<ul>${items}</ul>`
   }
@@ -159,25 +160,33 @@ export async function screenshotHandwritingEmbed(api: BanjuanAPI, noteId: string
   }
 }
 
+/** One handwriting page — images, then strokes — as a data URL, or null. */
+export async function handwritingPageDataUrl(page: any, pageSize: { width: number; height: number }, format: 'png' | 'jpeg' = 'png'): Promise<string | null> {
+  const dpr = 2
+  const canvas = document.createElement('canvas')
+  canvas.width = pageSize.width * dpr
+  canvas.height = pageSize.height * dpr
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.scale(dpr, dpr)
+  await drawHandwritingPage(ctx, page, pageSize)
+  const url = canvas.toDataURL(`image/${format}`)
+  canvas.width = canvas.height = 0
+  return url
+}
+
 async function renderHandwritingPages(note: any): Promise<string[]> {
   const parsed = JSON.parse(note.content)
   const pages = parsed.pages ?? []
   if (pages.length === 0) return []
   const typeMeta = note.typeMeta ?? {}
   const pageSize = (typeMeta as any).pageSize ?? { width: 1024, height: 768 }
-  const dpr = 2
   const dataUrls: string[] = []
   for (const page of pages) {
-    const canvas = document.createElement('canvas')
-    canvas.width = pageSize.width * dpr
-    canvas.height = pageSize.height * dpr
-    const ctx = canvas.getContext('2d')
-    if (!ctx) continue
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.scale(dpr, dpr)
-    await drawHandwritingPage(ctx, page, pageSize)
-    dataUrls.push(canvas.toDataURL('image/png'))
+    const url = await handwritingPageDataUrl(page, pageSize)
+    if (url) dataUrls.push(url)
   }
   return dataUrls
 }
@@ -277,7 +286,7 @@ async function customBlockToMarkdown(
     case 'mermaidBlock':
       return p.code ? `\`\`\`mermaid\n${p.code}\n\`\`\`` : ''
     case 'noteEmbed': {
-      const noteTitle = p.noteTitle || 'Untitled'
+      const noteTitle = p.noteTitle || translate('note.untitled')
       if (!p.noteId) return `> 📝 **${noteTitle}**`
       try {
         const note = await api.notes.get(p.noteId)
@@ -295,13 +304,13 @@ async function customBlockToMarkdown(
       return `> 📝 **${noteTitle}**`
     }
     case 'documentEmbed': {
-      const parts = [`📄 **${p.docTitle || 'Document'}**`]
+      const parts = [`📄 **${p.docTitle || translate('embed.untitledDocument')}**`]
       if (p.authors) parts.push(p.authors)
-      if (p.pageCount > 0) parts.push(`${p.pageCount} pages`)
+      if (p.pageCount > 0) parts.push(translate('embed.pageCount', p.pageCount))
       return `> ${parts.join(' · ')}`
     }
     case 'annotationEmbed': {
-      const lines = [`> 📄 ${p.docTitle || 'Document'}${p.page ? ` p.${p.page}` : ''}`]
+      const lines = [`> 📄 ${p.docTitle || translate('embed.untitledDocument')}${p.page ? ` · ${translate('embed.pageShort', p.page)}` : ''}`]
       if (p.quote) lines.push(`> "${p.quote}"`)
       if (p.comment) lines.push(`> ${p.comment}`)
       return lines.join('\n')
@@ -342,14 +351,14 @@ async function customBlockToHTML(block: any, api: BanjuanAPI): Promise<string> {
       }
     }
     case 'noteEmbed': {
-      const noteTitle = escapeHtml(p.noteTitle || 'Untitled')
+      const noteTitle = escapeHtml(p.noteTitle || translate('note.untitled'))
       if (p.noteId) {
         try {
           const note = await api.notes.get(p.noteId)
           if (note?.type === 'mindmap') {
             const imgDataUrl = await renderMindmapToImage(p.noteId)
             if (imgDataUrl) return `<div class="mindmap-export"><p>🧠 <strong>${noteTitle}</strong></p><img src="${imgDataUrl}" style="max-width:100%" /></div>`
-            return renderMindmapTreeHtml(p.noteTitle || 'Untitled', await api.mindmaps.getNodes(p.noteId))
+            return renderMindmapTreeHtml(p.noteTitle || translate('note.untitled'), await api.mindmaps.getNodes(p.noteId))
           }
           if (note?.type === 'handwriting') {
             const imgDataUrl = await screenshotHandwritingEmbed(api, p.noteId, pageIndexOf(p))
@@ -361,13 +370,13 @@ async function customBlockToHTML(block: any, api: BanjuanAPI): Promise<string> {
       return `<blockquote><p>📝 <strong>${noteTitle}</strong></p></blockquote>`
     }
     case 'documentEmbed': {
-      const parts = [`📄 <strong>${escapeHtml(p.docTitle || 'Document')}</strong>`]
+      const parts = [`📄 <strong>${escapeHtml(p.docTitle || translate('embed.untitledDocument'))}</strong>`]
       if (p.authors) parts.push(escapeHtml(p.authors))
-      if (p.pageCount > 0) parts.push(`${p.pageCount} pages`)
+      if (p.pageCount > 0) parts.push(translate('embed.pageCount', p.pageCount))
       return `<blockquote><p>${parts.join(' · ')}</p></blockquote>`
     }
     case 'annotationEmbed': {
-      let inner = `<p>📄 ${escapeHtml(p.docTitle || 'Document')}${p.page ? ` p.${escapeHtml(p.page)}` : ''}</p>`
+      let inner = `<p>📄 ${escapeHtml(p.docTitle || translate('embed.untitledDocument'))}${p.page ? ` · ${escapeHtml(translate('embed.pageShort', p.page))}` : ''}</p>`
       if (p.quote) inner += `<p><em>"${escapeHtml(p.quote)}"</em></p>`
       if (p.comment) inner += `<p>${escapeHtml(p.comment)}</p>`
       return `<blockquote>${inner}</blockquote>`

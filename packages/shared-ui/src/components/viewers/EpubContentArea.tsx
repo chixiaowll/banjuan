@@ -165,6 +165,7 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
   const renderedAnnotations = useRef(new Set<string>())
   const renderedCfiMap = useRef(new Map<string, string>())
   const renderedTypeMap = useRef(new Map<string, string>())
+  const renderedKeyMap = useRef(new Map<string, string>())
   const [selectionPopup, setSelectionPopup] = useState<SelectionPopup | null>(null)
   const [notePopup, setNotePopup] = useState<NotePopup | null>(null)
   const [noteText, setNoteText] = useState('')
@@ -213,33 +214,42 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
     }
   }, [])
 
-  // Apply highlights — clear and re-apply on every sync for correctness
+  // Keep epub.js's marks in step with the annotations: only what changed is
+  // removed or added (epub.js itself draws a chapter's marks when it renders).
+  // Every mark used to be removed and added again whenever the reader stopped
+  // scrolling — work proportional to the whole book's annotations each time.
   useEffect(() => {
     if (!ctx.rendition) return
     const rendition = ctx.rendition
+    const markKey = (ann: any) => `${ann.position.cfi}|${ann.type}|${ann.color}`
 
-    const syncHighlights = () => {
-      // Remove all previously tracked marks
-      for (const id of renderedAnnotations.current) {
+    const syncHighlights = (force = false) => {
+      const wanted = new Map<string, any>()
+      for (const ann of ctx.annotationsVisible ? annotations : []) {
+        if ((ann.type !== 'highlight' && ann.type !== 'note' && ann.type !== 'underline') || !ann.position?.cfi) continue
+        wanted.set(ann.id, ann)
+      }
+      for (const id of [...renderedAnnotations.current]) {
+        const ann = wanted.get(id)
+        if (!force && ann && renderedKeyMap.current.get(id) === markKey(ann)) continue
         const cfi = renderedCfiMap.current.get(id)
         const type = renderedTypeMap.current.get(id)
         if (cfi) {
           try { rendition.annotations.remove(cfi, type === 'underline' ? 'underline' : 'highlight') } catch {}
         }
+        renderedAnnotations.current.delete(id)
+        renderedCfiMap.current.delete(id)
+        renderedTypeMap.current.delete(id)
+        renderedKeyMap.current.delete(id)
       }
-      renderedAnnotations.current.clear()
-      renderedCfiMap.current.clear()
-      renderedTypeMap.current.clear()
-
-      // Re-apply all visible annotations
-      const visibleAnns = ctx.annotationsVisible ? annotations : []
-      for (const ann of visibleAnns) {
-        if ((ann.type !== 'highlight' && ann.type !== 'note' && ann.type !== 'underline') || !ann.position?.cfi) continue
+      for (const [id, ann] of wanted) {
+        if (renderedAnnotations.current.has(id)) continue
         try {
           applyAnnotationMark(rendition, ann.position.cfi, ann.id, ann.color, ann.type)
-          renderedAnnotations.current.add(ann.id)
-          renderedCfiMap.current.set(ann.id, ann.position.cfi)
-          renderedTypeMap.current.set(ann.id, ann.type)
+          renderedAnnotations.current.add(id)
+          renderedCfiMap.current.set(id, ann.position.cfi)
+          renderedTypeMap.current.set(id, ann.type)
+          renderedKeyMap.current.set(id, markKey(ann))
         } catch { /* section not loaded */ }
       }
     }
@@ -254,8 +264,19 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
 
     syncAndStyle()
 
-    rendition.on('relocated', syncAndStyle)
-    return () => { rendition.off('relocated', syncAndStyle) }
+    // A new chapter on screen: style its marks (and redo them once, as before,
+    // in case epub.js didn't draw them). Scrolling within a chapter needs nothing.
+    let lastHref: string | undefined = (rendition as any).location?.start?.href
+    const onRelocated = (location: any) => {
+      const href = location?.start?.href
+      if (href === lastHref) return
+      lastHref = href
+      syncHighlights(true)
+      if (containerRef.current) styleUnderlineMarks(containerRef.current)
+      setTimeout(() => { if (containerRef.current) styleUnderlineMarks(containerRef.current) }, 100)
+    }
+    rendition.on('relocated', onRelocated)
+    return () => { rendition.off('relocated', onRelocated) }
   }, [ctx.rendition, annotations, ctx.annotationsVisible])
 
   // Use refs for values accessed inside rendition event handlers

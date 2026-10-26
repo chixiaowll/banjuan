@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
-import { libraries, assignLibrary } from './ipc.js'
+import type { Library } from '@banjuan/core'
+import { libraries, assignLibrary, releaseLibrary } from './ipc.js'
 
 interface BatchExportJob {
   runId: string
@@ -23,6 +24,13 @@ let pendingJobs: BatchExportJob[] = []
 /** webContents id of the visible window that requested the active run. */
 let originId: number | null = null
 let idleTimer: ReturnType<typeof setTimeout> | null = null
+/**
+ * Runs wait their turn: the worker reads through the library assigned to it,
+ * and a second run from a window on another library used to switch it under
+ * the first one part-way.
+ */
+const queue: Array<{ job: BatchExportJob; lib: Library; origin: number }> = []
+let running = false
 
 const IDLE_CLOSE_MS = 2 * 60 * 1000
 
@@ -70,17 +78,25 @@ function getOrCreateExportWindow(): BrowserWindow {
     win.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'export-worker' })
   }
 
+  const workerId = win.webContents.id
   win.on('closed', () => {
     exportWin = null
     workerReady = false
     pendingJobs = []
     clearIdleTimer()
+    // Its hold on the library goes with it (it kept the library open for good).
+    void releaseLibrary(workerId)
+    // A run cut short by the window going away: tell everyone waiting.
+    if (running) sendToOrigin('batch-export:done')
+    for (const q of queue.splice(0)) sendTo(q.origin, 'batch-export:done')
+    running = false
   })
 
   // If the background renderer crashes mid-run, unblock the visible window's
   // progress panel instead of leaving it spinning forever.
   win.webContents.on('render-process-gone', () => {
-    sendToOrigin('batch-export:done')
+    if (running) sendToOrigin('batch-export:done')
+    running = false
     if (!win.isDestroyed()) win.close()
   })
 
@@ -88,12 +104,28 @@ function getOrCreateExportWindow(): BrowserWindow {
   return win
 }
 
-function sendToOrigin(channel: string, ...args: unknown[]) {
-  if (originId == null) return
+function sendTo(id: number | null, channel: string, ...args: unknown[]) {
+  if (id == null) return
   const wc = BrowserWindow.getAllWindows()
     .map(w => w.webContents)
-    .find(c => c.id === originId)
+    .find(c => c.id === id)
   if (wc && !wc.isDestroyed()) wc.send(channel, ...args)
+}
+
+function sendToOrigin(channel: string, ...args: unknown[]) {
+  sendTo(originId, channel, ...args)
+}
+
+async function runNext(): Promise<void> {
+  if (running || queue.length === 0) return
+  const next = queue.shift()!
+  running = true
+  originId = next.origin
+  clearIdleTimer()
+  const win = getOrCreateExportWindow()
+  await assignLibrary(win.webContents.id, next.lib)
+  if (workerReady) win.webContents.send('batch-export:job', next.job)
+  else pendingJobs.push(next.job) // flushed on 'batch-export:worker-ready'
 }
 
 export function registerExportWindowHandlers() {
@@ -102,18 +134,8 @@ export function registerExportWindowHandlers() {
     // (same DB connection) — never re-open, which would reindex and risk locks.
     const lib = libraries.get(event.sender.id)
     if (!lib) throw new Error('No library open')
-
-    originId = event.sender.id
-    clearIdleTimer()
-
-    const win = getOrCreateExportWindow()
-    await assignLibrary(win.webContents.id, lib)
-
-    if (workerReady) {
-      win.webContents.send('batch-export:job', job)
-    } else {
-      pendingJobs.push(job) // flushed on 'batch-export:worker-ready'
-    }
+    queue.push({ job, lib, origin: event.sender.id })
+    await runNext()
   })
 
   ipcMain.on('batch-export:worker-ready', (event) => {
@@ -131,6 +153,8 @@ export function registerExportWindowHandlers() {
   ipcMain.on('batch-export:done', (event) => {
     if (!exportWin || event.sender.id !== exportWin.webContents.id) return
     sendToOrigin('batch-export:done')
-    scheduleIdleClose()
+    running = false
+    if (queue.length) void runNext()
+    else scheduleIdleClose()
   })
 }

@@ -252,6 +252,10 @@ function ensureDocTextIndex(db: PlatformDatabase): void {
     error TEXT,
     updated_at TEXT NOT NULL
   )`)
+  // The file's "<size>:<mtime>" when it was extracted: a document's hash comes
+  // from its path, so this is what tells that its content changed since.
+  const stateColumns = db.pragma('table_info(doc_text_state)') as Array<{ name: string }>
+  if (!stateColumns.some(c => c.name === 'file_stamp')) db.execute('ALTER TABLE doc_text_state ADD COLUMN file_stamp TEXT')
   for (const tokenizer of ['trigram', 'unicode61']) {
     try {
       db.execute(`CREATE VIRTUAL TABLE IF NOT EXISTS doc_text USING fts5(content, doc_id UNINDEXED, page UNINDEXED, tokenize='${tokenizer}')`)

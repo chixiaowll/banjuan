@@ -1,5 +1,5 @@
 import { nativeImage, type NativeImage } from 'electron'
-import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { epubCoverImage, type Library } from '@banjuan/core'
@@ -41,13 +41,18 @@ export async function getCover(lib: Library, docId: string): Promise<string | nu
   if (!doc || !(doc.type === 'epub' || (osThumbnails && OS_THUMBNAIL_TYPES.has(doc.type)))) return null
   const dir = join(lib.rootPath, '.banjuan', COVER_CACHE_DIR)
   if (!pruned.has(lib)) { pruned.add(lib); void prune(lib, dir) }
-  const base = `${doc.id}.${(doc.hash || 'nohash').slice(0, 16)}`
+  // The file's size and time are part of the key: the hash comes from the
+  // path, so a file replaced in place used to keep its old cover for good.
+  const abs = join(lib.rootPath, doc.path)
+  let version = 'missing'
+  try { const s = statSync(abs); version = `${s.size.toString(36)}-${Math.floor(s.mtimeMs).toString(36)}` } catch { /* not here (yet) */ }
+  const base = `${doc.id}.${(doc.hash || 'nohash').slice(0, 16)}.${version}`
   const file = join(dir, `${base}.jpg`)
   if (existsSync(file)) return coverUrl(file)
   if (existsSync(join(dir, `${base}.none`))) return null   // tried: nothing to show
   let job = inflight.get(base)
   if (!job) {
-    job = limited(() => makeCover(join(lib.rootPath, doc.path), doc.type, dir, doc.id, base))
+    job = limited(() => makeCover(abs, doc.type, dir, doc.id, base))
       .catch(e => { console.warn('[covers]', doc.path, e); return null })
       .finally(() => inflight.delete(base))
     inflight.set(base, job)

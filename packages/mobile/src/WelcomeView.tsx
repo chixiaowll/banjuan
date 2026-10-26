@@ -213,8 +213,10 @@ export function WelcomeView({ onOpen }: Props) {
     setLoading(path)
     setError(null)
     setSyncProg({ phase: 'scanning', current: 0, total: 0, currentFile: '' })
+    let created = false
     try {
       await api.library.init(path, name)        // create + open an empty local library
+      created = true
       await api.lan.pairDevice(h.url, joinPin)   // store the durable token
       // empty library adopts host's id + pulls content; surface live progress
       await api.lan.syncDevice(h.url, (p) => setSyncProg(p))
@@ -222,6 +224,10 @@ export function WelcomeView({ onOpen }: Props) {
       setSyncProg(null)
       onOpen(path, name)
     } catch (err) {
+      // Remove the library made for this join (only that one): a wrong PIN
+      // otherwise left it behind, and trying again failed because it existed.
+      if (created) await api.library.delete?.(path).catch(() => {})
+      await refreshLibraries().catch(() => {})
       setError(t('welcome.joinFailed', err instanceof Error ? err.message : String(err)))
       setSyncProg(null)
       setLoading(null)

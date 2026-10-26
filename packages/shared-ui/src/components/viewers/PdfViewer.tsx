@@ -20,6 +20,7 @@ import DocumentLoadError from './DocumentLoadError.js'
 import { takeDocPage, onDocPageRequest } from '../../utils/docNavigation.js'
 import TextSelectionToolbar from './TextSelectionToolbar.js'
 import AnnotationContextMenu from './AnnotationContextMenu.js'
+import { onInkStrokeSaved } from './inkWrites.js'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   '@banjuan/zotero-pdfjs-dist/build/pdf.worker.mjs',
@@ -67,63 +68,72 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
   docRef.current = doc
 
   // --- Ink undo/redo ---
-  const inkRedoStackRef = useRef<Map<number, any[]>>(new Map())
+  // In the order strokes were drawn, on whatever page they went to (InkTool
+  // reports each saved stroke). Undo used to act on the page in view — the
+  // wrong page whenever the reader had scrolled since drawing.
+  const inkHistoryRef = useRef<Array<{ page: number; annotationId: string }>>([])
+  const inkRedoRef = useRef<Array<{ page: number; annotationId: string; stroke: any }>>([])
+  const [inkHistoryVersion, setInkHistoryVersion] = useState(0)
+  useEffect(() => onInkStrokeSaved(e => {
+    if (e.docId !== doc.id) return
+    inkHistoryRef.current.push({ page: e.page, annotationId: e.annotationId })
+    inkRedoRef.current = []
+    setInkHistoryVersion(v => v + 1)
+  }), [doc.id])
+
+  const boundsOf = (strokes: any[]) => {
+    const pts = strokes.flatMap((s: any) => s.points)
+    const xs = pts.map((p: any) => p.x)
+    const ys = pts.map((p: any) => p.y)
+    return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
+  }
 
   const handleInkUndo = useCallback(async () => {
-    const page = ctx.currentPage
-    const inkAnn = annotations.find(a => a.page === page && a.position?.type === 'ink')
-    if (!inkAnn) return
-    const strokes = inkAnn.position?.strokes || []
-    if (strokes.length === 0) return
-    const removed = strokes[strokes.length - 1]
+    // Strokes from before this viewer opened: the page in view, as before.
+    const last = inkHistoryRef.current.pop()
+    const page = last?.page ?? ctx.currentPage
+    const stored = last
+      ? await api.annotations.get(last.annotationId)
+      : (await api.annotations.list({ docId: doc.id, page })).find(a => (a.position as any)?.type === 'ink') ?? null
+    const strokes: any[] = (stored?.position as any)?.strokes ?? []
+    if (!stored || strokes.length === 0) { setInkHistoryVersion(v => v + 1); return }
     const remaining = strokes.slice(0, -1)
-    const redos = inkRedoStackRef.current.get(page) || []
-    inkRedoStackRef.current.set(page, [...redos, removed])
-    if (remaining.length === 0) {
-      await remove(inkAnn.id)
-    } else {
-      const allPts = remaining.flatMap((s: any) => s.points)
-      const xs = allPts.map((p: any) => p.x)
-      const ys = allPts.map((p: any) => p.y)
-      const bounds = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
-      await update(inkAnn.id, { position: { type: 'ink', page, strokes: remaining, bounds } })
-    }
+    inkRedoRef.current.push({ page, annotationId: stored.id, stroke: strokes[strokes.length - 1] })
+    if (remaining.length === 0) await remove(stored.id)
+    else await update(stored.id, { position: { type: 'ink', page, strokes: remaining, bounds: boundsOf(remaining) } })
+    setInkHistoryVersion(v => v + 1)
     reload()
-  }, [ctx.currentPage, annotations, remove, update, reload])
+  }, [ctx.currentPage, doc.id, remove, update, reload])
 
   const handleInkRedo = useCallback(async () => {
-    const page = ctx.currentPage
-    const redos = inkRedoStackRef.current.get(page) || []
-    if (redos.length === 0) return
-    const stroke = redos[redos.length - 1]
-    inkRedoStackRef.current.set(page, redos.slice(0, -1))
-    const inkAnn = annotations.find(a => a.page === page && a.position?.type === 'ink')
-    const existing = inkAnn?.position?.strokes || []
-    const allStrokes = [...existing, stroke]
-    const allPts = allStrokes.flatMap((s: any) => s.points)
-    const xs = allPts.map((p: any) => p.x)
-    const ys = allPts.map((p: any) => p.y)
-    const bounds = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
-    const position = { type: 'ink' as const, page, strokes: allStrokes, bounds }
-    if (inkAnn) {
-      await update(inkAnn.id, { position })
-    } else {
-      await create({ type: 'ink', page, position, color: ctx.activeColor })
-    }
+    const entry = inkRedoRef.current.pop()
+    if (!entry) return
+    const stored = await api.annotations.get(entry.annotationId)
+    const strokes = [...(((stored?.position as any)?.strokes) ?? []), entry.stroke]
+    const position = { type: 'ink' as const, page: entry.page, strokes, bounds: boundsOf(strokes) }
+    let annotationId = entry.annotationId
+    if (stored) await update(stored.id, { position })
+    else annotationId = (await create({ type: 'ink', page: entry.page, position, color: ctx.activeColor })).id
+    inkHistoryRef.current.push({ page: entry.page, annotationId })
+    setInkHistoryVersion(v => v + 1)
     reload()
-  }, [ctx.currentPage, ctx.activeColor, annotations, create, update, reload])
+  }, [ctx.activeColor, create, update, reload])
 
   const handleInkClearPage = useCallback(async () => {
     const page = ctx.currentPage
     const inkAnn = annotations.find(a => a.page === page && a.position?.type === 'ink')
     if (!inkAnn) return
     await remove(inkAnn.id)
-    inkRedoStackRef.current.delete(page)
+    inkHistoryRef.current = inkHistoryRef.current.filter(h => h.page !== page)
+    inkRedoRef.current = inkRedoRef.current.filter(h => h.page !== page)
+    setInkHistoryVersion(v => v + 1)
     reload()
   }, [ctx.currentPage, annotations, remove, reload])
 
-  const inkCanUndo = annotations.some(a => a.page === ctx.currentPage && a.position?.type === 'ink' && a.position?.strokes?.length > 0)
-  const inkCanRedo = (inkRedoStackRef.current.get(ctx.currentPage)?.length ?? 0) > 0
+  void inkHistoryVersion   // re-render when the history changes (it lives in refs)
+  const inkCanUndo = inkHistoryRef.current.length > 0
+    || annotations.some(a => a.page === ctx.currentPage && a.position?.type === 'ink' && a.position?.strokes?.length > 0)
+  const inkCanRedo = inkRedoRef.current.length > 0
 
   // --- Reading position persistence (page + fraction within page, scale-independent) ---
   // Convert scrollTop → { page, offsetFraction } using pageSizes
@@ -400,7 +410,7 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
           onTextSelect={handleTextSelect}
           onHighlightClick={() => ctx.setLeftSidebarOpen(true)}
           onAnnotationContextMenu={handleAnnotationContextMenu}
-          onAnnotationCreated={() => { inkRedoStackRef.current.delete(ctx.currentPage); reload() }}
+          onAnnotationCreated={reload}
           onAnnotationDelete={handleAnnotationDelete}
           onAnnotationUpdate={handleAnnotationUpdate}
           onPageSizesComputed={onPageSizesComputed}

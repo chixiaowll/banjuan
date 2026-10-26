@@ -15,7 +15,7 @@ import { emitLinksSynced } from '../../utils/linkEvents.js'
 import { useDebouncedSaver } from '../../utils/debouncedSaver.js'
 import { useNodeContentEditing } from '../mindmap/panels/useNodeContentEditing.js'
 import { useNoteContentSync, useNoteChangedElsewhere } from '../../utils/noteChanges.js'
-import { registerFlush } from '../../utils/flushRegistry.js'
+import { registerFlushUntilWritten } from '../../utils/flushRegistry.js'
 import { toast, errorMessage } from '../feedback.js'
 import { useShallow } from 'zustand/react/shallow'
 
@@ -203,8 +203,8 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
     () => noteType === 'handwriting' ? createHandwritingStore(api) : null,
     [noteId, noteType],
   )
-  useEffect(() => mindmapStore ? registerFlush(() => mindmapStore.getState().flushPersist()) : undefined, [mindmapStore])
-  useEffect(() => hwStore ? registerFlush(() => hwStore.getState().flushPendingSave()) : undefined, [hwStore])
+  useEffect(() => mindmapStore ? registerFlushUntilWritten(() => mindmapStore.getState().flushPersist()) : undefined, [mindmapStore])
+  useEffect(() => hwStore ? registerFlushUntilWritten(() => hwStore.getState().flushPendingSave()) : undefined, [hwStore])
 
   useEffect(() => {
     let cancelled = false

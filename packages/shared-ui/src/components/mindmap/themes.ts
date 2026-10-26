@@ -278,6 +278,11 @@ export const THEMES: Record<string, MindmapTheme> = {
   ocean,
 }
 
+/** i18n key of a theme's name (the `name` field is its English name). */
+export function themeNameKey(key: string): `mindmap.theme.${string}` {
+  return `mindmap.theme.${key}`
+}
+
 export function getTheme(name: string): MindmapTheme {
   return THEMES[name] ?? classic
 }

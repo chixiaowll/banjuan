@@ -60,6 +60,19 @@ describe('document text index and search', () => {
     expect(lib.docText.missing()).toEqual([])
   })
 
+  it('a document whose file changed since it was read is extracted again', async () => {
+    const a = await importDoc('a.pdf', 'one')
+    const b = await importDoc('b.pdf', 'two')
+    lib.docText.store(a.id, a.hash, [{ page: 1, text: 'old text' }], '3:1000')
+    lib.docText.store(b.id, b.hash, [{ page: 1, text: 'kept' }], '3:2000')
+    expect(lib.docText.pending()).toEqual([])
+    const changed = await lib.docText.recheckChanged(async path => (path === 'a.pdf' ? '5:3000' : '3:2000'))
+    expect(changed).toBe(1)
+    expect(lib.docText.pending().map(j => j.id)).toEqual([a.id])
+    // a file not here (still in the cloud) isn't taken as changed
+    expect(await lib.docText.recheckChanged(async () => null)).toBe(0)
+  })
+
   it('finds a document by its text — Chinese substrings, 1–2 character terms, AND across terms — with page and snippet', async () => {
     const pdf = await importDoc('paper.pdf')
     const epub = await importDoc('book.epub')

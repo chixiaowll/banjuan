@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react'
 import { PanelLeft, PanelRight, Undo2, Redo2, Trash2, FileDown, Image, FileCode, FileJson, FileText, FileImage, GripVertical, GitBranchPlus, Ungroup, Link2, Square, Braces } from 'lucide-react'
 import { useMindmapStore, useMindmapStoreApi } from './useMindmapStore.js'
-import { THEMES } from './themes.js'
+import { THEMES, themeNameKey } from './themes.js'
 import { toPng, toSvg } from 'html-to-image'
 import { getNodesBounds, getViewportForBounds } from '@xyflow/react'
 import { useT } from '../../i18n/index.js'
@@ -25,6 +25,22 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   useEscapeKey(exportMenuOpen, () => setExportMenuOpen(false))
+  const barRef = useRef<HTMLDivElement>(null)
+
+  // Where the page has no file download (iPad's web view ignores <a download>),
+  // a file goes through the platform's export instead (its share sheet).
+  const saveFile = useCallback(async (format: 'png' | 'svg' | 'json', file: { name: string; dataUrl?: string; text?: string }) => {
+    if (!api.batchExport && api.export?.writeFile) {
+      await exportToDirectory(api, [{ id: mindmapId || 'mindmap', title: mindmapTitle || 'mindmap', generate: async () => ({ attachments: [], files: [file] }) }], format)
+      return
+    }
+    const a = document.createElement('a')
+    const url = file.dataUrl ?? URL.createObjectURL(new Blob([file.text ?? ''], { type: 'application/json' }))
+    a.href = url
+    a.download = file.name
+    a.click()
+    if (!file.dataUrl) URL.revokeObjectURL(url)
+  }, [api, mindmapId, mindmapTitle])
 
   const handleExport = useCallback(async (format: 'png' | 'svg' | 'json' | 'pdf' | 'markdown') => {
     setExportMenuOpen(false)
@@ -32,21 +48,16 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
 
     if (format === 'json') {
       const data = JSON.stringify({ nodes: rfNodes.map(n => n.data), edges: rfEdges }, null, 2)
-      const blob = new Blob([data], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${mindmapTitle || 'mindmap'}.json`
-      a.click()
-      URL.revokeObjectURL(url)
+      await saveFile('json', { name: `${mindmapTitle || 'mindmap'}.json`, text: data })
       return
     }
-
     // Render-heavy formats run in the background export window (re-rendered from
     // saved data) so they never block this window.
     if (mindmapId && await exportSingleNote(api, { id: mindmapId, title: mindmapTitle || 'mindmap' }, format)) return
 
-    const canvasEl = document.querySelector('.mindmap-canvas') as HTMLElement
+    // This map's canvas — the first one in the page could be another tab's, or a preview.
+    const scope = barRef.current?.closest('[data-tab-panel]') ?? barRef.current?.parentElement?.parentElement ?? document
+    const canvasEl = scope.querySelector('.mindmap-canvas') as HTMLElement | null
     if (!canvasEl || rfNodes.length === 0) return
 
     const rfViewport = canvasEl.querySelector('.react-flow__viewport') as HTMLElement
@@ -130,11 +141,8 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
         transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`,
       },
     })
-    const a = document.createElement('a')
-    a.href = dataUrl
-    a.download = `${mindmapTitle || 'mindmap'}.${format}`
-    a.click()
-  }, [storeApi, mindmapTitle, mindmapId, api])
+    await saveFile(format, { name: `${mindmapTitle || 'mindmap'}.${format}`, dataUrl })
+  }, [storeApi, mindmapTitle, mindmapId, api, saveFile])
 
   const iconBtnStyle: React.CSSProperties = {
     background: 'none', border: 'none', fontSize: 14, cursor: 'pointer',
@@ -160,7 +168,7 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
   }
 
   return (
-    <div style={{
+    <div ref={barRef} style={{
       height: 40, padding: '0 12px', borderBottom: '1px solid var(--border, #e0e0e0)',
       display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
       background: 'var(--surface, #fff)', minWidth: 0,
@@ -182,8 +190,8 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
       </select>
 
       <select value={theme} onChange={e => setTheme(e.target.value)} style={selectStyle}>
-        {Object.entries(THEMES).map(([key, t]) => (
-          <option key={key} value={key}>{t.name}</option>
+        {Object.entries(THEMES).map(([key, th]) => (
+          <option key={key} value={key}>{t(themeNameKey(key) as any) || th.name}</option>
         ))}
       </select>
 

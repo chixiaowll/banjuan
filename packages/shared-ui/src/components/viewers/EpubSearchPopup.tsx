@@ -4,6 +4,9 @@ import { useEpubViewer } from './EpubViewerContext.js'
 import { useT } from '../../i18n/index.js'
 import { useIsActiveTab } from '../tabActive.js'
 
+/** Chapters loaded at the same time while searching. */
+const SEARCH_CONCURRENCY = 4
+
 interface SearchResult {
   cfi: string
   excerpt: string
@@ -52,13 +55,27 @@ export default function EpubSearchPopup() {
     // Results kept per section so the list stays in reading order no matter
     // which section finishes loading first.
     const perSection: SearchResult[][] = sections.map(() => [])
-    await Promise.all(sections.map((section, i) =>
-      section.load(book.load.bind(book)).then(() => {
-        if (gen !== searchGenRef.current) return
-        perSection[i] = section.find(q).map((item: any) => ({ cfi: item.cfi, excerpt: item.excerpt }))
-        setResults(perSection.flat())
-      }).catch((e: unknown) => console.warn('[EpubSearch] section failed', section.href, e))
-        .finally(() => section.unload?.())))
+    // A few chapters at a time, and none more once a newer query started:
+    // loading every chapter of a long book at once (again on each query) took
+    // seconds and a lot of memory.
+    let next = 0
+    const searchChapters = async () => {
+      while (next < sections.length && gen === searchGenRef.current) {
+        const i = next++
+        const section = sections[i]
+        try {
+          await section.load(book.load.bind(book))
+          if (gen !== searchGenRef.current) return
+          perSection[i] = section.find(q).map((item: any) => ({ cfi: item.cfi, excerpt: item.excerpt }))
+          if (perSection[i].length) setResults(perSection.flat())
+        } catch (e) {
+          console.warn('[EpubSearch] section failed', section.href, e)
+        } finally {
+          section.unload?.()
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(SEARCH_CONCURRENCY, sections.length) }, searchChapters))
     if (gen !== searchGenRef.current) return
     const all = perSection.flat()
     if (all.length > 0) {

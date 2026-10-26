@@ -60,23 +60,46 @@ export class DocTextService {
   }
 
   /** Replace a document's text. Empty pages are skipped (scanned PDFs have none). */
-  store(docId: string, hash: string, pages: Array<{ page: number; text: string }>): void {
+  /** `stamp`: the file's fileStamp() when it was read (see changedSince). */
+  store(docId: string, hash: string, pages: Array<{ page: number; text: string }>, stamp?: string | null): void {
     if (!this.available) return
     const kept = pages.filter(p => p.text.trim())
     this.db.transaction(() => {
       this.db.run('DELETE FROM doc_text WHERE doc_id = ?', [docId])
       for (const p of kept) this.db.run('INSERT INTO doc_text (content, doc_id, page) VALUES (?, ?, ?)', [p.text, docId, p.page])
-      this.setState(docId, hash, 'ok', kept.length, null)
+      this.setState(docId, hash, 'ok', kept.length, null, stamp ?? null)
     })
   }
 
   /** 'missing': no file yet (retried next time); 'failed': unreadable (retried when the file changes). */
-  markFailed(docId: string, hash: string, status: 'failed' | 'missing', error: string): void {
+  markFailed(docId: string, hash: string, status: 'failed' | 'missing', error: string, stamp?: string | null): void {
     if (!this.available) return
     this.db.transaction(() => {
       this.db.run('DELETE FROM doc_text WHERE doc_id = ?', [docId])
-      this.setState(docId, hash, status, 0, error.slice(0, 500))
+      this.setState(docId, hash, status, 0, error.slice(0, 500), stamp ?? null)
     })
+  }
+
+  /**
+   * Documents done (or failed) whose file is no longer the one read: they are
+   * made pending again. A document's hash comes from its path, so a file
+   * replaced in place (edited elsewhere, synced in) kept its old text for good.
+   * `stampOf` gives the file's current fileStamp(), or null when it isn't there.
+   */
+  async recheckChanged(stampOf: (path: string) => Promise<string | null>): Promise<number> {
+    if (!this.available) return 0
+    const rows = this.db.query<{ id: string; path: string; stamp: string }>(
+      `SELECT d.id, d.path, s.file_stamp AS stamp FROM doc_text_state s JOIN documents d ON d.id = s.doc_id
+        WHERE s.file_stamp IS NOT NULL AND s.status IN ('ok', 'failed')`)
+    let changed = 0
+    for (const r of rows) {
+      const now = await stampOf(r.path)
+      if (now && now !== r.stamp) {
+        this.db.run('DELETE FROM doc_text_state WHERE doc_id = ?', [r.id])
+        changed++
+      }
+    }
+    return changed
   }
 
   remove(docId: string): void {
@@ -108,14 +131,19 @@ export class DocTextService {
     return { total, pending, failed, indexed: total - pending - failed }
   }
 
-  private setState(docId: string, hash: string, status: string, pages: number, error: string | null): void {
+  private setState(docId: string, hash: string, status: string, pages: number, error: string | null, stamp: string | null): void {
     const type = this.db.queryOne<{ type: string }>('SELECT type FROM documents WHERE id = ?', [docId])?.type ?? ''
     if (EXTRACT_VERSION[type]) hash = `${hash}#${EXTRACT_VERSION[type]}`
     this.db.run(
-      `INSERT INTO doc_text_state (doc_id, hash, status, pages, error, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+      `INSERT INTO doc_text_state (doc_id, hash, status, pages, error, updated_at, file_stamp) VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(doc_id) DO UPDATE SET hash = excluded.hash, status = excluded.status, pages = excluded.pages,
-         error = excluded.error, updated_at = excluded.updated_at`,
-      [docId, hash, status, pages, error, new Date().toISOString()],
+         error = excluded.error, updated_at = excluded.updated_at, file_stamp = excluded.file_stamp`,
+      [docId, hash, status, pages, error, new Date().toISOString(), stamp],
     )
   }
+}
+
+/** A file's version as far as indexes go: its size and modification time. */
+export function fileStamp(size: number, mtimeMs: number): string {
+  return `${size}:${Math.floor(mtimeMs)}`
 }

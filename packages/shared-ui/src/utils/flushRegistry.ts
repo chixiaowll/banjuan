@@ -11,13 +11,30 @@
  * latest state.
  */
 type Phase = 'collect' | 'write'
-type Flusher = () => void | Promise<void>
+type Flusher = () => unknown
 
 const flushers = new Map<Phase, Set<Flusher>>([['collect', new Set()], ['write', new Set()]])
 
 export function registerFlush(fn: Flusher, phase: Phase = 'write'): () => void {
   flushers.get(phase)!.add(fn)
   return () => { flushers.get(phase)!.delete(fn) }
+}
+
+/**
+ * For an editor's store: registered while the editor is mounted, then flushed
+ * once more when it unmounts (a closed tab) — after the rest of that unmount,
+ * whose cleanups may still hand the store their last change, and staying
+ * registered until the write is done, so a window closing meanwhile waits for
+ * it. Unregistering at once lost a save still on its timer.
+ */
+export function registerFlushUntilWritten(fn: Flusher): () => void {
+  const unregister = registerFlush(fn)
+  return () => {
+    void Promise.resolve()
+      .then(fn)
+      .catch(e => console.error('[flush] write on close failed', e))
+      .finally(unregister)
+  }
 }
 
 async function runPhase(phase: Phase): Promise<void> {

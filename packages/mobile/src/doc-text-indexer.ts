@@ -1,5 +1,5 @@
 import * as pdfjsLib from '@banjuan/zotero-pdfjs-dist'
-import { extractPdfWith, extractEpub, extractPlain, type Library, type ExtractedPage, type DocTextJob } from '@banjuan/core'
+import { extractPdfWith, extractEpub, extractPlain, fileStamp, type Library, type ExtractedPage, type DocTextJob } from '@banjuan/core'
 import { Capacitor } from '@capacitor/core'
 import { Filesystem, Directory } from '@capacitor/filesystem'
 import { readDocumentsFile } from '@banjuan/platform-capacitor'
@@ -47,6 +47,9 @@ function cap(pages: ExtractedPage[]): ExtractedPage[] {
 }
 
 const yieldToUi = () => new Promise<void>(resolve => setTimeout(resolve, 0))
+const rechecked = new WeakSet<Library>()
+const stampOf = (lib: Library, rel: string) =>
+  Filesystem.stat({ path: `${lib.rootPath}/${rel}`, directory: Directory.Documents }).then(s => fileStamp(s.size, s.mtime), () => null)
 
 const readBytes = readDocumentsFile
 
@@ -73,10 +76,11 @@ async function indexLibrary(lib: Library, stillOpen: () => boolean): Promise<voi
     if (!stillOpen() || document.visibilityState === 'hidden') return false
     current = job.path
     const started = Date.now()
+    const stamp = await stampOf(lib, job.path)
     try {
       const pages = await extract(lib, job.path, job.type)
       if (!stillOpen()) return false
-      lib.docText.store(job.id, job.hash, pages)
+      lib.docText.store(job.id, job.hash, pages, stamp)
       stored++
       console.log(`[doc-text] ${job.path}: ${pages.length} pages in ${Date.now() - started}ms`)
     } catch (e) {
@@ -84,7 +88,7 @@ async function indexLibrary(lib: Library, stillOpen: () => boolean): Promise<voi
       const message = (e as Error)?.message ?? String(e)
       // A file that isn't here yet (not synced down) is tried again later.
       const missing = /not exist|no such file|not found/i.test(message)
-      lib.docText.markFailed(job.id, job.hash, missing ? 'missing' : 'failed', message)
+      lib.docText.markFailed(job.id, job.hash, missing ? 'missing' : 'failed', message, stamp)
       console.warn(`[doc-text] ${job.path}: ${message}`)
     }
     await yieldToUi()
@@ -100,6 +104,13 @@ async function indexLibrary(lib: Library, stillOpen: () => boolean): Promise<voi
     savedAt = Date.now()
   }
   const full = () => lib.docText.totalChars() > MAX_LIBRARY_CHARS
+  // Files replaced since they were read (synced in, edited elsewhere): checked
+  // once per library opened — each check is a call to the native side.
+  if (!rechecked.has(lib)) {
+    rechecked.add(lib)
+    const changed = await lib.docText.recheckChanged(rel => stampOf(lib, rel))
+    if (changed) console.log(`[doc-text] ${changed} document(s) changed since they were read`)
+  }
   if (full()) return
 
   // New and changed documents, each once per pass.

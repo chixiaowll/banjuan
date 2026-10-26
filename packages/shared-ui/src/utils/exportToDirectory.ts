@@ -1,5 +1,6 @@
 import type { BanjuanAPI, ExportFormat } from '../api.js'
 import { useExportManagerStore } from '../stores/useExportManagerStore.js'
+import { flushAll } from './flushRegistry.js'
 
 export interface ExportFile {
   name: string
@@ -64,6 +65,8 @@ export async function exportSingleNote(
   pageIndex?: number,
 ): Promise<boolean> {
   if (!api.batchExport) return false
+  // The export window reads the note from disk: edits still on their save timer go first.
+  await flushAll()
   const dir = await api.dialog.openDirectory()
   if (!dir) return true
   const runId = newRunId()

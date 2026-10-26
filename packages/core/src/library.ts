@@ -232,6 +232,14 @@ export class Library {
     return new StubService(this.rootPath, new WebDAVAdapter(this.fs), this.fs)
   }
 
+  /**
+   * Mind maps from before they were notes (.banjuan/mindmaps, .banjuan/data/mindmaps)
+   * become note files. Each is migrated once: the ids done are recorded in
+   * .banjuan/migrated-mindmaps.json (synced, so every device agrees). It used
+   * to run on every open and write any map whose note file wasn't at its
+   * original place — bringing back maps that had been deleted, and copying maps
+   * moved into a folder back to the top.
+   */
   private static async migrateExistingMindmapFiles(rootPath: string, fs: PlatformFS): Promise<void> {
     const banjuanDir = join(rootPath, '.banjuan')
     const notesDir = join(banjuanDir, 'notes')
@@ -239,9 +247,32 @@ export class Library {
       join(banjuanDir, 'mindmaps'),
       join(banjuanDir, 'data', 'mindmaps'),
     ]
+    const present: string[] = []
+    for (const d of oldDirs) if (await fs.exists(d)) present.push(d)
+    if (present.length === 0) return
 
-    for (const oldDir of oldDirs) {
-      if (!(await fs.exists(oldDir))) continue
+    const markerPath = join(banjuanDir, 'migrated-mindmaps.json')
+    let done = new Set<string>()
+    let firstRun = true
+    try {
+      done = new Set(JSON.parse(await fs.readTextFile(markerPath)) as string[])
+      firstRun = false
+    } catch { /* no record yet */ }
+    // Without a record (libraries migrated by earlier versions), a map whose
+    // note file exists anywhere counts as done.
+    const noteFiles = new Set<string>()
+    if (firstRun && (await fs.exists(notesDir))) {
+      const walk = async (dir: string) => {
+        for (const e of await fs.readdirWithTypes(dir)) {
+          if (e.isDirectory) await walk(join(dir, e.name))
+          else noteFiles.add(e.name)
+        }
+      }
+      await walk(notesDir).catch(() => {})
+    }
+
+    let changed = false
+    for (const oldDir of present) {
       const scan = async (dir: string, prefix: string) => {
         const entries = await fs.readdirWithTypes(dir)
         for (const entry of entries) {
@@ -251,7 +282,11 @@ export class Library {
           } else if (entry.name.endsWith('.json')) {
             try {
               const raw = JSON.parse(await fs.readTextFile(srcPath))
-              if (!raw.id) return
+              if (!raw.id || typeof raw.id !== 'string') continue   // not a map; the rest of the folder still is
+              if (done.has(raw.id)) continue
+              done.add(raw.id)
+              changed = true
+              if (noteFiles.has(`${raw.id}.json`)) continue
               const meta = {
                 id: raw.id,
                 title: raw.title,
@@ -282,6 +317,7 @@ export class Library {
       }
       await scan(oldDir, '')
     }
+    if (changed) await fs.writeTextFile(markerPath, JSON.stringify([...done].sort(), null, 2))
   }
 
   private async walkFiles(limit = MAX_LIBRARY_FILES): Promise<{ files: string[]; truncated: boolean }> {

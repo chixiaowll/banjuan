@@ -1,5 +1,5 @@
 import React from 'react'
-import { THEMES } from '../themes.js'
+import { THEMES, themeNameKey } from '../themes.js'
 import { useMindmapStore } from '../useMindmapStore.js'
 import { useT } from '../../../i18n/index.js'
 import { useShallow } from 'zustand/react/shallow'
@@ -44,7 +44,7 @@ export default function ThemePanel({ onClose }: Props) {
               Aa
             </div>
             <div style={{ textAlign: 'left' }}>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>{th.name}</div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{t(themeNameKey(key) as any) || th.name}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted, #999)' }}>
                 {th.canvas.background === '#1E1E2E' ? t('mindmap.themeDark') : t('mindmap.themeLight')} · {t(EDGE_TYPE_KEYS[th.edges.type])}
               </div>

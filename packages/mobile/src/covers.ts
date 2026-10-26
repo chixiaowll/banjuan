@@ -32,7 +32,11 @@ export async function getCover(lib: Library, docId: string): Promise<string | nu
   if (doc.type !== 'pdf' && doc.type !== 'epub') return null
 
   const dir = `${lib.rootPath}/.banjuan/.cover-cache`
-  const base = `${doc.id}.${(doc.hash || 'nohash').slice(0, 16)}`
+  // The file's size and time are part of the key: the hash comes from the
+  // path, so a file replaced in place used to keep its old cover for good.
+  const st = await Filesystem.stat({ path: docPath, directory: Directory.Documents }).catch(() => null)
+  const version = st ? `${st.size.toString(36)}-${Math.floor(st.mtime).toString(36)}` : 'missing'
+  const base = `${doc.id}.${(doc.hash || 'nohash').slice(0, 16)}.${version}`
   const file = `${dir}/${base}.jpg`
   if (await exists(file)) return Capacitor.convertFileSrc(await uriOf(file))
   if (await exists(`${dir}/${base}.none`)) return null   // tried: nothing to show

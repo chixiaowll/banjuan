@@ -13,6 +13,8 @@ import { useResizable, ResizeHandle } from '../ResizeHandle.js'
 import { useBanjuanAPI } from '../../api.js'
 import { takeDocPage, onDocPageRequest } from '../../utils/docNavigation.js'
 import { inSection } from './epubSection.js'
+import { registerFlushUntilWritten } from '../../utils/flushRegistry.js'
+import { queueInkWrite } from './inkWrites.js'
 
 interface DocInfo {
   id: string
@@ -49,16 +51,26 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
 
   useEffect(() => { docRef.current = doc }, [doc])
 
-  const saveReadingPosition = useCallback((cfi: string, percentage: number) => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => {
-      const d = docRef.current
-      api.documents.update(d.id, {
-        // A fraction, like the PDF / Markdown viewers (this used to store 0–100).
-        metadata: { readingPosition: { cfi, percentage: percentage / 100 } },
-      }).catch(() => {})
-    }, 1000)
+  // The position is saved a second after the reader stops — and right away
+  // when the tab closes or the window quits (it used to be dropped then).
+  const pendingSaveRef = useRef<(() => Promise<unknown>) | null>(null)
+  const flushPosition = useCallback(() => {
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null }
+    const run = pendingSaveRef.current
+    pendingSaveRef.current = null
+    return run?.()
   }, [])
+  useEffect(() => registerFlushUntilWritten(flushPosition), [flushPosition])
+
+  const saveReadingPosition = useCallback((cfi: string, percentage: number) => {
+    const docId = docRef.current.id
+    pendingSaveRef.current = () => api.documents.update(docId, {
+      // A fraction, like the PDF / Markdown viewers (this used to store 0–100).
+      metadata: { readingPosition: { cfi, percentage: percentage / 100 } },
+    }).catch(() => {})
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => { void flushPosition() }, 1000)
+  }, [flushPosition])
 
   useEffect(() => {
     let cancelled = false
@@ -149,8 +161,7 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
           if (cancelled) return
 
           ctx.setCurrentHref(location.start.href)
-          const pct = location.start.percentage != null
-            ? Math.round(location.start.percentage * 100) : 0
+          const pct = Math.round(progressOf(location, epubBook) * 100)
           ctx.setPercentage(pct)
 
           const cfi = location.start.cfi
@@ -168,7 +179,7 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
     return () => {
       cancelled = true
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      void flushPosition()
       if (bookRef.current) {
         bookRef.current.destroy()
         bookRef.current = null
@@ -254,15 +265,38 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
     reload()
   }, [annotations, reload, ctx.currentHref])
 
+  // On the annotation as stored (after any stroke still being saved), not the
+  // list on screen, which lags behind.
   const handleInkUndo = useCallback(async () => {
     const entry = ctx.popInkUndo()
     if (!entry) return
-    const current = annotations.find((a: any) => a.id === entry.annotationId)
-    if (current) {
-      ctx.pushInkRedo({ annotationId: current.id, strokes: [...(current as any).position.strokes] })
-      if (entry.strokes.length === 0) {
-        await api.annotations.delete(current.id)
-      } else {
+    await queueInkWrite(doc.id, async () => {
+      const current = await api.annotations.get(entry.annotationId)
+      if (current) {
+        ctx.pushInkRedo({ annotationId: current.id, strokes: [...(current as any).position.strokes] })
+        if (entry.strokes.length === 0) {
+          await api.annotations.delete(current.id)
+        } else {
+          const allPts = entry.strokes.flatMap((s: any) => s.points)
+          const xs = allPts.map((p: any) => p.x)
+          const ys = allPts.map((p: any) => p.y)
+          const bounds = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
+          await api.annotations.update(current.id, {
+            position: { ...(current as any).position, strokes: entry.strokes, bounds },
+          })
+        }
+      }
+    }).catch(e => console.error('[EpubInk] undo failed', e))
+    reload()
+  }, [doc.id, reload])
+
+  const handleInkRedo = useCallback(async () => {
+    const entry = ctx.popInkRedo()
+    if (!entry) return
+    await queueInkWrite(doc.id, async () => {
+      const current = await api.annotations.get(entry.annotationId)
+      if (current) {
+        ctx.pushInkUndo({ annotationId: current.id, strokes: [...(current as any).position.strokes] })
         const allPts = entry.strokes.flatMap((s: any) => s.points)
         const xs = allPts.map((p: any) => p.x)
         const ys = allPts.map((p: any) => p.y)
@@ -271,26 +305,9 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
           position: { ...(current as any).position, strokes: entry.strokes, bounds },
         })
       }
-    }
+    }).catch(e => console.error('[EpubInk] redo failed', e))
     reload()
-  }, [annotations, reload])
-
-  const handleInkRedo = useCallback(async () => {
-    const entry = ctx.popInkRedo()
-    if (!entry) return
-    const current = annotations.find((a: any) => a.id === entry.annotationId)
-    if (current) {
-      ctx.pushInkUndo({ annotationId: current.id, strokes: [...(current as any).position.strokes] })
-      const allPts = entry.strokes.flatMap((s: any) => s.points)
-      const xs = allPts.map((p: any) => p.x)
-      const ys = allPts.map((p: any) => p.y)
-      const bounds = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
-      await api.annotations.update(current.id, {
-        position: { ...(current as any).position, strokes: entry.strokes, bounds },
-      })
-    }
-    reload()
-  }, [annotations, reload])
+  }, [doc.id, reload])
 
   const handleCreateNote = useCallback(async () => {
     let title = t('note.defaultTitle' as any, doc.title)
@@ -404,4 +421,22 @@ export default function EpubViewer({ data, doc, onOpenNote }: Props) {
       <EpubViewerInner data={data} doc={doc} onOpenNote={onOpenNote} />
     </EpubViewerProvider>
   )
+}
+
+/**
+ * How far into the book a location is, 0–1. epub.js knows only once it has
+ * generated "locations" (parsing every chapter — slow for a big book, so it
+ * isn't done): without them its percentage is always 0. Then the chapter's
+ * place in the book, plus the place within the chapter, stands in.
+ */
+function progressOf(location: any, book: any): number {
+  const start = location?.start
+  if (!start) return 0
+  if (location.atEnd) return 1
+  if (typeof start.percentage === 'number' && book?.locations?.length?.() > 0) return start.percentage
+  const chapters = book?.spine?.length ?? book?.spine?.spineItems?.length ?? 0
+  if (!chapters) return 0
+  const shown = start.displayed
+  const within = shown && shown.total > 0 ? (shown.page - 1) / shown.total : 0
+  return Math.min(1, Math.max(0, ((start.index ?? 0) + within) / chapters))
 }

@@ -165,6 +165,7 @@ export async function releaseLibrary(key: number): Promise<void> {
     await lanHost.stop().catch(() => {})
     lanHost = null
     lanHostOwner = null
+    discovery.stopAdvertise()   // or nearby devices kept finding a host that was gone
   }
   if ([...libraries.values()].includes(lib)) return
   try { await lib.close() } catch (e) { console.warn('[library] closing failed', lib.rootPath, e) }
@@ -209,19 +210,51 @@ function getLib(event: Electron.IpcMainInvokeEvent): Library {
 }
 
 
-export async function initLibraryForApi(path: string, name?: string): Promise<Library> {
-  const existing = [...libraries.values()].find(l => l.rootPath === path)
-  if (existing) return existing
-  const isExisting = await Library.isLibrary(path, deps)
-  const lib = isExisting ? await Library.open(path, deps) : await Library.init(path, deps, name)
-  if (isExisting) {
-    await Library.migrateNotes(path, deps.fs)
-    await lib.syncWithDisk()
-    try { await lib.notes.syncDisk() } catch {}
-    try { await lib.tags.syncFromFiles() } catch {}
-  } else {
-    await lib.scanAndImport()
+/** Opens under way, by resolved path: a second open of the same library joins the first. */
+const opening = new Map<string, Promise<{ lib: Library; syncResult: Awaited<ReturnType<Library['syncWithDisk']>> | null }>>()
+
+/**
+ * The open instance of the library at `path`, opening it if no window or API
+ * client has it yet. Two opens racing (two windows, a window and the local
+ * API) each made their own instance before; the index is rebuilt only when stale.
+ */
+async function openShared(path: string): Promise<{ lib: Library; syncResult: Awaited<ReturnType<Library['syncWithDisk']>> | null }> {
+  const shared = openInstanceOf(path)
+  if (shared) return { lib: shared, syncResult: null }
+  const key = resolve(path)
+  let job = opening.get(key)
+  if (!job) {
+    job = (async () => {
+      const lib = await Library.open(path, deps)
+      try {
+        await Library.migrateNotes(path, deps.fs)
+        const syncResult = await lib.syncWithDisk()
+        try { await lib.notes.syncDisk() } catch { /* non-critical */ }
+        try { await lib.tags.syncFromFiles() } catch { /* non-critical */ }
+        lib.plugins.setWebContentsSender(sendToLibraryWindows(lib))
+        await lib.plugins.loadAll()
+        // The DB persists across opens: a full rebuild only when it is stale
+        // (never stamped / version changed).
+        const indexService = lib.createIndexService()
+        if (await indexService.isStale()) await indexService.rebuildFull()
+        return { lib, syncResult }
+      } catch (e) {
+        await lib.close().catch(() => {})
+        throw e
+      }
+    })().finally(() => opening.delete(key))
+    opening.set(key, job)
   }
+  return job
+}
+
+export async function initLibraryForApi(path: string, name?: string): Promise<Library> {
+  const existing = openInstanceOf(path)
+  if (existing) return existing
+  if (await Library.isLibrary(path, deps)) return openLibraryForApi(path)
+  const lib = await Library.init(path, deps, name)
+  await lib.scanAndImport()
+  lib.plugins.setWebContentsSender(sendToLibraryWindows(lib))
   await lib.plugins.loadAll()
   const indexService = lib.createIndexService()
   await indexService.rebuildFull()
@@ -232,17 +265,10 @@ export async function initLibraryForApi(path: string, name?: string): Promise<Li
 }
 
 export async function openLibraryForApi(path: string): Promise<Library> {
-  const existing = [...libraries.values()].find(l => l.rootPath === path)
+  const existing = openInstanceOf(path)
   if (existing) return existing
-  const lib = await Library.open(path, deps)
-  await Library.migrateNotes(path, deps.fs)
-  await lib.syncWithDisk()
-  try { await lib.notes.syncDisk() } catch {}
-  try { await lib.tags.syncFromFiles() } catch {}
-  await lib.plugins.loadAll()
-  const indexService = lib.createIndexService()
-  await indexService.rebuildFull()
-  libraries.set(nextApiKey--, lib)
+  const { lib } = await openShared(path)
+  if (![...libraries.values()].includes(lib)) libraries.set(nextApiKey--, lib)
   const libName = await lib.getName()
   recordLibraryOpen(lib.rootPath, libName)
   return lib
@@ -285,32 +311,15 @@ export function registerIpcHandlers() {
     // Already open in another window (or by the local API): share that instance.
     // A second one loaded the library's plugins twice and kept a second copy of
     // everything in memory, both writing the same files.
-    const shared = openInstanceOf(path)
-    if (shared) {
-      libraries.set(event.sender.id, shared)
-      releaseWhenClosed(event.sender)
-      shared.plugins.setWebContentsSender(sendToLibraryWindows(shared))
-      const libName = await shared.getName()
-      recordLibraryOpen(shared.rootPath, libName)
-      return { rootPath: shared.rootPath, name: libName, imported: 0, removed: 0, truncated: false, limit: MAX_LIBRARY_FILES }
-    }
-    const lib = await Library.open(path, deps)
+    const { lib, syncResult } = await openShared(path)
     libraries.set(event.sender.id, lib)
     releaseWhenClosed(event.sender)
-    await Library.migrateNotes(path, deps.fs)
-    const syncResult = await lib.syncWithDisk()
-    try { await lib.notes.syncDisk() } catch { /* non-critical */ }
-    try { await lib.tags.syncFromFiles() } catch {}
     lib.plugins.setWebContentsSender(sendToLibraryWindows(lib))
-    await lib.plugins.loadAll()
-    const indexService = lib.createIndexService()
-    // The DB now persists across opens. Only pay for a full rebuild when it is
-    // stale (never stamped / version changed); otherwise the incremental syncs
-    // above plus write-path link maintenance keep it consistent.
-    if (await indexService.isStale()) await indexService.rebuildFull()
     const libName = await lib.getName()
     recordLibraryOpen(lib.rootPath, libName)
-    return { rootPath: lib.rootPath, name: libName, imported: syncResult.imported, removed: syncResult.removed, truncated: syncResult.truncated, limit: syncResult.limit }
+    return syncResult
+      ? { rootPath: lib.rootPath, name: libName, imported: syncResult.imported, removed: syncResult.removed, truncated: syncResult.truncated, limit: syncResult.limit }
+      : { rootPath: lib.rootPath, name: libName, imported: 0, removed: 0, truncated: false, limit: MAX_LIBRARY_FILES }
   })
 
   ipcMain.handle('library:openNewWindow', () => {
@@ -1408,22 +1417,20 @@ img { max-width: 100%; } table { border-collapse: collapse; width: 100%; } th, t
   // Full rebuild: permanently purge the chosen missing documents, then wipe and
   // rebuild the whole library from the on-disk source of truth (re-reads +
   // re-hashes every file, rebuilds all indexes). Bypasses any open-time caches.
+  // On the open instance. It used to be closed and opened again: anything
+  // running meanwhile (another window, the local API, a LAN peer's re-index)
+  // hit a closed database, and a failed reopen left every window on it.
   ipcMain.handle('library:rebuild', async (event, purgeIds: string[] = []) => {
     const lib = getLib(event)
-    const rootPath = lib.rootPath
     const purged = await lib.purgeDocuments(purgeIds)
-    await lib.close()
-    const fresh = await Library.open(rootPath, deps)
-    // Every window (and the API) sharing the old instance moves to the new one.
-    for (const [key, l] of libraries) if (l === lib) libraries.set(key, fresh)
-    libraries.set(event.sender.id, fresh)
-    await Library.migrateNotes(rootPath, deps.fs)
-    const sync = await fresh.syncWithDisk()
-    try { await fresh.notes.syncDisk() } catch { /* non-critical */ }
-    try { await fresh.tags.syncFromFiles() } catch { /* non-critical */ }
-    fresh.plugins.setWebContentsSender(sendToLibraryWindows(fresh))
-    await fresh.plugins.loadAll()
-    await fresh.createIndexService().rebuildFull()
+    await Library.migrateNotes(lib.rootPath, deps.fs)
+    const sync = await lib.syncWithDisk()
+    try { await lib.notes.syncDisk() } catch { /* non-critical */ }
+    try { await lib.tags.syncFromFiles() } catch { /* non-critical */ }
+    await lib.plugins.unloadAll().catch(() => {})
+    lib.plugins.setWebContentsSender(sendToLibraryWindows(lib))
+    await lib.plugins.loadAll()
+    await lib.createIndexService().rebuildFull()
     return { reimported: sync.imported, purged, markedMissing: sync.missing }
   })
 

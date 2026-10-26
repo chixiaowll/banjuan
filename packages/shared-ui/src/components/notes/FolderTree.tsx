@@ -385,9 +385,10 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
     ])
     setDirs(dirList)
     setNotes(noteList as NoteInfo[])
-    if (expandedSet.size === 0) {
-      setExpandedSet(new Set(['__root', ...dirList]))
-    }
+    // Everything open the first time only: this callback is made once, so it
+    // read the set as it was then (empty) and reopened every folder the user
+    // had closed on each reload.
+    setExpandedSet(prev => (prev.size === 0 ? new Set(['__root', ...dirList]) : prev))
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -496,6 +497,9 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
       parts[parts.length - 1] = value
       const newPath = parts.join('/')
       await api.notes.renameDir(node.path, newPath)
+      // The folder (and folders inside it) stay open or closed under the new name.
+      setExpandedSet(prev => new Set([...prev].map(p =>
+        p === node.path ? newPath : p.startsWith(node.path + '/') ? newPath + p.slice(node.path.length) : p)))
       await load()
       notifyChanged()
     }

@@ -3,6 +3,8 @@ import { renderStroke, renderAllStrokes } from '../handwriting/renderStrokes.js'
 import type { Stroke, StrokePoint } from '@banjuan/core'
 import { useEpubViewer } from './EpubViewerContext.js'
 import { useBanjuanAPI } from '../../api.js'
+import { queueInkWrite } from './inkWrites.js'
+import { inSection } from './epubSection.js'
 
 interface InkStroke {
   points: Array<{ x: number; y: number }>
@@ -271,26 +273,31 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
     }
 
     const newBounds = computeBounds([newStroke])
-    const overlapping = inkAnnotationsRef.current.find(a => boundsOverlap(a.position.bounds, newBounds))
-
-    if (overlapping) {
-      const allStrokes = [...overlapping.position.strokes, newStroke]
-      const bounds = computeBounds(allStrokes)
-      ctx.pushInkUndo({ annotationId: overlapping.id, strokes: [...overlapping.position.strokes] })
-      await api.annotations.update(overlapping.id, {
-        position: { ...overlapping.position, type: 'ink', strokes: allStrokes, bounds, href: (overlapping.position as any).href ?? ctx.currentHref },
-      })
-    } else {
-      ctx.pushInkUndo({ annotationId: '__new__', strokes: [] })
-      await api.annotations.create({
-        docId,
-        type: 'ink',
-        position: { type: 'ink', strokes: [newStroke], bounds: newBounds, href: ctx.currentHref },
-        color: ctx.inkColor,
-      })
-    }
-    ctx.clearInkRedo()
+    const href = ctx.currentHref
+    const color = ctx.inkColor
     currentPointsRef.current = []
+    ctx.clearInkRedo()
+    await queueInkWrite(docId, async () => {
+      const stored = (await api.annotations.list({ docId }))
+        .filter((a: any) => a.type === 'ink' && a.position?.type === 'ink' && inSection(a.position, href)) as unknown as InkAnnotation[]
+      const overlapping = stored.find(a => boundsOverlap(a.position.bounds, newBounds))
+      if (overlapping) {
+        const allStrokes = [...overlapping.position.strokes, newStroke]
+        await api.annotations.update(overlapping.id, {
+          position: { ...overlapping.position, type: 'ink', strokes: allStrokes, bounds: computeBounds(allStrokes), href: (overlapping.position as any).href ?? href },
+        })
+        ctx.pushInkUndo({ annotationId: overlapping.id, strokes: [...overlapping.position.strokes] })
+      } else {
+        // Undo needs the real id: it used to record '__new__', which undo never found.
+        const created = await api.annotations.create({
+          docId,
+          type: 'ink',
+          position: { type: 'ink', strokes: [newStroke], bounds: newBounds, href },
+          color,
+        })
+        ctx.pushInkUndo({ annotationId: created.id, strokes: [] })
+      }
+    }).catch(e => console.error('[EpubInk] saving ink failed', e))
     onCreated()
   }, [drawing, docId, ctx.inkColor, ctx.inkWidth, ctx.currentHref, onCreated])
 

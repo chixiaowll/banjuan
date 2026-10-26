@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { PanelLeft, PanelRight, ArrowLeft, FileDown, FileImage, FileText } from 'lucide-react'
 import { exportToDirectory, exportSingleNote } from '../../utils/exportToDirectory.js'
 import HandwritingEditor from './HandwritingEditor.js'
-import { useHandwritingStore } from './useHandwritingStore.js'
+import { useHandwritingStore, useHandwritingStoreApi } from './useHandwritingStore.js'
+import { handwritingPageDataUrl } from '../../utils/noteExport.js'
+import { flushAll } from '../../utils/flushRegistry.js'
 import type { CanvasSnapshot } from '@banjuan/core'
-import { generateThumbnailDataUrl, renderAllStrokes } from './renderStrokes.js'
+import { generateThumbnailDataUrl } from './renderStrokes.js'
 import { useT } from '../../i18n/index.js'
 import { useNoteChangedElsewhere } from '../../utils/noteChanges.js'
 import { useBanjuanAPI } from '../../api.js'
@@ -56,29 +58,24 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   useEscapeKey(exportMenuOpen, () => setExportMenuOpen(false))
 
-  const renderPageToDataUrl = useCallback((pageData: any, format: 'png' | 'jpeg' = 'png') => {
-    const dpr = 2
-    const canvas = document.createElement('canvas')
-    canvas.width = pageSize.width * dpr
-    canvas.height = pageSize.height * dpr
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return null
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.scale(dpr, dpr)
-    renderAllStrokes(ctx, pageData.snapshot?.strokes ?? [], pageSize.width, pageSize.height)
-    return canvas.toDataURL(`image/${format}`)
-  }, [pageSize])
+  // Images on the page too: this drew the strokes only, and a page's pasted
+  // pictures were missing from what it exported.
+  const renderPageToDataUrl = useCallback((pageData: any, format: 'png' | 'jpeg' = 'png') =>
+    handwritingPageDataUrl(pageData, pageSize, format), [pageSize])
+  const storeApi = useHandwritingStoreApi()
 
   const handleExport = useCallback(async (format: 'pdf' | 'png' | 'markdown') => {
     setExportMenuOpen(false)
+    // Strokes still waiting to be saved go into the store (and to disk) first.
+    await flushAll()
+    const { pages, currentPageIndex } = storeApi.getState()
 
     // Run in the background export window when available (png re-renders the
     // current page from saved data via pageIndex).
     if (await exportSingleNote(api, { id: noteId, title: title || 'handwriting' }, format, format === 'png' ? currentPageIndex : undefined)) return
 
     if (format === 'png') {
-      const dataUrl = renderPageToDataUrl(pages[currentPageIndex])
+      const dataUrl = await renderPageToDataUrl(pages[currentPageIndex])
       if (!dataUrl) return
       // A download link does nothing in the iPad web view: go through export (→ share sheet).
       if (api.export?.finish) {
@@ -99,7 +96,7 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
       exportToDirectory(api, [{
         id: noteId, title,
         generate: async () => {
-          const imgs = pages.map(p => renderPageToDataUrl(p)).filter(Boolean) as string[]
+          const imgs = (await Promise.all(pages.map(p => renderPageToDataUrl(p)))).filter(Boolean) as string[]
           const md = imgs.map((url, i) => `![${title}${imgs.length > 1 ? ` - ${i + 1}` : ''}](${url})`).join('\n\n')
           return { markdown: md, attachments: [] }
         },
@@ -111,7 +108,7 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
       exportToDirectory(api, [{
         id: noteId, title,
         generate: async () => {
-          const imgs = pages.map(p => renderPageToDataUrl(p)).filter(Boolean) as string[]
+          const imgs = (await Promise.all(pages.map(p => renderPageToDataUrl(p)))).filter(Boolean) as string[]
           const html = imgs.map(url => `<div style="page-break-after:always;text-align:center"><img src="${url}" style="max-width:100%;max-height:100vh" /></div>`).join('\n')
           return { html, attachments: [] }
         },

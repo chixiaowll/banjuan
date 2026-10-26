@@ -4,6 +4,7 @@ import type { Stroke, StrokePoint } from '@banjuan/core'
 import { useMarkdownViewer } from './MarkdownViewerContext.js'
 import { useBanjuanAPI } from '../../api.js'
 import type { HeadingItem } from '../notes/NoteOutlinePanel.js'
+import { queueInkWrite } from './inkWrites.js'
 
 interface InkStroke {
   points: Array<{ x: number; y: number }>
@@ -170,39 +171,33 @@ export default function MarkdownInkOverlay({ docId, annotations, headings, scrol
     const avgY = points.reduce((s, p) => s + p.y, 0) / points.length
     const sectionId = findSectionId(avgY, headings, scrollContainer)
 
-    const existing = inkAnnotations.find(a => (a.position.sectionId ?? '__before_first__') === sectionId)
-    const allStrokes = existing
-      ? [...existing.position.strokes, newStroke]
-      : [newStroke]
-
-    const bounds = computeBounds(allStrokes)
-    const position = { type: 'ink' as const, sectionId, strokes: allStrokes, bounds }
-
-    if (existing) {
-      ctx.pushInkUndo({ annotationId: existing.id, strokes: [...existing.position.strokes] })
-    } else {
-      ctx.pushInkUndo({ annotationId: '__new__', strokes: [] })
-    }
-    ctx.clearInkRedo()
-
-    if (existing) {
-      await api.annotations.update(existing.id, { position })
-    } else {
-      await api.annotations.create({
-        docId,
-        type: 'ink',
-        position,
-        color: ctx.inkColor,
-      })
-    }
+    const color = ctx.inkColor
     currentPointsRef.current = []
+    ctx.clearInkRedo()
+    await queueInkWrite(docId, async () => {
+      // The section's ink as stored now, not the props (which lag behind).
+      const stored = (await api.annotations.list({ docId }))
+        .filter((a: any) => a.type === 'ink' && a.position?.type === 'ink') as unknown as InkAnnotation[]
+      const existing = stored.find(a => (a.position.sectionId ?? '__before_first__') === sectionId)
+      const allStrokes = existing ? [...existing.position.strokes, newStroke] : [newStroke]
+      const position = { type: 'ink' as const, sectionId, strokes: allStrokes, bounds: computeBounds(allStrokes) }
+      if (existing) {
+        await api.annotations.update(existing.id, { position })
+        ctx.pushInkUndo({ annotationId: existing.id, strokes: [...existing.position.strokes] })
+      } else {
+        // Undo needs the real id: it used to record '__new__', which undo never found.
+        const created = await api.annotations.create({ docId, type: 'ink', position, color })
+        ctx.pushInkUndo({ annotationId: created.id, strokes: [] })
+      }
+    }).catch(e => console.error('[MarkdownInk] saving ink failed', e))
     onCreated()
   }, [drawing, docId, ctx.inkColor, ctx.inkWidth, scrollContainer, onCreated, inkAnnotations, headings])
 
   const handleUndo = useCallback(async () => {
     const entry = ctx.popInkUndo()
     if (!entry) return
-    const current = inkAnnotations.find(a => a.id === entry.annotationId)
+    await queueInkWrite(docId, async () => {
+    const current = (await api.annotations.get(entry.annotationId)) as unknown as InkAnnotation | null
     if (current) {
       ctx.pushInkRedo({ annotationId: current.id, strokes: [...current.position.strokes] })
       if (entry.strokes.length === 0) {
@@ -214,13 +209,15 @@ export default function MarkdownInkOverlay({ docId, annotations, headings, scrol
         })
       }
     }
+    }).catch(e => console.error('[MarkdownInk] undo failed', e))
     onCreated()
-  }, [inkAnnotations, onCreated])
+  }, [docId, onCreated])
 
   const handleRedo = useCallback(async () => {
     const entry = ctx.popInkRedo()
     if (!entry) return
-    const current = inkAnnotations.find(a => a.id === entry.annotationId)
+    await queueInkWrite(docId, async () => {
+    const current = (await api.annotations.get(entry.annotationId)) as unknown as InkAnnotation | null
     if (current) {
       ctx.pushInkUndo({ annotationId: current.id, strokes: [...current.position.strokes] })
       const bounds = computeBounds(entry.strokes)
@@ -228,8 +225,9 @@ export default function MarkdownInkOverlay({ docId, annotations, headings, scrol
         position: { ...current.position, strokes: entry.strokes, bounds },
       })
     }
+    }).catch(e => console.error('[MarkdownInk] redo failed', e))
     onCreated()
-  }, [inkAnnotations, onCreated])
+  }, [docId, onCreated])
 
   useEffect(() => {
     if (onUndoRef) onUndoRef.current = handleUndo

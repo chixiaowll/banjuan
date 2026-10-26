@@ -8,6 +8,7 @@ import { useNodeSizeStore } from '../useNodeSizeStore.js'
 import { getTheme, getNodeStyleForLevel } from '../themes.js'
 import type { ShapeName } from '../shapes.js'
 import BlockPreview from '../../notes/BlockPreview.js'
+import { registerFlush } from '../../../utils/flushRegistry.js'
 
 function hasBlockContent(content: string | undefined | null): boolean {
   if (!content) return false
@@ -73,6 +74,19 @@ export default function NodeShell({ id, data, selected, icon, accentColor, child
   useEffect(() => {
     setEditValue(data.title)
   }, [data.title])
+
+  // A title being typed when the tab or window closes (or the app reloads) is
+  // kept: the field gets no blur then, and the text used to vanish with it.
+  const editValueRef = useRef(editValue)
+  editValueRef.current = editValue
+  const titleRef = useRef(data.title)
+  titleRef.current = data.title
+  useEffect(() => {
+    if (!isEditing) return
+    const commit = () => (editValueRef.current !== titleRef.current ? updateNodeData(id, { title: editValueRef.current }) : undefined)
+    const unregister = registerFlush(commit, 'collect')
+    return () => { unregister(); void commit() }
+  }, [isEditing, id, updateNodeData])
 
   useEffect(() => {
     if (isEditing) {

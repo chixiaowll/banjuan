@@ -26,7 +26,7 @@ import { useBanjuanAPI } from '../api.js'
 import { emitLinksSynced } from '../utils/linkEvents.js'
 import { useDebouncedSaver } from '../utils/debouncedSaver.js'
 import { useNoteContentSync } from '../utils/noteChanges.js'
-import { registerFlush } from '../utils/flushRegistry.js'
+import { registerFlushUntilWritten } from '../utils/flushRegistry.js'
 import { toast, errorMessage, promptDialog } from '../components/feedback.js'
 import { useIsActiveTab } from '../components/tabActive.js'
 import { useShallow } from 'zustand/react/shallow'
@@ -772,8 +772,8 @@ export default function NoteView(props: Props) {
   const hwStore = useMemo(() => isHandwriting ? createHandwritingStore(api) : null, [props.note.id, api])
   // Pending mind-map layout/title and handwriting saves are written before the
   // window closes or the app quits (see flushRegistry).
-  useEffect(() => store ? registerFlush(() => store.getState().flushPersist()) : undefined, [store])
-  useEffect(() => hwStore ? registerFlush(() => hwStore.getState().flushPendingSave()) : undefined, [hwStore])
+  useEffect(() => store ? registerFlushUntilWritten(() => store.getState().flushPersist()) : undefined, [store])
+  useEffect(() => hwStore ? registerFlushUntilWritten(() => hwStore.getState().flushPendingSave()) : undefined, [hwStore])
 
   if (isHandwriting && hwStore) {
     return (

@@ -126,6 +126,8 @@ export interface BanjuanAPI {
     renameDir?(oldPath: string, newPath: string): Promise<void>
     importFiles?(filePaths: string[], destDir?: string): Promise<Array<{ title: string; success: boolean; error?: string }>>
     importFilesDialog?(destDir?: string): Promise<Array<{ title: string; success: boolean; error?: string }> | null>
+    /** Files dropped onto the window where they have no path (iPad): their contents are copied in. */
+    importDropped?(files: File[], destDir?: string): Promise<Array<{ title: string; success: boolean; error?: string }>>
     update(id: string, updates: DocumentUpdateInput): Promise<Document>
     getFilePath(relativePath: string): Promise<string>
     /** WebView-loadable URL for <img>/<video>/pdf.js. Optional: desktop falls
@@ -182,6 +184,8 @@ export interface BanjuanAPI {
     deleteDir?(dirPath: string): Promise<void>
     importMarkdown?(filePaths: string[], targetFolder: string | null): Promise<Array<{ title: string; success: boolean; error?: string }>>
     importMarkdownDialog?(targetFolder: string | null): Promise<Array<{ title: string; success: boolean; error?: string }> | null>
+    /** Markdown files dropped where they have no path (iPad): each becomes a note. */
+    importDroppedMarkdown?(files: File[], targetFolder: string | null): Promise<Array<{ title: string; success: boolean; error?: string }>>
     exportDir?(entries: Array<{ title: string; content: string; attachments: string[]; subPath: string }>, format: 'markdown' | 'pdf', folderName: string): Promise<string | null>
     onNavigateLink(callback: (noteId: string) => void): () => void
   }
