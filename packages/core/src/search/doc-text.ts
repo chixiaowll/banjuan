@@ -13,9 +13,17 @@ export const DOC_TEXT_TYPES = ['pdf', 'epub', 'txt', 'md', 'html'] as const
 export interface DocTextJob { id: string; path: string; type: string; hash: string }
 export interface DocTextStats { total: number; indexed: number; pending: number; failed: number }
 
-/** Not extracted, changed since, or its file was missing last time (e.g. still in the cloud). */
+/**
+ * Text extraction got better for these types (HTML / EPUB markup used to split
+ * words at every inline tag): their state records `<hash>#<version>`, so text
+ * stored by an older extractor counts as out of date and is redone.
+ */
+const EXTRACT_VERSION: Record<string, number> = { html: 2, epub: 2 }
+const STATE_KEY_SQL = `d.hash || CASE d.type ${Object.entries(EXTRACT_VERSION).map(([t, v]) => `WHEN '${t}' THEN '#${v}'`).join(' ')} ELSE '' END`
+
+/** Not extracted, changed since (or extracted by an older extractor), or its file was missing last time (e.g. still in the cloud). */
 const PENDING_WHERE = `d.type IN (${DOC_TEXT_TYPES.map(t => `'${t}'`).join(', ')})
-  AND (s.doc_id IS NULL OR s.hash != d.hash OR s.status = 'missing')`
+  AND (s.doc_id IS NULL OR s.hash != (${STATE_KEY_SQL}) OR s.status = 'missing')`
 
 export class DocTextService {
   readonly available: boolean
@@ -74,11 +82,13 @@ export class DocTextService {
     const types = DOC_TEXT_TYPES.map(t => `'${t}'`).join(', ')
     const total = this.db.queryOne<{ n: number }>(`SELECT COUNT(*) AS n FROM documents WHERE type IN (${types})`)?.n ?? 0
     const pending = this.db.queryOne<{ n: number }>(`SELECT COUNT(*) AS n FROM documents d LEFT JOIN doc_text_state s ON s.doc_id = d.id WHERE ${PENDING_WHERE}`)?.n ?? 0
-    const failed = this.db.queryOne<{ n: number }>(`SELECT COUNT(*) AS n FROM doc_text_state s JOIN documents d ON d.id = s.doc_id AND d.hash = s.hash WHERE s.status = 'failed'`)?.n ?? 0
+    const failed = this.db.queryOne<{ n: number }>(`SELECT COUNT(*) AS n FROM doc_text_state s JOIN documents d ON d.id = s.doc_id AND s.hash = (${STATE_KEY_SQL}) WHERE s.status = 'failed'`)?.n ?? 0
     return { total, pending, failed, indexed: total - pending - failed }
   }
 
   private setState(docId: string, hash: string, status: string, pages: number, error: string | null): void {
+    const type = this.db.queryOne<{ type: string }>('SELECT type FROM documents WHERE id = ?', [docId])?.type ?? ''
+    if (EXTRACT_VERSION[type]) hash = `${hash}#${EXTRACT_VERSION[type]}`
     this.db.run(
       `INSERT INTO doc_text_state (doc_id, hash, status, pages, error, updated_at) VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(doc_id) DO UPDATE SET hash = excluded.hash, status = excluded.status, pages = excluded.pages,

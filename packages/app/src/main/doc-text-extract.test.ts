@@ -27,6 +27,11 @@ describe('joinTextItems', () => {
 })
 
 describe('stripHtml', () => {
+  it('keeps a word whole across inline markup, and separates blocks', () => {
+    expect(stripHtml('<p><b>深度</b>学<span class="x">习</span></p><p>下一段</p>')).toBe('深度学习 下一段')
+    expect(stripHtml('<ruby>漢<rt>かん</rt>字<rt>じ</rt></ruby>を<em>読む</em>&#x4E2D;')).toBe('漢字を読む中')
+  })
+
   it('drops tags, scripts and inlined images, decodes entities', () => {
     expect(stripHtml('<p>a&amp;b <img src="data:image/png;base64,AAAA"> &#20013;文</p><script>x()</script>')).toBe('a&b 中文')
   })

@@ -138,13 +138,20 @@ export async function extractPdf(
   }
 }
 
+// Inline markup sits inside a word: removing it must not insert a space —
+// "<b>深度</b>学习" is one word, and searching for it used to fail.
+const INLINE_TAGS = 'a|abbr|b|bdi|bdo|cite|code|data|del|dfn|em|font|i|ins|kbd|label|mark|q|rb|ruby|s|samp|small|span|strike|strong|sub|sup|time|tt|u|var|wbr'
+
 export function stripHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<(rt|rp)\b[\s\S]*?<\/\1>/gi, '')   // ruby readings: not part of the text
+    .replace(new RegExp(`</?(?:${INLINE_TAGS})\\b[^>]*>`, 'gi'), '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>').replace(/&#39;/gi, "'").replace(/&quot;/gi, '"')
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
     .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
     .replace(/\s+/g, ' ')
     .trim()

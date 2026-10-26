@@ -195,31 +195,34 @@ export class SearchService {
     if (this.docText === 'none') return []
     const terms = queryTerms.map(foldSearchText)
     const { where, params, ranked } = termFilter('doc_text', ['content'], terms, this.docText)
-    let rows: Array<{ doc_id: string; page: number; content: string; title: string; type: string }>
+    // One row per document — its best page and how many pages match — chosen in
+    // SQL. Taking the first N matching pages instead let one long book that
+    // matches on every page fill the whole result and hide every other document.
+    const order = ranked ? 'doc_text.rank' : 'doc_text.page'
+    let rows: Array<{ doc_id: string; page: number; content: string; title: string; type: string; hits: number }>
     try {
       rows = this.db.query(
-        `SELECT doc_text.doc_id, doc_text.page, doc_text.content, d.title, d.type
-           FROM doc_text JOIN documents d ON d.id = doc_text.doc_id
-          WHERE ${where.join(' AND ')}${ranked ? ' ORDER BY doc_text.rank' : ''} LIMIT ?`,
-        [...params, limit * 5],
+        `SELECT doc_id, page, content, title, type, hits FROM (
+           SELECT doc_text.doc_id AS doc_id, doc_text.page AS page, doc_text.content AS content, d.title AS title, d.type AS type,
+                  ${order} AS ord,
+                  ROW_NUMBER() OVER (PARTITION BY doc_text.doc_id ORDER BY ${order}) AS rn,
+                  COUNT(*) OVER (PARTITION BY doc_text.doc_id) AS hits
+             FROM doc_text JOIN documents d ON d.id = doc_text.doc_id
+            WHERE ${where.join(' AND ')}
+         ) WHERE rn = 1 ORDER BY ord LIMIT ?`,
+        [...params, limit],
       )
     } catch (e) {
       console.warn('[search] document text query failed', terms, e)
       return []
     }
-    const best = new Map<string, SearchResult & { pagesHit: number }>()
-    for (const r of rows) {
-      const prev = best.get(r.doc_id)
-      if (prev) { prev.pagesHit++; continue }
-      best.set(r.doc_id, {
-        type: 'document', id: r.doc_id, title: r.title, snippet: makeSnippet(r.content, terms),
-        // Text hits rank below title hits; more matching pages, a little higher.
-        score: 30 + Math.min(scoreOf('', r.content, terms), 20),
-        page: r.type === 'pdf' || r.type === 'epub' ? r.page : null,
-        docType: r.type, pagesHit: 1,
-      })
-    }
-    return [...best.values()].map(({ pagesHit, ...r }) => ({ ...r, score: r.score + Math.min(pagesHit - 1, 10) }))
+    return rows.map(r => ({
+      type: 'document' as const, id: r.doc_id, title: r.title, snippet: makeSnippet(r.content, terms),
+      // Text hits rank below title hits; more matching pages, a little higher.
+      score: 30 + Math.min(scoreOf('', r.content, terms), 20) + Math.min(r.hits - 1, 10),
+      page: r.type === 'pdf' || r.type === 'epub' ? r.page : null,
+      docType: r.type,
+    }))
   }
 
   private searchAnnotations(terms: string[], limit: number): SearchResult[] {

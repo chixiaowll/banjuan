@@ -16,7 +16,11 @@ const JOB_TIMEOUT_MS = 120_000
 const POLL_MS = 30_000
 const BATCH = 10
 
-type Reply = { id: number; pages?: Array<{ page: number; text: string }>; error?: string; missing?: boolean }
+type Reply = { id: number; pages?: Array<{ page: number; text: string }>; error?: string; missing?: boolean; timedOut?: boolean }
+
+// Documents that timed out once this session. A timeout can be a busy moment,
+// so the first one is retried on a later pass; a second one marks it failed.
+const timedOutOnce = new Set<string>()
 
 class TextWorker {
   private child: UtilityProcess | null = null
@@ -44,8 +48,11 @@ class TextWorker {
     return new Promise(resolve => {
       const timer = setTimeout(() => {
         this.waiting.delete(id)
-        resolve({ id, error: 'timed out' })
-        child.kill()   // a fresh process for the next document
+        resolve({ id, error: 'timed out', timedOut: true })
+        // Forget it now, not on its 'exit': the next document went to the dying
+        // process, got no answer and was failed after another full timeout.
+        if (this.child === child) this.child = null
+        child.kill()
       }, JOB_TIMEOUT_MS)
       this.waiting.set(id, r => { clearTimeout(timer); resolve(r) })
       child.postMessage({ type: 'extract', id, path, docType })
@@ -119,10 +126,13 @@ async function indexLibrary(lib: Library, stillOpen: () => boolean): Promise<voi
       const r = await worker!.extract(join(lib.rootPath, job.path), job.type)
       if (!stillOpen()) return   // closed meanwhile: its database is gone
       if (r.pages) {
+        timedOutOnce.delete(job.id)
         lib.docText.store(job.id, job.hash, r.pages)
         console.log(`[doc-text] ${job.path}: ${r.pages.length} pages in ${Date.now() - started}ms`)
       } else {
-        lib.docText.markFailed(job.id, job.hash, r.missing ? 'missing' : 'failed', r.error ?? 'unknown error')
+        const retry = r.missing || (r.timedOut && !timedOutOnce.has(job.id))
+        if (r.timedOut) timedOutOnce.add(job.id)
+        lib.docText.markFailed(job.id, job.hash, retry ? 'missing' : 'failed', r.error ?? 'unknown error')
         console.warn(`[doc-text] ${job.path}: ${r.error}`)
       }
     }

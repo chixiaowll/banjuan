@@ -20,6 +20,19 @@ describe('document text index and search', () => {
     return lib.documents.import(name)
   }
 
+  it('re-extracts HTML stored by the older extractor, but not PDFs', async () => {
+    const html = await importDoc('page.html', '<p><b>深度</b>学习</p>')
+    const pdf = await importDoc('a.pdf', 'pdf one')
+    lib.docText.store(html.id, html.hash, [{ page: 1, text: 'x' }])
+    lib.docText.store(pdf.id, pdf.hash, [{ page: 1, text: 'x' }])
+    expect(lib.docText.pending()).toEqual([])
+    // What an older version left behind: the plain hash.
+    ;(lib as any).db.run('UPDATE doc_text_state SET hash = ? WHERE doc_id = ?', [html.hash, html.id])
+    ;(lib as any).db.run('UPDATE doc_text_state SET hash = ? WHERE doc_id = ?', [pdf.hash, pdf.id])
+    expect(lib.docText.pending().map(j => j.id)).toEqual([html.id])
+    expect(lib.docText.stats()).toMatchObject({ pending: 1 })
+  })
+
   it('lists documents that need text, then not once stored; a changed file is pending again', async () => {
     const pdf = await importDoc('a.pdf', 'pdf one')
     await importDoc('b.png', 'img')   // not a text type
@@ -100,5 +113,24 @@ describe('query folding for document text', () => {
     lib.docText.store(d.id, d.hash, [{ page: 4, text: 'GPT4 模型，效果很好。' }])
     expect((await lib.search.query('ＧＰＴ４')).map(r => r.page)).toEqual([4])
     expect((await lib.search.query('模型，效果')).map(r => r.page)).toEqual([4])   // Chinese punctuation kept on both sides
+  })
+})
+
+describe('document text search across many documents', () => {
+  it('a long book matching on every page does not crowd out other documents', async () => {
+    const tempDir = createTempDir()
+    const libPath = join(tempDir, 'lib')
+    const lib = await Library.init(libPath, testDeps())
+    createTestFile(libPath, 'book.pdf', 'book')
+    createTestFile(libPath, 'paper.pdf', 'paper')
+    const book = await lib.documents.import('book.pdf')
+    const paper = await lib.documents.import('paper.pdf')
+    lib.docText.store(book.id, book.hash, Array.from({ length: 300 }, (_, i) => ({ page: i + 1, text: `第${i + 1}页 关于神经网络的讨论` })))
+    lib.docText.store(paper.id, paper.hash, [{ page: 3, text: '这篇论文也提到神经网络' }])
+    const docs = (await lib.search.query('神经网络', { limit: 5 })).filter(r => r.type === 'document')
+    expect(docs.map(d => d.id).sort()).toEqual([book.id, paper.id].sort())
+    expect(docs.find(d => d.id === paper.id)?.page).toBe(3)
+    await lib.close()
+    cleanupTempDir(tempDir)
   })
 })
