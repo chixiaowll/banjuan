@@ -1,4 +1,5 @@
 import { Library, LAN_PREFERRED_PORTS, MAX_LIBRARY_FILES } from '@banjuan/core'
+import { flushAll } from '@banjuan/shared-ui'
 import type { PlatformDeps, NearbyShare, TagTarget } from '@banjuan/core'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { CapacitorFS, CapacitorDatabaseFactory, WebCrypto } from '@banjuan/platform-capacitor'
@@ -21,6 +22,19 @@ const DrawingMode = registerPlugin<{
 
 let library: Library | null = null
 let currentLibraryPath: string | null = null
+
+// iOS suspends a backgrounded app and may kill it without warning: going to
+// the background is the last safe moment to write pending edits (debounced
+// note/handwriting/mind-map saves) and the in-memory index.
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') return
+    void (async () => {
+      try { await flushAll() } catch (e) { console.warn('[background] flushing edits failed', e) }
+      try { await library?.flush() } catch (e) { console.warn('[background] saving the index failed', e) }
+    })()
+  })
+}
 
 export interface LibraryEntry {
   path: string
@@ -499,35 +513,12 @@ export function createCapacitorAPI(): BanjuanAPI {
         await adapter.connect(config)
         const deps = createDeps(getLib().rootPath)
         const me = await getDeviceIdentity()
-        const svc = new SyncService(getLib().rootPath, adapter, getLib().events, deps.fs, config.remotePath, deps.crypto, me.deviceName)
+        const { webdavTarget } = await import('@banjuan/core')
+        const svc = new SyncService(getLib().rootPath, adapter, getLib().events, deps.fs, config.remotePath, deps.crypto, me.deviceName, webdavTarget(config))
         const result = await svc.sync(onProgress)
         // Upload-only / no-op sync: no local file changed, nothing to import or re-index.
         if (!result.localChanged) return result
-        onProgress?.({ phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
-        try {
-          const deps = createDeps(getLib().rootPath)
-          const notesDir = `${getLib().rootPath}/.banjuan/notes`
-          const notesExist = await deps.fs.exists(notesDir)
-          console.log('[sync] notesDir:', notesDir, 'exists:', notesExist)
-          if (notesExist) {
-            const noteFiles = await deps.fs.readdirWithTypes(notesDir)
-            console.log('[sync] note files:', noteFiles.map(f => f.name))
-          }
-          // Import files the sync just downloaded, then rebuild the index and
-          // persist the DB so a later open loads the cache instead of rescanning.
-          await getLib().syncWithDisk()
-          try { await getLib().notes.syncDisk() } catch {}
-          try { await getLib().tags.syncFromFiles() } catch {}
-          const indexSvc = getLib().createIndexService()
-          await indexSvc.rebuildFull()
-          await getLib().flush()
-          const noteCount = await getLib().notes.list({})
-          console.log('[sync] rebuild done, notes in db:', noteCount.length)
-          const docCount = await getLib().documents.list({})
-          console.log('[sync] docs in db:', docCount.length)
-        } catch (e: any) {
-          console.error('[sync] rebuild error:', e?.message, e?.stack)
-        }
+        await refreshAfterSync(getLib(), onProgress)
         return result
       },
       async stubList() {
@@ -628,7 +619,8 @@ export function createCapacitorAPI(): BanjuanAPI {
         if (!existing) return { needsPair: true as const }
 
         if (hostLibraryId && hostLibraryId !== myLibraryId) {
-          const isEmpty = (await lib.documents.list()).length === 0
+          // Notes count too: a notes-only library used to be taken as empty and merged without asking.
+          const isEmpty = (await lib.documents.list()).length === 0 && (await lib.notes.list({})).length === 0
           if (isEmpty || force) {
             await lib.adoptLibraryId(hostLibraryId)
           } else {
@@ -640,12 +632,12 @@ export function createCapacitorAPI(): BanjuanAPI {
         const adapter = new CapacitorWebDAVAdapter(syncDeps.fs)
         await adapter.connect({ type: 'webdav', url: base, username: 'banjuan', password: existing.token, remotePath: '/' })
         const me = await getDeviceIdentity()
-        const svc = new SyncService(lib.rootPath, adapter, lib.events, syncDeps.fs, '/', syncDeps.crypto, me.deviceName)
+        const svc = new SyncService(lib.rootPath, adapter, lib.events, syncDeps.fs, '/', syncDeps.crypto, me.deviceName, `lan:${hostDeviceId}`)
         const result = await svc.sync(onProgress)
-        if (result.localChanged) {   // nothing local changed → no re-index needed
-          onProgress?.({ phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
-          await lib.createIndexService().rebuildFull()
-        }
+        // Same as after a WebDAV sync: import what arrived, re-index, and persist
+        // the index — it used to skip the import and the save, so a later launch
+        // (iOS kills apps in the background) started from a stale index.
+        if (result.localChanged) await refreshAfterSync(lib, onProgress)
         return result
       },
 
@@ -686,5 +678,31 @@ export function createCapacitorAPI(): BanjuanAPI {
     async setDrawingMode(enabled: boolean) {
       try { await DrawingMode.setEnabled({ enabled }) } catch { /* native plugin unavailable */ }
     },
+  }
+}
+
+/** After a sync brought files in: import them, rebuild the index, and write the (in-memory) index to disk. */
+async function refreshAfterSync(lib: Library, onProgress?: (p: any) => void): Promise<void> {
+  onProgress?.({ phase: 'finalizing', current: 0, total: 0, currentFile: 'Rebuilding index...' })
+  try {
+    const deps = createDeps(lib.rootPath)
+    const notesDir = `${lib.rootPath}/.banjuan/notes`
+    const notesExist = await deps.fs.exists(notesDir)
+    console.log('[sync] notesDir:', notesDir, 'exists:', notesExist)
+    if (notesExist) {
+      const noteFiles = await deps.fs.readdirWithTypes(notesDir)
+      console.log('[sync] note files:', noteFiles.map(f => f.name))
+    }
+    await lib.syncWithDisk()
+    try { await lib.notes.syncDisk() } catch {}
+    try { await lib.tags.syncFromFiles() } catch {}
+    await lib.createIndexService().rebuildFull()
+    await lib.flush()
+    const noteCount = await lib.notes.list({})
+    console.log('[sync] rebuild done, notes in db:', noteCount.length)
+    const docCount = await lib.documents.list({})
+    console.log('[sync] docs in db:', docCount.length)
+  } catch (e: any) {
+    console.error('[sync] rebuild error:', e?.message, e?.stack)
   }
 }

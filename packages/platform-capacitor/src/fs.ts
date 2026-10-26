@@ -1,6 +1,9 @@
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import type { PlatformFS } from '@banjuan/core'
 
+// Same suffix as platform-node's atomic writes: sync and the LAN host skip such files.
+const TEMP_SUFFIX = '.banjuan-tmp'
+
 export class CapacitorFS implements PlatformFS {
   constructor(private baseDir: string) {}
 
@@ -29,25 +32,44 @@ export class CapacitorFS implements PlatformFS {
     return result.data as string
   }
 
+  /**
+   * Write next to the target, then rename over it. iOS writes files in place
+   * (not atomically): an app killed mid-write — routine when it's in the
+   * background — left a truncated note JSON or database, which then also synced
+   * to the other devices. A rename either happens or doesn't.
+   */
+  private async writeAtomically(path: string, write: (tmp: string) => Promise<unknown>): Promise<void> {
+    const full = this.resolvePath(path)
+    const slash = full.lastIndexOf('/')
+    const tmp = `${full.slice(0, slash + 1)}.${full.slice(slash + 1)}.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}${TEMP_SUFFIX}`
+    try {
+      await write(tmp)
+      await Filesystem.rename({ from: tmp, to: full, directory: Directory.Documents })
+    } catch (e) {
+      await Filesystem.deleteFile({ path: tmp, directory: Directory.Documents }).catch(() => {})
+      throw e
+    }
+  }
+
   async writeFile(path: string, data: Uint8Array): Promise<void> {
     let binary = ''
     for (let i = 0; i < data.length; i++) binary += String.fromCharCode(data[i])
-    await Filesystem.writeFile({
-      path: this.resolvePath(path),
+    await this.writeAtomically(path, (tmp) => Filesystem.writeFile({
+      path: tmp,
       data: btoa(binary),
       directory: Directory.Documents,
       recursive: true,
-    })
+    }))
   }
 
   async writeTextFile(path: string, content: string): Promise<void> {
-    await Filesystem.writeFile({
-      path: this.resolvePath(path),
+    await this.writeAtomically(path, (tmp) => Filesystem.writeFile({
+      path: tmp,
       data: content,
       directory: Directory.Documents,
       encoding: Encoding.UTF8,
       recursive: true,
-    })
+    }))
   }
 
   async exists(path: string): Promise<boolean> {

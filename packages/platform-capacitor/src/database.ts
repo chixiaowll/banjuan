@@ -82,6 +82,17 @@ export class CapacitorDatabaseFactory implements DatabaseFactory {
     if (exists) {
       const data = await this.fs.readFile(path)
       db = new SQL.Database(data)
+      // The database is only an index of the library's files. If the saved copy
+      // is damaged, set it aside and start empty — the library rebuilds the index
+      // on open — instead of failing to open the library at all.
+      try {
+        db.exec('SELECT count(*) FROM sqlite_master')
+      } catch (e) {
+        console.warn('[db] saved database is unreadable, starting a fresh index', path, e)
+        try { db.close() } catch { /* ignore */ }
+        await this.fs.rename(path, `${path}.corrupt-${Date.now()}`).catch(() => {})
+        db = new SQL.Database()
+      }
     } else {
       db = new SQL.Database()
     }
