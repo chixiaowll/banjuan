@@ -11,6 +11,7 @@
     "@banjuan/core": "workspace:*",
     "@banjuan/platform-capacitor": "workspace:*",
     "@banjuan/shared-ui": "workspace:*",
+    "@banjuan/zotero-pdfjs-dist": "workspace:*",
     "@capacitor-community/sqlite": "^6.0.0",
     "@capacitor/core": "^6.0.0",
     "@capacitor/device": "^6.0.3",
@@ -20,6 +21,7 @@
     "@mantine/core": "^8.3.18",
     "@mantine/hooks": "^8.3.18",
     "capacitor-zeroconf": "3.0.0",
+    "fflate": "^0.8.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

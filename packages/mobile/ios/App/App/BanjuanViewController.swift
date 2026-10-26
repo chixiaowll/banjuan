@@ -7,6 +7,7 @@ class BanjuanViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(FileUploaderPlugin())
         bridge?.registerPluginInstance(NativeVideoPlugin())
         bridge?.registerPluginInstance(DrawingModePlugin())
+        bridge?.registerPluginInstance(FilePreviewPlugin())
 
         // Handwriting on iPad dropped strokes because the WKWebView scroll view
         // delayed / cancelled touches while its gesture recognizers (text

@@ -19,6 +19,7 @@
 		B1A1F0012D0A00000000002A /* BanjuanViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A1F0012D0A00000000002B /* BanjuanViewController.swift */; };
 		B1A1F0012D0A00000000003A /* NativeVideoPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A1F0012D0A00000000003B /* NativeVideoPlugin.swift */; };
 		B1A1F0012D0A00000000004A /* DrawingModePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A1F0012D0A00000000004B /* DrawingModePlugin.swift */; };
+		B1A1F0012D0A00000000004C /* FilePreviewPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A1F0012D0A00000000004D /* FilePreviewPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,6 +38,7 @@
 		B1A1F0012D0A00000000002B /* BanjuanViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BanjuanViewController.swift; sourceTree = "<group>"; };
 		B1A1F0012D0A00000000003B /* NativeVideoPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeVideoPlugin.swift; sourceTree = "<group>"; };
 		B1A1F0012D0A00000000004B /* DrawingModePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingModePlugin.swift; sourceTree = "<group>"; };
+		B1A1F0012D0A00000000004D /* FilePreviewPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePreviewPlugin.swift; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -87,6 +89,7 @@
 				B1A1F0012D0A00000000002B /* BanjuanViewController.swift */,
 				B1A1F0012D0A00000000003B /* NativeVideoPlugin.swift */,
 				B1A1F0012D0A00000000004B /* DrawingModePlugin.swift */,
+				B1A1F0012D0A00000000004D /* FilePreviewPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -226,6 +229,7 @@
 				B1A1F0012D0A00000000002A /* BanjuanViewController.swift in Sources */,
 				B1A1F0012D0A00000000003A /* NativeVideoPlugin.swift in Sources */,
 				B1A1F0012D0A00000000004A /* DrawingModePlugin.swift in Sources */,
+				B1A1F0012D0A00000000004C /* FilePreviewPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

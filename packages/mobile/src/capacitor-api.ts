@@ -7,6 +7,9 @@ import type { BanjuanAPI } from '@banjuan/shared-ui'
 import { CapacitorHttp, Capacitor, registerPlugin } from '@capacitor/core'
 import { getDeviceIdentity } from './capacitor-device-identity'
 import { scanNearby as mdnsScanNearby } from './capacitor-mdns'
+import { startDocTextIndexer, docTextStatus } from './doc-text-indexer'
+import { getCover } from './covers'
+import { newExportFolder, exportMarkdown, exportPdf, exportFile, finishExport } from './exporter'
 
 // Native AVPlayer fallback (see NativeVideoPlugin.swift). Plays codecs the
 // WebView <video> element rejects — HEVC 10-bit HDR, E-AC-3 (Dolby DD+).
@@ -20,8 +23,88 @@ const DrawingMode = registerPlugin<{
   setEnabled(options: { enabled: boolean }): Promise<void>
 }>('DrawingMode')
 
+// Files in and out of the library (see FilePreviewPlugin.swift): Quick Look,
+// the share sheet, and the system document picker.
+const FilePreview = registerPlugin<{
+  preview(options: { url: string }): Promise<void>
+  share(options: { url: string }): Promise<{ completed: boolean }>
+  pickFiles(options: { dest: string; extensions?: string[]; multiple?: boolean }): Promise<{ files: Array<{ name: string; error?: string }> }>
+}>('FilePreview')
+
+/** Document types the library imports (same list as the desktop import dialog). */
+const DOCUMENT_EXTENSIONS = ['pdf', 'epub', 'txt', 'md', 'markdown', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'mp4', 'mov', 'm4v', 'webm', 'html', 'htm', 'sh', 'bash', 'zsh', 'yaml', 'yml', 'json', 'xml', 'csv', 'tsv', 'log', 'conf', 'cfg', 'ini', 'toml', 'env', 'py', 'js', 'ts', 'jsx', 'tsx', 'css', 'scss', 'less', 'sql', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'swift', 'kt', 'r', 'tex', 'bib', 'rst']
+
+/** file:// URI of a path under Documents. */
+async function documentsUri(path: string): Promise<string> {
+  return (await Filesystem.getUri({ path, directory: Directory.Documents })).uri
+}
+
+type ImportResult = { title: string; success: boolean; error?: string }
+
+/** Pick files in the system picker; they land in `destDir` of the library and are imported. Null when cancelled. */
+async function pickAndImportDocuments(destDir?: string): Promise<ImportResult[] | null> {
+  const lib = getLib()
+  const dir = destDir ? `${lib.rootPath}/${destDir}` : lib.rootPath
+  const { files } = await FilePreview.pickFiles({ dest: await documentsUri(dir), extensions: DOCUMENT_EXTENSIONS, multiple: true })
+  if (!files.length) return null
+  const results: ImportResult[] = []
+  for (const f of files) {
+    if (f.error) { results.push({ title: f.name, success: false, error: f.error }); continue }
+    try {
+      await lib.documents.import(destDir ? `${destDir}/${f.name}` : f.name)
+      results.push({ title: f.name, success: true })
+    } catch (e) {
+      results.push({ title: f.name, success: false, error: (e as Error)?.message ?? String(e) })
+    }
+  }
+  try { await lib.flush() } catch { /* the index is rebuilt from files if needed */ }
+  return results
+}
+
+/** Pick Markdown files and make each a note (in `targetFolder`). Null when cancelled. */
+async function pickAndImportMarkdown(targetFolder: string | null): Promise<ImportResult[] | null> {
+  const lib = getLib()
+  // Staged outside every library, read, then removed.
+  const staging = `${LIBRARIES_ROOT}/.import-${Date.now().toString(36)}`
+  try {
+    const { files } = await FilePreview.pickFiles({ dest: await documentsUri(staging), extensions: ['md', 'markdown', 'txt'], multiple: true })
+    if (!files.length) return null
+    const fs = createDeps(lib.rootPath).fs
+    const results: ImportResult[] = []
+    for (const f of files) {
+      if (f.error) { results.push({ title: f.name, success: false, error: f.error }); continue }
+      const baseName = f.name.replace(/\.(md|markdown|txt)$/i, '')
+      let content: string
+      try { content = await fs.readTextFile(`${staging}/${f.name}`) } catch (e) {
+        results.push({ title: baseName, success: false, error: (e as Error)?.message ?? String(e) }); continue
+      }
+      let done = false
+      for (let attempt = 0; attempt < 100 && !done; attempt++) {
+        const title = attempt === 0 ? baseName : `${baseName} (${attempt + 1})`
+        try {
+          await lib.notes.create({ title, type: 'markdown', content, folder: targetFolder ?? undefined })
+          results.push({ title, success: true })
+          done = true
+        } catch (e) {
+          if ((e as Error)?.message === 'DUPLICATE_TITLE') continue
+          results.push({ title, success: false, error: (e as Error)?.message ?? String(e) })
+          done = true
+        }
+      }
+      if (!done) results.push({ title: baseName, success: false, error: 'TOO_MANY_DUPLICATES' })
+    }
+    try { await lib.flush() } catch { /* ignore */ }
+    return results
+  } finally {
+    await Filesystem.rmdir({ path: staging, directory: Directory.Documents, recursive: true }).catch(() => {})
+  }
+}
+
 let library: Library | null = null
 let currentLibraryPath: string | null = null
+
+// Document text for search (PDF / EPUB / text), extracted in the background.
+startDocTextIndexer(() => library)
 
 // iOS suspends a backgrounded app and may kill it without warning: going to
 // the background is the last safe moment to write pending edits (debounced
@@ -138,6 +221,27 @@ export function createCapacitorAPI(): BanjuanAPI {
       async isOpen() {
         return library !== null
       },
+      async detectMissing() {
+        return getLib().detectMissingFiles()
+      },
+      // Same as the desktop: purge the chosen missing documents, then reopen and
+      // rebuild everything from the files on disk.
+      async rebuild(purgeIds: string[] = []) {
+        const lib = getLib()
+        const rootPath = lib.rootPath
+        const purged = await lib.purgeDocuments(purgeIds)
+        await lib.close()
+        library = null
+        const fresh = await Library.open(rootPath, createDeps(rootPath))
+        library = fresh
+        await Library.migrateNotes(rootPath, createDeps(rootPath).fs)
+        const sync = await fresh.syncWithDisk()
+        try { await fresh.notes.syncDisk() } catch { /* non-critical */ }
+        try { await fresh.tags.syncFromFiles() } catch { /* non-critical */ }
+        await fresh.createIndexService().rebuildFull()
+        try { await fresh.flush() } catch { /* ignore */ }
+        return { reimported: sync.imported, purged, markedMissing: sync.missing }
+      },
       async rename(name: string) {
         const lib = getLib()
         await lib.setName(name)
@@ -180,16 +284,42 @@ export function createCapacitorAPI(): BanjuanAPI {
     },
 
     dialog: {
+      // No folder picker on iPad: a fresh export folder, shared when the export
+      // finishes (export.finish). It used to return the libraries' root, so an
+      // export wrote files in among the book-rooms.
       async openDirectory() {
-        // On mobile, we use a fixed directory
-        return 'BanjuanLibrary'
+        return newExportFolder()
+      },
+    },
+
+    export: {
+      async markdown(input) {
+        return exportMarkdown(getLib(), input)
+      },
+      async pdf(input) {
+        return exportPdf(getLib(), input)
+      },
+      async writeFile(input) {
+        return exportFile(input)
+      },
+      async finish(outputDir) {
+        await finishExport(outputDir)
       },
     },
 
     documents: {
-      async import() {
-        // TODO: use Capacitor FilePicker
+      async import(destDir?: string) {
+        await pickAndImportDocuments(destDir)
         return null
+      },
+      async importFilesDialog(destDir?: string) {
+        return pickAndImportDocuments(destDir)
+      },
+      async deleteDir(dirPath: string) {
+        return getLib().documents.deleteDir(dirPath)
+      },
+      async getCover(id: string) {
+        return getCover(getLib(), id)
       },
       async list(options) {
         return getLib().documents.list(options)
@@ -243,7 +373,10 @@ export function createCapacitorAPI(): BanjuanAPI {
         const data = await deps.fs.readFile(`${getLib().rootPath}/${relativePath}`)
         return data.buffer as ArrayBuffer
       },
-      async openInSystem(_relativePath) {
+      // No default app to hand it to on iPad: Quick Look, whose share button
+      // offers "Open in…" other apps.
+      async openInSystem(relativePath) {
+        await FilePreview.preview({ url: await documentsUri(`${getLib().rootPath}/${relativePath}`) })
         return ''
       },
       // Hand the raw file:// URI to the native AVPlayer. convertFileSrc's
@@ -343,6 +476,12 @@ export function createCapacitorAPI(): BanjuanAPI {
       async createDir(dirPath) {
         return getLib().notes.createDir(dirPath)
       },
+      async deleteDir(dirPath: string) {
+        return getLib().notes.deleteDir(dirPath)
+      },
+      async importMarkdownDialog(targetFolder: string | null) {
+        return pickAndImportMarkdown(targetFolder)
+      },
       async renameDir(oldPath, newPath) {
         return getLib().notes.renameDir(oldPath, newPath)
       },
@@ -378,8 +517,12 @@ export function createCapacitorAPI(): BanjuanAPI {
         return getLib().attachments.delete(relativePath)
       },
       async open(relativePath) {
-        // TODO: use Capacitor FileOpener or share sheet
-        console.warn('attachments.open not implemented on mobile')
+        await FilePreview.preview({ url: await documentsUri(getLib().attachments.getFullPath(relativePath)) })
+      },
+      // banjuan-attachment:// isn't served here: images and videos in notes
+      // load from the file through Capacitor's local file URL instead.
+      async getFileSrc(relativePath) {
+        return Capacitor.convertFileSrc(await documentsUri(getLib().attachments.getFullPath(relativePath)))
       },
     },
 
@@ -658,6 +801,9 @@ export function createCapacitorAPI(): BanjuanAPI {
     search: {
       async query(query, options) {
         return getLib().search.query(query, options)
+      },
+      async textIndexStatus() {
+        return docTextStatus(getLib())
       },
     },
 
