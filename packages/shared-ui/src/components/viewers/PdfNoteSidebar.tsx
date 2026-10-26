@@ -13,6 +13,7 @@ import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { emitLinksSynced } from '../../utils/linkEvents.js'
 import { useDebouncedSaver } from '../../utils/debouncedSaver.js'
+import { useNodeContentEditing } from '../mindmap/panels/useNodeContentEditing.js'
 import { useNoteContentSync, useNoteChangedElsewhere } from '../../utils/noteChanges.js'
 import { registerFlush } from '../../utils/flushRegistry.js'
 import { toast, errorMessage } from '../feedback.js'
@@ -32,26 +33,14 @@ interface Props {
 }
 
 function SidebarMindmapNodeEditor({ containerRef }: { containerRef: React.RefObject<HTMLDivElement | null> }) {
-  const { sidePanelNodeId, rfNodes, updateNodeData, closeSidePanel, mindmapId } = useMindmapStore()
-  const node = rfNodes.find(n => n.id === sidePanelNodeId)
-  const [title, setTitle] = useState(node?.data.title ?? '')
+  const sidePanelNodeId = useMindmapStore(s => s.sidePanelNodeId)
+  const closeSidePanel = useMindmapStore(s => s.closeSidePanel)
+  const mindmapId = useMindmapStore(s => s.mindmapId)
+  const { node, title, setTitle: handleTitleChange, initialContent, editorKey, onContentChange: handleContentChange } = useNodeContentEditing(sidePanelNodeId)
   const [height, setHeight] = useState(200)
   const dragging = useRef(false)
   const startY = useRef(0)
   const startH = useRef(0)
-
-  useEffect(() => {
-    setTitle(node?.data.title ?? '')
-  }, [sidePanelNodeId, node?.data.title])
-
-  const handleTitleChange = useCallback((val: string) => {
-    setTitle(val)
-    if (sidePanelNodeId) updateNodeData(sidePanelNodeId, { title: val })
-  }, [sidePanelNodeId, updateNodeData])
-
-  const handleContentChange = useCallback((json: string) => {
-    if (sidePanelNodeId) updateNodeData(sidePanelNodeId, { content: json })
-  }, [sidePanelNodeId, updateNodeData])
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
@@ -120,9 +109,9 @@ function SidebarMindmapNodeEditor({ containerRef }: { containerRef: React.RefObj
       </div>
       <div className="node-content-editor-body" style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
         <BlockEditor
-          key={sidePanelNodeId}
+          key={`${sidePanelNodeId}:${editorKey}`}
           noteId={mindmapId ?? undefined}
-          initialContent={(node.data.content as string) ?? ''}
+          initialContent={initialContent}
           onChange={handleContentChange}
           skipLinkSync
           autoParseMarkdown

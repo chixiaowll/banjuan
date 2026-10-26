@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React from 'react'
 import BlockEditor from '../../notes/BlockEditor.js'
 import { useMindmapStore } from '../useMindmapStore.js'
+import { useNodeContentEditing } from './useNodeContentEditing.js'
 import { useT } from '../../../i18n/index.js'
 
 interface Props {
@@ -10,28 +11,10 @@ interface Props {
 
 export default function NodeContentEditor({ nodeId, onClose }: Props) {
   const t = useT()
-  const { mindmapId, rfNodes, updateNodeData } = useMindmapStore()
-  const node = rfNodes.find(n => n.id === nodeId)
-  const [title, setTitle] = useState(node?.data.title ?? '')
-  const [ready, setReady] = useState(false)
+  const mindmapId = useMindmapStore(s => s.mindmapId)
+  const { node, title, setTitle: handleTitleChange, initialContent, editorKey, onContentChange: handleContentChange } = useNodeContentEditing(nodeId)
 
-  useEffect(() => {
-    setTitle(node?.data.title ?? '')
-    setReady(true)
-  }, [nodeId])
-
-  const handleTitleChange = useCallback((newTitle: string) => {
-    setTitle(newTitle)
-    updateNodeData(nodeId, { title: newTitle })
-  }, [nodeId, updateNodeData])
-
-  const handleContentChange = useCallback((json: string) => {
-    updateNodeData(nodeId, { content: json })
-  }, [nodeId, updateNodeData])
-
-  if (!node || !ready) return <div style={{ padding: 16 }}>{t('common.loading')}</div>
-
-  const content = (node.data.content as string) ?? ''
+  if (!node) return <div style={{ padding: 16 }}>{t('common.loading')}</div>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -59,8 +42,9 @@ export default function NodeContentEditor({ nodeId, onClose }: Props) {
       </div>
       <div className="node-content-editor-body" style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
         <BlockEditor
+          key={editorKey}
           noteId={mindmapId ?? undefined}
-          initialContent={content}
+          initialContent={initialContent}
           onChange={handleContentChange}
           skipLinkSync
           autoParseMarkdown
