@@ -39,6 +39,10 @@ export interface MindmapState {
   mindmapId: string | null
   mindmapTitle: string
   layout: string
+  /** The user picked the layout (see init: an unpicked 'mindmap' shows as it always has, 'logical'). */
+  layoutChosen: boolean
+  /** The title was edited in this canvas and not saved yet — only then does persist() send it. */
+  titleDirty: boolean
   theme: string
 
   rfNodes: Node<MindmapNodeData>[]
@@ -293,14 +297,21 @@ export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLab
   })
   const api: BanjuanAPI = { ...baseApi, mindmaps: trackedMindmaps }
   const writePersist = async (get: () => MindmapState) => {
-    const { mindmapId, mindmapTitle, layout, theme } = get()
+    const { mindmapId, mindmapTitle, layout, layoutChosen, theme, rfNodes, titleDirty } = get()
     if (!mindmapId) return
+    // Node sizes are measured into one store shared by every open map: save
+    // only this map's nodes (it used to save — and, on open, wipe — the others').
     const sizes = useNodeSizeStore.getState().sizes
     const nodeSizes: Record<string, { w: number; h: number }> = {}
-    for (const [id, s] of sizes) {
-      nodeSizes[id] = { w: s.width, h: s.height }
+    for (const n of rfNodes) {
+      const s = sizes.get(n.id)
+      if (s) nodeSizes[n.id] = { w: s.width, h: s.height }
     }
-    await api.notes.update(mindmapId, { title: mindmapTitle, typeMeta: { layout, theme, nodeSizes } }).catch(reportSaveError)
+    // The title only when it was edited here: sending the loaded one back on
+    // every layout/size save undid a rename made elsewhere.
+    const updates: { title?: string; typeMeta: Record<string, unknown> } = { typeMeta: { layout, theme, nodeSizes, ...(layoutChosen ? { layoutChosen } : {}) } }
+    if (titleDirty) { updates.title = mindmapTitle; store.setState({ titleDirty: false }) }
+    await api.notes.update(mindmapId, updates).catch(reportSaveError)
   }
   // Background writes (node edits, layout/theme) must not fail silently: the
   // canvas already shows the change, so tell the user it didn't reach disk.
@@ -312,7 +323,9 @@ export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLab
   const store = createStore<MindmapState>((set, get) => ({
     mindmapId: null,
     mindmapTitle: '',
-    layout: 'mindmap',
+    layout: 'logical',
+    layoutChosen: false,
+    titleDirty: false,
     theme: 'classic',
 
     rfNodes: [],
@@ -352,7 +365,12 @@ export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLab
         }
       }
       const rfEdges = apiEdgesToRfEdges(rfNodes, apiEdges)
-      const mmLayout = mm.typeMeta?.layout ?? (mm as any).layout ?? 'mindmap'
+      // Every map was created with layout 'mindmap' but, until the layouts were
+      // implemented, drawn as a logic chart. One the user never switched keeps
+      // that look (and the menu says so); a picked layout is used as picked.
+      const savedLayout: string | undefined = mm.typeMeta?.layout ?? (mm as any).layout
+      const layoutChosen = !!mm.typeMeta?.layoutChosen
+      const mmLayout = savedLayout && (savedLayout !== 'mindmap' || layoutChosen) ? savedLayout : 'logical'
       const mmTheme = mm.typeMeta?.theme ?? (mm as any).theme ?? 'classic'
       const savedSizes = mm.typeMeta?.nodeSizes as Record<string, { w: number; h: number }> | undefined
       const initSizes = new Map<string, { width: number; height: number }>()
@@ -367,7 +385,6 @@ export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLab
         summaries: summariesData,
       })
       const sizeStore = useNodeSizeStore.getState()
-      sizeStore.reset()
       for (const [id, s] of initSizes) {
         sizeStore.setNodeSize(id, s.width, s.height)
       }
@@ -375,6 +392,8 @@ export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLab
         mindmapId,
         mindmapTitle: mm.title,
         layout: mmLayout,
+        layoutChosen,
+        titleDirty: false,
         theme: mmTheme,
         rfNodes: layoutResult.nodes,
         rfEdges: layoutResult.edges,
@@ -388,7 +407,7 @@ export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLab
     },
 
     setLayout: (layout) => {
-      set({ layout })
+      set({ layout, layoutChosen: true })
       get().persist()
     },
     setTheme: (theme) => {
@@ -396,7 +415,7 @@ export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLab
       get().persist()
     },
     setTitle: (title) => {
-      set({ mindmapTitle: title })
+      set({ mindmapTitle: title, titleDirty: true })
       get().persist()
     },
 

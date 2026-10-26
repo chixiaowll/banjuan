@@ -49,9 +49,16 @@ interface TreeNode {
   height: number
   children: TreeNode[]
   subtreeHeight: number
+  /** Organization chart only (measureWidths). */
+  subtreeWidth?: number
   x: number
   y: number
 }
+
+/** Which way a node's branch grows from its parent — decides the edge's handles. */
+type Side = 'right' | 'left' | 'down'
+const ORG_H_GAP = 24
+const ORG_V_GAP = 56
 
 function buildTree(
   nodes: Node<MindmapNodeData>[],
@@ -115,6 +122,84 @@ function assignPositions(node: TreeNode, x: number, y: number): void {
   }
 }
 
+/** Branch growing to the left: mirror of assignPositions; `rightEdge` is where the node's right side sits. */
+function assignPositionsLeft(node: TreeNode, rightEdge: number, y: number): void {
+  node.x = rightEdge - node.width
+  node.y = y + (node.subtreeHeight - node.height) / 2
+  let childY = y
+  for (const child of node.children) {
+    assignPositionsLeft(child, node.x - H_GAP, childY)
+    childY += child.subtreeHeight + V_GAP
+  }
+}
+
+/** Mind-map layout: the root's branches split right and left, balanced by height. */
+function assignBalanced(root: TreeNode, sides: Map<string, Side>): void {
+  root.x = 0
+  root.y = 0
+  const total = root.children.reduce((sum, c) => sum + c.subtreeHeight, 0)
+  const right: TreeNode[] = []
+  const left: TreeNode[] = []
+  let rightHeight = 0
+  for (const c of root.children) {
+    // First branches go right until that side holds about half; the rest go left.
+    if (right.length === 0 || rightHeight + c.subtreeHeight / 2 <= total / 2) { right.push(c); rightHeight += c.subtreeHeight }
+    else left.push(c)
+  }
+  const blockHeight = (list: TreeNode[]) => list.reduce((sum, c) => sum + c.subtreeHeight, 0) + Math.max(0, list.length - 1) * V_GAP
+  const centerY = root.height / 2
+  let y = centerY - blockHeight(right) / 2
+  for (const c of right) {
+    assignPositions(c, root.width + H_GAP, y)
+    markSide(c, 'right', sides)
+    y += c.subtreeHeight + V_GAP
+  }
+  y = centerY - blockHeight(left) / 2
+  for (const c of left) {
+    assignPositionsLeft(c, -H_GAP, y)
+    markSide(c, 'left', sides)
+    y += c.subtreeHeight + V_GAP
+  }
+}
+
+function markSide(node: TreeNode, side: Side, sides: Map<string, Side>): void {
+  sides.set(node.id, side)
+  for (const c of node.children) markSide(c, side, sides)
+}
+
+/** Organization chart: children below their parent, side by side. */
+function measureWidths(node: TreeNode): number {
+  const childrenWidth = node.children.reduce((sum, c) => sum + measureWidths(c), 0) + Math.max(0, node.children.length - 1) * ORG_H_GAP
+  node.subtreeWidth = Math.max(node.width, childrenWidth)
+  return node.subtreeWidth
+}
+
+function assignPositionsDown(node: TreeNode, x: number, y: number): void {
+  const width = node.subtreeWidth ?? node.width
+  node.x = x + (width - node.width) / 2
+  node.y = y
+  const childrenWidth = node.children.reduce((sum, c) => sum + (c.subtreeWidth ?? c.width), 0) + Math.max(0, node.children.length - 1) * ORG_H_GAP
+  let childX = x + (width - childrenWidth) / 2
+  for (const child of node.children) {
+    assignPositionsDown(child, childX, y + node.height + ORG_V_GAP)
+    childX += (child.subtreeWidth ?? child.width) + ORG_H_GAP
+  }
+}
+
+/** Lay out one tree from (0,0) in the chosen layout, recording each node's side. */
+function layoutTree(tree: TreeNode, layout: string, sides: Map<string, Side>, isMainRoot: boolean): void {
+  if (layout === 'organization') {
+    measureWidths(tree)
+    assignPositionsDown(tree, 0, 0)
+    markSide(tree, 'down', sides)
+  } else if (layout === 'mindmap' && isMainRoot) {
+    assignBalanced(tree, sides)
+  } else {
+    assignPositions(tree, 0, 0)
+    markSide(tree, 'right', sides)
+  }
+}
+
 function shiftTree(node: TreeNode, dx: number, dy: number): void {
   node.x += dx
   node.y += dy
@@ -138,13 +223,14 @@ export function layoutMindmap(
   const floatingRoots = nodes.filter(n => n.data.floating && !n.data.parentId && !summaryNodeIds.has(n.id))
 
   const posMap = new Map<string, { x: number; y: number }>()
+  const sides = new Map<string, Side>()
 
   let rootRenderedPos = { x: 0, y: 0 }
 
   if (rootNode) {
     const tree = buildTree(nodes, visible, options.nodeSizes, rootNode.id)
     if (tree) {
-      assignPositions(tree, 0, 0)
+      layoutTree(tree, options.layout, sides, true)
       const rootDx = rootNode.data.positionX ?? 0
       const rootDy = rootNode.data.positionY ?? 0
       if (rootDx !== 0 || rootDy !== 0) {
@@ -159,7 +245,7 @@ export function layoutMindmap(
     if (!visible.has(fr.id)) continue
     const tree = buildTree(nodes, visible, options.nodeSizes, fr.id)
     if (tree) {
-      assignPositions(tree, 0, 0)
+      layoutTree(tree, options.layout, sides, false)
       const absX = fr.data.positionX ?? (rootRenderedPos.x + 300)
       const absY = fr.data.positionY ?? (rootRenderedPos.y - 200)
       shiftTree(tree, absX - tree.x, absY - tree.y)
@@ -213,13 +299,14 @@ export function layoutMindmap(
   const treeEdges: Edge[] = []
   for (const n of layoutedNodes) {
     if (n.data.parentId && visible.has(n.id)) {
+      const side = sides.get(n.id) ?? 'right'
       treeEdges.push({
         id: `tree-${n.data.parentId}-${n.id}`,
         source: n.data.parentId,
         target: n.id,
         type: 'treeEdge',
-        sourceHandle: 'source-right',
-        targetHandle: 'target-left',
+        sourceHandle: side === 'left' ? 'source-left' : side === 'down' ? 'source-bottom' : 'source-right',
+        targetHandle: side === 'left' ? 'target-right' : side === 'down' ? 'target-top' : 'target-left',
       })
     }
   }

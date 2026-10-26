@@ -37,10 +37,15 @@ export default function NodeShell({ id, data, selected, icon, accentColor, child
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const editStartedRef = useRef(0)
-  const { editingNodeId, setEditingNodeId, updateNodeData, theme: themeName, dropTarget } = useMindmapStore()
+  // Narrow subscriptions: every node used to re-render on any store change
+  // (each keystroke, drag frame, selection) — slow on large maps.
+  const isEditing = useMindmapStore(s => s.editingNodeId === id)
+  const setEditingNodeId = useMindmapStore(s => s.setEditingNodeId)
+  const updateNodeData = useMindmapStore(s => s.updateNodeData)
+  const themeName = useMindmapStore(s => s.theme)
+  const dropPosition = useMindmapStore(s => (s.dropTarget?.nodeId === id ? s.dropTarget.position : null))
   const setNodeSize = useNodeSizeStore(s => s.setNodeSize)
   const [editValue, setEditValue] = useState(data.title)
-  const isEditing = editingNodeId === id
 
   const theme = getTheme(themeName)
   const isFloatingRoot = data.floating && !data.parentId
@@ -101,9 +106,9 @@ export default function NodeShell({ id, data, selected, icon, accentColor, child
     setEditingNodeId(null)
   }, [id, editValue, updateNodeData, setEditingNodeId])
 
-  const isDropInside = dropTarget?.nodeId === id && dropTarget?.position === 'inside'
-  const isDropBefore = dropTarget?.nodeId === id && dropTarget?.position === 'before'
-  const isDropAfter = dropTarget?.nodeId === id && dropTarget?.position === 'after'
+  const isDropInside = dropPosition === 'inside'
+  const isDropBefore = dropPosition === 'before'
+  const isDropAfter = dropPosition === 'after'
 
   const borderColor = isDropInside ? 'var(--accent, #5856d6)' : selected ? 'var(--accent, #5856d6)' : (accentColor ?? levelStyle.stroke)
   const borderWidth = isDropInside ? 2 : selected ? 2 : 1
@@ -159,6 +164,9 @@ export default function NodeShell({ id, data, selected, icon, accentColor, child
       <Handle type="target" id="target-left" position={Position.Left} style={{ opacity: 0, width: 1, height: 1 }} />
       <Handle type="target" id="target-right" position={Position.Right} style={{ opacity: 0, width: 1, height: 1 }} />
       <Handle type="source" id="source-left" position={Position.Left} style={{ opacity: 0, width: 1, height: 1 }} />
+      {/* Organization chart: branches leave from the bottom and arrive at the top. */}
+      <Handle type="target" id="target-top" position={Position.Top} style={{ opacity: 0, width: 1, height: 1 }} />
+      <Handle type="source" id="source-bottom" position={Position.Bottom} style={{ opacity: 0, width: 1, height: 1 }} />
 
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
         {icon && <span style={{ fontSize: levelStyle.fontSize + 2, lineHeight: 1 }}>{icon}</span>}

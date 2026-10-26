@@ -104,7 +104,9 @@ type DragTarget = 'label' | 'source' | 'target' | 'cp1' | 'cp2'
 export default function RelationEdge(props: EdgeProps) {
   const { id, source, target, data, selected } = props
   const t = useT()
-  const { theme: themeName, updateRelationEdge, removeRelationEdge } = useMindmapStore()
+  const themeName = useMindmapStore(s => s.theme)
+  const updateRelationEdge = useMindmapStore(s => s.updateRelationEdge)
+  const removeRelationEdge = useMindmapStore(s => s.removeRelationEdge)
   const theme = getTheme(themeName)
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
