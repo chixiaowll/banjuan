@@ -321,6 +321,7 @@ const ja = {
   'home.dailyPick': '今日の一篇',
   'home.myNotes': 'マイノート',
   'home.annotationCount': '{0} 件の注釈',
+  'home.syncOn': '同期オン',
   'home.pageShort': 'P. {0}',
   'detail.fileMissing': 'ファイル欠落',
   'detail.fileMissingDesc': 'ディスク上にファイルが見つかりません。メタデータと注釈は保持されています。',

@@ -350,6 +350,7 @@ const en = {
   'home.dailyPick': 'Daily Pick',
   'home.myNotes': 'My Notes',
   'home.annotationCount': '{0, plural, one {# annotation} other {# annotations}}',
+  'home.syncOn': 'Sync on',
   'home.pageShort': 'P. {0}',
   'detail.fileMissing': 'File missing',
   'detail.fileMissingDesc': 'The file is gone from disk; metadata and annotations are kept.',

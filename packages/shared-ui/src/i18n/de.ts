@@ -321,6 +321,7 @@ const de = {
   'home.dailyPick': 'Tagesauswahl',
   'home.myNotes': 'Meine Notizen',
   'home.annotationCount': '{0, plural, one {# Anmerkung} other {# Anmerkungen}}',
+  'home.syncOn': 'Sync aktiv',
   'home.pageShort': 'S. {0}',
   'detail.fileMissing': 'Datei fehlt',
   'detail.fileMissingDesc': 'Die Datei ist nicht mehr auf der Festplatte; Metadaten und Anmerkungen bleiben erhalten.',

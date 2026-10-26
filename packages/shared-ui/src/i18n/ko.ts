@@ -321,6 +321,7 @@ const ko = {
   'home.dailyPick': '오늘의 한 편',
   'home.myNotes': '내 노트',
   'home.annotationCount': '주석 {0}개',
+  'home.syncOn': '동기화 켜짐',
   'home.pageShort': 'P. {0}',
   'detail.fileMissing': '파일 누락',
   'detail.fileMissingDesc': '디스크에서 파일을 찾을 수 없습니다. 메타데이터와 주석은 보존됩니다.',

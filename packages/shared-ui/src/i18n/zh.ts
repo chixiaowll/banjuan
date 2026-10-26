@@ -350,6 +350,7 @@ const zh = {
   'home.dailyPick': '今日卷',
   'home.myNotes': '我的笔记',
   'home.annotationCount': '{0} 个批注',
+  'home.syncOn': '已开启同步',
   'home.pageShort': 'P. {0}',
   'detail.fileMissing': '文件缺失',
   'detail.fileMissingDesc': '磁盘上已找不到该文件，元数据与批注已保留。',

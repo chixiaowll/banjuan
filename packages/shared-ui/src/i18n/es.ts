@@ -321,6 +321,7 @@ const es = {
   'home.dailyPick': 'Selección del día',
   'home.myNotes': 'Mis notas',
   'home.annotationCount': '{0, plural, one {# anotación} other {# anotaciones}}',
+  'home.syncOn': 'Sincronización activada',
   'home.pageShort': 'p. {0}',
   'detail.fileMissing': 'Falta el archivo',
   'detail.fileMissingDesc': 'El archivo ya no está en el disco; se conservan los metadatos y las anotaciones.',

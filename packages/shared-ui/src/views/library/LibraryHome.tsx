@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Upload, Plus, ChevronRight } from 'lucide-react'
 import { PoetryCard } from '../../components/PoetryCard.js'
 import { requestDocPage } from '../../utils/docNavigation.js'
@@ -22,6 +23,18 @@ export default function LibraryHome() {
     setRenameTarget, setShowNotePicker, setShowRenameInput, showAllAnnotations, t,
     toggleAllAnnotations,
   } = useLibrary()
+  // Only when sync is actually set up (WebDAV, or a paired device on the LAN) —
+  // this used to say "Synced" whether or not anything was ever synced.
+  const [syncOn, setSyncOn] = useState(false)
+  useEffect(() => {
+    if (!layout.home.showSyncBadge) return
+    let alive = true
+    void Promise.all([
+      api.sync?.getConfig().catch(() => null),
+      api.lan?.listPairedDevices().catch(() => []),
+    ]).then(([config, peers]) => { if (alive) setSyncOn(!!config?.url || (peers?.length ?? 0) > 0) })
+    return () => { alive = false }
+  }, [api, layout.home.showSyncBadge])
   return (
     <div style={{ flex: 1, overflow: 'auto' }}>
     <div style={{ padding: layout.homePadding, maxWidth: layout.contentMaxWidth ?? undefined, margin: layout.centeredContent ? '0 auto' : undefined }}>
@@ -75,12 +88,12 @@ export default function LibraryHome() {
             letterSpacing: layout.home.titleLetterSpacing, lineHeight: 1.2, margin: 0,
             display: 'inline-flex', alignItems: 'center', gap: 14, cursor: 'default',
           }} onDoubleClick={() => { setRenameTarget({ type: 'library' }); setRenameInputValue(libraryName); setShowRenameInput(true) }}>{libraryName}
-            {layout.home.showSyncBadge && <span style={{
+            {layout.home.showSyncBadge && syncOn && <span onClick={() => handleSectionChange('sync')} style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
               padding: '3px 10px', borderRadius: 12,
               background: '#E8F1FB', color: '#4A90E2',
-              fontSize: 11, fontWeight: 600,
-            }}><span style={{ width: 6, height: 6, background: '#4A90E2', borderRadius: '50%' }} />{t('detail.synced')}</span>}
+              fontSize: 11, fontWeight: 600, cursor: 'pointer',
+            }}><span style={{ width: 6, height: 6, background: '#4A90E2', borderRadius: '50%' }} />{t('home.syncOn')}</span>}
           </h1>}
           {layout.home.showSealChar && <div style={{
             marginTop: 8, color: 'var(--ink-faint)', fontFamily: 'var(--font-mono)',
