@@ -54,6 +54,7 @@ extraMetadata:
   main: dist/main/index.js
 mac:
   icon: resources/icon.icns
+  artifactName: "banjuan-${version}-mac-${arch}.${ext}"   # the zip; the dmg has its own below
   category: public.app-category.productivity
   # arch order matters: electron-builder rebuilds the native better-sqlite3 for
   # each target in turn, and the LAST one is what stays in node_modules. Build
@@ -68,9 +69,10 @@ mac:
       arch:
         - x64
         - arm64
+# ASCII file names: GitHub mangles non-ASCII names of release assets on upload.
 dmg:
   title: "半卷"
-  artifactName: "${productName}-${version}-mac-${arch}.${ext}"
+  artifactName: "banjuan-${version}-mac-${arch}.${ext}"
 win:
   icon: resources/icon.png
   target:
