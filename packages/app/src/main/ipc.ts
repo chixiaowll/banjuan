@@ -1,4 +1,4 @@
-import { ipcMain, dialog, clipboard, shell, BrowserWindow, app } from 'electron'
+import { ipcMain, dialog, clipboard, shell, BrowserWindow, app, safeStorage } from 'electron'
 import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, basename, dirname, resolve, sep, parse as parsePath } from 'node:path'
@@ -23,6 +23,15 @@ const deps: PlatformDeps = {
   dbFactory: new NodeDatabaseFactory(),
   crypto: new NodeCrypto(),
   globalPluginsDir: GLOBAL_PLUGINS_DIR,
+  // The WebDAV password in sync.json, sealed by the OS keychain (macOS Keychain,
+  // Windows DPAPI, libsecret). Unavailable → seal throws and it stays as before.
+  secrets: {
+    seal: (plain) => {
+      if (!safeStorage.isEncryptionAvailable()) throw new Error('No keychain available')
+      return safeStorage.encryptString(plain).toString('base64')
+    },
+    open: (sealed) => safeStorage.decryptString(Buffer.from(sealed, 'base64')),
+  },
 }
 
 let lanHost: LanHostServer | null = null

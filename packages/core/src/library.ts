@@ -190,12 +190,28 @@ export class Library {
   async getSyncConfig(): Promise<SyncConfig | null> {
     const syncPath = join(this.rootPath, '.banjuan', 'sync.json')
     if (!(await this.fs.exists(syncPath))) return null
-    return JSON.parse(await this.fs.readTextFile(syncPath)) as SyncConfig
+    const { passwordSealed, ...stored } = JSON.parse(await this.fs.readTextFile(syncPath)) as SyncConfig & { passwordSealed?: string }
+    if (typeof passwordSealed === 'string') {
+      let password = ''
+      try { password = this.deps.secrets?.open(passwordSealed) ?? '' } catch { /* sealed on another machine: ask again */ }
+      return { ...stored, password }
+    }
+    // A plain password from before (or saved without a keychain): seal it now.
+    if (stored.password && this.deps.secrets) await this.saveSyncConfig(stored)
+    return stored
   }
 
+  /** The password is sealed by the platform's keychain when there is one (PlatformDeps.secrets). */
   async saveSyncConfig(config: SyncConfig): Promise<void> {
     const syncPath = join(this.rootPath, '.banjuan', 'sync.json')
-    await this.fs.writeTextFile(syncPath, JSON.stringify(config, null, 2))
+    let stored: Record<string, unknown> = { ...config }
+    if (config.password && this.deps.secrets) {
+      try {
+        const { password, ...rest } = config
+        stored = { ...rest, passwordSealed: this.deps.secrets.seal(password) }
+      } catch { /* no keychain right now: keep it as before */ }
+    }
+    await this.fs.writeTextFile(syncPath, JSON.stringify(stored, null, 2))
   }
 
   createSyncService(remotePath?: string): SyncService {
