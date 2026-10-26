@@ -5,6 +5,7 @@ import type { Tag, TagTarget, DocumentFileData } from '../types.js'
 import type { EventBus } from '../events/bus.js'
 import { JsonStore } from '../storage/json-store.js'
 import { hasPlainPath } from '../storage/safe-path.js'
+import { mutateNoteFile } from '../notes/note-file.js'
 import type { TagEntry, TagTombstone } from '../sync/tag-merge.js'
 
 
@@ -21,11 +22,13 @@ function autoColor(name: string): string {
 export class TagService {
   private tagsFilePath: string
   private tombstonesFilePath: string
+  private notesDir: string
   private docStore: JsonStore<DocumentFileData>
 
   constructor(private db: PlatformDatabase, private rootPath: string, private events: EventBus, private fs: PlatformFS) {
     this.tagsFilePath = join(rootPath, '.banjuan', 'tags.json')
     this.tombstonesFilePath = join(rootPath, '.banjuan', 'tags-deleted.json')
+    this.notesDir = join(rootPath, '.banjuan', 'notes')
     this.docStore = new JsonStore<DocumentFileData>(join(rootPath, '.banjuan', 'data', 'documents'), fs, hasPlainPath)
   }
 
@@ -94,20 +97,15 @@ export class TagService {
       }
     } else if (targetType === 'note' || targetType === 'mindmap') {
       const queryCondition = targetType === 'mindmap'
-        ? 'SELECT path FROM notes WHERE id = ? AND type = ?'
-        : 'SELECT path FROM notes WHERE id = ?'
+        ? 'SELECT id FROM notes WHERE id = ? AND type = ?'
+        : 'SELECT id FROM notes WHERE id = ?'
       const queryParams = targetType === 'mindmap' ? [targetId, 'mindmap'] : [targetId]
-      const row = this.db.queryOne<{ path: string }>(queryCondition, queryParams)
-      if (row) {
-        const filePath = join(this.rootPath, '.banjuan', 'notes', row.path)
-        if (await this.fs.exists(filePath)) {
-          const raw = await this.fs.readTextFile(filePath)
-          const fileData = JSON.parse(raw)
+      if (this.db.queryOne<{ id: string }>(queryCondition, queryParams)) {
+        await mutateNoteFile(this.db, this.fs, this.notesDir, targetId, (fileData) => {
           const existingTags: string[] = fileData.tags ?? []
           fileData.tags = [...new Set([...existingTags, ...tagNames])]
           fileData.updatedAt = new Date().toISOString()
-          await this.fs.writeTextFile(filePath, JSON.stringify(fileData, null, 2))
-        }
+        })
       }
     }
 
@@ -139,19 +137,14 @@ export class TagService {
       }
     } else if (targetType === 'note' || targetType === 'mindmap') {
       const queryCondition = targetType === 'mindmap'
-        ? 'SELECT path FROM notes WHERE id = ? AND type = ?'
-        : 'SELECT path FROM notes WHERE id = ?'
+        ? 'SELECT id FROM notes WHERE id = ? AND type = ?'
+        : 'SELECT id FROM notes WHERE id = ?'
       const queryParams = targetType === 'mindmap' ? [targetId, 'mindmap'] : [targetId]
-      const row = this.db.queryOne<{ path: string }>(queryCondition, queryParams)
-      if (row) {
-        const filePath = join(this.rootPath, '.banjuan', 'notes', row.path)
-        if (await this.fs.exists(filePath)) {
-          const raw = await this.fs.readTextFile(filePath)
-          const fileData = JSON.parse(raw)
+      if (this.db.queryOne<{ id: string }>(queryCondition, queryParams)) {
+        await mutateNoteFile(this.db, this.fs, this.notesDir, targetId, (fileData) => {
           fileData.tags = ((fileData.tags as string[]) ?? []).filter((t: string) => t !== tagName)
           fileData.updatedAt = new Date().toISOString()
-          await this.fs.writeTextFile(filePath, JSON.stringify(fileData, null, 2))
-        }
+        })
       }
     }
 
@@ -226,21 +219,14 @@ export class TagService {
     }
 
     // Remove from note/mindmap files (JSON)
-    const noteRows = this.db.query<{ path: string }>('SELECT path FROM notes')
-    for (const { path } of noteRows) {
-      const filePath = join(this.rootPath, '.banjuan', 'notes', path)
-      if (await this.fs.exists(filePath)) {
-        try {
-          const raw = await this.fs.readTextFile(filePath)
-          const fileData = JSON.parse(raw)
-          const noteTags: string[] = fileData.tags ?? []
-          if (noteTags.includes(tag.name)) {
-            fileData.tags = noteTags.filter(t => t !== tag.name)
-            fileData.updatedAt = new Date().toISOString()
-            await this.fs.writeTextFile(filePath, JSON.stringify(fileData, null, 2))
-          }
-        } catch {}
-      }
+    const noteRows = this.db.query<{ id: string }>('SELECT id FROM notes')
+    for (const { id } of noteRows) {
+      await mutateNoteFile(this.db, this.fs, this.notesDir, id, (fileData) => {
+        const noteTags: string[] = fileData.tags ?? []
+        if (!noteTags.includes(tag.name)) return false
+        fileData.tags = noteTags.filter(t => t !== tag.name)
+        fileData.updatedAt = new Date().toISOString()
+      }).catch(() => {})
     }
   }
 
@@ -272,21 +258,14 @@ export class TagService {
     }
 
     // Update note/mindmap files (JSON)
-    const noteRows = this.db.query<{ path: string }>('SELECT path FROM notes')
-    for (const { path } of noteRows) {
-      const filePath = join(this.rootPath, '.banjuan', 'notes', path)
-      if (await this.fs.exists(filePath)) {
-        try {
-          const raw = await this.fs.readTextFile(filePath)
-          const fileData = JSON.parse(raw)
-          const noteTags: string[] = fileData.tags ?? []
-          if (noteTags.includes(oldName)) {
-            fileData.tags = noteTags.map(t => (t === oldName ? newName : t))
-            fileData.updatedAt = new Date().toISOString()
-            await this.fs.writeTextFile(filePath, JSON.stringify(fileData, null, 2))
-          }
-        } catch {}
-      }
+    const noteRows = this.db.query<{ id: string }>('SELECT id FROM notes')
+    for (const { id } of noteRows) {
+      await mutateNoteFile(this.db, this.fs, this.notesDir, id, (fileData) => {
+        const noteTags: string[] = fileData.tags ?? []
+        if (!noteTags.includes(oldName)) return false
+        fileData.tags = noteTags.map(t => (t === oldName ? newName : t))
+        fileData.updatedAt = new Date().toISOString()
+      }).catch(() => {})
     }
   }
 

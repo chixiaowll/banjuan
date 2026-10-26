@@ -14,6 +14,8 @@ import { AttachmentService } from './attachment-service.js'
 import type { TrashService } from '../trash/service.js'
 import { importMarkdownImages } from './import-images.js'
 import { isSafeId } from '../storage/safe-path.js'
+import { noteFileLock } from '../storage/keyed-lock.js'
+import { noteLockKey } from './note-file.js'
 
 interface NoteJsonFile {
   meta: NoteFileData
@@ -416,10 +418,13 @@ export class NoteService {
     params.push(id)
     this.db.run(`UPDATE notes SET ${sets.join(', ')} WHERE id = ?`, params)
 
-    const row = this.db.queryOne<Record<string, unknown>>('SELECT * FROM notes WHERE id = ?', [id])!
-    const filePath = join(this.notesDir, row.path as string)
-
-    if ((await this.fs.exists(filePath)) && (row.content_format as string) === 'json') {
+    // Under the note's file lock (mind-map node edits, tag changes and moves
+    // rewrite this file too), with the row — and so the path — read inside it.
+    await noteFileLock.run(noteLockKey(this.notesDir, id), async () => {
+      const row = this.db.queryOne<Record<string, unknown>>('SELECT * FROM notes WHERE id = ?', [id])
+      if (!row || (row.content_format as string) !== 'json') return
+      const filePath = join(this.notesDir, row.path as string)
+      if (!(await this.fs.exists(filePath))) return
       if ((row.type as string) === 'mindmap') {
         const raw = JSON.parse(await this.fs.readTextFile(filePath)) as MindmapNoteJsonFile
         if (updates.title !== undefined) raw.meta.title = updates.title
@@ -462,7 +467,7 @@ export class NoteService {
           this.search.index({ id, title: raw.meta.title, content: this.blocksToText(raw.blocks ?? []), type: 'note' })
         }
       }
-    }
+    })
 
     const note = (await this.get(id))!
     this.events.emit('note:updated', { note })
@@ -484,24 +489,28 @@ export class NoteService {
           [row.title, id, '%/%'])
     if (dup) throw new Error('DUPLICATE_TITLE')
 
-    const oldPath = join(this.notesDir, row.path)
     const filename = `${id}.json`
     const newRelPath = targetFolder ? `${targetFolder}/${filename}` : filename
     const newFullPath = join(this.notesDir, newRelPath)
 
-    if (oldPath !== newFullPath && (await this.fs.exists(oldPath))) {
-      await this.fs.mkdir(dirname(newFullPath), { recursive: true })
-      await this.fs.rename(oldPath, newFullPath)
-    }
+    // Under the note's lock: a queued edit must write to the file where it ends up.
+    await noteFileLock.run(noteLockKey(this.notesDir, id), async () => {
+      const current = this.db.queryOne<{ path: string }>('SELECT path FROM notes WHERE id = ?', [id])
+      const oldPath = join(this.notesDir, current?.path ?? row.path)
+      if (oldPath !== newFullPath && (await this.fs.exists(oldPath))) {
+        await this.fs.mkdir(dirname(newFullPath), { recursive: true })
+        await this.fs.rename(oldPath, newFullPath)
+      }
 
-    if (await this.fs.exists(newFullPath)) {
-      const raw = JSON.parse(await this.fs.readTextFile(newFullPath)) as NoteJsonFile
-      raw.meta.folderId = null
-      raw.meta.updatedAt = now
-      await this.fs.writeTextFile(newFullPath, JSON.stringify(raw, null, 2))
-    }
+      if (await this.fs.exists(newFullPath)) {
+        const raw = JSON.parse(await this.fs.readTextFile(newFullPath)) as NoteJsonFile
+        raw.meta.folderId = null
+        raw.meta.updatedAt = now
+        await this.fs.writeTextFile(newFullPath, JSON.stringify(raw, null, 2))
+      }
 
-    this.db.run('UPDATE notes SET path = ?, folder_id = NULL, updated_at = ? WHERE id = ?', [newRelPath, now, id])
+      this.db.run('UPDATE notes SET path = ?, folder_id = NULL, updated_at = ? WHERE id = ?', [newRelPath, now, id])
+    })
     const note = (await this.get(id))!
     this.events.emit('note:updated', { note })
     return note

@@ -8,6 +8,9 @@ import type {
 } from '../types.js'
 import type { EventBus } from '../events/bus.js'
 import type { NoteLinkService, LinkSyncEntry } from '../notes/link-service.js'
+import { mutateNoteFile } from '../notes/note-file.js'
+
+interface MindmapFileShape { meta: any; nodes: any[]; edges: any[]; boundaries?: any[]; summaries?: any[] }
 
 interface NodeRow {
   id: string; mindmap_id: string; parent_id: string | null
@@ -96,19 +99,16 @@ export class MindmapService {
 
   // --- Filesystem operations ---
 
-  private async readFileData(noteId: string): Promise<{ meta: any; nodes: any[]; edges: any[]; boundaries?: any[]; summaries?: any[] } | null> {
-    const row = this.db.queryOne<{ path: string }>('SELECT path FROM notes WHERE id = ?', [noteId])
-    if (!row?.path) return null
-    const fullPath = join(this.notesDir, row.path)
-    if (!(await this.fs.exists(fullPath))) return null
-    try { return JSON.parse(await this.fs.readTextFile(fullPath)) } catch { return null }
-  }
-
-  private async writeFileDataById(noteId: string, fileData: any): Promise<void> {
-    const row = this.db.queryOne<{ path: string }>('SELECT path FROM notes WHERE id = ?', [noteId])
-    if (row?.path) {
-      await this.fs.writeTextFile(join(this.notesDir, row.path), JSON.stringify(fileData, null, 2))
-    }
+  /**
+   * Change a mind map's file under the note's lock, so concurrent edits (a node
+   * update fired while a reorder is still writing, a tag or title change) can't
+   * overwrite each other. `change` returning false → nothing is written.
+   */
+  private async mutateFile(noteId: string, change: (fileData: MindmapFileShape) => void | false): Promise<void> {
+    await mutateNoteFile(this.db, this.fs, this.notesDir, noteId, (fileData: MindmapFileShape) => {
+      if (change(fileData) === false) return false
+      fileData.meta.updatedAt = new Date().toISOString()
+    })
   }
 
   // --- Nodes ---
@@ -134,12 +134,9 @@ export class MindmapService {
       sortOrder, collapsed: false, floating,
     }
 
-    const fileData = await this.readFileData(noteId)
-    if (fileData) {
+    await this.mutateFile(noteId, (fileData) => {
       fileData.nodes.push(nodeData)
-      fileData.meta.updatedAt = now
-      await this.writeFileDataById(noteId, fileData)
-    }
+    })
 
     this.db.run(
       `INSERT INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, floating, created_at)
@@ -174,8 +171,7 @@ export class MindmapService {
     const nodeRow = this.db.queryOne<{ mindmap_id: string }>('SELECT mindmap_id FROM mindmap_nodes WHERE id = ?', [id])
     if (!nodeRow) throw new Error(`Node not found: ${id}`)
 
-    const fileData = await this.readFileData(nodeRow.mindmap_id)
-    if (fileData) {
+    await this.mutateFile(nodeRow.mindmap_id, (fileData) => {
       const nodeInFile = fileData.nodes.find((n: any) => n.id === id)
       if (nodeInFile) {
         if (updates.title !== undefined) nodeInFile.title = updates.title
@@ -192,9 +188,7 @@ export class MindmapService {
         if (updates.collapsed !== undefined) nodeInFile.collapsed = updates.collapsed
         if (updates.sortOrder !== undefined) nodeInFile.sortOrder = updates.sortOrder
       }
-      fileData.meta.updatedAt = new Date().toISOString()
-      await this.writeFileDataById(nodeRow.mindmap_id, fileData)
-    }
+    })
 
     const fields: string[] = []
     const values: unknown[] = []
@@ -228,8 +222,7 @@ export class MindmapService {
     const nodeRow = this.db.queryOne<{ mindmap_id: string }>('SELECT mindmap_id FROM mindmap_nodes WHERE id = ?', [id])
 
     if (nodeRow) {
-      const fileData = await this.readFileData(nodeRow.mindmap_id)
-      if (fileData) {
+      await this.mutateFile(nodeRow.mindmap_id, (fileData) => {
         const childIds = this.collectChildIds(id, fileData.nodes)
         const removeIds = new Set([id, ...childIds])
         fileData.nodes = fileData.nodes.filter((n: any) => !removeIds.has(n.id))
@@ -240,9 +233,7 @@ export class MindmapService {
             .map((s: any) => ({ ...s, nodeIds: s.nodeIds.filter((nid: string) => !removeIds.has(nid)) }))
             .filter((s: any) => s.nodeIds.length > 0)
         }
-        fileData.meta.updatedAt = new Date().toISOString()
-        await this.writeFileDataById(nodeRow.mindmap_id, fileData)
-      }
+      })
 
       const allIds = this.collectDescendantIds(id)
       allIds.push(id)
@@ -287,12 +278,9 @@ export class MindmapService {
       label: input.label ?? null, style: null,
     }
 
-    const fileData = await this.readFileData(noteId)
-    if (fileData) {
+    await this.mutateFile(noteId, (fileData) => {
       fileData.edges.push(edgeData)
-      fileData.meta.updatedAt = new Date().toISOString()
-      await this.writeFileDataById(noteId, fileData)
-    }
+    })
 
     this.db.run(
       'INSERT INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)',
@@ -312,16 +300,13 @@ export class MindmapService {
     const edgeRow = this.db.queryOne<EdgeRow>('SELECT * FROM mindmap_edges WHERE id = ?', [id])
     if (!edgeRow) throw new Error(`Edge not found: ${id}`)
 
-    const fileData = await this.readFileData(edgeRow.mindmap_id)
-    if (fileData) {
+    await this.mutateFile(edgeRow.mindmap_id, (fileData) => {
       const edgeInFile = fileData.edges.find((e: any) => e.id === id)
       if (edgeInFile) {
         if (updates.label !== undefined) edgeInFile.label = updates.label
         if (updates.style !== undefined) edgeInFile.style = updates.style
       }
-      fileData.meta.updatedAt = new Date().toISOString()
-      await this.writeFileDataById(edgeRow.mindmap_id, fileData)
-    }
+    })
 
     const fields: string[] = []
     const values: unknown[] = []
@@ -340,12 +325,9 @@ export class MindmapService {
     const edgeRow = this.db.queryOne<{ mindmap_id: string }>('SELECT mindmap_id FROM mindmap_edges WHERE id = ?', [id])
 
     if (edgeRow) {
-      const fileData = await this.readFileData(edgeRow.mindmap_id)
-      if (fileData) {
+      await this.mutateFile(edgeRow.mindmap_id, (fileData) => {
         fileData.edges = fileData.edges.filter((e: any) => e.id !== id)
-        fileData.meta.updatedAt = new Date().toISOString()
-        await this.writeFileDataById(edgeRow.mindmap_id, fileData)
-      }
+      })
     }
 
     this.db.run('DELETE FROM mindmap_edges WHERE id = ?', [id])
@@ -359,13 +341,10 @@ export class MindmapService {
     const label = input.label ?? ''
     const color = input.color ?? null
 
-    const fileData = await this.readFileData(noteId)
-    if (fileData) {
+    await this.mutateFile(noteId, (fileData) => {
       if (!fileData.boundaries) fileData.boundaries = []
       fileData.boundaries.push({ id, nodeIds: input.nodeIds, label, color })
-      fileData.meta.updatedAt = new Date().toISOString()
-      await this.writeFileDataById(noteId, fileData)
-    }
+    })
 
     this.db.run(
       'INSERT INTO mindmap_boundaries (id, mindmap_id, node_ids, label, color) VALUES (?, ?, ?, ?, ?)',
@@ -382,17 +361,15 @@ export class MindmapService {
     const row = this.db.queryOne<{ mindmap_id: string }>('SELECT mindmap_id FROM mindmap_boundaries WHERE id = ?', [id])
     if (!row) throw new Error(`Boundary not found: ${id}`)
 
-    const fileData = await this.readFileData(row.mindmap_id)
-    if (fileData && fileData.boundaries) {
+    await this.mutateFile(row.mindmap_id, (fileData) => {
+      if (!fileData.boundaries) return false
       const b = fileData.boundaries.find((b: any) => b.id === id)
       if (b) {
         if (updates.label !== undefined) b.label = updates.label
         if (updates.color !== undefined) b.color = updates.color
         if (updates.nodeIds !== undefined) b.nodeIds = updates.nodeIds
       }
-      fileData.meta.updatedAt = new Date().toISOString()
-      await this.writeFileDataById(row.mindmap_id, fileData)
-    }
+    })
 
     const fields: string[] = []
     const values: unknown[] = []
@@ -411,12 +388,10 @@ export class MindmapService {
   async removeBoundary(id: string): Promise<void> {
     const row = this.db.queryOne<{ mindmap_id: string }>('SELECT mindmap_id FROM mindmap_boundaries WHERE id = ?', [id])
     if (row) {
-      const fileData = await this.readFileData(row.mindmap_id)
-      if (fileData && fileData.boundaries) {
+      await this.mutateFile(row.mindmap_id, (fileData) => {
+        if (!fileData.boundaries) return false
         fileData.boundaries = fileData.boundaries.filter((b: any) => b.id !== id)
-        fileData.meta.updatedAt = new Date().toISOString()
-        await this.writeFileDataById(row.mindmap_id, fileData)
-      }
+      })
     }
     this.db.run('DELETE FROM mindmap_boundaries WHERE id = ?', [id])
   }
@@ -428,13 +403,10 @@ export class MindmapService {
     const id = uuid()
     const nodeIdsJson = JSON.stringify(input.nodeIds)
 
-    const fileData = await this.readFileData(noteId)
-    if (fileData) {
+    await this.mutateFile(noteId, (fileData) => {
       if (!fileData.summaries) fileData.summaries = []
       fileData.summaries.push({ id, nodeIds: input.nodeIds, summaryNodeId: summaryNode.id })
-      fileData.meta.updatedAt = new Date().toISOString()
-      await this.writeFileDataById(noteId, fileData)
-    }
+    })
 
     this.db.run(
       'INSERT INTO mindmap_summaries (id, mindmap_id, node_ids, summary_node_id) VALUES (?, ?, ?, ?)',
@@ -454,12 +426,10 @@ export class MindmapService {
     const row = this.db.queryOne<SummaryRow>('SELECT * FROM mindmap_summaries WHERE id = ?', [id])
     if (!row) return
 
-    const fileData = await this.readFileData(row.mindmap_id)
-    if (fileData && fileData.summaries) {
+    await this.mutateFile(row.mindmap_id, (fileData) => {
+      if (!fileData.summaries) return false
       fileData.summaries = fileData.summaries.filter((s: any) => s.id !== id)
-      fileData.meta.updatedAt = new Date().toISOString()
-      await this.writeFileDataById(row.mindmap_id, fileData)
-    }
+    })
 
     this.db.run('DELETE FROM mindmap_summaries WHERE id = ?', [id])
     // Also remove the summary node
