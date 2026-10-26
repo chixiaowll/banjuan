@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { extractPdf, extractEpub, extractPlain, type PdfjsLocation, type ExtractedPage } from '@banjuan/core/dist/search/doc-text-extract.js'   // just the extractor: this process needs nothing else
 
 /**
@@ -17,6 +17,15 @@ import { extractPdf, extractEpub, extractPlain, type PdfjsLocation, type Extract
 const MAX_PAGES = 3000
 const MAX_PAGE_CHARS = 30_000
 const MAX_TOTAL_CHARS = 5_000_000
+// Files are parsed from memory: one this large would take the process down
+// (and isn't readable by pdf.js here anyway).
+const MAX_FILE_BYTES = 1024 * 1024 * 1024
+
+function readWhole(path: string): Uint8Array {
+  const { size } = statSync(path)
+  if (size > MAX_FILE_BYTES) throw new Error(`too large to index (${Math.round(size / 1048576)} MB)`)
+  return new Uint8Array(readFileSync(path))
+}
 
 // pdf.js decides at load time whether it runs in Node: not in an Electron process
 // whose type isn't "browser" (here: "utility"), and then it wants a Web Worker
@@ -40,7 +49,7 @@ function cap(pages: ExtractedPage[]): ExtractedPage[] {
 }
 
 async function extract(path: string, docType: string): Promise<ExtractedPage[]> {
-  const data = new Uint8Array(readFileSync(path))
+  const data = readWhole(path)
   switch (docType) {
     case 'pdf': return cap((await extractPdf(data, loc!, { maxPages: MAX_PAGES })).pages)
     case 'epub': return cap(extractEpub(data).pages)
@@ -50,7 +59,7 @@ async function extract(path: string, docType: string): Promise<ExtractedPage[]> 
 
 /** Pages `fromPage`–`toPage` (EPUB: chapters, at most 5) and the document's page count. */
 async function extractRange(path: string, docType: string, fromPage: number, toPage: number): Promise<{ numPages: number; pages: ExtractedPage[] }> {
-  const data = new Uint8Array(readFileSync(path))
+  const data = readWhole(path)
   switch (docType) {
     case 'pdf': {
       const r = await extractPdf(data, loc!, { fromPage, toPage })
