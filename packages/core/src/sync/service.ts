@@ -8,6 +8,7 @@ import { mergeTagState, type TagState, type TagEntry, type TagTombstone } from '
 import { reconcileFile } from './reconcile.js'
 import { conflictCopyPath, rewriteNoteConflict } from './conflict.js'
 import { v4 as uuid } from 'uuid'
+import { KeyedLock } from '../storage/keyed-lock.js'
 
 // Files excluded from the generic mtime-based sync by their FULL relative path.
 // - config.json / paired-devices.json / sync.json: per-device identity & settings
@@ -44,6 +45,26 @@ export interface SyncResult {
 // the app. For these we fall back to a (size,mtime) signature, which is a
 // reliable local-change signal for large media that rarely mutates in place.
 const MAX_HASH_BYTES = 64 * 1024 * 1024
+
+// Library JSON bigger than this isn't parsed to check it (none is, in practice).
+const MAX_JSON_CHECK_BYTES = 32 * 1024 * 1024
+
+// One sync at a time per library (a manual sync started while an automatic or
+// LAN one runs interleaved transfers and overwrote the other's baseline).
+const syncLock = new KeyedLock()
+
+/** The sync target id for a WebDAV server + folder (see SyncService's `targetId`). */
+export function webdavTarget(config: { url: string; remotePath?: string }): string {
+  return `webdav:${config.url.replace(/\/+$/, '')}|${config.remotePath || '/'}`
+}
+
+/** File-name-safe, distinct key for a sync target (server URL + folder, or a LAN peer). */
+function archiveKey(target: string): string {
+  let h = 5381
+  for (let i = 0; i < target.length; i++) h = ((h << 5) + h + target.charCodeAt(i)) | 0
+  const readable = target.replace(/^[a-z]+:\/\//i, '').replace(/[^a-zA-Z0-9.-]+/g, '_').slice(0, 60)
+  return `${readable}-${(h >>> 0).toString(36)}`
+}
 
 // Per-file baseline recorded after each successful sync (the Unison "archive").
 interface ArchiveEntry {
@@ -91,13 +112,26 @@ export class SyncService {
     remotePath?: string,
     private crypto?: PlatformCrypto,
     private deviceId: string = 'device',
+    /**
+     * Which server or peer this syncs with. Each keeps its own baseline: with one
+     * shared baseline, syncing with a second target (WebDAV, then the LAN host)
+     * judged that target against the first one's state — a file the second
+     * target never had looked deleted there, and was deleted here.
+     */
+    targetId?: string,
   ) {
-    this.archivePath = join(rootPath, '.banjuan', 'sync-archive.json')
+    this.archivePath = targetId
+      ? join(rootPath, '.banjuan', 'sync-archives', `${archiveKey(targetId)}.json`)
+      : join(rootPath, '.banjuan', 'sync-archive.json')
     const rp = remotePath || '/'
     this.remotePath = rp.endsWith('/') ? rp : rp + '/'
   }
 
   async sync(onProgress?: (progress: SyncProgress) => void, options?: SyncOptions): Promise<SyncResult> {
+    return syncLock.run(this.rootPath, () => this.runSync(onProgress, options))
+  }
+
+  private async runSync(onProgress?: (progress: SyncProgress) => void, options?: SyncOptions): Promise<SyncResult> {
     this.events?.emit('sync:started', { timestamp: Date.now() })
     const result: SyncResult = { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0, stubbed: 0, conflicts: 0, errors: [], localChanged: false }
 
@@ -173,6 +207,9 @@ export class SyncService {
             if (arc) nextArchive[path] = arc
             break
           case 'upload': {
+            if (this.isLibraryJson(path) && !(await this.parsesAsJson(local!.absolutePath, local!.size))) {
+              throw new Error('not valid JSON (damaged?) — not uploaded, so it can\'t replace good copies elsewhere')
+            }
             await this.ensureRemoteDir(path)
             await this.adapter.upload(local!.absolutePath, this.toRemotePath(path), local!.mtime)
             result.uploaded++
@@ -183,6 +220,8 @@ export class SyncService {
           }
           case 'download':
           case 'conflict': {
+            // Remote content already fetched to a temp file for the conflict check.
+            let fetched: string | undefined
             if (action === 'conflict') {
               // Large files can't be content-hashed (reading a multi-GB file to
               // hash OOMs mobile), so their signature is (size,mtime) — and mtime
@@ -198,11 +237,19 @@ export class SyncService {
               // the remote content is byte-identical to local it isn't a real
               // conflict (e.g. remote mtime jitter, or both edited the same way) —
               // converge silently, no copy, no transfer.
-              const remoteSig = await this.remoteSignature(path)
-              if (remoteSig && localSig && remoteSig === localSig) {
+              const remoteCopy = await this.fetchRemoteCopy(path, remote!.size)
+              if (remoteCopy?.sig && localSig && remoteCopy.sig === localSig) {
+                await this.fs.remove(remoteCopy.tmp).catch(() => {})
                 nextArchive[path] = { sig: localSig, size: local!.size, mtime: local!.mtime, remoteMtime: remote!.mtime }
                 break
               }
+              // A damaged server copy must not displace the local one (checked
+              // before the local file is moved aside as the conflict copy).
+              if (remoteCopy && !remoteCopy.valid) {
+                await this.fs.remove(remoteCopy.tmp).catch(() => {})
+                throw new Error('the server copy is not valid JSON (damaged?) — local version kept')
+              }
+              fetched = remoteCopy?.tmp
               result.conflicts++
               // Preserve the local edit as a *.sync-conflict-* copy BEFORE the
               // host's version overwrites it — zero data loss. Notes get a fresh
@@ -219,6 +266,7 @@ export class SyncService {
               } catch (e) {
                 // Without a saved copy, downloading would overwrite the local edit:
                 // skip this file (baseline kept) and retry on the next sync.
+                if (fetched) await this.fs.remove(fetched).catch(() => {})
                 console.log(`[sync] CONFLICT "${path}" — failed to make conflict copy: ${(e as Error).message}`)
                 throw new Error(`conflict copy failed, local version kept: ${(e as Error).message}`)
               }
@@ -234,7 +282,7 @@ export class SyncService {
               throw new Error(`refusing to write outside the library: ${path}`)
             }
             await this.fs.mkdir(dirname(localPath), { recursive: true })
-            await this.adapter.download(this.toRemotePath(path), localPath)
+            await this.fetchInto(path, localPath, fetched)
             await this.preserveMtime(localPath, remote!.mtime)
             result.downloaded++
             this.events?.emit('sync:file:downloaded', { path })
@@ -421,6 +469,7 @@ export class SyncService {
   }
 
   private async writeArchive(archive: SyncArchive): Promise<void> {
+    await this.fs.mkdir(dirname(this.archivePath), { recursive: true })
     await this.fs.writeTextFile(this.archivePath, JSON.stringify(archive, null, 2))
   }
 
@@ -434,21 +483,61 @@ export class SyncService {
     return `a:${size}:${mtime}`
   }
 
-  // Signature of the current REMOTE content — downloads it to a temp file, hashes,
-  // then cleans up. Returns undefined when crypto is unavailable (can't compare
-  // content reliably) or the fetch fails. Used only on a (rare) conflict.
-  private async remoteSignature(rel: string): Promise<string | undefined> {
-    if (!this.crypto) return undefined
-    const tmp = join(this.rootPath, '.banjuan', `.sync-tmp-conflict-${rel.replace(/[^a-zA-Z0-9]/g, '_')}`)
+  /** A temp-file path in .banjuan that sync and the LAN host never pick up. */
+  private tempPath(tag: string): string {
+    return join(this.rootPath, '.banjuan', `.sync-${tag}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}.banjuan-tmp`)
+  }
+
+  private isLibraryJson(rel: string): boolean {
+    return rel.startsWith('.banjuan/') && rel.endsWith('.json')
+  }
+
+  /** Notes and metadata must parse before they travel: a file cut short by a crash must not replace good copies. */
+  private async parsesAsJson(abs: string, size: number): Promise<boolean> {
+    if (size > MAX_JSON_CHECK_BYTES) return true
+    try { JSON.parse(await this.fs.readTextFile(abs)); return true } catch { return false }
+  }
+
+  // On a (rare) conflict: fetch the server copy to a temp file — to hash it
+  // (identical content isn't a conflict) and, for library JSON, to check it
+  // parses. The caller moves it into place instead of downloading it twice.
+  // Undefined when it isn't worth fetching (no crypto and not JSON, or too big
+  // to hash) or the fetch fails.
+  private async fetchRemoteCopy(rel: string, size: number): Promise<{ tmp: string; sig?: string; valid: boolean } | undefined> {
+    const json = this.isLibraryJson(rel)
+    const hashable = !!this.crypto && size <= MAX_HASH_BYTES
+    if (!json && !hashable) return undefined
+    const tmp = this.tempPath('remote')
     try {
       await this.adapter.download(this.toRemotePath(rel), tmp)
       const st = await this.fs.stat(tmp)
-      const sig = await this.signature(tmp, st.size, st.mtime)
-      await this.fs.remove(tmp).catch(() => {})
-      return sig
+      return {
+        tmp,
+        sig: hashable ? await this.signature(tmp, st.size, st.mtime) : undefined,
+        valid: !json || await this.parsesAsJson(tmp, st.size),
+      }
     } catch {
       await this.fs.remove(tmp).catch(() => {})
       return undefined
+    }
+  }
+
+  /** Put the server's version of `rel` at `localPath` — library JSON only once it parses. */
+  private async fetchInto(rel: string, localPath: string, alreadyFetched?: string): Promise<void> {
+    if (!alreadyFetched && !this.isLibraryJson(rel)) {
+      await this.adapter.download(this.toRemotePath(rel), localPath)
+      return
+    }
+    const tmp = alreadyFetched ?? this.tempPath('download')
+    try {
+      if (!alreadyFetched) await this.adapter.download(this.toRemotePath(rel), tmp)
+      if (this.isLibraryJson(rel)) {
+        const st = await this.fs.stat(tmp)
+        if (!(await this.parsesAsJson(tmp, st.size))) throw new Error('the server copy is not valid JSON (damaged?) — local version kept')
+      }
+      await this.fs.rename(tmp, localPath)
+    } finally {
+      await this.fs.remove(tmp).catch(() => {})   // gone already after the rename
     }
   }
 

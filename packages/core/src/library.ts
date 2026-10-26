@@ -17,7 +17,7 @@ import { EventBus } from './events/bus.js'
 import { PluginManager } from './plugins/manager.js'
 import type { LibraryConfig, SyncConfig } from './types.js'
 import { WebDAVAdapter } from './sync/webdav-adapter.js'
-import { SyncService } from './sync/service.js'
+import { SyncService, webdavTarget } from './sync/service.js'
 import { StubService } from './sync/stub-service.js'
 import { IndexService } from './indexing/service.js'
 import { TemplateService } from './notes/template-service.js'
@@ -221,7 +221,7 @@ export class Library {
   async createSyncServiceConnected(config: SyncConfig): Promise<SyncService> {
     const adapter = new WebDAVAdapter(this.fs)
     await adapter.connect(config)
-    return new SyncService(this.rootPath, adapter, this.events, this.fs, config.remotePath, this.deps.crypto)
+    return new SyncService(this.rootPath, adapter, this.events, this.fs, config.remotePath, this.deps.crypto, undefined, webdavTarget(config))
   }
 
   createIndexService(): IndexService {

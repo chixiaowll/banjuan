@@ -196,3 +196,49 @@ describe('a failing remote listing', () => {
     expect((await svc.sync()).uploaded).toBe(1)
   })
 })
+
+describe('per-target baselines, one sync at a time, damaged JSON', () => {
+  it('a second sync target is not judged against the first one\'s baseline', async () => {
+    const root = join(createTempDir(), 'lib')
+    mkdirSync(root)
+    edit(join(root, 'a.md'), 'a', 1_799_999_000_000)
+    const webdav = new GenericDavAdapter(() => 1_800_000_000_000)
+    await new SyncService(root, webdav, undefined, new NodeFS(), '/', undefined, 'me', 'webdav:https://dav|/').sync()
+    // A LAN peer that never had a.md: with a shared baseline it looked deleted there → deleted here.
+    const lan = new GenericDavAdapter(() => 1_800_000_000_000)
+    const r = await new SyncService(root, lan, undefined, new NodeFS(), '/', undefined, 'me', 'lan:desk').sync()
+    expect(r.deletedLocal).toBe(0)
+    expect(existsSync(join(root, 'a.md'))).toBe(true)
+    expect(lan.text('/a.md')).toBe('a')
+  })
+
+  it('runs overlapping syncs of one library one after the other', async () => {
+    const root = join(createTempDir(), 'lib')
+    mkdirSync(root)
+    edit(join(root, 'a.md'), 'a', 1_799_999_000_000)
+    const adapter = new GenericDavAdapter(() => 1_800_000_000_000)
+    let active = 0, maxActive = 0
+    const realList = adapter.list.bind(adapter)
+    adapter.list = async (p: string) => { active++; maxActive = Math.max(maxActive, active); await new Promise(r => setTimeout(r, 20)); active--; return realList(p) }
+    const svc = new SyncService(root, adapter, undefined, new NodeFS(), '/')
+    await Promise.all([svc.sync(), svc.sync()])
+    expect(maxActive).toBe(1)
+  })
+
+  it('does not upload a damaged library JSON, and does not let a damaged one from the server replace a good one', async () => {
+    const root = join(createTempDir(), 'lib')
+    mkdirSync(root)
+    const adapter = new GenericDavAdapter(() => 1_800_000_000_000)
+    const svc = new SyncService(root, adapter, undefined, new NodeFS(), '/')
+    edit(join(root, '.banjuan', 'notes', 'bad.json'), '{"meta": {"id": "x"', 1_799_999_000_000)
+    const r1 = await svc.sync()
+    expect(adapter.text('/.banjuan/notes/bad.json')).toBeUndefined()
+    expect(r1.errors.join()).toMatch(/not valid JSON/)
+
+    adapter.editRemote('/.banjuan/notes/good.json', '{"meta": {"id": "g", "ti')   // truncated on the server
+    edit(join(root, '.banjuan', 'notes', 'good.json'), '{"meta":{"id":"g","title":"ok"}}', 1_700_000_000_000)
+    const r2 = await svc.sync()
+    expect(readFileSync(join(root, '.banjuan', 'notes', 'good.json'), 'utf-8')).toBe('{"meta":{"id":"g","title":"ok"}}')
+    expect(r2.errors.join()).toMatch(/not valid JSON/)
+  })
+})

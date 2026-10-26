@@ -22,6 +22,7 @@ export const EXCLUDED_NAMES = new Set([
 // Directory names never synced or served.
 export const EXCLUDED_DIRS = new Set([
   'plugins',
+  'sync-archives', // .banjuan/sync-archives: this device's per-server sync baselines
   '.sync-trash',   // .banjuan/.sync-trash: local recovery copies of synced-away deletions
   '.trash',        // .banjuan/.trash: this device's recycle bin
   '.cover-cache',  // .banjuan/.cover-cache: document thumbnails, made per device
@@ -43,6 +44,7 @@ const DEVICE_LOCAL_LC = new Set([...DEVICE_LOCAL_PATHS].map(n => n.toLowerCase()
 export function isExcluded(name: string, isDirectory: boolean): boolean {
   const lc = name.toLowerCase()
   if (EXCLUDED_NAMES_LC.has(lc)) return true
+  if (!isDirectory && /^(db\.sqlite|library\.db)\.corrupt-/.test(lc)) return true   // a damaged index set aside (platform-capacitor)
   if (!isDirectory && lc.endsWith(TEMP_SUFFIX)) return true
   if (isDirectory && EXCLUDED_DIRS_LC.has(lc)) return true
   return false

@@ -61,10 +61,9 @@ describe('Library sync helpers', () => {
     // sync must fail every remote operation instead of silently "succeeding".
     it('cannot reach the remote without a connected config', async () => {
       const service = lib.createSyncService()
-      const result = await service.sync()
-      expect(result.uploaded).toBe(0)
-      expect(result.errors.length).toBeGreaterThan(0)
-      for (const err of result.errors) expect(err).toContain('Not connected')
+      // Listing the server fails, so the sync stops right there (it no longer
+      // treats an unreadable server as an empty one).
+      await expect(service.sync()).rejects.toThrow('Not connected')
     })
   })
 

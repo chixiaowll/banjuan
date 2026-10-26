@@ -3,6 +3,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlin
 import { readFile } from 'node:fs/promises'
 import { join, basename, dirname, resolve, sep } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
+import { webdavTarget } from '@banjuan/core'
 import { Library, MAX_LIBRARY_FILES, type MindmapNodeCreateInput, type MindmapNode, type MindmapSnapshot, type PlatformDeps, type SearchOptions } from '@banjuan/core'
 import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
 import { setLibraryGetter } from './api-server.js'
@@ -910,7 +911,7 @@ export function registerIpcHandlers() {
     const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect(config)
     // crypto enables content hashes (false-conflict check); the device name labels conflict copies — as on mobile.
-    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, config.remotePath, deps.crypto, getDeviceIdentity().deviceName)
+    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, config.remotePath, deps.crypto, getDeviceIdentity().deviceName, webdavTarget(config))
     try {
       const result = await svc.sync((p) => {
         event.sender.send('sync:progress', p)
@@ -1095,7 +1096,8 @@ export function registerIpcHandlers() {
     const token = existing.token
 
     if (hostLibraryId && hostLibraryId !== myLibraryId) {
-      const isEmpty = (await library.documents.list()).length === 0
+      // Notes count too: a notes-only library used to be taken as empty and merged without asking.
+      const isEmpty = (await library.documents.list()).length === 0 && (await library.notes.list({})).length === 0
       if (isEmpty || force) {
         await library.adoptLibraryId(hostLibraryId)
       } else {
@@ -1105,7 +1107,7 @@ export function registerIpcHandlers() {
 
     const adapter = new WebDAVAdapter(deps.fs)
     await adapter.connect({ type: 'webdav', url: base, username: 'banjuan', password: token, remotePath: '/' })
-    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, '/', deps.crypto, getDeviceIdentity().deviceName)
+    const svc = new SyncService(library.rootPath, adapter, library.events, deps.fs, '/', deps.crypto, getDeviceIdentity().deviceName, `lan:${hostDeviceId}`)
     try {
       const result = await svc.sync((p) => { event.sender.send('sync:progress', p) })
       if (result.localChanged) {   // nothing local changed → no re-index needed
