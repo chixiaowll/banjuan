@@ -1,5 +1,5 @@
 import { ipcMain, dialog, clipboard, shell, BrowserWindow, app, safeStorage } from 'electron'
-import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync, renameSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, basename, dirname, resolve, sep, parse as parsePath } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
@@ -13,16 +13,37 @@ import { writeZip } from './zip.js'
 import { DiscoveryService } from './discovery-service.js'
 import { docTextStatus } from './doc-text-indexer.js'
 import { getCover } from './covers.js'
+import { libraryPath, rememberPickedDir, exportDir, openPathSafely, rememberUserChosenPath, assertUserChosen } from './path-guard.js'
 
 // Global plugins live here (shared by every library), à la Claude Code's
 // global plugin dir. Built-in plugins are installed here once at startup.
 const GLOBAL_PLUGINS_DIR = join(homedir(), '.banjuan', 'plugins')
+
+// Which library plugins the user allowed on this machine, by library + plugin
+// id → code hash. Kept outside every library so a shared or synced folder can't
+// mark its own plugins as allowed.
+const PLUGIN_TRUST_FILE = join(homedir(), '.banjuan', 'plugin-trust.json')
+
+function readPluginTrust(): Record<string, Record<string, string>> {
+  try { return JSON.parse(readFileSync(PLUGIN_TRUST_FILE, 'utf8')) } catch { return {} }
+}
 
 const deps: PlatformDeps = {
   fs: new NodeFS(),
   dbFactory: new NodeDatabaseFactory(),
   crypto: new NodeCrypto(),
   globalPluginsDir: GLOBAL_PLUGINS_DIR,
+  pluginTrust: {
+    isTrusted: async (root, id, hash) => readPluginTrust()[resolve(root)]?.[id] === hash,
+    trust: async (root, id, hash) => {
+      const all = readPluginTrust()
+      ;(all[resolve(root)] ??= {})[id] = hash
+      mkdirSync(dirname(PLUGIN_TRUST_FILE), { recursive: true })
+      const tmp = `${PLUGIN_TRUST_FILE}.${process.pid}.tmp`
+      writeFileSync(tmp, JSON.stringify(all, null, 2))
+      renameSync(tmp, PLUGIN_TRUST_FILE)
+    },
+  },
   // The WebDAV password in sync.json, sealed by the OS keychain (macOS Keychain,
   // Windows DPAPI, libsecret). Unavailable → seal throws and it stays as before.
   secrets: {
@@ -68,9 +89,13 @@ export function installBundledPlugins(): void {
  * resolves outside the library's .banjuan dir (a `..` in the renderer-supplied path).
  */
 function attachmentSource(lib: Library, relPath: string): string | null {
-  const root = resolve(lib.attachments.getFullPath(''))
-  const p = resolve(lib.attachments.getFullPath(relPath))
-  return p.startsWith(root + sep) && existsSync(p) ? p : null
+  try {
+    const root = resolve(lib.attachments.getFullPath(''))
+    const p = resolve(lib.attachments.getFullPath(relPath))
+    return p.startsWith(root + sep) && existsSync(p) ? p : null
+  } catch {
+    return null   // not a plain attachment path
+  }
 }
 
 /** Zip entries for a list of attachments under `prefix` (e.g. "Title/attachments"). */
@@ -128,6 +153,8 @@ export function getLibraryHistory(): LibraryHistoryEntry[] {
 }
 
 export const libraries = new Map<number, Library>()
+// Paths listed by the last clipboard:readFiles — the only ones clipboard:readFileBuffer reads.
+const clipboardFiles = new Set<string>()
 let nextApiKey = -1
 
 function getLib(event: Electron.IpcMainInvokeEvent): Library {
@@ -254,6 +281,7 @@ export function registerIpcHandlers() {
   ipcMain.handle('dialog:openDirectory', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     if (result.canceled) return null
+    rememberPickedDir(result.filePaths[0])   // exports may write here
     return result.filePaths[0]
   })
 
@@ -268,7 +296,7 @@ export function registerIpcHandlers() {
     if (result.canceled) return null
     const fs = await import('node:fs/promises')
     const path = await import('node:path')
-    const targetDir = destDir ? path.join(library.rootPath, destDir) : library.rootPath
+    const targetDir = destDir ? libraryPath(library.rootPath, destDir) : library.rootPath
     await fs.mkdir(targetDir, { recursive: true })
     const destPaths: string[] = []
     for (const srcPath of result.filePaths) {
@@ -333,7 +361,10 @@ export function registerIpcHandlers() {
   ipcMain.handle('trash:purge', async (event, entryId: string) => getLib(event).trash.purge(entryId))
   ipcMain.handle('trash:empty', async (event) => getLib(event).trash.empty())
 
+  ipcMain.on('files:user-chosen', (_event, p: string) => rememberUserChosenPath(p))
+
   ipcMain.handle('documents:importFiles', async (event, filePaths: string[], destDir?: string) => {
+    assertUserChosen(filePaths)
     const library = getLib(event)
     return importDocumentFiles(library, filePaths, destDir ?? null)
   })
@@ -357,22 +388,22 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('documents:getFilePath', async (event, relativePath: string) => {
-    return join(getLib(event).rootPath, relativePath)
+    return libraryPath(getLib(event).rootPath, relativePath)
   })
 
   ipcMain.handle('documents:readContent', async (event, relativePath: string) => {
-    const fullPath = join(getLib(event).rootPath, relativePath)
+    const fullPath = libraryPath(getLib(event).rootPath, relativePath)
     return readFileSync(fullPath, 'utf-8')
   })
 
   ipcMain.handle('documents:readFileBuffer', async (event, relativePath: string) => {
-    const fullPath = join(getLib(event).rootPath, relativePath)
+    const fullPath = libraryPath(getLib(event).rootPath, relativePath)
     return readFile(fullPath)
   })
 
   ipcMain.handle('documents:openInSystem', async (event, relativePath: string) => {
-    const fullPath = join(getLib(event).rootPath, relativePath)
-    return shell.openPath(fullPath)
+    const fullPath = libraryPath(getLib(event).rootPath, relativePath)
+    return openPathSafely(fullPath)
   })
 
   ipcMain.handle('tags:list', async (event) => {
@@ -562,7 +593,7 @@ export function registerIpcHandlers() {
 
   const importDocumentFiles = async (lib: Library, filePaths: string[], destDir: string | null) => {
     const results: Array<{ title: string; success: boolean; error?: string }> = []
-    const targetDir = destDir ? join(lib.rootPath, destDir) : lib.rootPath
+    const targetDir = destDir ? libraryPath(lib.rootPath, destDir) : lib.rootPath
     mkdirSync(targetDir, { recursive: true })
 
     // Files are copied as the tree is walked, then imported in one batch below.
@@ -633,6 +664,7 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('notes:importMarkdown', async (event, filePaths: string[], targetFolder: string | null) => {
+    assertUserChosen(filePaths)
     return importMarkdownFiles(getLib(event), filePaths, targetFolder)
   })
 
@@ -692,7 +724,7 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('attachments:open', async (event, relativePath: string) => {
     const fullPath = getLib(event).attachments.getFullPath(relativePath)
-    return shell.openPath(fullPath)
+    return openPathSafely(fullPath)
   })
 
   ipcMain.handle('attachments:readBuffer', async (event, relativePath: string) => {
@@ -1084,16 +1116,19 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('clipboard:readFiles', async () => {
+    clipboardFiles.clear()
     if (process.platform === 'darwin') {
       const raw = clipboard.read('NSFilenamesPboardType')
       if (raw) {
         try {
           const plist = raw.match(/<string>(.*?)<\/string>/g)
           if (plist) {
-            return plist
+            const files = plist
               .map(s => s.replace(/<\/?string>/g, ''))
               .filter(p => existsSync(p))
               .map(p => ({ path: p, name: basename(p) }))
+            for (const f of files) clipboardFiles.add(f.path)
+            return files
           }
         } catch { /* not file data */ }
       }
@@ -1101,7 +1136,9 @@ export function registerIpcHandlers() {
     return []
   })
 
+  // Only files the user actually copied (as listed by clipboard:readFiles) can be read here.
   ipcMain.handle('clipboard:readFileBuffer', async (_event, filePath: string) => {
+    if (!clipboardFiles.has(filePath)) throw new Error('Not a file from the clipboard')
     return readFile(filePath)
   })
 
@@ -1110,6 +1147,7 @@ export function registerIpcHandlers() {
     const safeTitle = input.title.replace(/[/\\:*?"<>|]/g, '_')
 
     if (input.outputPath) {
+      input.outputPath = exportDir(input.outputPath)
       mkdirSync(input.outputPath, { recursive: true })
       const mdPath = uniquePath(join(input.outputPath, `${safeTitle}.md`))
       writeFileSync(mdPath, input.markdown, 'utf-8')
@@ -1117,8 +1155,8 @@ export function registerIpcHandlers() {
         const attDir = join(input.outputPath, 'attachments')
         mkdirSync(attDir, { recursive: true })
         for (const relPath of input.attachments) {
-          const srcPath = lib.attachments.getFullPath(relPath)
-          if (existsSync(srcPath)) {
+          const srcPath = attachmentSource(lib, relPath)
+          if (srcPath) {
             const dest = uniquePath(join(attDir, basename(srcPath)))
             copyFileSync(srcPath, dest)
           }
@@ -1162,8 +1200,9 @@ export function registerIpcHandlers() {
   // Used by the background export window for png/svg/json single-note exports.
   ipcMain.handle('export:writeFile', async (_event, input: { outputPath: string; fileName: string; dataUrl?: string; text?: string }) => {
     const safeName = input.fileName.replace(/[/\\:*?"<>|]/g, '_')
-    mkdirSync(input.outputPath, { recursive: true })
-    const target = uniquePath(join(input.outputPath, safeName))
+    const outDir = exportDir(input.outputPath)
+    mkdirSync(outDir, { recursive: true })
+    const target = uniquePath(join(outDir, safeName))
     if (input.text != null) {
       writeFileSync(target, input.text, 'utf-8')
     } else if (input.dataUrl) {
@@ -1231,9 +1270,10 @@ ${contentHtml}
       })
 
       if (input.outputPath) {
-        mkdirSync(input.outputPath, { recursive: true })
-        writeFileSync(uniquePath(join(input.outputPath, `${safeTitle}.pdf`)), pdfBuffer)
-        return input.outputPath
+        const outDir = exportDir(input.outputPath)
+        mkdirSync(outDir, { recursive: true })
+        writeFileSync(uniquePath(join(outDir, `${safeTitle}.pdf`)), pdfBuffer)
+        return outDir
       }
 
       const hasAttachments = input.attachments.length > 0

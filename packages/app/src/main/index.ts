@@ -1,5 +1,5 @@
 import { app, protocol, net, Menu, BrowserWindow, ipcMain } from 'electron'
-import { registerIpcHandlers, getLibraryRootPath, installBundledPlugins, libraries } from './ipc.js'
+import { registerIpcHandlers, installBundledPlugins, libraries } from './ipc.js'
 import { registerExportWindowHandlers } from './export-window.js'
 import { startApiServer, stopApiServer } from './api-server.js'
 import { startDocTextIndexer, stopDocTextIndexer } from './doc-text-indexer.js'
@@ -7,6 +7,9 @@ import { installCli } from './install-cli.js'
 import { createWindow, getWindowCount, isLibraryWindow, flushAllWindowsForQuit } from './windows.js'
 import { initScreenshot, disposeScreenshot } from './screenshot/index.js'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
+import { isInside } from './path-guard.js'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'local-file', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
@@ -19,17 +22,39 @@ app.commandLine.appendSwitch('disable-background-timer-throttling')
 app.commandLine.appendSwitch('disable-renderer-backgrounding')
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
 
+// Every page the app shows (library, export, screenshot and PDF-rendering
+// windows): no pop-up windows and no navigating away from the page it loaded.
+// Library windows add their own handling of note and external links (windows.ts).
+app.on('web-contents-created', (_e, contents) => {
+  contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  contents.on('will-navigate', (event, url) => {
+    const current = contents.getURL()
+    if (current && url.split('#')[0] === current.split('#')[0]) return   // a reload
+    event.preventDefault()
+  })
+  contents.on('will-attach-webview', (event) => event.preventDefault())
+})
+
 app.whenReady().then(() => {
+  // Both schemes serve files to pages that may show other people's content
+  // (EPUB/HTML documents, synced notes), so only files inside an open library.
   protocol.handle('local-file', (request) => {
     const filePath = decodeURIComponent(request.url.replace('local-file://', ''))
-    return net.fetch(`file://${filePath}`)
+    if (![...libraries.values()].some(lib => isInside(lib.rootPath, filePath))) {
+      console.warn('[local-file] refused a path outside the open libraries:', filePath)
+      return new Response('Forbidden', { status: 403 })
+    }
+    return net.fetch(pathToFileURL(filePath).href)
   })
   protocol.handle('banjuan-attachment', (request) => {
-    const relativePath = request.url.replace('banjuan-attachment://', '')
-    const rootPath = getLibraryRootPath()
-    if (!rootPath) return new Response('Library not open', { status: 404 })
-    const fullPath = join(rootPath, '.banjuan', relativePath)
-    return net.fetch(`file://${fullPath}`)
+    const relativePath = decodeURIComponent(request.url.replace('banjuan-attachment://', '')).replace(/[?#].*$/, '')
+    // The URL doesn't say which library it belongs to: use the open one that has it.
+    for (const lib of libraries.values()) {
+      const dir = join(lib.rootPath, '.banjuan')
+      const fullPath = join(dir, relativePath)
+      if (isInside(dir, fullPath) && existsSync(fullPath)) return net.fetch(pathToFileURL(fullPath).href)
+    }
+    return new Response('Not found', { status: 404 })
   })
   registerIpcHandlers()
   installBundledPlugins() // refresh global plugins (~/.banjuan/plugins) at startup

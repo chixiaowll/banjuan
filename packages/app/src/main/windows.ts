@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 
 const windows = new Set<BrowserWindow>()
@@ -59,13 +59,22 @@ export function createWindow(): BrowserWindow {
     return null
   }
 
+  // The window only ever shows the app. A link (in a note, an EPUB, an HTML
+  // document) never opens inside it or in a new app window — which would get
+  // this preload and with it the whole library API — but in the browser.
+  const openOutside = (url: string) => {
+    if (/^(https?|mailto):/i.test(url)) void shell.openExternal(url)
+    else console.warn('[window] blocked navigation to', url)
+  }
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (isNoteLink(url)) {
       const noteId = extractNoteId(url)
       if (noteId) win.webContents.send('navigate-note-link', noteId)
-      return { action: 'deny' }
+    } else {
+      openOutside(url)
     }
-    return { action: 'allow' }
+    return { action: 'deny' }
   })
 
   win.webContents.on('will-navigate', (event, url) => {
@@ -73,7 +82,13 @@ export function createWindow(): BrowserWindow {
       event.preventDefault()
       const noteId = extractNoteId(url)
       if (noteId) win.webContents.send('navigate-note-link', noteId)
+      return
     }
+    // Reloading the app itself (settings do) is fine; anything else — a link, a
+    // file dropped outside a drop zone — must not replace it.
+    if (url.split('#')[0] === win.webContents.getURL().split('#')[0]) return
+    event.preventDefault()
+    openOutside(url)
   })
 
   windows.add(win)

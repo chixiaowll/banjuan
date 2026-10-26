@@ -295,7 +295,13 @@ const api = {
     readFiles: () => ipcRenderer.invoke('clipboard:readFiles') as Promise<Array<{ path: string; name: string }>>,
     readFileBuffer: (filePath: string) => ipcRenderer.invoke('clipboard:readFileBuffer', filePath) as Promise<ArrayBuffer>,
   },
-  getPathForFile: (file: File) => webUtils.getPathForFile(file),
+  // A path from a real dropped/picked File: tell main the user chose it, so the
+  // import handlers (which refuse other absolute paths) will accept it.
+  getPathForFile: (file: File) => {
+    const p = webUtils.getPathForFile(file)
+    if (p) ipcRenderer.send('files:user-chosen', p)
+    return p
+  },
   search: {
     query: (query: string, options?: { type?: string; limit?: number }) =>
       ipcRenderer.invoke('search:query', query, options),
