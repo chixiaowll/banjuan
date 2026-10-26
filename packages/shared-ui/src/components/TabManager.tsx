@@ -23,6 +23,7 @@ import '../styles/mobile.css'
 import { useEscapeKey } from '../utils/useEscapeKey.js'
 import { toast } from './feedback.js'
 import { installLongPressMenu } from '../utils/longPressMenu.js'
+import ErrorBoundary from './ErrorBoundary.js'
 
 const LIBRARY_TAB_ID = 'library'
 
@@ -549,7 +550,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
               }}
             >
               <TabActiveContext.Provider value={tab.id === activeTabId}>
-              {mountedTabsRef.current.has(tab.id) && <Suspense fallback={null}>
+              {mountedTabsRef.current.has(tab.id) && <ErrorBoundary><Suspense fallback={null}>
               {tab.type === 'library' && (
                 <LibraryView
                   rootPath={libraryPath}
@@ -583,7 +584,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
               {tab.type === 'tag-manager' && (
                 <TagManagerView libraryName={libraryName} onBack={() => closeTab(tab.id)} />
               )}
-              </Suspense>}
+              </Suspense></ErrorBoundary>}
               </TabActiveContext.Provider>
             </div>
           ))}

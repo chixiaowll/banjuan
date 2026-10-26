@@ -299,6 +299,8 @@ const de = {
   'note.saveFailed': 'Speichern fehlgeschlagen',
   'note.saveFailedDetail': 'Notiz konnte nicht gespeichert werden: {0}. Der Inhalt bleibt im Editor; beim Weiterschreiben wird es erneut versucht.',
   'note.changedElsewhere': 'Diese Notiz wurde an anderer Stelle geändert. Deine ungespeicherten Änderungen hier überschreiben diese Änderung.',
+  'error.viewCrashed': 'Beim Anzeigen ist ein Fehler aufgetreten. Gespeicherte Inhalte sind nicht betroffen.',
+  'error.retry': 'Erneut versuchen',
   'viewer.loadFailed': 'Dieses Dokument kann nicht geöffnet werden',
   'viewer.fileMissing': 'Die Datei wurde nicht gefunden. Sie wurde möglicherweise verschoben, umbenannt oder gelöscht.',
   'viewer.openInSystem': 'Mit Standard-App öffnen',

@@ -299,6 +299,8 @@ const ko = {
   'note.saveFailed': '저장 실패',
   'note.saveFailedDetail': '노트를 저장하지 못했습니다: {0}. 내용은 편집기에 그대로 있으며, 계속 편집하면 자동으로 다시 시도합니다.',
   'note.changedElsewhere': '이 노트가 다른 곳에서 수정되었습니다. 여기에 저장되지 않은 편집이 있어 저장하면 이쪽 내용이 우선합니다.',
+  'error.viewCrashed': '표시하는 중 문제가 발생했습니다. 저장된 내용에는 영향이 없습니다.',
+  'error.retry': '다시 시도',
   'viewer.loadFailed': '이 문서를 열 수 없습니다',
   'viewer.fileMissing': '파일을 찾을 수 없습니다. 이동, 이름 변경 또는 삭제되었을 수 있습니다.',
   'viewer.openInSystem': '기본 앱으로 열기',

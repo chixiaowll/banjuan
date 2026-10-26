@@ -327,6 +327,8 @@ const en = {
   'note.saveFailed': 'Save failed',
   'note.saveFailedDetail': 'Couldn’t save the note: {0}. Your content is still in the editor; it will retry as you keep editing.',
   'note.changedElsewhere': 'This note was changed elsewhere. You have unsaved edits here, which will be saved over that change.',
+  'error.viewCrashed': 'Something went wrong showing this. Your saved content is not affected.',
+  'error.retry': 'Try again',
   'viewer.loadFailed': 'Can’t open this document',
   'viewer.fileMissing': 'The file can’t be found. It may have been moved, renamed or deleted.',
   'viewer.openInSystem': 'Open with default app',

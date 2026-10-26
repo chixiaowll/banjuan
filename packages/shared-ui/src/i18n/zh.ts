@@ -327,6 +327,8 @@ const zh = {
   'note.saveFailed': '保存失败',
   'note.saveFailedDetail': '笔记保存失败：{0}。内容仍在编辑器里，继续编辑会自动重试。',
   'note.changedElsewhere': '这篇笔记在别处被修改了。你这里还有未保存的修改，保存时会以这里的内容为准。',
+  'error.viewCrashed': '这里显示出错了。已保存的内容没有受影响。',
+  'error.retry': '重试',
   'viewer.loadFailed': '无法打开这个文档',
   'viewer.fileMissing': '找不到文件，它可能已被移动、重命名或删除。',
   'viewer.openInSystem': '用系统默认应用打开',

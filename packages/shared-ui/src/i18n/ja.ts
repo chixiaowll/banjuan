@@ -299,6 +299,8 @@ const ja = {
   'note.saveFailed': '保存に失敗',
   'note.saveFailedDetail': 'ノートを保存できませんでした：{0}。内容はエディターに残っています。編集を続けると自動的に再試行します。',
   'note.changedElsewhere': 'このノートは別の場所で変更されました。ここに未保存の編集があるため、保存するとこちらの内容が優先されます。',
+  'error.viewCrashed': '表示中に問題が発生しました。保存済みの内容には影響ありません。',
+  'error.retry': '再試行',
   'viewer.loadFailed': 'このドキュメントを開けません',
   'viewer.fileMissing': 'ファイルが見つかりません。移動、名前変更、または削除された可能性があります。',
   'viewer.openInSystem': '既定のアプリで開く',

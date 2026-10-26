@@ -1,27 +1,9 @@
 import React, { useMemo, useEffect } from 'react'
 import { BlockNoteView } from '@blocknote/mantine'
 import { useCreateBlockNote } from '@blocknote/react'
-import { BlockNoteSchema, defaultBlockSpecs, defaultInlineContentSpecs } from '@blocknote/core'
-import { AnnotationEmbed } from './blocks/AnnotationEmbed.js'
-import { DocumentEmbed } from './blocks/DocumentEmbed.js'
-import { NoteEmbed } from './blocks/NoteEmbed.js'
-import { NoteLink } from './blocks/NoteLink.js'
-import { FileEmbed } from './blocks/FileEmbed.js'
+import { schema } from './blockSchema.js'
+import ErrorBoundary from '../ErrorBoundary.js'
 import { migrateRawMarkdownBlocks, parseTextToBlocks } from '../mindmap/parseMarkdownBlocks.js'
-
-const schema = BlockNoteSchema.create({
-  blockSpecs: {
-    ...defaultBlockSpecs,
-    annotationEmbed: AnnotationEmbed,
-    documentEmbed: DocumentEmbed,
-    noteEmbed: NoteEmbed,
-    fileEmbed: FileEmbed,
-  },
-  inlineContentSpecs: {
-    ...defaultInlineContentSpecs,
-    noteLink: NoteLink,
-  },
-})
 
 interface Props {
   content: string
@@ -29,7 +11,7 @@ interface Props {
   style?: React.CSSProperties
 }
 
-export default function BlockPreview({ content, compact, style }: Props) {
+function BlockPreviewInner({ content, compact, style }: Props) {
   const parsed = useMemo(() => {
     try {
       const blocks = JSON.parse(content)
@@ -59,4 +41,28 @@ export default function BlockPreview({ content, compact, style }: Props) {
       <BlockNoteView editor={editor} editable={false} theme="light" />
     </div>
   )
+}
+
+/** Read-only rendering of note blocks; content it can't render shows as plain text instead of crashing the canvas. */
+export default function BlockPreview(props: Props) {
+  return (
+    <ErrorBoundary resetKey={props.content} fallback={() => <PlainText content={props.content} style={props.style} />}>
+      <BlockPreviewInner {...props} />
+    </ErrorBoundary>
+  )
+}
+
+function PlainText({ content, style }: { content: string; style?: React.CSSProperties }) {
+  const text = useMemo(() => {
+    try {
+      const out: string[] = []
+      const walk = (x: any) => {
+        if (Array.isArray(x)) x.forEach(walk)
+        else if (x && typeof x === 'object') { if (typeof x.text === 'string') out.push(x.text); walk(x.content); walk(x.children) }
+      }
+      walk(JSON.parse(content))
+      return out.join(' ')
+    } catch { return content }
+  }, [content])
+  return text ? <div style={{ whiteSpace: 'pre-wrap', fontSize: 12, ...style }}>{text}</div> : null
 }

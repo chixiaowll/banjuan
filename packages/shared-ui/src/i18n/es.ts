@@ -299,6 +299,8 @@ const es = {
   'note.saveFailed': 'Error al guardar',
   'note.saveFailedDetail': 'No se pudo guardar la nota: {0}. El contenido sigue en el editor; se reintentará mientras sigas editando.',
   'note.changedElsewhere': 'Esta nota se modificó en otro lugar. Tus cambios sin guardar aquí reemplazarán ese cambio.',
+  'error.viewCrashed': 'Algo salió mal al mostrar esto. El contenido guardado no se ve afectado.',
+  'error.retry': 'Reintentar',
   'viewer.loadFailed': 'No se puede abrir este documento',
   'viewer.fileMissing': 'No se encuentra el archivo. Puede que se haya movido, renombrado o eliminado.',
   'viewer.openInSystem': 'Abrir con la app predeterminada',
