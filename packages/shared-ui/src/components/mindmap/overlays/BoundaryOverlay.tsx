@@ -6,6 +6,7 @@ import { useNodeSizeStore } from '../useNodeSizeStore.js'
 import { useT } from '../../../i18n/index.js'
 import { useEscapeKey } from '../../../utils/useEscapeKey.js'
 import { useFitInViewport } from '../../../utils/useFitInViewport.js'
+import { useShallow } from 'zustand/react/shallow'
 
 const PADDING = 24
 const BORDER_RADIUS = 12
@@ -22,7 +23,7 @@ function collectDescendantIds(nodeId: string, allNodes: Node<MindmapNodeData>[])
 }
 
 export default function BoundaryOverlay() {
-  const { boundaries, rfNodes, updateBoundary, removeBoundary } = useMindmapStore()
+  const { boundaries, rfNodes, updateBoundary, removeBoundary } = useMindmapStore(useShallow(s => ({ boundaries: s.boundaries, rfNodes: s.rfNodes, updateBoundary: s.updateBoundary, removeBoundary: s.removeBoundary })))
   const nodeSizes = useNodeSizeStore(s => s.sizes)
 
   if (boundaries.length === 0) return null

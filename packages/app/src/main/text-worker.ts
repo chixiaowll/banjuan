@@ -7,8 +7,10 @@ import { extractPdf, extractEpub, extractPlain, type PdfjsLocation, type Extract
  * CPU, which would stall the main process and every IPC call behind it, and a
  * malformed file can't take the app down from here.
  *
- * Messages in: { type: 'init', loc } then { type: 'extract', id, path, docType }.
- * Messages out: { id, pages } or { id, error, missing }.
+ * Messages in: { type: 'init', loc } then { type: 'extract', id, path, docType }
+ * (the whole document, for the index) or { type: 'range', id, path, docType,
+ * fromPage, toPage } (some pages, for the local API).
+ * Messages out: { id, pages, numPages? } or { id, error, missing }.
  */
 
 // A book can be long; an index entry beyond this helps nobody and costs memory.
@@ -46,11 +48,28 @@ async function extract(path: string, docType: string): Promise<ExtractedPage[]> 
   }
 }
 
+/** Pages `fromPage`–`toPage` (EPUB: chapters, at most 5) and the document's page count. */
+async function extractRange(path: string, docType: string, fromPage: number, toPage: number): Promise<{ numPages: number; pages: ExtractedPage[] }> {
+  const data = new Uint8Array(readFileSync(path))
+  switch (docType) {
+    case 'pdf': {
+      const r = await extractPdf(data, loc!, { fromPage, toPage })
+      return { numPages: r.numPages, pages: r.pages }
+    }
+    case 'epub': {
+      // Chapters can be large — default to a small span unless explicitly asked.
+      const start = Math.max(1, fromPage || 1)
+      return extractEpub(data, { fromPage: start, toPage: Math.min(toPage, start + 4) })
+    }
+    default: return { numPages: 1, pages: extractPlain(data, docType).pages }
+  }
+}
+
 port.on('message', async ({ data: msg }) => {
   if (msg?.type === 'init') { loc = msg.loc; return }
-  if (msg?.type !== 'extract') return
   try {
-    port.postMessage({ id: msg.id, pages: await extract(msg.path, msg.docType) })
+    if (msg?.type === 'extract') port.postMessage({ id: msg.id, pages: await extract(msg.path, msg.docType) })
+    else if (msg?.type === 'range') port.postMessage({ id: msg.id, ...(await extractRange(msg.path, msg.docType, msg.fromPage, msg.toPage)) })
   } catch (e: any) {
     port.postMessage({ id: msg.id, error: String(e?.message ?? e), missing: e?.code === 'ENOENT' })
   }

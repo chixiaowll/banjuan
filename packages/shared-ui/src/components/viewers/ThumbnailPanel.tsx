@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { usePdfViewer } from './PdfViewerContext.js'
 import { useEyeProtection, EYE_PROTECTION_TINT } from './useEyeProtection.js'
+import type * as pdfjsLib from '@banjuan/zotero-pdfjs-dist'
 
 interface ThumbProps {
   pageNum: number
@@ -16,20 +17,36 @@ function Thumbnail({ pageNum, scrollRoot, onClickPage }: ThumbProps) {
   const [visible, setVisible] = useState(false)
   const [rendered, setRendered] = useState(false)
 
+  // Only thumbnails near the visible part keep a bitmap: scrolled far away,
+  // it is dropped (and drawn again on the way back). Kept forever, a long
+  // document's thumbnails added up to hundreds of megabytes.
   useEffect(() => {
     const el = containerRef.current
     if (!el || !scrollRoot) return
     const obs = new IntersectionObserver(
-      (entries) => { if (entries[0]?.isIntersecting) setVisible(true) },
-      { root: scrollRoot, rootMargin: '400px 0px' },
+      (entries) => { const e = entries[0]; if (e) setVisible(e.isIntersecting) },
+      { root: scrollRoot, rootMargin: '600px 0px' },
     )
     obs.observe(el)
     return () => obs.disconnect()
   }, [scrollRoot])
 
   useEffect(() => {
+    if (visible || !rendered) return
+    const canvas = canvasRef.current
+    if (canvas) { canvas.width = 0; canvas.height = 0 }
+    setRendered(false)
+  }, [visible, rendered])
+
+  useEffect(() => () => {
+    const canvas = canvasRef.current
+    if (canvas) { canvas.width = 0; canvas.height = 0 }
+  }, [])
+
+  useEffect(() => {
     if (!visible || rendered || !pdfDoc) return
     let cancelled = false
+    let task: ReturnType<pdfjsLib.PDFPageProxy['render']> | null = null
     const render = async () => {
       const page = await pdfDoc.getPage(pageNum)
       if (cancelled) return
@@ -39,11 +56,13 @@ function Thumbnail({ pageNum, scrollRoot, onClickPage }: ThumbProps) {
       canvas.width = vp.width
       canvas.height = vp.height
       const ctx = canvas.getContext('2d')!
-      await page.render({ canvasContext: ctx, viewport: vp }).promise.catch(() => {})
+      task = page.render({ canvasContext: ctx, viewport: vp })
+      await task.promise.catch(() => {})
+      try { page.cleanup() } catch { /* still in use by the page view */ }
       if (!cancelled) setRendered(true)
     }
     render()
-    return () => { cancelled = true }
+    return () => { cancelled = true; task?.cancel() }
   }, [visible, rendered, pdfDoc, pageNum])
 
   const isActive = currentPage === pageNum

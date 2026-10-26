@@ -199,6 +199,11 @@ export interface NoteLink {
   sourceId: string
   targetId: string
   context: string
+  /** The note at the other end, as indexed (backlinks: the source; forward links: the target). */
+  sourceTitle?: string
+  sourceType?: string
+  targetTitle?: string
+  targetType?: string
 }
 
 export interface NoteTemplate {

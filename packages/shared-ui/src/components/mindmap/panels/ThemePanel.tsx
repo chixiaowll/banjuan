@@ -2,6 +2,7 @@ import React from 'react'
 import { THEMES } from '../themes.js'
 import { useMindmapStore } from '../useMindmapStore.js'
 import { useT } from '../../../i18n/index.js'
+import { useShallow } from 'zustand/react/shallow'
 
 const EDGE_TYPE_KEYS = {
   bezier: 'mindmap.edgeBezier',
@@ -15,7 +16,7 @@ interface Props {
 
 export default function ThemePanel({ onClose }: Props) {
   const t = useT()
-  const { theme: currentTheme, setTheme } = useMindmapStore()
+  const { theme: currentTheme, setTheme } = useMindmapStore(useShallow(s => ({ theme: s.theme, setTheme: s.setTheme })))
 
   return (
     <div style={{ padding: '16px 16px 80px', overflowY: 'auto', height: '100%' }}>

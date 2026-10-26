@@ -1,5 +1,6 @@
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import type { PlatformFS } from '@banjuan/core'
+import { readDocumentsFile } from './read-file.js'
 
 // Same suffix as platform-node's atomic writes: sync and the LAN host skip such files.
 const TEMP_SUFFIX = '.banjuan-tmp'
@@ -13,14 +14,7 @@ export class CapacitorFS implements PlatformFS {
   }
 
   async readFile(path: string): Promise<Uint8Array> {
-    const result = await Filesystem.readFile({
-      path: this.resolvePath(path),
-      directory: Directory.Documents,
-    })
-    const binary = atob(result.data as string)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    return bytes
+    return readDocumentsFile(this.resolvePath(path))
   }
 
   async readTextFile(path: string): Promise<string> {

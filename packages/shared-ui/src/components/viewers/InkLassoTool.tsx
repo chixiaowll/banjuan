@@ -32,7 +32,9 @@ export default function InkLassoTool({ active, pageNum, annotations, onUpdated }
     },
   })
 
-  if (!active && lasso.strokeCount === 0) return null
+  // Only while the lasso is the tool: otherwise the page's ink tool already
+  // draws these strokes, and this was a second full-size canvas with the same picture.
+  if (!active) return null
 
   return (
     <div

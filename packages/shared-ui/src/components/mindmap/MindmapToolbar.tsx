@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react'
 import { PanelLeft, PanelRight, Undo2, Redo2, Trash2, FileDown, Image, FileCode, FileJson, FileText, FileImage, GripVertical, GitBranchPlus, Ungroup, Link2, Square, Braces } from 'lucide-react'
-import { useMindmapStore } from './useMindmapStore.js'
+import { useMindmapStore, useMindmapStoreApi } from './useMindmapStore.js'
 import { THEMES } from './themes.js'
 import { toPng, toSvg } from 'html-to-image'
 import { getNodesBounds, getViewportForBounds } from '@xyflow/react'
@@ -8,6 +8,7 @@ import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { exportToDirectory, exportSingleNote } from '../../utils/exportToDirectory.js'
 import { useEscapeKey } from '../../utils/useEscapeKey.js'
+import { useShallow } from 'zustand/react/shallow'
 
 interface TitleBarProps {
   onToggleLeftSidebar?: () => void
@@ -17,13 +18,17 @@ interface TitleBarProps {
 export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: TitleBarProps) {
   const t = useT()
   const api = useBanjuanAPI()
-  const { mindmapId, mindmapTitle, layout, theme, setTitle, setLayout, setTheme, rfNodes, rfEdges, boundaries, summaries } = useMindmapStore()
+  const { mindmapId, mindmapTitle, layout, theme, setTitle, setLayout, setTheme } = useMindmapStore(useShallow(s => ({ mindmapId: s.mindmapId, mindmapTitle: s.mindmapTitle, layout: s.layout, theme: s.theme, setTitle: s.setTitle, setLayout: s.setLayout, setTheme: s.setTheme })))
+  // Nodes and edges are read when exporting, not subscribed to: they change on
+  // every frame of a drag, and the title bar re-rendered with them.
+  const storeApi = useMindmapStoreApi()
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   useEscapeKey(exportMenuOpen, () => setExportMenuOpen(false))
 
   const handleExport = useCallback(async (format: 'png' | 'svg' | 'json' | 'pdf' | 'markdown') => {
     setExportMenuOpen(false)
+    const { rfNodes, rfEdges, boundaries, summaries } = storeApi.getState()
 
     if (format === 'json') {
       const data = JSON.stringify({ nodes: rfNodes.map(n => n.data), edges: rfEdges }, null, 2)
@@ -129,7 +134,7 @@ export function MindmapTitleBar({ onToggleLeftSidebar, onToggleRightSidebar }: T
     a.href = dataUrl
     a.download = `${mindmapTitle || 'mindmap'}.${format}`
     a.click()
-  }, [rfNodes, rfEdges, mindmapTitle, mindmapId, api, boundaries, summaries])
+  }, [storeApi, mindmapTitle, mindmapId, api])
 
   const iconBtnStyle: React.CSSProperties = {
     background: 'none', border: 'none', fontSize: 14, cursor: 'pointer',
@@ -215,16 +220,19 @@ export function MindmapFloatingToolbar() {
   const t = useT()
   const {
     selectedNodeIds, addNode, addFloatingNode, removeNode, undo, redo,
-    historyIndex, history, rfNodes, rfEdges,
+    historyIndex, history,
     connectMode, setConnectMode,
     addBoundary, addSummary, removeRelationEdge,
-  } = useMindmapStore()
+  } = useMindmapStore(useShallow(s => ({ selectedNodeIds: s.selectedNodeIds, addNode: s.addNode, addFloatingNode: s.addFloatingNode, removeNode: s.removeNode, undo: s.undo, redo: s.redo, historyIndex: s.historyIndex, history: s.history, connectMode: s.connectMode, setConnectMode: s.setConnectMode, addBoundary: s.addBoundary, addSummary: s.addSummary, removeRelationEdge: s.removeRelationEdge })))
 
   const selected = selectedNodeIds[0]
-  const selectedNode = rfNodes.find(n => n.id === selected)
-  const canDeleteNode = !!selected && (!!selectedNode?.data.parentId || !!selectedNode?.data.floating)
-  const selectedEdge = rfEdges.find(e => e.selected && e.type === 'relationEdge')
-  const canDelete = canDeleteNode || !!selectedEdge
+  // Plain values, not the node / edge arrays: those change on every frame of a drag.
+  const canDeleteNode = useMindmapStore(s => {
+    const node = selected ? s.rfNodes.find(n => n.id === selected) : undefined
+    return !!node && (!!node.data.parentId || !!node.data.floating)
+  })
+  const selectedEdgeId = useMindmapStore(s => s.rfEdges.find(e => e.selected && e.type === 'relationEdge')?.id ?? null)
+  const canDelete = canDeleteNode || !!selectedEdgeId
 
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const dragging = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
@@ -333,7 +341,7 @@ export function MindmapFloatingToolbar() {
       <div style={{ width: 1, height: 20, background: 'var(--border, #e0e0e0)', flexShrink: 0 }} />
 
       <button onClick={() => {
-        if (selectedEdge) removeRelationEdge(selectedEdge.id)
+        if (selectedEdgeId) removeRelationEdge(selectedEdgeId)
         else if (canDeleteNode) removeNode(selected!)
       }} disabled={!canDelete} title={t('mindmap.delete')}
         style={{ ...btnStyle, color: canDelete ? '#e74c3c' : undefined, opacity: canDelete ? 1 : 0.3 }}>

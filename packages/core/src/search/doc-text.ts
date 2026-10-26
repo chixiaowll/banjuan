@@ -21,9 +21,13 @@ export interface DocTextStats { total: number; indexed: number; pending: number;
 const EXTRACT_VERSION: Record<string, number> = { html: 2, epub: 2 }
 const STATE_KEY_SQL = `d.hash || CASE d.type ${Object.entries(EXTRACT_VERSION).map(([t, v]) => `WHEN '${t}' THEN '#${v}'`).join(' ')} ELSE '' END`
 
-/** Not extracted, changed since (or extracted by an older extractor), or its file was missing last time (e.g. still in the cloud). */
-const PENDING_WHERE = `d.type IN (${DOC_TEXT_TYPES.map(t => `'${t}'`).join(', ')})
-  AND (s.doc_id IS NULL OR s.hash != (${STATE_KEY_SQL}) OR s.status = 'missing')`
+const TYPES_SQL = `d.type IN (${DOC_TEXT_TYPES.map(t => `'${t}'`).join(', ')})`
+/** Not extracted, or changed since (or extracted by an older extractor). */
+const FRESH_WHERE = `${TYPES_SQL} AND (s.doc_id IS NULL OR s.hash != (${STATE_KEY_SQL}))`
+/** Its file was missing last time (e.g. still in the cloud). */
+const MISSING_WHERE = `${TYPES_SQL} AND s.status = 'missing' AND s.hash = (${STATE_KEY_SQL})`
+/** Either of the above. */
+const PENDING_WHERE = `${TYPES_SQL} AND (s.doc_id IS NULL OR s.hash != (${STATE_KEY_SQL}) OR s.status = 'missing')`
 
 export class DocTextService {
   readonly available: boolean
@@ -35,12 +39,24 @@ export class DocTextService {
   }
 
   /** Documents to extract, most recently read first. */
-  pending(limit = 50): DocTextJob[] {
+  pending(limit = 50, opts: { includeMissing?: boolean } = {}): DocTextJob[] {
     if (!this.available) return []
     return this.db.query<DocTextJob>(
       `SELECT d.id, d.path, d.type, d.hash FROM documents d LEFT JOIN doc_text_state s ON s.doc_id = d.id
-        WHERE ${PENDING_WHERE}
+        WHERE ${opts.includeMissing === false ? FRESH_WHERE : PENDING_WHERE}
         ORDER BY COALESCE(d.last_read_at, d.updated_at) DESC LIMIT ?`, [limit])
+  }
+
+  /**
+   * Documents whose file wasn't there last time. Indexers check the file exists
+   * before extracting again: retrying all of them on every pass sent each one
+   * through extraction every 30 seconds, for nothing, while they stayed in the cloud.
+   */
+  missing(limit = 1000): DocTextJob[] {
+    if (!this.available) return []
+    return this.db.query<DocTextJob>(
+      `SELECT d.id, d.path, d.type, d.hash FROM documents d JOIN doc_text_state s ON s.doc_id = d.id
+        WHERE ${MISSING_WHERE} LIMIT ?`, [limit])
   }
 
   /** Replace a document's text. Empty pages are skipped (scanned PDFs have none). */
@@ -75,6 +91,12 @@ export class DocTextService {
     const gone = this.db.query<{ doc_id: string }>('SELECT doc_id FROM doc_text_state WHERE doc_id NOT IN (SELECT id FROM documents)')
     for (const g of gone) this.remove(g.doc_id)
     return gone.length
+  }
+
+  /** Characters of document text stored, all documents together. */
+  totalChars(): number {
+    if (!this.available) return 0
+    return this.db.queryOne<{ n: number }>('SELECT COALESCE(SUM(LENGTH(content)), 0) AS n FROM doc_text')?.n ?? 0
   }
 
   stats(): DocTextStats {

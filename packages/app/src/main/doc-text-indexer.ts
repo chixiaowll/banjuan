@@ -1,5 +1,6 @@
 import { utilityProcess, type UtilityProcess } from 'electron'
 import { join, dirname } from 'node:path'
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Library, DocTextJob } from '@banjuan/core'
 import { pdfjsLocation } from './pdf-text.js'
@@ -16,53 +17,86 @@ const JOB_TIMEOUT_MS = 120_000
 const POLL_MS = 30_000
 const BATCH = 10
 
-type Reply = { id: number; pages?: Array<{ page: number; text: string }>; error?: string; missing?: boolean; timedOut?: boolean }
+type Reply = { id: number; pages?: Array<{ page: number; text: string }>; numPages?: number; error?: string; missing?: boolean; timedOut?: boolean }
 
 // Documents that timed out once this session. A timeout can be a busy moment,
 // so the first one is retried on a later pass; a second one marks it failed.
 const timedOutOnce = new Set<string>()
 
+/** One utility process running text-worker.ts, started when needed. */
 class TextWorker {
-  private child: UtilityProcess | null = null
+  // Each process keeps its own waiting jobs: a killed process used to fail,
+  // on its late 'exit', the jobs already sent to its replacement.
+  private child: { proc: UtilityProcess; waiting: Map<number, (r: Reply) => void> } | null = null
   private nextId = 1
-  private waiting = new Map<number, (r: Reply) => void>()
+  private idleTimer: ReturnType<typeof setTimeout> | null = null
 
-  private ensure(): UtilityProcess {
+  /** `idleMs`: stop the process after this long without work (it is started again when needed). */
+  constructor(private idleMs = 0) {}
+
+  private ensure() {
     if (this.child) return this.child
     const here = dirname(fileURLToPath(import.meta.url))
-    const child = utilityProcess.fork(join(here, '..', 'worker', 'text-worker.js'), [], { serviceName: 'Banjuan text index' })
-    child.postMessage({ type: 'init', loc: pdfjsLocation() })
-    child.on('message', (r: Reply) => { this.waiting.get(r.id)?.(r); this.waiting.delete(r.id) })
-    child.on('exit', (code) => {
-      if (this.child === child) this.child = null
-      for (const [id, done] of this.waiting) done({ id, error: `text worker exited (${code})` })
-      this.waiting.clear()
+    const proc = utilityProcess.fork(join(here, '..', 'worker', 'text-worker.js'), [], { serviceName: 'Banjuan text index' })
+    const entry = { proc, waiting: new Map<number, (r: Reply) => void>() }
+    proc.postMessage({ type: 'init', loc: pdfjsLocation() })
+    proc.on('message', (r: Reply) => { entry.waiting.get(r.id)?.(r); entry.waiting.delete(r.id) })
+    proc.on('exit', (code) => {
+      if (this.child === entry) this.child = null
+      for (const [id, done] of entry.waiting) done({ id, error: `text worker exited (${code})` })
+      entry.waiting.clear()
     })
-    this.child = child
-    return child
+    this.child = entry
+    return entry
   }
 
-  extract(path: string, docType: string): Promise<Reply> {
-    const child = this.ensure()
+  private run(message: Record<string, unknown>, timeoutMs: number): Promise<Reply> {
+    if (this.idleTimer) { clearTimeout(this.idleTimer); this.idleTimer = null }
+    const entry = this.ensure()
     const id = this.nextId++
-    return new Promise(resolve => {
+    return new Promise<Reply>(resolve => {
       const timer = setTimeout(() => {
-        this.waiting.delete(id)
+        entry.waiting.delete(id)
         resolve({ id, error: 'timed out', timedOut: true })
         // Forget it now, not on its 'exit': the next document went to the dying
         // process, got no answer and was failed after another full timeout.
-        if (this.child === child) this.child = null
-        child.kill()
-      }, JOB_TIMEOUT_MS)
-      this.waiting.set(id, r => { clearTimeout(timer); resolve(r) })
-      child.postMessage({ type: 'extract', id, path, docType })
-    })
+        if (this.child === entry) this.child = null
+        entry.proc.kill()
+      }, timeoutMs)
+      entry.waiting.set(id, r => { clearTimeout(timer); resolve(r) })
+      entry.proc.postMessage({ ...message, id })
+    }).finally(() => this.scheduleIdleStop())
+  }
+
+  private scheduleIdleStop(): void {
+    if (!this.idleMs || this.child?.waiting.size) return
+    if (this.idleTimer) clearTimeout(this.idleTimer)
+    this.idleTimer = setTimeout(() => { this.idleTimer = null; if (!this.child?.waiting.size) this.stop() }, this.idleMs)
+  }
+
+  extract(path: string, docType: string): Promise<Reply> {
+    return this.run({ type: 'extract', path, docType }, JOB_TIMEOUT_MS)
+  }
+
+  range(path: string, docType: string, fromPage: number, toPage: number): Promise<Reply> {
+    return this.run({ type: 'range', path, docType, fromPage, toPage }, JOB_TIMEOUT_MS)
   }
 
   stop(): void {
-    this.child?.kill()
+    this.child?.proc.kill()
     this.child = null
   }
+}
+
+// Requests from the local API get their own process (stopped when idle), so
+// they neither wait behind the index nor parse on the main process.
+const onDemand = new TextWorker(60_000)
+
+/** Pages `fromPage`–`toPage` of a document and its page count, extracted off the main process. */
+export async function extractTextRange(path: string, docType: string, fromPage: number, toPage: number): Promise<{ numPages: number; pages: Array<{ page: number; text: string }> }> {
+  const r = await onDemand.range(path, docType, fromPage, toPage)
+  if (!r.pages) throw Object.assign(new Error(r.error ?? 'text extraction failed'), { code: r.missing ? 'ENOENT' : undefined })
+  return { numPages: r.numPages ?? 1, pages: r.pages }
 }
 
 let worker: TextWorker | null = null
@@ -108,33 +142,43 @@ export function startDocTextIndexer(libraries: () => Iterable<Library>): void {
 
 export function stopDocTextIndexer(): void {
   worker?.stop()
+  onDemand.stop()
 }
 
 async function indexLibrary(lib: Library, stillOpen: () => boolean): Promise<void> {
   if (!lib.docText.available) return
   lib.docText.prune()
-  // Each document once per pass: "missing" ones (file not here yet) stay pending.
+  // New and changed documents, each once per pass.
   const tried = new Set<string>()
   for (;;) {
-    const jobs: DocTextJob[] = lib.docText.pending(BATCH + tried.size).filter(j => !tried.has(j.id)).slice(0, BATCH)
-    if (!jobs.length) return
+    const jobs: DocTextJob[] = lib.docText.pending(BATCH + tried.size, { includeMissing: false }).filter(j => !tried.has(j.id)).slice(0, BATCH)
+    if (!jobs.length) break
     for (const job of jobs) {
       tried.add(job.id)
       if (!stillOpen()) return
-      current = { library: lib.rootPath, title: job.path }
-      const started = Date.now()
-      const r = await worker!.extract(join(lib.rootPath, job.path), job.type)
-      if (!stillOpen()) return   // closed meanwhile: its database is gone
-      if (r.pages) {
-        timedOutOnce.delete(job.id)
-        lib.docText.store(job.id, job.hash, r.pages)
-        console.log(`[doc-text] ${job.path}: ${r.pages.length} pages in ${Date.now() - started}ms`)
-      } else {
-        const retry = r.missing || (r.timedOut && !timedOutOnce.has(job.id))
-        if (r.timedOut) timedOutOnce.add(job.id)
-        lib.docText.markFailed(job.id, job.hash, retry ? 'missing' : 'failed', r.error ?? 'unknown error')
-        console.warn(`[doc-text] ${job.path}: ${r.error}`)
-      }
+      await indexOne(lib, job, stillOpen)
     }
+  }
+  // Those whose file wasn't there last time: only once it is.
+  for (const job of lib.docText.missing()) {
+    if (!stillOpen()) return
+    if (existsSync(join(lib.rootPath, job.path))) await indexOne(lib, job, stillOpen)
+  }
+}
+
+async function indexOne(lib: Library, job: DocTextJob, stillOpen: () => boolean): Promise<void> {
+  current = { library: lib.rootPath, title: job.path }
+  const started = Date.now()
+  const r = await worker!.extract(join(lib.rootPath, job.path), job.type)
+  if (!stillOpen()) return   // closed meanwhile: its database is gone
+  if (r.pages) {
+    timedOutOnce.delete(job.id)
+    lib.docText.store(job.id, job.hash, r.pages)
+    console.log(`[doc-text] ${job.path}: ${r.pages.length} pages in ${Date.now() - started}ms`)
+  } else {
+    const retry = r.missing || (r.timedOut && !timedOutOnce.has(job.id))
+    if (r.timedOut) timedOutOnce.add(job.id)
+    lib.docText.markFailed(job.id, job.hash, retry ? 'missing' : 'failed', r.error ?? 'unknown error')
+    console.warn(`[doc-text] ${job.path}: ${r.error}`)
   }
 }

@@ -17,6 +17,7 @@ import { useNodeContentEditing } from '../mindmap/panels/useNodeContentEditing.j
 import { useNoteContentSync, useNoteChangedElsewhere } from '../../utils/noteChanges.js'
 import { registerFlush } from '../../utils/flushRegistry.js'
 import { toast, errorMessage } from '../feedback.js'
+import { useShallow } from 'zustand/react/shallow'
 
 interface NoteInfo {
   id: string
@@ -122,7 +123,7 @@ function SidebarMindmapNodeEditor({ containerRef }: { containerRef: React.RefObj
 }
 
 function SidebarMindmap({ noteId }: { noteId: string }) {
-  const { init } = useMindmapStore()
+  const { init } = useMindmapStore(useShallow(s => ({ init: s.init })))
   const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => { init(noteId) }, [noteId, init])
   useKeyboardShortcuts()

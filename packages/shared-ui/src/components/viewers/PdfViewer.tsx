@@ -454,8 +454,23 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
   )
 }
 
+/** Desktop: PDFs larger than this are read in pieces (see readFileRange). */
+const RANGE_READ_FROM = 64 * 1024 * 1024
+/** pdf.js range chunk; pieces read per call are a multiple of it. */
+const RANGE_CHUNK = 1024 * 1024
+const RANGE_PIECE = 16 * RANGE_CHUNK
+/** pdf.js holds a buffer as large as the file; Electron's limit for one is about 2 GB. */
+const MAX_PDF_BYTES = 1.5 * 1024 * 1024 * 1024
+
+class PdfTooLargeError extends Error {
+  constructor(readonly size: number) { super(`PDF too large to open (${size} bytes)`) }
+}
+
+const formatBytes = (n: number) => n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1)} GB` : `${Math.round(n / 1024 ** 2)} MB`
+
 export default function PdfViewer(props: Props) {
   const api = useBanjuanAPI()
+  const t = useT()
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null)
   const [numPages, setNumPages] = useState(0)
   const [rawPageSize, setRawPageSize] = useState<{ w: number; h: number } | null>(null)
@@ -484,11 +499,34 @@ export default function PdfViewer(props: Props) {
           doc = await pdfjsLib.getDocument({ url: props.fileSrc!, ...commonOpts }).promise
         } else {
           let fileData = props.fileData
-          if (!fileData) {
-            fileData = await api.documents.readFileBuffer(props.docPath)
-          }
+          const size = !fileData && api.documents.fileSize ? await api.documents.fileSize(props.docPath) : 0
           if (cancelled) return
-          doc = await pdfjsLib.getDocument({ data: new Uint8Array(fileData), ...commonOpts }).promise
+          // pdf.js keeps a buffer the size of the file, and Electron can't
+          // allocate one past about 2 GB: say so instead of failing obscurely.
+          if (size > MAX_PDF_BYTES) throw new PdfTooLargeError(size)
+          if (size > RANGE_READ_FROM && api.documents.readFileRange) {
+            // A large file is read in pieces as pages need them. Whole, it went
+            // over IPC at once and sat in memory three times (main process,
+            // window, pdf.js worker) before the first page showed.
+            const readRange = async (start: number, end: number) => {
+              const b = await api.documents.readFileRange!(props.docPath, start, end)
+              return b instanceof Uint8Array ? b : new Uint8Array(b)
+            }
+            const transport = new pdfjsLib.PDFDataRangeTransport(size, await readRange(0, Math.min(size, RANGE_CHUNK)))
+            transport.requestDataRange = (begin: number, end: number) => {
+              void (async () => {
+                for (let at = begin; at < end; at += RANGE_PIECE) {
+                  transport.onDataRange(at, await readRange(at, Math.min(end, at + RANGE_PIECE)))
+                }
+              })().catch(e => console.error('[PdfViewer] reading part of the file failed', e))
+            }
+            if (cancelled) return
+            doc = await pdfjsLib.getDocument({ range: transport, length: size, rangeChunkSize: RANGE_CHUNK, disableAutoFetch: true, ...commonOpts }).promise
+          } else {
+            if (!fileData) fileData = await api.documents.readFileBuffer(props.docPath)
+            if (cancelled) return
+            doc = await pdfjsLib.getDocument({ data: new Uint8Array(fileData), ...commonOpts }).promise
+          }
         }
         loaded = doc
         if (cancelled) { void doc.destroy(); return }
@@ -528,7 +566,11 @@ export default function PdfViewer(props: Props) {
     return () => { cancelled = true; void loaded?.destroy() }
   }, [props.fileData, props.docPath, streamViaUrl ? props.fileSrc : null, attempt])
 
-  if (loadError) return <DocumentLoadError error={loadError} onRetry={() => setAttempt(a => a + 1)} />
+  if (loadError) {
+    return loadError instanceof PdfTooLargeError
+      ? <DocumentLoadError error={loadError} detail={t('viewer.pdfTooLarge', formatBytes(loadError.size))} onOpenInSystem={() => { void api.documents.openInSystem(props.docPath) }} />
+      : <DocumentLoadError error={loadError} onRetry={() => setAttempt(a => a + 1)} />
+  }
 
   return (
     <PdfViewerProvider pdfDoc={pdfDoc} numPages={numPages} initialPageSizes={pageSizes} rawPageSize={rawPageSize} rawPageSizes={rawPageSizes}>

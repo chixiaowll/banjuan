@@ -21,8 +21,8 @@ interface Props {
 
 export default function NodePropertyPanel({ nodeId, onClose }: Props) {
   const t = useT()
-  const { rfNodes, updateNodeData } = useMindmapStore()
-  const node = rfNodes.find(n => n.id === nodeId)
+  const updateNodeData = useMindmapStore(s => s.updateNodeData)
+  const node = useMindmapStore(s => s.rfNodes.find(n => n.id === nodeId))
   const [notes, setNotes] = useState(node?.data.notes ?? '')
 
   useEffect(() => {

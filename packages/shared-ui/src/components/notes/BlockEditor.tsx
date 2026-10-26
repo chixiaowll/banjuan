@@ -168,14 +168,18 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   const editorRef = useRef<any>(null)
   allNotesRef.current = allNotes
 
+  // For link suggestions and resolving title-only links when saving — neither
+  // happens in a read-only editor (embeds, previews), which used to load both
+  // whole lists anyway, once per editor on the page.
   useEffect(() => {
+    if (readOnly) return
     api.notes.list().then((notes: any[]) => {
       setAllNotes(notes.map((n: any) => ({ id: n.id, title: n.title })))
     })
     api.documents.list().then((docs: any[]) => {
       setAllDocs(docs.map((d: any) => ({ id: d.id, title: d.title })))
     })
-  }, [])
+  }, [readOnly])
 
   // Clicks on note/document links are handled once, by TabManager (every open
   // editor used to handle them, so one click opened the target once per editor).

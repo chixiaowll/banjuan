@@ -9,6 +9,8 @@ export interface DocLink {
   sourceId: string
   targetId: string
   context: string
+  /** Forward links: the document's title, as indexed. */
+  targetTitle?: string
 }
 
 export class DocLinkService {
@@ -26,7 +28,8 @@ export class DocLinkService {
   }
 
   async getForwardLinks(noteId: string): Promise<DocLink[]> {
-    const rows = this.db.query<Record<string, unknown>>('SELECT * FROM doc_links WHERE source_id = ?', [noteId])
+    const rows = this.db.query<Record<string, unknown>>(
+      'SELECT l.*, d.title AS target_title FROM doc_links l LEFT JOIN documents d ON d.id = l.target_id WHERE l.source_id = ?', [noteId])
     return rows.map(r => this.rowToLink(r))
   }
 
@@ -44,6 +47,7 @@ export class DocLinkService {
       sourceId: row.source_id as string,
       targetId: row.target_id as string,
       context: (row.context as string) ?? '',
+      ...(row.target_title != null ? { targetTitle: row.target_title as string } : {}),
     }
   }
 }

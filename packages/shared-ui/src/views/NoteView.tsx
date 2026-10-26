@@ -29,6 +29,7 @@ import { useNoteContentSync } from '../utils/noteChanges.js'
 import { registerFlush } from '../utils/flushRegistry.js'
 import { toast, errorMessage, promptDialog } from '../components/feedback.js'
 import { useIsActiveTab } from '../components/tabActive.js'
+import { useShallow } from 'zustand/react/shallow'
 
 interface NoteInfo {
   id: string
@@ -52,7 +53,7 @@ function MindmapCenterContent({ noteId, onToggleLeftSidebar, onToggleRightSideba
   onToggleLeftSidebar: () => void
   onToggleRightSidebar: () => void
 }) {
-  const { init } = useMindmapStore()
+  const { init } = useMindmapStore(useShallow(s => ({ init: s.init })))
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
 
@@ -110,7 +111,7 @@ function MindmapCenterContent({ noteId, onToggleLeftSidebar, onToggleRightSideba
 
 function MindmapPanels() {
   const t = useT()
-  const { sidePanelType, sidePanelNodeId, closeSidePanel } = useMindmapStore()
+  const { sidePanelType, sidePanelNodeId, closeSidePanel } = useMindmapStore(useShallow(s => ({ sidePanelType: s.sidePanelType, sidePanelNodeId: s.sidePanelNodeId, closeSidePanel: s.closeSidePanel })))
 
   if (!sidePanelNodeId) {
     return (
@@ -146,7 +147,7 @@ function MindmapRightSidebar({ noteId, docId, onOpenNote, rightPanel }: {
   rightPanel: { width: number; onPointerDown: (e: React.PointerEvent) => void }
 }) {
   const t = useT()
-  const { sidePanelNodeId } = useMindmapStore()
+  const { sidePanelNodeId } = useMindmapStore(useShallow(s => ({ sidePanelNodeId: s.sidePanelNodeId })))
   const [rightTab, setRightTab] = useState<'backlinks' | 'properties'>('properties')
 
   useEffect(() => {

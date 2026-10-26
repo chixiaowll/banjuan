@@ -2,6 +2,10 @@ import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { renderStroke, renderAllStrokes } from '../handwriting/renderStrokes.js'
 import type { Stroke, StrokePoint } from '@banjuan/core'
 import { useBanjuanAPI } from '../../api.js'
+import { canvasScale } from './canvasScale.js'
+
+/** Ink overlays sit on top of the page's own canvas: keep them smaller. */
+const MAX_INK_PIXELS = 8_388_608
 
 interface InkStroke {
   points: Array<{ x: number; y: number }>
@@ -81,19 +85,32 @@ export default function InkTool({ active, eraserActive, color, lineWidth, pageNu
     return { x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height }
   }
 
-  const redraw = useCallback(() => {
+  /** Size the canvas to the page (capped like the page itself) and clear it; null when it has no size. */
+  const prepare = (): { ctx: CanvasRenderingContext2D; w: number; h: number } | null => {
     const canvas = canvasRef.current
     const container = containerRef.current
-    if (!canvas || !container) return
+    if (!canvas || !container) return null
     const rect = container.getBoundingClientRect()
-    const dpr = window.devicePixelRatio || 1
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
+    const ratio = canvasScale(rect.width, rect.height, MAX_INK_PIXELS)
+    const w = Math.round(rect.width * ratio), h = Math.round(rect.height * ratio)
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h }
     const ctx = canvas.getContext('2d')!
-    ctx.scale(dpr, dpr)
-    const absStrokes = inkToAbsolute(existingStrokes, rect.width, rect.height)
-    renderAllStrokes(ctx, absStrokes, rect.width, rect.height)
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
+    ctx.clearRect(0, 0, rect.width, rect.height)
+    return { ctx, w: rect.width, h: rect.height }
+  }
+
+  const redraw = useCallback(() => {
+    const c = prepare()
+    if (!c) return
+    renderAllStrokes(c.ctx, inkToAbsolute(existingStrokes, c.w, c.h), c.w, c.h)
   }, [existingStrokes])
+
+  // While drawing, the strokes already there are kept as a picture and only
+  // the live stroke is drawn over it: every pointer move used to resize the
+  // canvas (a new backing store) and redraw every stroke on the page.
+  const baseRef = useRef<HTMLCanvasElement | null>(null)
+  const dropBase = () => { if (baseRef.current) { baseRef.current.width = baseRef.current.height = 0; baseRef.current = null } }
 
   useEffect(() => { redraw() }, [redraw])
 
@@ -136,27 +153,35 @@ export default function InkTool({ active, eraserActive, color, lineWidth, pageNu
     setDrawing(true)
     const pos = getRelativePos(e)
     currentPointsRef.current = [pos]
-  }, [active, eraserActive, handleErase])
+    redraw()
+    const canvas = canvasRef.current
+    if (canvas && canvas.width > 0) {
+      dropBase()
+      const base = document.createElement('canvas')
+      base.width = canvas.width
+      base.height = canvas.height
+      base.getContext('2d')!.drawImage(canvas, 0, 0)
+      baseRef.current = base
+    }
+  }, [active, eraserActive, handleErase, redraw])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!drawing) return
     const pos = getRelativePos(e)
     currentPointsRef.current.push(pos)
 
-    const canvas = canvasRef.current
-    const container = containerRef.current
-    if (!canvas || !container) return
-    const rect = container.getBoundingClientRect()
-    const dpr = window.devicePixelRatio || 1
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
-    const ctx = canvas.getContext('2d')!
-    ctx.scale(dpr, dpr)
-    const w = rect.width
-    const h = rect.height
-
-    const absStrokes = inkToAbsolute(existingStrokes, w, h)
-    renderAllStrokes(ctx, absStrokes, w, h)
+    const c = prepare()
+    if (!c) return
+    const { ctx, w, h } = c
+    const base = baseRef.current
+    if (base && base.width === canvasRef.current!.width && base.height === canvasRef.current!.height) {
+      ctx.save()
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.drawImage(base, 0, 0)
+      ctx.restore()
+    } else {
+      renderAllStrokes(ctx, inkToAbsolute(existingStrokes, w, h), w, h)
+    }
 
     const liveStroke: Stroke = {
       id: 'live',
@@ -169,6 +194,7 @@ export default function InkTool({ active, eraserActive, color, lineWidth, pageNu
   const handlePointerUp = useCallback(async () => {
     if (!drawing) return
     setDrawing(false)
+    dropBase()
     const points = currentPointsRef.current
     if (points.length < 2) return
 

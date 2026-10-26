@@ -49,18 +49,19 @@ export default function BacklinksPanel({ noteId, docId, onOpenNote, onOpenMindma
         api.noteLinks.getBacklinks(noteId),
         api.noteLinks.getForwardLinks(noteId),
       ])
+      // Titles come with the links; a note is loaded only if they don't.
       const enrichedBacks = await Promise.all(
-        backs.map(async (link: Backlink) => {
-          const note = await api.notes.get(link.sourceId)
-          return { ...link, sourceTitle: note?.title ?? t('note.untitled'), sourceType: note?.type ?? 'markdown' }
+        backs.map(async (link: any) => {
+          const note = link.sourceTitle !== undefined ? { title: link.sourceTitle, type: link.sourceType } : await api.notes.get(link.sourceId)
+          return { ...link, sourceTitle: note?.title || t('note.untitled'), sourceType: note?.type ?? 'markdown' }
         })
       )
       setBacklinks(enrichedBacks)
 
       const enrichedForwards = await Promise.all(
-        forwards.map(async (link: Backlink) => {
-          const note = await api.notes.get(link.targetId)
-          return { ...link, targetTitle: note?.title ?? t('note.untitled'), targetType: note?.type ?? 'markdown' }
+        forwards.map(async (link: any) => {
+          const note = link.targetTitle !== undefined ? { title: link.targetTitle, type: link.targetType } : await api.notes.get(link.targetId)
+          return { ...link, targetTitle: note?.title || t('note.untitled'), targetType: note?.type ?? 'markdown' }
         })
       )
       setForwardLinks(enrichedForwards)
@@ -76,8 +77,8 @@ export default function BacklinksPanel({ noteId, docId, onOpenNote, onOpenMindma
       const docForwards = await api.docLinks.getForwardLinks(noteId)
       const enrichedDocRefs = await Promise.all(
         docForwards.map(async (link: any) => {
-          const doc = await api.documents.get(link.targetId)
-          return { docId: link.targetId, docTitle: doc?.title ?? t('embed.untitledDocument'), context: link.context }
+          const title = link.targetTitle !== undefined ? link.targetTitle : (await api.documents.get(link.targetId))?.title
+          return { docId: link.targetId, docTitle: title || t('embed.untitledDocument'), context: link.context }
         })
       )
       setDocRefs(enrichedDocRefs)
@@ -102,12 +103,20 @@ export default function BacklinksPanel({ noteId, docId, onOpenNote, onOpenMindma
 
   useEffect(() => { load() }, [load])
 
+  // Any editor's link sync can change these (another note linking here): one
+  // reload for a burst of them — each save fires both events.
   useEffect(() => {
-    document.addEventListener('note-links-synced', load)
-    document.addEventListener('doc-links-synced', load)
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const reload = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => { timer = null; void load() }, 250)
+    }
+    document.addEventListener('note-links-synced', reload)
+    document.addEventListener('doc-links-synced', reload)
     return () => {
-      document.removeEventListener('note-links-synced', load)
-      document.removeEventListener('doc-links-synced', load)
+      if (timer) clearTimeout(timer)
+      document.removeEventListener('note-links-synced', reload)
+      document.removeEventListener('doc-links-synced', reload)
     }
   }, [load])
 

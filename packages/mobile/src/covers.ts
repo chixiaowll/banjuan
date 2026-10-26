@@ -2,6 +2,7 @@ import * as pdfjsLib from '@banjuan/zotero-pdfjs-dist'
 import { epubCoverImage, type Library } from '@banjuan/core'
 import { Capacitor } from '@capacitor/core'
 import { Filesystem, Directory } from '@capacitor/filesystem'
+import { readDocumentsFile } from '@banjuan/platform-capacitor'
 
 /**
  * Document covers on iPad (the desktop has the OS thumbnailer, covers.ts
@@ -94,11 +95,7 @@ async function pdfCover(docPath: string): Promise<string | null> {
 async function epubCover(docPath: string): Promise<string | null> {
   const { size } = await Filesystem.stat({ path: docPath, directory: Directory.Documents })
   if (size > MAX_EPUB_BYTES) return null
-  const { data } = await Filesystem.readFile({ path: docPath, directory: Directory.Documents })
-  const binary = atob(data as string)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  const image = epubCoverImage(bytes)
+  const image = epubCoverImage(await readDocumentsFile(docPath))
   if (!image) return null
   const bitmap = await createImageBitmap(new Blob([image as BlobPart]))
   const scale = Math.min(1, WIDTH / bitmap.width)

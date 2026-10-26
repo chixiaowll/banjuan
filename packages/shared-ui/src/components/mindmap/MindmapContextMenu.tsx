@@ -3,6 +3,7 @@ import { useMindmapStore } from './useMindmapStore.js'
 import { useT } from '../../i18n/index.js'
 import { useEscapeKey } from '../../utils/useEscapeKey.js'
 import { useFitInViewport } from '../../utils/useFitInViewport.js'
+import { useShallow } from 'zustand/react/shallow'
 
 interface Props {
   x: number
@@ -24,8 +25,8 @@ function hoverOff(e: React.MouseEvent<HTMLButtonElement>) { e.currentTarget.styl
 export default function MindmapContextMenu({ x, y, nodeId, onClose }: Props) {
   useEscapeKey(true, onClose)
   const t = useT()
-  const { addNode, addSiblingNode, removeNode, setEditingNodeId, openSidePanel, rfNodes } = useMindmapStore()
-  const node = rfNodes.find(n => n.id === nodeId)
+  const { addNode, addSiblingNode, removeNode, setEditingNodeId, openSidePanel } = useMindmapStore(useShallow(s => ({ addNode: s.addNode, addSiblingNode: s.addSiblingNode, removeNode: s.removeNode, setEditingNodeId: s.setEditingNodeId, openSidePanel: s.openSidePanel })))
+  const node = useMindmapStore(s => s.rfNodes.find(n => n.id === nodeId))
   const isRoot = !node?.data.parentId && !node?.data.floating
   const canDelete = !isRoot
 

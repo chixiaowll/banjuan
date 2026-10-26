@@ -5,6 +5,7 @@ import { useT } from '../../../i18n/index.js'
 import type { Node } from '@xyflow/react'
 import { useEscapeKey } from '../../../utils/useEscapeKey.js'
 import { useFitInViewport } from '../../../utils/useFitInViewport.js'
+import { useShallow } from 'zustand/react/shallow'
 
 const BRACE_WIDTH = 20
 const GAP = 16
@@ -21,7 +22,7 @@ function collectDescendantIds(nodeId: string, allNodes: Node<MindmapNodeData>[])
 }
 
 export default function SummaryOverlay() {
-  const { summaries, rfNodes, removeSummary } = useMindmapStore()
+  const { summaries, rfNodes, removeSummary } = useMindmapStore(useShallow(s => ({ summaries: s.summaries, rfNodes: s.rfNodes, removeSummary: s.removeSummary })))
   const nodeSizes = useNodeSizeStore(s => s.sizes)
 
   if (summaries.length === 0) return null

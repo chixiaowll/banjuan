@@ -11,9 +11,15 @@ export function isFileMissingError(err: unknown): boolean {
  * Shown instead of an endless "Loading…" when a document can't be read or
  * parsed: says what went wrong and offers a retry.
  */
-export default function DocumentLoadError({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+export default function DocumentLoadError({ error, detail: given, onRetry, onOpenInSystem }: {
+  error: unknown
+  /** Shown instead of the error's own message. */
+  detail?: string
+  onRetry?: () => void
+  onOpenInSystem?: () => void
+}) {
   const t = useT()
-  const detail = isFileMissingError(error) ? t('viewer.fileMissing') : errorMessage(error)
+  const detail = given ?? (isFileMissingError(error) ? t('viewer.fileMissing') : errorMessage(error))
   return (
     <div role="alert" style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -26,6 +32,12 @@ export default function DocumentLoadError({ error, onRetry }: { error: unknown; 
           marginTop: 6, padding: '6px 16px', fontSize: 13, cursor: 'pointer',
           border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', color: 'var(--text)',
         }}>{t('common.retry')}</button>
+      )}
+      {onOpenInSystem && (
+        <button onClick={onOpenInSystem} style={{
+          marginTop: 6, padding: '6px 16px', fontSize: 13, cursor: 'pointer',
+          border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', color: 'var(--text)',
+        }}>{t('viewer.openInSystem')}</button>
       )}
     </div>
   )

@@ -20,13 +20,17 @@ export class NoteLinkService {
     }
   }
 
+  // With the other note's title and type: the panels showing links used to
+  // load every linked note in full (its file) just for those.
   async getForwardLinks(noteId: string): Promise<NoteLink[]> {
-    const rows = this.db.query<Record<string, unknown>>('SELECT * FROM note_links WHERE source_id = ?', [noteId])
+    const rows = this.db.query<Record<string, unknown>>(
+      'SELECT l.*, n.title AS target_title, n.type AS target_type FROM note_links l LEFT JOIN notes n ON n.id = l.target_id WHERE l.source_id = ?', [noteId])
     return rows.map(r => this.rowToLink(r))
   }
 
   async getBacklinks(noteId: string): Promise<NoteLink[]> {
-    const rows = this.db.query<Record<string, unknown>>('SELECT * FROM note_links WHERE target_id = ?', [noteId])
+    const rows = this.db.query<Record<string, unknown>>(
+      'SELECT l.*, n.title AS source_title, n.type AS source_type FROM note_links l LEFT JOIN notes n ON n.id = l.source_id WHERE l.target_id = ?', [noteId])
     return rows.map(r => this.rowToLink(r))
   }
 
@@ -39,6 +43,8 @@ export class NoteLinkService {
       sourceId: row.source_id as string,
       targetId: row.target_id as string,
       context: (row.context as string) ?? '',
+      ...(row.source_title != null ? { sourceTitle: row.source_title as string, sourceType: row.source_type as string } : {}),
+      ...(row.target_title != null ? { targetTitle: row.target_title as string, targetType: row.target_type as string } : {}),
     }
   }
 }

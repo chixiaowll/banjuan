@@ -133,6 +133,10 @@ export interface BanjuanAPI {
     getFileSrc?(relativePath: string): Promise<string>
     readContent(relativePath: string): Promise<string>
     readFileBuffer(relativePath: string): Promise<ArrayBuffer>
+    /** Byte size of a document, and a byte range of it (desktop): a large PDF
+     *  is read in pieces as pdf.js needs them instead of whole over IPC. */
+    fileSize?(relativePath: string): Promise<number>
+    readFileRange?(relativePath: string, start: number, end: number): Promise<ArrayBuffer | Uint8Array>
     openInSystem(relativePath: string): Promise<string>
     /** Play a video with the platform's native player (iOS AVPlayer). Handles
      *  codecs the WebView <video> element rejects (HEVC 10-bit HDR, E-AC-3).

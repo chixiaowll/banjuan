@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useMindmapStore } from './useMindmapStore.js'
 import { useT } from '../../i18n/index.js'
+import { useShallow } from 'zustand/react/shallow'
 
 interface Props {
   onClose: () => void
@@ -9,7 +10,7 @@ interface Props {
 
 export default function MindmapSearch({ onClose }: Props) {
   const t = useT()
-  const { rfNodes, selectNode } = useMindmapStore()
+  const { rfNodes, selectNode } = useMindmapStore(useShallow(s => ({ rfNodes: s.rfNodes, selectNode: s.selectNode })))
   const { setCenter } = useReactFlow()
   const [query, setQuery] = useState('')
   const [matchIndex, setMatchIndex] = useState(0)

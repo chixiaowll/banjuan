@@ -8,6 +8,7 @@ import { useT } from '../../i18n/index.js'
 import { useFitInViewport } from '../../utils/useFitInViewport.js'
 import { useEscapeKey } from '../../utils/useEscapeKey.js'
 import { toast, errorMessage } from '../feedback.js'
+import { canvasScale } from './canvasScale.js'
 import {
   flattenStrokes, selectInLasso, selectionBounds, inRect, applyToSelection, strokeBounds,
   type InkEntry, type Point,
@@ -84,7 +85,7 @@ export function useInkLasso({ active, entries, measure, onUpdated, ignorePointer
     const canvas = canvasRef.current
     const frame = canvas && measureRef.current(canvas)
     if (!canvas || !frame || !frame.w || !frame.h) return
-    const dpr = window.devicePixelRatio || 1
+    const dpr = canvasScale(frame.w, frame.h, 8_388_608)
     canvas.width = Math.round(frame.w * dpr)
     canvas.height = Math.round(frame.h * dpr)
     if (frame.fixedCssSize) {

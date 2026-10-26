@@ -15,6 +15,7 @@ import BoundaryOverlay from './overlays/BoundaryOverlay.js'
 import SummaryOverlay from './overlays/SummaryOverlay.js'
 import './MindmapCanvas.css'
 import { useT } from '../../i18n/index.js'
+import { useShallow } from 'zustand/react/shallow'
 
 export default function MindmapCanvas({ readonly = false }: { readonly?: boolean } = {}) {
   const t = useT()
@@ -25,7 +26,7 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
     setEditingNodeId, openSidePanel, updateNodeData,
     reparentNode, reorderSiblings, setDropTarget,
     connectMode, connectSourceId, setConnectSourceId, addRelationEdge, setConnectMode,
-  } = useMindmapStore()
+  } = useMindmapStore(useShallow(s => ({ rfNodes: s.rfNodes, rfEdges: s.rfEdges, layout: s.layout, theme: s.theme, setRfNodes: s.setRfNodes, setRfEdges: s.setRfEdges, selectNode: s.selectNode, toggleSelectNode: s.toggleSelectNode, setEditingNodeId: s.setEditingNodeId, openSidePanel: s.openSidePanel, updateNodeData: s.updateNodeData, reparentNode: s.reparentNode, reorderSiblings: s.reorderSiblings, setDropTarget: s.setDropTarget, connectMode: s.connectMode, connectSourceId: s.connectSourceId, setConnectSourceId: s.setConnectSourceId, addRelationEdge: s.addRelationEdge, setConnectMode: s.setConnectMode })))
 
   const storeApi = useMindmapStoreApi()
   useFollowMindmapChanges()
@@ -33,7 +34,7 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
   const { fitView } = useReactFlow()
   const theme = getTheme(themeName)
   const hasInitialLayoutRef = useRef(false)
-  const dragStartRef = useRef<{ nodeId: string; positions: Map<string, { x: number; y: number }> } | null>(null)
+  const dragStartRef = useRef<{ nodeId: string; positions: Map<string, { x: number; y: number }>; descendants: Set<string> } | null>(null)
 
   const structuralFingerprint = useMemo(
     () => rfNodes.map(n => `${n.id}-${n.data.collapsed}-${n.data.parentId}-${n.data.sortOrder}-${n.data.content ? n.data.content.length : 0}-${n.data.floating ? 'f' : ''}`).join(','),
@@ -108,28 +109,20 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
     setEditingNodeId(null)
   }, [connectMode, setConnectMode, selectNode, setEditingNodeId])
 
+  // The tree doesn't change while a node is dragged: its descendants are found
+  // once here, not again on every frame (which scanned all nodes per descendant).
   const onNodeDragStart = useCallback((_event: any, node: any) => {
+    const nodes = storeApi.getState().rfNodes
     const positions = new Map<string, { x: number; y: number }>()
-    for (const n of storeApi.getState().rfNodes) {
+    for (const n of nodes) {
       positions.set(n.id, { ...n.position })
     }
-    dragStartRef.current = { nodeId: node.id, positions }
+    dragStartRef.current = { nodeId: node.id, positions, descendants: descendantIds(node.id, nodes) }
   }, [storeApi])
-
-  const getDescendantIds = useCallback((nodeId: string, nodes: typeof rfNodes) => {
-    const ids = new Set<string>()
-    const collect = (pid: string) => {
-      for (const n of nodes) {
-        if (n.data.parentId === pid) { ids.add(n.id); collect(n.id) }
-      }
-    }
-    collect(nodeId)
-    return ids
-  }, [])
 
   const findDropTarget = useCallback((draggedNode: any): { nodeId: string; position: 'inside' | 'before' | 'after' } | null => {
     const { rfNodes: currentNodes } = storeApi.getState()
-    const descendants = getDescendantIds(draggedNode.id, currentNodes)
+    const descendants = dragStartRef.current?.descendants ?? descendantIds(draggedNode.id, currentNodes)
     const dragCx = draggedNode.position.x
     const dragCy = draggedNode.position.y
 
@@ -172,7 +165,7 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
     }
 
     return closest ? { nodeId: closest.nodeId, position: closest.position } : null
-  }, [storeApi, getDescendantIds])
+  }, [storeApi])
 
   const onNodeDrag = useCallback((_event: any, node: any) => {
     const start = dragStartRef.current
@@ -185,7 +178,7 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
     if (isChild) {
       // Child drag: move descendants and detect drop target
       const { rfNodes: currentNodes, setRfNodes: setNodes } = storeApi.getState()
-      const descendants = getDescendantIds(node.id, currentNodes)
+      const descendants = start.descendants
       const origPos = start.positions.get(node.id)
       if (origPos) {
         const dx = node.position.x - origPos.x
@@ -220,16 +213,16 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
         return { ...n, position: { x: orig.x + dx, y: orig.y + dy } }
       }))
     } else {
-      const descendantIds = getDescendantIds(node.id, currentNodes)
+      const moved = start.descendants
       setNodes(currentNodes.map(n => {
         if (n.id === node.id) return n
-        if (!descendantIds.has(n.id)) return n
+        if (!moved.has(n.id)) return n
         const orig = start.positions.get(n.id)
         if (!orig) return n
         return { ...n, position: { x: orig.x + dx, y: orig.y + dy } }
       }))
     }
-  }, [storeApi, getDescendantIds, findDropTarget, setDropTarget])
+  }, [storeApi, findDropTarget, setDropTarget])
 
   const onNodeDragStop = useCallback(async (_event: any, node: any) => {
     const start = dragStartRef.current
@@ -353,4 +346,24 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
       </ViewportOverlay>
     </div>
   )
+}
+
+/** Ids of every node under `nodeId`, through a parent → children map (one pass over the nodes). */
+function descendantIds(nodeId: string, nodes: Array<{ id: string; data: { parentId?: string | null } }>): Set<string> {
+  const children = new Map<string, string[]>()
+  for (const n of nodes) {
+    const pid = n.data.parentId
+    if (!pid) continue
+    const list = children.get(pid)
+    if (list) list.push(n.id)
+    else children.set(pid, [n.id])
+  }
+  const ids = new Set<string>()
+  const stack = [nodeId]
+  while (stack.length) {
+    for (const c of children.get(stack.pop()!) ?? []) {
+      if (!ids.has(c)) { ids.add(c); stack.push(c) }
+    }
+  }
+  return ids
 }

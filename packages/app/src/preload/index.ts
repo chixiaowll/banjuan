@@ -61,6 +61,8 @@ const api = {
     getFilePath: (relativePath: string) => ipcRenderer.invoke('documents:getFilePath', relativePath),
     readContent: (relativePath: string) => ipcRenderer.invoke('documents:readContent', relativePath),
     readFileBuffer: (relativePath: string) => ipcRenderer.invoke('documents:readFileBuffer', relativePath),
+    fileSize: (relativePath: string) => ipcRenderer.invoke('documents:fileSize', relativePath),
+    readFileRange: (relativePath: string, start: number, end: number) => ipcRenderer.invoke('documents:readFileRange', relativePath, start, end),
     openInSystem: (relativePath: string) => ipcRenderer.invoke('documents:openInSystem', relativePath),
   },
   tags: {

@@ -303,6 +303,7 @@ const ja = {
   'error.retry': '再試行',
   'viewer.loadFailed': 'このドキュメントを開けません',
   'viewer.fileMissing': 'ファイルが見つかりません。移動、名前変更、または削除された可能性があります。',
+  'viewer.pdfTooLarge': 'この PDF は {0} あり、半巻閑書で開ける上限（1.5 GB）を超えています。システムの既定のアプリで開けます。',
   'viewer.openInSystem': '既定のアプリで開く',
   'viewer.openedInSystem': '既定のアプリで開きました',
   'viewer.openInSystemFailed': '既定のアプリで開けませんでした：{0}',

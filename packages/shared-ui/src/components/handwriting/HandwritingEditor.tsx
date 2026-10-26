@@ -7,6 +7,9 @@ import { useIsActiveTab } from '../tabActive.js'
 import { isEditableTarget } from '../../utils/keyboard.js'
 import { registerFlush } from '../../utils/flushRegistry.js'
 
+/** Undo steps kept per page. */
+const MAX_UNDO = 200
+
 interface Props {
   pageId: string
   snapshot: CanvasSnapshot
@@ -551,8 +554,13 @@ export default function HandwritingEditor({
   const pushSnapshot = useCallback(() => {
     const snap: CanvasSnapshot = { strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) }
     const idx = undoIndexRef.current
-    setUndoStack(prev => [...prev.slice(0, idx + 1), snap])
-    setUndoIndex(idx + 1)
+    // The oldest steps go past MAX_UNDO: every step keeps a whole page, and a
+    // long session's history used to grow without end.
+    setUndoStack(prev => {
+      const next = [...prev.slice(0, idx + 1), snap]
+      return next.length > MAX_UNDO ? next.slice(next.length - MAX_UNDO) : next
+    })
+    setUndoIndex(Math.min(idx + 1, MAX_UNDO - 1))
     schedulePersist()
   }, [schedulePersist])
   // Before the window closes / app quits, hand the batched strokes to the store

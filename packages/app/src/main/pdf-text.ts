@@ -1,9 +1,9 @@
-import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { join, dirname } from 'node:path'
 import { app } from 'electron'
-import { extractPdf, extractEpub, extractPlain, type PdfjsLocation, type ExtractedPage } from '@banjuan/core'
+import type { PdfjsLocation, ExtractedPage } from '@banjuan/core'
+import { extractTextRange } from './doc-text-indexer.js'
 
 // Bound the text returned per call so a huge book/chapter can't blow up tokens.
 const MAX_TOTAL_CHARS = 80_000
@@ -46,35 +46,20 @@ function capPages(result: DocumentTextResult): DocumentTextResult & { truncated?
   return { ...result, pages, truncated }
 }
 
-/** Extract readable text from a document by type. Returns pages for the requested range. */
+/**
+ * Readable text of a document's pages `fromPage`–`toPage`, bounded for one
+ * API answer. Parsing runs in a utility process (a large PDF took the main
+ * process — and every window's IPC — for seconds).
+ */
 export async function extractDocumentText(
   absPath: string,
   type: string,
   fromPage = 1,
   toPage?: number,
 ): Promise<DocumentTextResult & { truncated?: boolean }> {
-  const data = new Uint8Array(readFileSync(absPath))
-  let result: DocumentTextResult
-  switch (type) {
-    case 'pdf': {
-      const r = await extractPdf(data, pdfjsLocation(), { fromPage, toPage: toPage ?? fromPage })
-      result = { numPages: r.numPages, from: r.pages[0]?.page ?? 1, to: r.pages.at(-1)?.page ?? 1, pages: r.pages }
-      break
-    }
-    case 'epub': {
-      // Chapters can be large — default to a small span unless explicitly asked.
-      const start = Math.max(1, fromPage || 1)
-      const r = extractEpub(data, { fromPage: start, toPage: Math.min(toPage ?? start, start + 4) })
-      result = { numPages: r.numPages, from: r.pages[0]?.page ?? 1, to: r.pages.at(-1)?.page ?? 1, pages: r.pages }
-      break
-    }
-    case 'txt': case 'md': case 'html': {
-      const r = extractPlain(data, type)
-      result = { numPages: 1, from: 1, to: 1, pages: r.pages }
-      break
-    }
-    default: throw new Error(`Text extraction is not supported for type "${type}"`)
-  }
+  if (!['pdf', 'epub', 'txt', 'md', 'html'].includes(type)) throw new Error(`Text extraction is not supported for type "${type}"`)
+  const r = await extractTextRange(absPath, type, fromPage, toPage ?? fromPage)
+  const result: DocumentTextResult = { numPages: r.numPages, from: r.pages[0]?.page ?? 1, to: r.pages.at(-1)?.page ?? 1, pages: r.pages }
   const capped = capPages(result)
   // A pdf/epub range that hit the page cap is also "truncated" w.r.t. the doc.
   if (capped.to < capped.numPages) capped.truncated = true

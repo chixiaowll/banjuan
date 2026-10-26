@@ -5,7 +5,9 @@ import { unzipSync, strFromU8 } from 'fflate'
  * EPUB 2 <meta name="cover">, or an image named like a cover. Null if none.
  */
 export function epubCoverImage(data: Uint8Array): Uint8Array | null {
-  const files = unzipSync(data, { filter: f => f.name.endsWith('.opf') || f.name === 'META-INF/container.xml' || /\.(jpe?g|png|gif|webp)$/i.test(f.name) })
+  // The package files first, then only the cover: unzipping every image of an
+  // illustrated book to find one took seconds and hundreds of megabytes.
+  const files = unzipSync(data, { filter: f => f.name.endsWith('.opf') || f.name === 'META-INF/container.xml' })
   const container = files['META-INF/container.xml']
   const opfPath = container ? strFromU8(container).match(/full-path="([^"]+)"/)?.[1] : undefined
   if (!opfPath || !files[opfPath]) return null
@@ -21,5 +23,7 @@ export function epubCoverImage(data: Uint8Array): Uint8Array | null {
     ?? items.find(i => coverId && i.id === coverId)
     ?? items.find(i => i.type.startsWith('image/') && /cover/i.test(`${i.id} ${i.href}`))
   if (!pick?.href) return null
-  return files[dir + decodeURIComponent(pick.href)] ?? files[decodeURIComponent(pick.href)] ?? null
+  const wanted = new Set([dir + decodeURIComponent(pick.href), decodeURIComponent(pick.href)])
+  const image = unzipSync(data, { filter: f => wanted.has(f.name) })
+  return image[dir + decodeURIComponent(pick.href)] ?? image[decodeURIComponent(pick.href)] ?? null
 }

@@ -2,6 +2,7 @@ import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { registerPlugin } from '@capacitor/core'
 import { zipSync } from 'fflate'
 import type { Library } from '@banjuan/core'
+import { readDocumentsFile } from '@banjuan/platform-capacitor'
 
 /**
  * Exports on iPad. There's no folder to pick, so an export run writes into a
@@ -147,11 +148,7 @@ export async function finishExport(dir: string): Promise<void> {
   if (files.length > 1) {
     const entries: Record<string, Uint8Array> = {}
     for (const rel of files) {
-      const { data } = await Filesystem.readFile({ path: `${dir}/${rel}`, directory: D })
-      const binary = atob(data as string)
-      const bytes = new Uint8Array(binary.length)
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-      entries[rel] = bytes
+      entries[rel] = await readDocumentsFile(`${dir}/${rel}`)
     }
     const zipped = zipSync(entries, { level: 6 })
     let binary = ''

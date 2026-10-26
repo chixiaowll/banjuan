@@ -51,6 +51,13 @@ describe('document text index and search', () => {
     lib.docText.markFailed(b.id, b.hash, 'failed', 'bad xref')
     expect(lib.docText.pending().map(j => j.id)).toEqual([a.id])
     expect(lib.docText.stats()).toMatchObject({ total: 2, pending: 1, failed: 1, indexed: 0 })
+    // Indexers take the missing ones separately (and check the file first).
+    expect(lib.docText.pending(50, { includeMissing: false })).toEqual([])
+    expect(lib.docText.missing().map(j => j.id)).toEqual([a.id])
+    // A missing document whose file then changes is new work again.
+    lib.docText.markFailed(a.id, 'older-hash', 'missing', 'ENOENT')
+    expect(lib.docText.pending(50, { includeMissing: false }).map(j => j.id)).toEqual([a.id])
+    expect(lib.docText.missing()).toEqual([])
   })
 
   it('finds a document by its text — Chinese substrings, 1–2 character terms, AND across terms — with page and snippet', async () => {

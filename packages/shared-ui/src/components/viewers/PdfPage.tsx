@@ -10,10 +10,11 @@ import EraserTool from './EraserTool.js'
 import { useBanjuanAPI } from '../../api.js'
 import { useEyeProtection, EYE_PROTECTION_TINT, useEinkMode, EINK_FILTER } from './useEyeProtection.js'
 import { pageInfoFrom } from './pdfText.js'
+import { canvasScale } from './canvasScale.js'
 
-// Max canvas backing-store pixels per page (pdf.js viewer default, 2^24).
-const MAX_CANVAS_PIXELS = 16_777_216
 const noop = () => {}
+/** A re-render (zoom) waits this long for the zoom to settle: a pinch changes it every frame. */
+const RERENDER_DELAY_MS = 120
 
 export interface TextSelectInfo {
   page: number
@@ -124,6 +125,9 @@ export default function PdfPage({
   const [pageRotation, setPageRotation] = useState(0)
 
   const [ready, setReady] = useState(false)
+  // Drawn at least once: the canvas then stays visible while a zoom re-renders
+  // (its old bitmap stretched) instead of going blank until the new one is done.
+  const [drawn, setDrawn] = useState(false)
 
   const buildCaptureCanvas = useCallback((): HTMLCanvasElement | null => {
     const canvas = canvasRef.current
@@ -166,10 +170,13 @@ export default function PdfPage({
   }, [])
 
   // Virtualized-away pages: release the canvas bitmap right away (an
-  // off-screen canvas otherwise holds its full backing store until GC).
+  // off-screen canvas otherwise holds its full backing store until GC), and
+  // pdf.js's resources for the page (its parsed drawing operations and fonts).
+  const pageProxyRef = useRef<pdfjsLib.PDFPageProxy | null>(null)
   useEffect(() => () => {
     const c = canvasRef.current
     if (c) { c.width = 0; c.height = 0 }
+    try { pageProxyRef.current?.cleanup() } catch { /* still rendering: freed with the document */ }
   }, [])
 
   // Render canvas + text layer + extract chars[] when mounted or scale changes.
@@ -184,30 +191,45 @@ export default function PdfPage({
     setReady(false)
 
     const init = async () => {
+      const rerender = renderedScaleRef.current !== 0
       const page = await pdfDoc.getPage(pageNum)
       if (cancelled) return
+      pageProxyRef.current = page
 
       setPageRotation(page.rotate)
       const viewport = page.getViewport({ scale, rotation: 0 })
       viewportRef.current = viewport
 
       const canvas = canvasRef.current
-      const dpr = window.devicePixelRatio || 1
-      let ctx: CanvasRenderingContext2D | null = null
       if (canvas) {
-        // Cap the backing store like pdf.js's own viewer (maxCanvasPixels): at
-        // high zoom a page at full devicePixelRatio can reach hundreds of
-        // megapixels and exhaust memory. Above the cap, render at a lower
-        // resolution and let CSS stretch it.
-        const outputScale = Math.min(dpr, Math.sqrt(MAX_CANVAS_PIXELS / (viewport.width * viewport.height)))
-        canvas.width = Math.floor(viewport.width * outputScale)
-        canvas.height = Math.floor(viewport.height * outputScale)
+        // The page already shows: stretch that to the new size at once and draw
+        // the new one off screen, swapping it in when done — resizing the
+        // canvas itself blanked the page for the whole render (and a pinch,
+        // re-rendering every frame, kept it blank). A zoom in progress renders
+        // only once it settles.
         canvas.style.width = viewport.width + 'px'
         canvas.style.height = viewport.height + 'px'
-        ctx = canvas.getContext('2d')!
+        if (rerender) {
+          await new Promise(resolve => setTimeout(resolve, RERENDER_DELAY_MS))
+          if (cancelled) return
+        }
+        const outputScale = canvasScale(viewport.width, viewport.height)
+        const w = Math.floor(viewport.width * outputScale)
+        const h = Math.floor(viewport.height * outputScale)
+        const target = rerender && canvas.width > 0 ? document.createElement('canvas') : canvas
+        target.width = w
+        target.height = h
         const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] as [number, number, number, number, number, number] : undefined
-        renderTask = page.render({ canvasContext: ctx, viewport, transform })
+        renderTask = page.render({ canvasContext: target.getContext('2d')!, viewport, transform })
         await renderTask.promise.catch(() => {})   // RenderingCancelledException when superseded
+        if (target !== canvas) {
+          if (!cancelled) {
+            canvas.width = w
+            canvas.height = h
+            canvas.getContext('2d')!.drawImage(target, 0, 0)
+          }
+          target.width = target.height = 0
+        }
       }
       if (cancelled) return
 
@@ -297,6 +319,7 @@ export default function PdfPage({
       if (!cancelled) {
         renderedScaleRef.current = scale
         setReady(true)
+        setDrawn(true)
       }
     }
 
@@ -427,7 +450,7 @@ export default function PdfPage({
             ref={canvasRef}
             style={{
               display: 'block',
-              visibility: ready ? 'visible' : 'hidden',
+              visibility: ready || drawn ? 'visible' : 'hidden',
             }}
           />
           <div

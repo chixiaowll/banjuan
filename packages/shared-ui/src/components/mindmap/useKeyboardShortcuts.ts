@@ -4,6 +4,7 @@ import { useBanjuanAPI } from '../../api.js'
 import { useMindmapStore, useMindmapStoreApi } from './useMindmapStore.js'
 import { parseTextToBlocks } from './parseMarkdownBlocks.js'
 import { useIsActiveTab } from '../tabActive.js'
+import { useShallow } from 'zustand/react/shallow'
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'])
 const ATTACHMENT_PREFIX = 'banjuan-attachment://'
@@ -14,7 +15,7 @@ export function useKeyboardShortcuts() {
     rfNodes, selectedNodeIds, editingNodeId,
     addNode, addSiblingNode, removeNode, selectNode,
     setEditingNodeId, toggleCollapse, undo, redo, openSidePanel,
-  } = useMindmapStore()
+  } = useMindmapStore(useShallow(s => ({ rfNodes: s.rfNodes, selectedNodeIds: s.selectedNodeIds, editingNodeId: s.editingNodeId, addNode: s.addNode, addSiblingNode: s.addSiblingNode, removeNode: s.removeNode, selectNode: s.selectNode, setEditingNodeId: s.setEditingNodeId, toggleCollapse: s.toggleCollapse, undo: s.undo, redo: s.redo, openSidePanel: s.openSidePanel })))
   const storeApi = useMindmapStoreApi()
   const { fitView, zoomIn, zoomOut } = useReactFlow()
   const isActiveTab = useIsActiveTab()

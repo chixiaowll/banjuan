@@ -47,7 +47,10 @@ describe('NoteLinkService', () => {
       sourceId: a.id,
       targetId: b.id,
       context: 'see Note B',
+      targetTitle: 'Note B',   // the other note's title and type come with the link
+      targetType: 'markdown',
     })
+    expect((await lib.noteLinks.getBacklinks(b.id))[0]).toMatchObject({ sourceId: a.id, sourceTitle: 'Note A', sourceType: 'markdown' })
   })
 
   it('getBacklinks returns links pointing to target', async () => {

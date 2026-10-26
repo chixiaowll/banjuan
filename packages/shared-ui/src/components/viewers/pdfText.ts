@@ -17,7 +17,10 @@ export function pageInfoFrom(page: pdfjsLib.PDFPageProxy, textContent: { items: 
 /** A page's text without rendering it (search reaches pages that were never on screen). */
 export async function loadPageInfo(pdfDoc: pdfjsLib.PDFDocumentProxy, pageNum: number): Promise<PageInfo> {
   const page = await pdfDoc.getPage(pageNum)
-  return pageInfoFrom(page, await page.getTextContent())
+  const info = pageInfoFrom(page, await page.getTextContent())
+  // Searching reads every page: let pdf.js drop what it parsed for each.
+  try { page.cleanup() } catch { /* the page is also on screen */ }
+  return info
 }
 
 /**

@@ -1,6 +1,6 @@
 import { ipcMain, dialog, clipboard, shell, BrowserWindow, app, safeStorage, webContents } from 'electron'
 import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync, renameSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, stat, open } from 'node:fs/promises'
 import { join, basename, dirname, resolve, sep } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
 import { webdavTarget } from '@banjuan/core'
@@ -456,6 +456,25 @@ export function registerIpcHandlers() {
   ipcMain.handle('documents:readFileBuffer', async (event, relativePath: string) => {
     const fullPath = libraryPath(getLib(event).rootPath, relativePath)
     return readFile(fullPath)
+  })
+
+  ipcMain.handle('documents:fileSize', async (event, relativePath: string) => {
+    return (await stat(libraryPath(getLib(event).rootPath, relativePath))).size
+  })
+
+  // Bytes [start, end) of a document; one call reads at most 64 MB.
+  ipcMain.handle('documents:readFileRange', async (event, relativePath: string, start: number, end: number) => {
+    const fullPath = libraryPath(getLib(event).rootPath, relativePath)
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) throw new Error('Invalid byte range')
+    const length = Math.min(end - start, 64 * 1024 * 1024)
+    const handle = await open(fullPath, 'r')
+    try {
+      const buf = Buffer.alloc(length)
+      const { bytesRead } = await handle.read(buf, 0, length, start)
+      return buf.subarray(0, bytesRead)
+    } finally {
+      await handle.close()
+    }
   })
 
   ipcMain.handle('documents:openInSystem', async (event, relativePath: string) => {

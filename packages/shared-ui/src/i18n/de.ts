@@ -303,6 +303,7 @@ const de = {
   'error.retry': 'Erneut versuchen',
   'viewer.loadFailed': 'Dieses Dokument kann nicht geöffnet werden',
   'viewer.fileMissing': 'Die Datei wurde nicht gefunden. Sie wurde möglicherweise verschoben, umbenannt oder gelöscht.',
+  'viewer.pdfTooLarge': 'Dieses PDF ist {0} groß und damit größer, als Banjuan öffnen kann (1,5 GB). Sie können es mit der Standard-App des Systems öffnen.',
   'viewer.openInSystem': 'Mit Standard-App öffnen',
   'viewer.openedInSystem': 'In Standard-App geöffnet',
   'viewer.openInSystemFailed': 'Öffnen in der Standard-App fehlgeschlagen: {0}',

@@ -12,6 +12,9 @@ import { useEscapeKey } from '../../utils/useEscapeKey.js'
 import { useFitInViewport } from '../../utils/useFitInViewport.js'
 import { type LibraryViewProps, type Document, type LibraryTag, type SidebarSection, buildDirTree, type DirNode, groupByDate } from './helpers.js'
 
+/** Titles sort as in Chinese (pinyin), mixed with other scripts. */
+const titleCollator = new Intl.Collator('zh-CN')
+
 /**
  * LibraryView's state, effects and actions. Everything it declares is returned,
  * and the view's parts read it through useLibrary() (LibraryContext.tsx).
@@ -496,23 +499,17 @@ export function useLibraryState(props: LibraryViewProps) {
     }
 
     if (sortKey) {
+      // Dates are ISO strings: compared as they are. Titles through one shared
+      // collator — localeCompare with a locale sets one up on every call.
+      const byTitle = (a: any, b: any) => titleCollator.compare(a.title || a.name || '', b.title || b.name || '')
+      const plain = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0)
       items = [...items].sort((a: any, b: any) => {
-        let va: string, vb: string
-        if (sortKey === 'type') {
-          va = a.type || ''
-          vb = b.type || ''
-        } else if (sortKey === 'title') {
-          va = (a.title || a.name || '').toLowerCase()
-          vb = (b.title || b.name || '').toLowerCase()
-        } else if (sortKey === 'updatedAt') {
-          va = a.updatedAt || a.createdAt || ''
-          vb = b.updatedAt || b.createdAt || ''
-        } else {
-          va = a.createdAt || ''
-          vb = b.createdAt || ''
-        }
-        const cmp = va.localeCompare(vb, 'zh-CN') ||
-          (a.title || a.name || '').localeCompare(b.title || b.name || '', 'zh-CN')
+        let cmp: number
+        if (sortKey === 'type') cmp = plain(a.type || '', b.type || '')
+        else if (sortKey === 'title') cmp = 0
+        else if (sortKey === 'updatedAt') cmp = plain(a.updatedAt || a.createdAt || '', b.updatedAt || b.createdAt || '')
+        else cmp = plain(a.createdAt || '', b.createdAt || '')
+        cmp = cmp || byTitle(a, b)
         return sortAsc ? cmp : -cmp
       })
     }
@@ -520,7 +517,10 @@ export function useLibraryState(props: LibraryViewProps) {
     return items
   }
 
-  const displayItems = getDisplayItems()
+  // Filtered and sorted once per change of what they depend on, not on every
+  // render of the library (hover, menus, selection…).
+  const displayItems = useMemo(getDisplayItems,
+    [selectedSection, documents, notes, selectedDir, selectedNoteDir, selectedTag, tagFilteredItems, typeFilter, searchQuery, sortKey, sortAsc])
   // The folder being browsed in this section — shown in the breadcrumb and as the page title.
   const currentDir = selectedSection === 'documents' ? selectedDir : selectedSection === 'notes' ? selectedNoteDir : null
   const dirSegments = currentDir ? currentDir.split('/').filter(Boolean) : []
