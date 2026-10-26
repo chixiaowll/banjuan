@@ -256,9 +256,13 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   const handleUploadFileRef = useRef(handleUploadFile)
   handleUploadFileRef.current = handleUploadFile
 
+  // This editor's own root. `document.querySelector('.bn-editor')` found the
+  // first editor on the page — often another note in a hidden tab — so a pasted
+  // file went into that note, once per open editor.
+  const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (readOnly || !noteId) return
-    const container = document.querySelector('.bn-editor')
+    const container = rootRef.current
     if (!container) return
     const onPasteCapture = (e: Event) => {
       const ce = e as ClipboardEvent
@@ -438,7 +442,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   }, [])
 
   return (
-    <div className={readOnly ? 'reading-mode' : ''}>
+    <div ref={rootRef} className={readOnly ? 'reading-mode' : ''}>
       <BlockNoteView
         editor={editor}
         editable={!readOnly}

@@ -704,8 +704,17 @@ export default function HandwritingEditor({
   }, [addImage])
 
   // --- Paste handler ---
+  // A window-level listener in every mounted editor: only the one on screen
+  // takes the paste, and not when the paste is meant for a text field or a
+  // note editor elsewhere (it used to land in every open handwriting note).
+  const pasteTabActive = useRef(true)
+  pasteTabActive.current = useIsActiveTab()
   useEffect(() => {
     const onPaste = async (e: ClipboardEvent) => {
+      const vp = viewportRef.current
+      if (!pasteTabActive.current || !vp || !vp.isConnected || vp.getClientRects().length === 0) return
+      const target = e.target as HTMLElement | null
+      if (target && !vp.contains(target) && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return
       const items = e.clipboardData?.items
       if (!items) return
       for (const item of Array.from(items)) {
