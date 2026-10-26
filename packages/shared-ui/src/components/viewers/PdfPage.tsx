@@ -512,7 +512,6 @@ export default function PdfPage({
               lineWidth={inkWidth}
               pageNum={pageNum}
               docId={docId}
-              existingAnnotationId={annotations.find(a => a.page === pageNum && a.position?.type === 'ink')?.id ?? null}
               existingStrokes={annotations.filter(a => a.page === pageNum && a.position?.type === 'ink').flatMap(a => a.position?.strokes || [])}
               onCreated={onAnnotationCreated || (() => {})}
             />

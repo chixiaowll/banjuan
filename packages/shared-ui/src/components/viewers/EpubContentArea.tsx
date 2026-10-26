@@ -5,6 +5,7 @@ import TextSelectionToolbar from './TextSelectionToolbar.js'
 import AnnotationContextMenu from './AnnotationContextMenu.js'
 import EpubInkOverlay from './EpubInkOverlay.js'
 import EpubInkLassoTool from './EpubInkLassoTool.js'
+import { chapterMarks } from './epubSection.js'
 import EpubInkToolbar from './EpubInkToolbar.js'
 import EpubAreaSelectTool from './EpubAreaSelectTool.js'
 import { useT } from '../../i18n/index.js'
@@ -514,7 +515,7 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
       {ctx.activeTool !== 'lasso' && (
         <EpubInkOverlay
           docId={docId}
-          annotations={ctx.annotationsVisible ? annotations : []}
+          annotations={ctx.annotationsVisible ? chapterMarks(annotations, ctx.currentHref) : []}
           containerRef={containerRef}
           onCreated={onInkCreated}
         />
@@ -522,14 +523,14 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
 
       {ctx.activeTool === 'lasso' && (
         <EpubInkLassoTool
-          annotations={ctx.annotationsVisible ? annotations : []}
+          annotations={ctx.annotationsVisible ? chapterMarks(annotations, ctx.currentHref) : []}
           containerRef={containerRef}
           onUpdated={onInkCreated}
         />
       )}
 
       <EpubAreaOverlays
-        annotations={ctx.annotationsVisible ? annotations : []}
+        annotations={ctx.annotationsVisible ? chapterMarks(annotations, ctx.currentHref) : []}
         containerRef={containerRef}
       />
 

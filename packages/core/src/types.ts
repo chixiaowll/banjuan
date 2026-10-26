@@ -76,6 +76,8 @@ export interface InkPosition {
     width: number
   }>
   bounds: { x: number; y: number; w: number; h: number }
+  /** EPUB: the chapter (spine href) the strokes were drawn in; y is measured from its top. */
+  href?: string
 }
 
 export interface PointPosition {
@@ -90,6 +92,8 @@ export interface AreaPosition {
   page?: number
   rect: { x: number; y: number; w: number; h: number }
   imageData?: string
+  /** EPUB: the chapter (spine href) the area was marked in; y is measured from its top. */
+  href?: string
 }
 
 export type AnnotationPosition =

@@ -195,7 +195,7 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
             } else {
               const bounds = computeBounds(remaining)
               await api.annotations.update(ann.id, {
-                position: { type: 'ink' as const, strokes: remaining, bounds },
+                position: { ...ann.position, type: 'ink' as const, strokes: remaining, bounds },   // keeps its chapter
               })
             }
             onCreated()
@@ -278,21 +278,21 @@ export default function EpubInkOverlay({ docId, annotations, containerRef, onCre
       const bounds = computeBounds(allStrokes)
       ctx.pushInkUndo({ annotationId: overlapping.id, strokes: [...overlapping.position.strokes] })
       await api.annotations.update(overlapping.id, {
-        position: { type: 'ink', strokes: allStrokes, bounds },
+        position: { ...overlapping.position, type: 'ink', strokes: allStrokes, bounds, href: (overlapping.position as any).href ?? ctx.currentHref },
       })
     } else {
       ctx.pushInkUndo({ annotationId: '__new__', strokes: [] })
       await api.annotations.create({
         docId,
         type: 'ink',
-        position: { type: 'ink', strokes: [newStroke], bounds: newBounds },
+        position: { type: 'ink', strokes: [newStroke], bounds: newBounds, href: ctx.currentHref },
         color: ctx.inkColor,
       })
     }
     ctx.clearInkRedo()
     currentPointsRef.current = []
     onCreated()
-  }, [drawing, docId, ctx.inkColor, ctx.inkWidth, onCreated])
+  }, [drawing, docId, ctx.inkColor, ctx.inkWidth, ctx.currentHref, onCreated])
 
   if (!isActive && inkAnnotations.length === 0) return null
 

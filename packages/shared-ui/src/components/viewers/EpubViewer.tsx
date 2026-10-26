@@ -12,6 +12,7 @@ import { useT } from '../../i18n/index.js'
 import { useResizable, ResizeHandle } from '../ResizeHandle.js'
 import { useBanjuanAPI } from '../../api.js'
 import { takeDocPage, onDocPageRequest } from '../../utils/docNavigation.js'
+import { inSection } from './epubSection.js'
 
 interface DocInfo {
   id: string
@@ -243,12 +244,13 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
   }, [reload])
 
   const handleInkClearPage = useCallback(async () => {
-    const inkAnns = annotations.filter((a: any) => a.type === 'ink')
+    // Only the chapter on screen — this used to delete the ink of the whole book.
+    const inkAnns = annotations.filter((a: any) => a.type === 'ink' && inSection(a.position, ctx.currentHref))
     for (const ann of inkAnns) {
       await api.annotations.delete(ann.id)
     }
     reload()
-  }, [annotations, reload])
+  }, [annotations, reload, ctx.currentHref])
 
   const handleInkUndo = useCallback(async () => {
     const entry = ctx.popInkUndo()

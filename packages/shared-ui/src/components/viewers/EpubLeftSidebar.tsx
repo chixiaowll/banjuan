@@ -36,15 +36,18 @@ export default function EpubLeftSidebar({
   const handleAnnotationNavigate = (ann: any) => {
     if (ann?.position?.cfi) {
       onAnnotationClick(ann.position.cfi)
-    } else if (ann?.position?.type === 'ink' && ann?.position?.bounds) {
-      const sc = document.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
-      if (sc) {
-        sc.scrollTo({ top: Math.max(0, ann.position.bounds.y - sc.clientHeight / 3), behavior: 'smooth' })
+    } else if ((ann?.position?.type === 'ink' && ann?.position?.bounds) || (ann?.position?.type === 'area' && ann?.position?.rect)) {
+      const y = ann.position.type === 'ink' ? ann.position.bounds.y : ann.position.rect.y
+      const scroll = () => {
+        const sc = document.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
+        if (sc) sc.scrollTo({ top: Math.max(0, y - sc.clientHeight / 3), behavior: 'smooth' })
       }
-    } else if (ann?.position?.type === 'area' && ann?.position?.rect) {
-      const sc = document.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
-      if (sc) {
-        sc.scrollTo({ top: Math.max(0, ann.position.rect.y - sc.clientHeight / 3), behavior: 'smooth' })
+      // Marks belong to a chapter: open it first when it isn't the one on screen.
+      const href = ann.position.href as string | undefined
+      if (href && href !== ctx.currentHref && ctx.rendition) {
+        void Promise.resolve(ctx.rendition.display(href)).then(() => setTimeout(scroll, 300))
+      } else {
+        scroll()
       }
     }
   }

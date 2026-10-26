@@ -176,7 +176,7 @@ export default function EpubAreaSelectTool({ docId, containerRef, onCreated }: P
       await api.annotations.create({
         docId,
         type: 'area',
-        position: { type: 'area' as const, rect: { x, y, w, h }, imageData } as any,
+        position: { type: 'area' as const, rect: { x, y, w, h }, imageData, href: ctx.currentHref } as any,   // y is within this chapter
         color: ctx.activeColor,
       })
       onCreated()
@@ -185,7 +185,7 @@ export default function EpubAreaSelectTool({ docId, containerRef, onCreated }: P
     setDragging(false)
     setStart(null)
     setCurrent(null)
-  }, [dragging, start, current, docId, ctx.activeColor, containerRef, onCreated])
+  }, [dragging, start, current, docId, ctx.activeColor, ctx.currentHref, containerRef, onCreated])
 
   if (!active) return null
 
