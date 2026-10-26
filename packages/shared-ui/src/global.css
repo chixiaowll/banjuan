@@ -376,3 +376,19 @@ select {
   background: var(--border);
   margin: 4px 8px;
 }
+
+/* On touch screens a long press opens the context menu here
+   (utils/longPressMenu.ts), so the system's own long-press callout and text
+   selection would only get in the way. Mouse users keep selecting text. */
+@media (hover: none) and (pointer: coarse) {
+  [data-long-press-menu] {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  [data-long-press-menu] input,
+  [data-long-press-menu] textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}

@@ -589,6 +589,7 @@ export default function FolderTree({ onSelectFolder, onOpenNote, selectedFolder,
 
   return (
     <div
+      data-long-press-menu
       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
       onContextMenu={handleRootContextMenu}
     >

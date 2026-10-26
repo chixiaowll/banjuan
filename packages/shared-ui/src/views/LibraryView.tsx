@@ -27,7 +27,7 @@ export default function LibraryView(props: LibraryViewProps) {
   } = lib
   return (
     <LibraryContext.Provider value={lib}>
-      <div style={{ display: 'flex', height: '100%' }}>
+      <div data-long-press-menu style={{ display: 'flex', height: '100%' }}>
         {/* Left Sidebar */}
         <LibrarySidebar />
 

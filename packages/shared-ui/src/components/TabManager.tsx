@@ -22,6 +22,7 @@ import SearchPalette from './SearchPalette.js'
 import '../styles/mobile.css'
 import { useEscapeKey } from '../utils/useEscapeKey.js'
 import { toast } from './feedback.js'
+import { installLongPressMenu } from '../utils/longPressMenu.js'
 
 const LIBRARY_TAB_ID = 'library'
 
@@ -44,6 +45,8 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
   const api = useBanjuanAPI()
   const t = useT()
   const [isNarrow, setIsNarrow] = useState(false)
+  // Touch screens: long press opens the library's context menus (utils/longPressMenu).
+  useEffect(() => installLongPressMenu(), [])
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)')
     setIsNarrow(mq.matches)
