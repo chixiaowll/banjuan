@@ -1,4 +1,4 @@
-import { existsSync, symlinkSync, unlinkSync, readlinkSync, mkdirSync } from 'node:fs'
+import { existsSync, symlinkSync, unlinkSync, readlinkSync, mkdirSync, lstatSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { execSync } from 'node:child_process'
 import { app } from 'electron'
@@ -12,11 +12,16 @@ function getLocalBinPath(): string {
   return join(process.env.HOME || '', '.local', 'bin', 'banjuan')
 }
 
-function trySymlink(cliSource: string, target: string): boolean {
+export function trySymlink(cliSource: string, target: string): boolean {
   try {
-    if (existsSync(target)) {
-      const current = readlinkSync(target)
-      if (current === cliSource) return true
+    // lstat, not exists: existsSync follows the link, so a dangling one (left by
+    // an older install) looked absent, symlinkSync then failed on it, and every
+    // launch fell through to the administrator prompt.
+    let link: ReturnType<typeof lstatSync> | null = null
+    try { link = lstatSync(target) } catch { /* nothing there */ }
+    if (link) {
+      if (!link.isSymbolicLink()) return false   // someone else's `banjuan`: leave it alone
+      if (readlinkSync(target) === cliSource) return true
       unlinkSync(target)
     }
     symlinkSync(cliSource, target)
@@ -27,11 +32,16 @@ function trySymlink(cliSource: string, target: string): boolean {
   }
 }
 
+// Asked for an administrator password once (whatever the answer): never again.
+const ADMIN_ASKED_FILE = join(process.env.HOME || '', '.banjuan', 'cli-admin-asked')
+
 export async function installCli(): Promise<void> {
   if (process.platform !== 'darwin') return
 
   const cliSource = join(process.resourcesPath, 'cli', 'banjuan-cli')
   if (!existsSync(cliSource)) return
+  // Running from a disk image or a translocated copy: that path goes away.
+  if (cliSource.includes('/AppTranslocation/') || cliSource.startsWith('/Volumes/')) return
 
   for (const candidate of SYMLINK_CANDIDATES) {
     if (trySymlink(cliSource, candidate)) return
@@ -47,7 +57,12 @@ export async function installCli(): Promise<void> {
     return
   }
 
-  // Last resort: ask for elevated permissions
+  // Last resort: ask for elevated permissions — once.
+  if (existsSync(ADMIN_ASKED_FILE)) return
+  try {
+    mkdirSync(join(process.env.HOME || '', '.banjuan'), { recursive: true })
+    writeFileSync(ADMIN_ASKED_FILE, new Date().toISOString())
+  } catch { /* still ask this once */ }
   try {
     const target = SYMLINK_CANDIDATES[0]
     execSync(`osascript -e 'do shell script "ln -sf \\"${cliSource}\\" \\"${target}\\"" with administrator privileges'`)
