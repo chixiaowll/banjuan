@@ -30,6 +30,7 @@ const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp
 
 export { schema } from './blockSchema.js'
 import { schema } from './blockSchema.js'
+import { attachmentUrlResolver } from '../../utils/attachmentUrl.js'
 
 interface NoteItem {
   id: string
@@ -222,6 +223,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     schema,
     initialContent: parsedContent,
     uploadFile: handleUploadFile,
+    resolveFileUrl: attachmentUrlResolver(api),
     // Slash menu, placeholders and toolbars in the UI language (BlockNote ships
     // all seven); taken at creation — a note opened after switching follows it.
     dictionary: blockNoteLocales[locale] ?? blockNoteLocales.en,

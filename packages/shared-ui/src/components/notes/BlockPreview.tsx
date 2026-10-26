@@ -3,6 +3,8 @@ import { BlockNoteView } from '@blocknote/mantine'
 import { useCreateBlockNote } from '@blocknote/react'
 import { schema } from './blockSchema.js'
 import ErrorBoundary from '../ErrorBoundary.js'
+import { useBanjuanAPI } from '../../api.js'
+import { attachmentUrlResolver } from '../../utils/attachmentUrl.js'
 import { migrateRawMarkdownBlocks, parseTextToBlocks } from '../mindmap/parseMarkdownBlocks.js'
 
 interface Props {
@@ -23,9 +25,11 @@ function BlockPreviewInner({ content, compact, style }: Props) {
     }
   }, [content])
 
+  const api = useBanjuanAPI()
   const editor = useCreateBlockNote({
     schema,
     initialContent: parsed,
+    resolveFileUrl: attachmentUrlResolver(api),
   })
 
   useEffect(() => {

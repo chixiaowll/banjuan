@@ -76,6 +76,14 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
     if (format === 'png') {
       const dataUrl = renderPageToDataUrl(pages[currentPageIndex])
       if (!dataUrl) return
+      // A download link does nothing in the iPad web view: go through export (→ share sheet).
+      if (api.export?.finish) {
+        exportToDirectory(api, [{
+          id: noteId, title,
+          generate: async () => ({ attachments: [], files: [{ name: `${title || 'handwriting'}.png`, dataUrl }] }),
+        }], 'png')
+        return
+      }
       const a = document.createElement('a')
       a.href = dataUrl
       a.download = `${title || 'handwriting'}.png`

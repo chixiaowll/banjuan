@@ -120,4 +120,6 @@ export async function exportToDirectory(
     }
   }
   obs.onDone()
+  // Where there's no folder the user chose (iPad), the platform passes the result on.
+  try { await api.export?.finish?.(dir) } catch (e) { console.warn('[export] finishing failed', e) }
 }

@@ -40,9 +40,15 @@ export const FileEmbed = createReactBlockSpec(
       const [resolvedUrl, setResolvedUrl] = React.useState<string>('')
 
       React.useEffect(() => {
-        if (src) {
+        if (!src) return
+        let cancelled = false
+        // Where banjuan-attachment:// isn't served (iPad), ask for a loadable URL.
+        if (api.attachments.getFileSrc) {
+          api.attachments.getFileSrc(src).then(u => { if (!cancelled) setResolvedUrl(u) }).catch(() => {})
+        } else {
           setResolvedUrl(`banjuan-attachment://${src}`)
         }
+        return () => { cancelled = true }
       }, [src])
 
       const handleOpen = () => {

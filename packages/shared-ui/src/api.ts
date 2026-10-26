@@ -195,6 +195,8 @@ export interface BanjuanAPI {
     delete(relativePath: string): Promise<void>
     open(relativePath: string): Promise<void>
     readBuffer?(relativePath: string): Promise<ArrayBuffer | null>
+    /** A URL the web view can load for an attachment, where banjuan-attachment:// isn't served (iPad). */
+    getFileSrc?(relativePath: string): Promise<string>
   }
 
   noteLinks: {
@@ -298,6 +300,8 @@ export interface BanjuanAPI {
     pdf(input: { title: string; html: string; attachments: string[]; outputPath?: string; files?: Array<{ name: string; dataUrl: string }> }): Promise<string | null>
     /** Write a single raw file (image/data) directly into `outputPath`. */
     writeFile(input: { outputPath: string; fileName: string; dataUrl?: string; text?: string }): Promise<string | null>
+    /** An export into `outputDir` is complete — the iPad hands the result to the share sheet. */
+    finish?(outputDir: string): Promise<void>
   }
 
   /**
