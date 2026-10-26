@@ -4,6 +4,7 @@ import type { Node, Edge } from '@xyflow/react'
 import { useNodeSizeStore } from './useNodeSizeStore.js'
 import { layoutMindmap } from './useLayoutEngine.js'
 import type { BanjuanAPI } from '../../api.js'
+import type { MindmapSnapshot } from '@banjuan/core'
 import { toast, errorMessage } from '../feedback.js'
 import { useT } from '../../i18n/index.js'
 
@@ -202,6 +203,22 @@ function apiEdgesToRfEdges(treeNodes: Node<MindmapNodeData>[], apiEdges: any[]):
   }))
 
   return [...treeEdges, ...relationEdges]
+}
+
+/** The canvas state as stored nodes + relation edges (tree edges follow from parentId). */
+function toSnapshot(rfNodes: Node<MindmapNodeData>[], rfEdges: Edge[]): MindmapSnapshot {
+  return {
+    nodes: rfNodes.map(({ data: d }) => ({
+      id: d.id, parentId: d.parentId, title: d.title, content: d.content,
+      hyperlink: d.hyperlink, imageUrl: d.imageUrl, color: d.color, notes: d.notes,
+      shape: d.shape, styleOverrides: d.styleOverrides, positionX: d.positionX, positionY: d.positionY,
+      sortOrder: d.sortOrder, collapsed: d.collapsed, floating: d.floating,
+    })),
+    edges: rfEdges.filter(e => e.type === 'relationEdge').map(e => ({
+      id: e.id, sourceId: e.source, targetId: e.target,
+      label: ((e.data as any)?.label as string | null) ?? null, style: ((e.data as any)?.style as string | null) ?? null,
+    })),
+  }
 }
 
 export type MindmapStoreApi = StoreApi<MindmapState>
@@ -656,18 +673,22 @@ export function createMindmapStore(api: BanjuanAPI, labels: () => MindmapLabels 
       set({ history: newHistory, historyIndex: newHistory.length - 1 })
     },
 
+    // Undo/redo used to change only the canvas: the database and file kept the
+    // undone edit, so it came back on reopen. Now the step is written too.
     undo: () => {
-      const { historyIndex, history } = get()
+      const { historyIndex, history, mindmapId } = get()
       if (historyIndex <= 0) return
       const prev = history[historyIndex - 1]
       set({ rfNodes: prev.rfNodes, rfEdges: prev.rfEdges, historyIndex: historyIndex - 1 })
+      if (mindmapId) void api.mindmaps.restore(mindmapId, toSnapshot(prev.rfNodes, prev.rfEdges)).catch(reportSaveError)
     },
 
     redo: () => {
-      const { historyIndex, history } = get()
+      const { historyIndex, history, mindmapId } = get()
       if (historyIndex >= history.length - 1) return
       const next = history[historyIndex + 1]
       set({ rfNodes: next.rfNodes, rfEdges: next.rfEdges, historyIndex: historyIndex + 1 })
+      if (mindmapId) void api.mindmaps.restore(mindmapId, toSnapshot(next.rfNodes, next.rfEdges)).catch(reportSaveError)
     },
 
     openSidePanel: (type, nodeId) => set({ sidePanelType: type, sidePanelNodeId: nodeId ?? null }),

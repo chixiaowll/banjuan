@@ -295,6 +295,12 @@ export interface MindmapNode {
   createdAt: string
 }
 
+/** A mind map's nodes and relation edges as the canvas holds them — what undo/redo restores. */
+export interface MindmapSnapshot {
+  nodes: Array<Omit<MindmapNode, 'mindmapId' | 'createdAt'>>
+  edges: Array<Pick<MindmapEdge, 'id' | 'sourceId' | 'targetId' | 'label' | 'style'>>
+}
+
 export interface MindmapNodeCreateInput {
   title: string
   parentId?: string

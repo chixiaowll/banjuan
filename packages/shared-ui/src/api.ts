@@ -17,6 +17,7 @@ import type {
   Tag,
   MindmapNode,
   MindmapNodeCreateInput,
+  MindmapSnapshot,
   MindmapEdge,
   MindmapEdgeCreateInput,
   MindmapBoundary,
@@ -222,6 +223,8 @@ export interface BanjuanAPI {
     findNodesByNoteId(noteId: string): Promise<MindmapNode[]>
     updateNode(id: string, updates: Partial<Omit<MindmapNode, 'id' | 'mindmapId' | 'createdAt'>>): Promise<MindmapNode>
     removeNode(id: string): Promise<void>
+    /** Make the map's nodes and relation edges exactly this (undo/redo). */
+    restore(noteId: string, snapshot: MindmapSnapshot): Promise<void>
     addEdge(noteId: string, input: MindmapEdgeCreateInput): Promise<MindmapEdge>
     getEdges(noteId: string): Promise<MindmapEdge[]>
     updateEdge(id: string, updates: { label?: string }): Promise<MindmapEdge>

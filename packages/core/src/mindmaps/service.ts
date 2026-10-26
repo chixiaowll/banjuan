@@ -4,7 +4,7 @@ import { v4 as uuid } from 'uuid'
 import type {
   MindmapNode, MindmapNodeCreateInput,
   MindmapEdge, MindmapEdgeCreateInput,
-  MindmapBoundary, MindmapSummary,
+  MindmapBoundary, MindmapSummary, MindmapSnapshot,
 } from '../types.js'
 import type { EventBus } from '../events/bus.js'
 import type { NoteLinkService, LinkSyncEntry } from '../notes/link-service.js'
@@ -331,6 +331,69 @@ export class MindmapService {
     }
 
     this.db.run('DELETE FROM mindmap_edges WHERE id = ?', [id])
+  }
+
+  /**
+   * Make a mind map's nodes and relation edges exactly `snapshot` (undo/redo
+   * on the canvas): nodes and edges not in it are removed, the rest written as
+   * given. Summaries whose summary node is gone are dropped, and summaries and
+   * boundaries keep only the nodes that still exist.
+   */
+  async restore(noteId: string, snapshot: MindmapSnapshot): Promise<void> {
+    const keep = new Set(snapshot.nodes.map(n => n.id))
+    const fileNodes = snapshot.nodes.map(n => ({
+      id: n.id, parentId: n.parentId, title: n.title, content: n.content,
+      hyperlink: n.hyperlink, imageUrl: n.imageUrl, color: n.color, notes: n.notes,
+      shape: n.shape, styleOverrides: n.styleOverrides, positionX: n.positionX, positionY: n.positionY,
+      sortOrder: n.sortOrder, collapsed: n.collapsed, floating: n.floating,
+    }))
+    const fileEdges = snapshot.edges.map(e => ({ id: e.id, sourceId: e.sourceId, targetId: e.targetId, label: e.label ?? null, style: e.style ?? null }))
+    const pruneIds = <T extends { nodeIds: string[] }>(list: T[]) =>
+      list.map(x => ({ ...x, nodeIds: x.nodeIds.filter(id => keep.has(id)) })).filter(x => x.nodeIds.length > 0)
+
+    await this.mutateFile(noteId, (fileData) => {
+      fileData.nodes = fileNodes
+      fileData.edges = fileEdges
+      if (fileData.summaries) fileData.summaries = pruneIds(fileData.summaries.filter((s: any) => keep.has(s.summaryNodeId)))
+      if (fileData.boundaries) fileData.boundaries = pruneIds(fileData.boundaries)
+    })
+
+    const now = new Date().toISOString()
+    this.db.transaction(() => {
+      // Summaries reference nodes (foreign key): settle them before nodes go.
+      for (const s of this.db.query<SummaryRow>('SELECT * FROM mindmap_summaries WHERE mindmap_id = ?', [noteId])) {
+        const ids = (JSON.parse(s.node_ids) as string[]).filter(id => keep.has(id))
+        if (!keep.has(s.summary_node_id) || ids.length === 0) this.db.run('DELETE FROM mindmap_summaries WHERE id = ?', [s.id])
+        else this.db.run('UPDATE mindmap_summaries SET node_ids = ? WHERE id = ?', [JSON.stringify(ids), s.id])
+      }
+      for (const b of this.db.query<BoundaryRow>('SELECT * FROM mindmap_boundaries WHERE mindmap_id = ?', [noteId])) {
+        const ids = (JSON.parse(b.node_ids) as string[]).filter(id => keep.has(id))
+        if (ids.length === 0) this.db.run('DELETE FROM mindmap_boundaries WHERE id = ?', [b.id])
+        else this.db.run('UPDATE mindmap_boundaries SET node_ids = ? WHERE id = ?', [JSON.stringify(ids), b.id])
+      }
+      this.db.run('DELETE FROM mindmap_edges WHERE mindmap_id = ?', [noteId])
+      for (const { id } of this.db.query<{ id: string }>('SELECT id FROM mindmap_nodes WHERE mindmap_id = ?', [noteId])) {
+        if (!keep.has(id)) this.db.run('DELETE FROM mindmap_nodes WHERE id = ?', [id])
+      }
+      for (const n of fileNodes) {
+        this.db.run(
+          `INSERT INTO mindmap_nodes (id, mindmap_id, parent_id, title, content, hyperlink, image_url, color, notes, shape, style_overrides, position_x, position_y, sort_order, collapsed, floating, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET mindmap_id = excluded.mindmap_id, parent_id = excluded.parent_id, title = excluded.title,
+             content = excluded.content, hyperlink = excluded.hyperlink, image_url = excluded.image_url, color = excluded.color,
+             notes = excluded.notes, shape = excluded.shape, style_overrides = excluded.style_overrides,
+             position_x = excluded.position_x, position_y = excluded.position_y, sort_order = excluded.sort_order,
+             collapsed = excluded.collapsed, floating = excluded.floating`,
+          [n.id, noteId, n.parentId, n.title, n.content, n.hyperlink, n.imageUrl, n.color, n.notes, n.shape, n.styleOverrides,
+            n.positionX, n.positionY, n.sortOrder, n.collapsed ? 1 : 0, n.floating ? 1 : 0, now],
+        )
+      }
+      for (const e of fileEdges) {
+        this.db.run('INSERT INTO mindmap_edges (id, mindmap_id, source_id, target_id, label, style) VALUES (?, ?, ?, ?, ?, ?)',
+          [e.id, noteId, e.sourceId, e.targetId, e.label, e.style])
+      }
+    })
+    this.syncLinks(noteId).catch(() => {})
   }
 
   // --- Boundaries ---

@@ -3,7 +3,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlin
 import { readFile } from 'node:fs/promises'
 import { join, basename, dirname, resolve, sep, parse as parsePath } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
-import { Library, MAX_LIBRARY_FILES, type MindmapNodeCreateInput, type MindmapNode, type PlatformDeps, type SearchOptions } from '@banjuan/core'
+import { Library, MAX_LIBRARY_FILES, type MindmapNodeCreateInput, type MindmapNode, type MindmapSnapshot, type PlatformDeps, type SearchOptions } from '@banjuan/core'
 import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
 import { setLibraryGetter } from './api-server.js'
 import { createWindow } from './windows.js'
@@ -773,6 +773,10 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('mindmaps:removeNode', async (event, id: string) => {
     return getLib(event).mindmaps.removeNode(id)
+  })
+
+  ipcMain.handle('mindmaps:restore', async (event, noteId: string, snapshot: MindmapSnapshot) => {
+    return getLib(event).mindmaps.restore(noteId, snapshot)
   })
 
   ipcMain.handle('mindmaps:addEdge', async (event, mindmapId: string, input: {

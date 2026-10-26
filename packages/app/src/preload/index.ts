@@ -172,6 +172,7 @@ const api = {
       collapsed?: boolean; sortOrder?: number
     }) => ipcRenderer.invoke('mindmaps:updateNode', id, updates),
     removeNode: (id: string) => ipcRenderer.invoke('mindmaps:removeNode', id),
+    restore: (noteId: string, snapshot: unknown) => ipcRenderer.invoke('mindmaps:restore', noteId, snapshot),
     addEdge: (noteId: string, input: { sourceId: string; targetId: string; label?: string }) =>
       ipcRenderer.invoke('mindmaps:addEdge', noteId, input),
     getEdges: (noteId: string) => ipcRenderer.invoke('mindmaps:getEdges', noteId),

@@ -427,6 +427,9 @@ export function createCapacitorAPI(): BanjuanAPI {
       async removeNode(id) {
         return getLib().mindmaps.removeNode(id)
       },
+      async restore(noteId, snapshot) {
+        return getLib().mindmaps.restore(noteId, snapshot)
+      },
       async addEdge(noteId, input) {
         return getLib().mindmaps.addEdge(noteId, input)
       },
