@@ -11,6 +11,7 @@ import { saveClip } from './clip-service.js'
 import { openLibraryForApi, initLibraryForApi, libraries, getLibraryHistory } from './ipc.js'
 import { extractDocumentText } from './pdf-text.js'
 import { isAuthorized, isPublicRoute, isLoopbackHost, corsHeaders } from './api-auth.js'
+import { isInside, libraryPath, uniquePath } from './path-guard.js'
 
 const MAX_TEXT_PAGES = 25
 /**
@@ -228,15 +229,19 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     try {
       const body = JSON.parse(await readBody(req))
       const targetPath = body.path
+      // Only libraries the API opened itself (negative keys). One open in a
+      // window belongs to that window: closing it under the window broke every
+      // later save there — and a request without a path closed them all.
       let found = false
-      for (const [key, lib] of libraries.entries()) {
-        if (!targetPath || lib.rootPath === targetPath) {
-          await lib.close()
-          libraries.delete(key)
-          found = true
-          if (targetPath) break
-        }
+      let inWindow = false
+      for (const [key, lib] of [...libraries.entries()]) {
+        if (targetPath && lib.rootPath !== targetPath) continue
+        if (key >= 0) { inWindow = true; continue }
+        await lib.close()
+        libraries.delete(key)
+        found = true
       }
+      if (!found && inWindow) { json(res, 409, { error: 'The library is open in a window; close the window instead' }); return }
       json(res, 200, { status: found ? 'ok' : 'not_found' })
     } catch (e: any) {
       json(res, 500, { error: e.message })
@@ -434,11 +439,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const stat = await fs.stat(absPath).catch(() => null)
       if (!stat) { json(res, 404, { error: `File not found: ${absPath}` }); return }
       const destDir = body.destDir as string | undefined
-      const targetDir = destDir ? join(lib.rootPath, destDir) : lib.rootPath
-      await fs.mkdir(targetDir, { recursive: true })
-      const fileName = path.basename(absPath)
-      const destPath = join(targetDir, fileName)
-      if (absPath !== destPath) {
+      let destPath = absPath
+      // A file already in the library is imported where it is; anything else is
+      // copied in under a free name — it used to overwrite a same-named file.
+      if (!isInside(lib.rootPath, absPath)) {
+        const targetDir = destDir ? libraryPath(lib.rootPath, destDir) : lib.rootPath
+        await fs.mkdir(targetDir, { recursive: true })
+        destPath = uniquePath(join(targetDir, path.basename(absPath)))
         await fs.copyFile(absPath, destPath)
       }
       const doc = await lib.documents.import(destPath, { title: body.title, tags: body.tags })

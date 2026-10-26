@@ -3,8 +3,8 @@
 // people — synced notes, EPUB/HTML documents — so a path it sends is treated
 // as untrusted: it must stay inside an open library or a folder the user picked.
 import { shell } from 'electron'
-import { statSync } from 'node:fs'
-import { resolve, sep } from 'node:path'
+import { statSync, existsSync } from 'node:fs'
+import { resolve, sep, join, parse as parsePath } from 'node:path'
 
 export function isInside(root: string, p: string): boolean {
   const r = resolve(root)
@@ -17,6 +17,15 @@ export function libraryPath(rootPath: string, rel: string): string {
   const abs = resolve(rootPath, rel)
   if (!isInside(rootPath, abs)) throw new Error(`Path is outside the library: ${rel}`)
   return abs
+}
+
+/** `filePath`, or `name (1).ext`, `name (2).ext`… — the first that doesn't exist yet. */
+export function uniquePath(filePath: string): string {
+  if (!existsSync(filePath)) return filePath
+  const { dir, name, ext } = parsePath(filePath)
+  let i = 1
+  while (existsSync(join(dir, `${name} (${i})${ext}`))) i++
+  return join(dir, `${name} (${i})${ext}`)
 }
 
 // Folders the user chose in a folder dialog this session. Exports write only

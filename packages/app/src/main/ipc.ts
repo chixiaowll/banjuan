@@ -1,7 +1,7 @@
 import { ipcMain, dialog, clipboard, shell, BrowserWindow, app, safeStorage } from 'electron'
 import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync, renameSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join, basename, dirname, resolve, sep, parse as parsePath } from 'node:path'
+import { join, basename, dirname, resolve, sep } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
 import { Library, MAX_LIBRARY_FILES, type MindmapNodeCreateInput, type MindmapNode, type MindmapSnapshot, type PlatformDeps, type SearchOptions } from '@banjuan/core'
 import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
@@ -13,7 +13,7 @@ import { writeZip } from './zip.js'
 import { DiscoveryService } from './discovery-service.js'
 import { docTextStatus } from './doc-text-indexer.js'
 import { getCover } from './covers.js'
-import { libraryPath, rememberPickedDir, exportDir, openPathSafely, rememberUserChosenPath, assertUserChosen } from './path-guard.js'
+import { libraryPath, rememberPickedDir, exportDir, openPathSafely, rememberUserChosenPath, assertUserChosen, uniquePath } from './path-guard.js'
 
 // Global plugins live here (shared by every library), à la Claude Code's
 // global plugin dir. Built-in plugins are installed here once at startup.
@@ -108,13 +108,6 @@ function attachmentEntries(lib: Library, relPaths: string[], prefix: string): Re
   return out
 }
 
-function uniquePath(filePath: string): string {
-  if (!existsSync(filePath)) return filePath
-  const { dir, name, ext } = parsePath(filePath)
-  let i = 1
-  while (existsSync(join(dir, `${name} (${i})${ext}`))) i++
-  return join(dir, `${name} (${i})${ext}`)
-}
 
 const HISTORY_FILE = join(homedir(), '.banjuan', 'library-history.json')
 
