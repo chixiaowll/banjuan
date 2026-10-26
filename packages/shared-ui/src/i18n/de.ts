@@ -278,6 +278,8 @@ const de = {
 
   'plugin.openPanel': 'Öffnen',
 
+  'plugin.untrustedLibrary': 'Dieses Plugin stammt aus der Bibliothek und läuft erst, wenn du es erlaubst. Einschalten erlaubt es auf diesem Gerät.',
+
   // Dialogs & notices
   'welcome.tooManyFilesImported': 'Dieser Ordner überschreitet das Limit von {0} Dateien, daher wurde nichts importiert. Bitte wähle einen Ordner mit weniger Dateien (oder einen Unterordner).',
   'welcome.tooManyFiles': 'Dieser Ordner überschreitet das Limit von {0} Dateien und kann nicht als Bibliothek verwendet werden. Bitte wähle einen Ordner mit weniger Dateien (oder einen Unterordner).',

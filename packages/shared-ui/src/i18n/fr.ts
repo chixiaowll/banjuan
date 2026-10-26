@@ -278,6 +278,8 @@ const fr = {
 
   'plugin.openPanel': 'Ouvrir',
 
+  'plugin.untrustedLibrary': "Ce plugin est fourni avec la bibliothèque et ne s'exécutera pas sans votre accord. L'activer l'autorise sur cet appareil.",
+
   // Dialogs & notices
   'welcome.tooManyFilesImported': 'Ce dossier dépasse la limite de {0} fichiers : rien n’a été importé. Choisissez un dossier contenant moins de fichiers (ou un sous-dossier).',
   'welcome.tooManyFiles': 'Ce dossier dépasse la limite de {0} fichiers et ne peut pas servir de bibliothèque. Choisissez un dossier contenant moins de fichiers (ou un sous-dossier).',

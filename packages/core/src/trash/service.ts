@@ -4,6 +4,7 @@ import type { DocumentFileData } from '../types.js'
 import type { IndexService } from '../indexing/service.js'
 import type { AnnotationService } from '../annotations/service.js'
 import { JsonStore } from '../storage/json-store.js'
+import { hasPlainPath } from '../storage/safe-path.js'
 
 /**
  * Recycle bin. Deleting a document, note or folder moves its files into
@@ -59,7 +60,7 @@ export class TrashService {
   ) {
     this.dir = join(rootPath, '.banjuan', '.trash')
     this.notesDir = join(rootPath, '.banjuan', 'notes')
-    this.docStore = new JsonStore(join(rootPath, '.banjuan', 'data', 'documents'), fs)
+    this.docStore = new JsonStore<DocumentFileData>(join(rootPath, '.banjuan', 'data', 'documents'), fs, hasPlainPath)
   }
 
   // ---- putting things in -------------------------------------------------

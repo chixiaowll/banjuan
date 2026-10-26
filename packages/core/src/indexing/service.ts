@@ -1,6 +1,7 @@
 import type { PlatformDatabase, PlatformFS } from '../platform/index.js'
 import { join } from '../platform/path.js'
 import { JsonStore } from '../storage/json-store.js'
+import { hasPlainPath } from '../storage/safe-path.js'
 import { parseFrontmatter } from '../storage/frontmatter.js'
 import type { DocumentFileData, AnnotationFileData, NoteFileData } from '../types.js'
 import { extractNoteLinks, extractDocumentLinks } from '../notes/extract-links.js'
@@ -29,7 +30,7 @@ export class IndexService {
       this.ftsAvailable = false
     }
     const banjuanDir = join(rootPath, '.banjuan')
-    this.docStore = new JsonStore(join(banjuanDir, 'data', 'documents'), fs)
+    this.docStore = new JsonStore<DocumentFileData>(join(banjuanDir, 'data', 'documents'), fs, hasPlainPath)
     this.annStore = new JsonStore(join(banjuanDir, 'data', 'annotations'), fs)
     this.metaPath = join(banjuanDir, 'db.meta.json')
     this.tagsPath = join(banjuanDir, 'tags.json')

@@ -46,6 +46,9 @@ export default function LibraryPlugins() {
                   {p.description && (
                     <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginTop: 4 }}>{p.description}</div>
                   )}
+                  {p.source === 'library' && p.trusted === false && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, marginTop: 6 }}>{t('plugin.untrustedLibrary')}</div>
+                  )}
                 </div>
               </div>
               {/* Spacer */}

@@ -278,6 +278,8 @@ const es = {
 
   'plugin.openPanel': 'Abrir',
 
+  'plugin.untrustedLibrary': 'Este complemento vino con la biblioteca y no se ejecutará hasta que lo permitas. Activarlo le permite ejecutarse en este dispositivo.',
+
   // Dialogs & notices
   'welcome.tooManyFilesImported': 'Esta carpeta supera el límite de {0} archivos, así que no se importó nada. Elige una carpeta con menos archivos (o una subcarpeta).',
   'welcome.tooManyFiles': 'Esta carpeta supera el límite de {0} archivos y no puede usarse como biblioteca. Elige una carpeta con menos archivos (o una subcarpeta).',

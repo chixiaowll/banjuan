@@ -278,6 +278,8 @@ const ko = {
 
   'plugin.openPanel': '열기',
 
+  'plugin.untrustedLibrary': '이 플러그인은 라이브러리에 포함되어 있으며 허용하기 전에는 실행되지 않습니다. 켜면 이 기기에서 실행됩니다.',
+
   // Dialogs & notices
   'welcome.tooManyFilesImported': '이 폴더는 파일 수 제한({0}개)을 초과하여 아무것도 가져오지 않았습니다. 파일이 더 적은 폴더(또는 하위 폴더)를 선택하세요.',
   'welcome.tooManyFiles': '이 폴더는 파일 수 제한({0}개)을 초과하여 서재로 사용할 수 없습니다. 파일이 더 적은 폴더(또는 하위 폴더)를 선택하세요.',

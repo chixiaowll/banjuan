@@ -1,4 +1,5 @@
-import type { PlatformFS } from '../platform/index.js'
+import type { PlatformFS, PluginTrustStore } from '../platform/index.js'
+import type { PlatformCrypto } from '../platform/crypto.js'
 import { join } from '../platform/path.js'
 import type { EventBus } from '../events/bus.js'
 import type { Library } from '../library.js'
@@ -19,10 +20,41 @@ export class PluginManager {
     rootPath: string,
     private fs: PlatformFS,
     globalPluginsDir?: string,
+    private trust: { trust?: PluginTrustStore; crypto?: PlatformCrypto } = {},
   ) {
+    this.rootPath = rootPath
     this.pluginsDir = join(rootPath, '.banjuan', 'plugins')
     // Local first so a library-local plugin can override a global one by id.
     this.pluginDirs = globalPluginsDir ? [this.pluginsDir, globalPluginsDir] : [this.pluginsDir]
+  }
+
+  private rootPath: string
+
+  /**
+   * Fingerprint of the code a plugin would run (manifest + main + renderer
+   * script). Trust is given to exactly this; any change asks again.
+   */
+  private async codeHash(pluginPath: string): Promise<string | null> {
+    const crypto = this.trust.crypto
+    if (!crypto) return null
+    const parts: Uint8Array[] = []
+    for (const file of ['manifest.json', 'index.js', 'renderer.js']) {
+      const p = join(pluginPath, file)
+      const data = (await this.fs.exists(p)) ? await this.fs.readFile(p) : new Uint8Array()
+      parts.push(new TextEncoder().encode(`${file}:${data.length}:`), data)
+    }
+    const all = new Uint8Array(parts.reduce((n, d) => n + d.length, 0))
+    let off = 0
+    for (const d of parts) { all.set(d, off); off += d.length }
+    return crypto.sha256(all)
+  }
+
+  /** Library-local plugins run only if this device allowed this exact code. Global ones always do. */
+  private async isTrusted(baseDir: string, pluginPath: string, pluginId: string): Promise<boolean> {
+    if (baseDir !== this.pluginsDir) return true
+    if (!this.trust.trust) return false
+    const hash = await this.codeHash(pluginPath)
+    return !!hash && this.trust.trust.isTrusted(this.rootPath, pluginId, hash)
   }
 
   async init(): Promise<void> {
@@ -58,10 +90,16 @@ export class PluginManager {
           if (!(await this.fs.exists(manifestPath))) continue
           const manifest: PluginManifest = JSON.parse(await this.fs.readTextFile(manifestPath))
           if (loaded.has(manifest.id) || this.plugins.has(manifest.id)) continue
+          // An untrusted library plugin is skipped (and doesn't shadow a global one with the same id).
+          if (!(await this.isTrusted(dir, join(dir, entry.name), manifest.id))) {
+            console.warn(`[plugins] not loading untrusted library plugin ${manifest.id} (enable it in Plugins to allow)`)
+            continue
+          }
           await this.loadFromDir(dir, entry.name)
           loaded.add(manifest.id)
-        } catch {
+        } catch (err) {
           // skip plugins that fail to load
+          console.warn(`[plugins] failed to load ${join(dir, entry.name)}:`, err)
         }
       }
     }
@@ -149,6 +187,7 @@ export class PluginManager {
           const manifest: PluginManifest = JSON.parse(await this.fs.readTextFile(manifestPath))
           if (seen.has(manifest.id)) continue
           seen.add(manifest.id)
+          const fromLibrary = dir === this.pluginsDir
           result.push({
             id: manifest.id,
             name: manifest.name,
@@ -156,6 +195,8 @@ export class PluginManager {
             description: manifest.description ?? '',
             enabled: this.plugins.has(manifest.id),
             path: pluginPath,
+            source: fromLibrary ? 'library' : 'global',
+            ...(fromLibrary ? { trusted: await this.isTrusted(dir, pluginPath, manifest.id) } : {}),
           })
         } catch {}
       }
@@ -179,6 +220,11 @@ export class PluginManager {
           continue
         }
         if (manifest.id === pluginId) {
+          // Enabling is the user's explicit consent to run this library's plugin code here.
+          if (dir === this.pluginsDir && this.trust.trust) {
+            const hash = await this.codeHash(join(dir, entry.name))
+            if (hash) await this.trust.trust.trust(this.rootPath, pluginId, hash)
+          }
           await this.loadFromDir(dir, entry.name)
           return
         }

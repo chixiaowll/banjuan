@@ -95,6 +95,15 @@ describe('lan-host-handler', () => {
     expect((await handleDavRequest({ method: 'DELETE', path: '/.banjuan/config.json', headers: auth }, ctx)).status).toBe(403)
   })
 
+  it('per-device and plugin paths stay refused when a peer changes their case', async () => {
+    const auth = { authorization: basic('secrettoken') }
+    const body = new TextEncoder().encode('x')
+    expect((await handleDavRequest({ method: 'GET', path: '/.banjuan/SYNC.JSON', headers: auth }, ctx)).status).toBe(403)
+    expect((await handleDavRequest({ method: 'PUT', path: '/.banjuan/Config.json', headers: auth, body }, ctx)).status).toBe(403)
+    expect((await handleDavRequest({ method: 'PUT', path: '/.banjuan/PLUGINS/x/index.js', headers: auth, body }, ctx)).status).toBe(403)
+    expect((await handleDavRequest({ method: 'MKCOL', path: '/.banjuan/Plugins/', headers: auth }, ctx)).status).toBe(403)
+  })
+
   it('blocks paths containing a null byte (no unhandled rejection)', async () => {
     const res = await handleDavRequest(
       { method: 'GET', path: '/foo\x00bar', headers: { authorization: basic('secrettoken') } }, ctx)

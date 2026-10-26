@@ -1,3 +1,5 @@
+import { isPlainRelPath } from '../storage/safe-path.js'
+
 // Per-device files — identity, LAN pairings, WebDAV endpoint + credentials —
 // never synced and never served to (or writable by) a LAN peer.
 export const DEVICE_LOCAL_PATHS: ReadonlySet<string> = new Set([
@@ -32,9 +34,32 @@ export const PROTECTED_FILES = new Set([
   '.banjuan/sync.json',
 ])
 
+// Compared case-insensitively: on macOS/Windows "PLUGINS" and "plugins" are the
+// same folder, so a peer must not get around an exclusion by changing case.
+const EXCLUDED_NAMES_LC = new Set([...EXCLUDED_NAMES].map(n => n.toLowerCase()))
+const EXCLUDED_DIRS_LC = new Set([...EXCLUDED_DIRS].map(n => n.toLowerCase()))
+const DEVICE_LOCAL_LC = new Set([...DEVICE_LOCAL_PATHS].map(n => n.toLowerCase()))
+
 export function isExcluded(name: string, isDirectory: boolean): boolean {
-  if (EXCLUDED_NAMES.has(name)) return true
-  if (!isDirectory && name.endsWith(TEMP_SUFFIX)) return true
-  if (isDirectory && EXCLUDED_DIRS.has(name)) return true
+  const lc = name.toLowerCase()
+  if (EXCLUDED_NAMES_LC.has(lc)) return true
+  if (!isDirectory && lc.endsWith(TEMP_SUFFIX)) return true
+  if (isDirectory && EXCLUDED_DIRS_LC.has(lc)) return true
   return false
+}
+
+/** A per-device file (identity, pairings, sync credentials), whatever its case. */
+export function isDeviceLocalPath(rel: string): boolean {
+  return DEVICE_LOCAL_LC.has(rel.toLowerCase())
+}
+
+/**
+ * Whether a library-relative file path that came from elsewhere (a WebDAV
+ * listing, a LAN peer) may be written into the library: a plain relative path
+ * that stays inside it and touches nothing excluded or per-device.
+ */
+export function isSyncablePath(rel: string): boolean {
+  if (!isPlainRelPath(rel) || isDeviceLocalPath(rel)) return false
+  const segments = rel.split('/')
+  return !segments.some((seg, i) => isExcluded(seg, i < segments.length - 1))
 }

@@ -1,14 +1,21 @@
 import type { PlatformFS } from '../platform/index.js'
 import { join } from '../platform/path.js'
 import { mapLimit } from './map-limit.js'
+import { isSafeId } from './safe-path.js'
 
 // Parallel reads per listAll (bounded: thread pool / Capacitor bridge).
 const READ_CONCURRENCY = 32
 
 export class JsonStore<T extends { id: string }> {
-  constructor(private baseDir: string, private fs: PlatformFS) {}
+  /**
+   * `isValid` drops records (from listAll) whose other fields would be unsafe
+   * to use — e.g. a document path leading outside the library. The id itself
+   * is always checked: files can come from a sync peer.
+   */
+  constructor(private baseDir: string, private fs: PlatformFS, private isValid?: (data: T) => boolean) {}
 
   private dirFor(id: string): string {
+    if (!isSafeId(id)) throw new Error(`Invalid id: ${JSON.stringify(id)}`)
     return join(this.baseDir, id.slice(0, 2))
   }
 
@@ -17,6 +24,7 @@ export class JsonStore<T extends { id: string }> {
   }
 
   async read(id: string): Promise<T | null> {
+    if (!isSafeId(id)) return null
     const p = this.pathFor(id)
     if (!(await this.fs.exists(p))) return null
     const text = await this.fs.readTextFile(p)
@@ -30,6 +38,7 @@ export class JsonStore<T extends { id: string }> {
   }
 
   async delete(id: string): Promise<boolean> {
+    if (!isSafeId(id)) return false
     const p = this.pathFor(id)
     if (!(await this.fs.exists(p))) return false
     await this.fs.remove(p)
@@ -47,7 +56,12 @@ export class JsonStore<T extends { id: string }> {
       // One unreadable file (e.g. half-written by a crash before writes were
       // atomic) must not take down every list, rebuild and sync that uses this.
       try {
-        return JSON.parse(await this.fs.readTextFile(filePath)) as T
+        const data = JSON.parse(await this.fs.readTextFile(filePath)) as T
+        if (!isSafeId(data?.id) || (this.isValid && !this.isValid(data))) {
+          console.warn('[JsonStore] skipping file with an unsafe id or path', filePath)
+          return null
+        }
+        return data
       } catch (e) {
         console.warn('[JsonStore] skipping unreadable file', filePath, (e as Error)?.message)
         return null

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { join } from 'node:path'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { createTempDir, cleanupTempDir, createTestFile, testDeps } from './helpers.js'
 import { Library } from '../src/library.js'
 
@@ -98,7 +98,8 @@ describe('PluginManager', () => {
 
   beforeEach(async () => {
     tempDir = createTempDir()
-    lib = await Library.init(join(tempDir, 'lib'), testDeps())
+    // These cases are about loading itself, so every library plugin counts as allowed here.
+    lib = await Library.init(join(tempDir, 'lib'), testDeps({ pluginTrust: { isTrusted: async () => true, trust: async () => {} } }))
   })
 
   afterEach(async () => {
@@ -292,5 +293,84 @@ describe('PluginManager', () => {
 
     await lib.plugins.load('dup-plugin')
     await expect(lib.plugins.load('dup-plugin')).rejects.toThrow('already loaded')
+  })
+})
+
+describe('Library plugin trust', () => {
+  let tempDir: string
+  let trusted: Map<string, string>
+  let lib: Library
+  const store = () => ({
+    isTrusted: async (root: string, id: string, hash: string) => trusted.get(`${root}|${id}`) === hash,
+    trust: async (root: string, id: string, hash: string) => { trusted.set(`${root}|${id}`, hash) },
+  })
+  const writePlugin = (dir: string, id: string, body = '') => {
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'manifest.json'), JSON.stringify({ id, name: id, version: '1.0.0', apiVersion: '1' }))
+    writeFileSync(join(dir, 'index.js'), `
+      import { BanjuanPlugin } from 'file://${DIST_PATH}'
+      export default class P extends BanjuanPlugin {
+        async onload() { ${body} }
+        async onunload() {}
+      }
+    `)
+  }
+
+  beforeEach(async () => {
+    tempDir = createTempDir()
+    trusted = new Map()
+  })
+
+  afterEach(async () => {
+    await lib?.close()
+    cleanupTempDir(tempDir)
+  })
+
+  it('does not run a library plugin nobody allowed on this device', async () => {
+    lib = await Library.init(join(tempDir, 'lib'), testDeps({ pluginTrust: store() }))
+    const marker = join(tempDir, 'ran.txt')
+    writePlugin(join(tempDir, 'lib', '.banjuan', 'plugins', 'evil'), 'evil',
+      `(await import('node:fs')).writeFileSync(${JSON.stringify(marker)}, 'x')`)
+    await lib.plugins.loadAll()
+    expect(lib.plugins.list()).toEqual([])
+    expect(existsSync(marker)).toBe(false)
+    const [info] = await lib.plugins.listAll()
+    expect(info).toMatchObject({ id: 'evil', enabled: false, source: 'library', trusted: false })
+  })
+
+  it('never loads library plugins on a platform without a trust store', async () => {
+    lib = await Library.init(join(tempDir, 'lib'), testDeps())
+    writePlugin(join(tempDir, 'lib', '.banjuan', 'plugins', 'p'), 'p')
+    await lib.plugins.loadAll()
+    expect(lib.plugins.list()).toEqual([])
+  })
+
+  it('enabling allows that exact code; changing the code asks again', async () => {
+    lib = await Library.init(join(tempDir, 'lib'), testDeps({ pluginTrust: store() }))
+    const dir = join(tempDir, 'lib', '.banjuan', 'plugins', 'p')
+    writePlugin(dir, 'p')
+    await lib.plugins.enable('p')
+    expect(lib.plugins.list().map(p => p.id)).toEqual(['p'])
+    expect((await lib.plugins.listAll())[0]).toMatchObject({ enabled: true, trusted: true })
+
+    await lib.plugins.unloadAll()
+    await lib.plugins.loadAll()
+    expect(lib.plugins.list().map(p => p.id)).toEqual(['p'])
+
+    // Someone (a sync peer) swaps the code: no longer the code the user allowed.
+    await lib.plugins.unloadAll()
+    writeFileSync(join(dir, 'index.js'), readFileSync(join(dir, 'index.js'), 'utf8') + '\n// changed')
+    await lib.plugins.loadAll()
+    expect(lib.plugins.list()).toEqual([])
+    expect((await lib.plugins.listAll())[0]).toMatchObject({ trusted: false })
+  })
+
+  it('an untrusted library plugin does not shadow a global plugin with the same id', async () => {
+    const globalDir = join(tempDir, 'home', '.banjuan', 'plugins')   // like ~/.banjuan/plugins
+    lib = await Library.init(join(tempDir, 'lib'), testDeps({ pluginTrust: store(), globalPluginsDir: globalDir }))
+    writePlugin(join(globalDir, 'p'), 'p')
+    writePlugin(join(tempDir, 'lib', '.banjuan', 'plugins', 'p'), 'p')
+    await lib.plugins.loadAll()
+    expect(lib.plugins.list().map(p => p.path)).toEqual([join(globalDir, 'p')])
   })
 })

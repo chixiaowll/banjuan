@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid'
 import type { Tag, TagTarget, DocumentFileData } from '../types.js'
 import type { EventBus } from '../events/bus.js'
 import { JsonStore } from '../storage/json-store.js'
+import { hasPlainPath } from '../storage/safe-path.js'
 import type { TagEntry, TagTombstone } from '../sync/tag-merge.js'
 
 
@@ -25,7 +26,7 @@ export class TagService {
   constructor(private db: PlatformDatabase, private rootPath: string, private events: EventBus, private fs: PlatformFS) {
     this.tagsFilePath = join(rootPath, '.banjuan', 'tags.json')
     this.tombstonesFilePath = join(rootPath, '.banjuan', 'tags-deleted.json')
-    this.docStore = new JsonStore(join(rootPath, '.banjuan', 'data', 'documents'), fs)
+    this.docStore = new JsonStore<DocumentFileData>(join(rootPath, '.banjuan', 'data', 'documents'), fs, hasPlainPath)
   }
 
   private async readTagsFile(): Promise<TagEntry[]> {

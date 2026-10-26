@@ -3,7 +3,7 @@ import type { PlatformCrypto } from '../platform/crypto.js'
 import { join, relative, dirname } from '../platform/path.js'
 import type { SyncAdapter } from './adapter.js'
 import type { EventBus } from '../events/bus.js'
-import { PROTECTED_FILES, isExcluded, DEVICE_LOCAL_PATHS } from './exclusions.js'
+import { PROTECTED_FILES, isExcluded, isSyncablePath, DEVICE_LOCAL_PATHS } from './exclusions.js'
 import { mergeTagState, type TagState, type TagEntry, type TagTombstone } from './tag-merge.js'
 import { reconcileFile } from './reconcile.js'
 import { conflictCopyPath, rewriteNoteConflict } from './conflict.js'
@@ -20,6 +20,8 @@ const SYNC_EXCLUDED_PATHS = new Set([
   '.banjuan/tags.json',
   '.banjuan/tags-deleted.json',
 ])
+
+const SYNC_EXCLUDED_PATHS_LC = new Set([...SYNC_EXCLUDED_PATHS].map(p => p.toLowerCase()))
 
 const TAGS_REL = '.banjuan/tags.json'
 const TAGS_DELETED_REL = '.banjuan/tags-deleted.json'
@@ -228,6 +230,9 @@ export class SyncService {
               break
             }
             const localPath = local?.absolutePath ?? join(this.rootPath, path)
+            if (!isSyncablePath(path) || !localPath.startsWith(this.rootPath.replace(/\/+$/, '') + '/')) {
+              throw new Error(`refusing to write outside the library: ${path}`)
+            }
             await this.fs.mkdir(dirname(localPath), { recursive: true })
             await this.adapter.download(this.toRemotePath(path), localPath)
             await this.preserveMtime(localPath, remote!.mtime)
@@ -305,7 +310,14 @@ export class SyncService {
         } else if (rel.startsWith('/')) {
           rel = rel.slice(1)
         }
-        if (rel && !SYNC_EXCLUDED_PATHS.has(rel)) results.push({ relativePath: rel, mtime: item.mtime, size: item.size })
+        if (!rel || SYNC_EXCLUDED_PATHS_LC.has(rel.toLowerCase())) continue
+        // The listing comes from a server or peer we don't control: never let it
+        // name a path outside the library or one that's excluded (e.g. plugin code).
+        if (!isSyncablePath(rel)) {
+          console.log(`[sync] ignoring remote path "${rel}" (outside the library or excluded)`)
+          continue
+        }
+        results.push({ relativePath: rel, mtime: item.mtime, size: item.size })
       }
     } catch {
       // Remote might be empty on first sync

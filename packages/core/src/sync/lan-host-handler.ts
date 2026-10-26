@@ -1,6 +1,6 @@
 import type { PlatformFS } from '../platform/index.js'
 import { join, dirname } from '../platform/path.js'
-import { isExcluded, DEVICE_LOCAL_PATHS } from './exclusions.js'
+import { isExcluded, isDeviceLocalPath } from './exclusions.js'
 import { parseBasicAuthPassword, verifyToken, type PairLimiter } from './lan-pairing.js'
 
 export interface DavRequest {
@@ -64,19 +64,20 @@ function unauthorized(): DavResponse {
   return { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="banjuan"' }, body: 'Unauthorized' }
 }
 
-// Full-path files the host must never serve or accept: the same per-device set
-// SyncService excludes. Without this an authenticated peer could read the WebDAV
-// password in sync.json or overwrite the host's config.json directly.
-const HOST_EXCLUDED_FULL_PATHS = DEVICE_LOCAL_PATHS
-
-/** True if the path is a full-path-excluded file, or any segment is an excluded name/dir. */
+/**
+ * True if the path is a per-device file (the same set SyncService excludes —
+ * otherwise an authenticated peer could read the WebDAV password in sync.json or
+ * overwrite config.json), or any segment is an excluded name/dir. Both checks
+ * ignore case, since the host's disk usually does.
+ */
 function isExcludedPath(reqPath: string): boolean {
-  const rel = reqPath.replace(/^\/+/, '')
-  if (HOST_EXCLUDED_FULL_PATHS.has(rel)) return true
+  const rel = reqPath.replace(/^\/+/, '').replace(/\/+$/, '')
+  if (isDeviceLocalPath(rel)) return true
   const segments = rel.split('/').filter(Boolean)
   for (let i = 0; i < segments.length; i++) {
-    const isDir = i < segments.length - 1   // only the last segment is the leaf (possibly a file)
-    if (isExcluded(segments[i], isDir)) return true
+    // Parents are directories; the leaf may be either (a MKCOL names a directory).
+    const leaf = i === segments.length - 1
+    if (isExcluded(segments[i], !leaf) || (leaf && isExcluded(segments[i], true))) return true
   }
   return false
 }

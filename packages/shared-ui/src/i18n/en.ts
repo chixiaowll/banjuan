@@ -306,6 +306,7 @@ const en = {
 
   // Plugins
   'plugin.openPanel': 'Open',
+  'plugin.untrustedLibrary': "This plugin came with the library and won't run until you allow it. Turning it on lets it run on this device.",
 
   // Dialogs & notices
   'welcome.tooManyFilesImported': 'This folder exceeds the {0}-file limit, so nothing was imported. Please pick a folder with fewer files (or a smaller subfolder).',

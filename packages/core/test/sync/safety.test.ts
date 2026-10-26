@@ -147,3 +147,23 @@ describe('WebDAV sync safety', () => {
     expect([...adapter.files.keys()].some(p => p.includes('sync-trash'))).toBe(false)   // trash is never uploaded
   })
 })
+
+describe('remote listing cannot write outside the library or into excluded paths', () => {
+  it('downloads only plain library paths', async () => {
+    const parent = createTempDir()
+    const root = join(parent, 'lib')
+    mkdirSync(root)
+    const adapter = new GenericDavAdapter(() => 1_800_000_000_000)
+    for (const p of ['/../escape.txt', '/sub/../../escape2.txt', '/.banjuan/PLUGINS/x/index.js', '/.banjuan/plugins/y/index.js',
+      '/.banjuan/SYNC.JSON', '/.banjuan/Config.json', '/./dot.md', '//double.md', '/a\\..\\..\\win.txt', '/ok.md', '/Notes/ok2.md']) {
+      adapter.editRemote(p, 'evil')
+    }
+    const svc = new SyncService(root, adapter, undefined, new NodeFS(), '/')
+    const r = await svc.sync()
+    expect(r.downloaded).toBe(2)
+    // Only the two plain files arrived (plus the sync's own bookkeeping), nothing outside the library.
+    expect(allFiles(parent).map(f => f.slice(root.length + 1)).sort())
+      .toEqual(['.banjuan/sync-archive.json', '.banjuan/tags-deleted.json', '.banjuan/tags.json', 'Notes/ok2.md', 'ok.md'])
+    expect(existsSync(join(parent, 'escape.txt'))).toBe(false)
+  })
+})

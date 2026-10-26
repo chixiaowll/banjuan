@@ -5,6 +5,7 @@ import { detectDocumentType, extractTitle } from './metadata.js'
 import type { SearchService } from '../search/service.js'
 import type { EventBus } from '../events/bus.js'
 import { JsonStore } from '../storage/json-store.js'
+import { hasPlainPath } from '../storage/safe-path.js'
 import { escapeLike, LIKE_ESCAPE } from '../db/like.js'
 import type { TrashService } from '../trash/service.js'
 
@@ -20,7 +21,7 @@ export class DocumentService {
     private fs: PlatformFS,
     private crypto: PlatformCrypto,
   ) {
-    this.store = new JsonStore(join(rootPath, '.banjuan', 'data', 'documents'), fs)
+    this.store = new JsonStore<DocumentFileData>(join(rootPath, '.banjuan', 'data', 'documents'), fs, hasPlainPath)
   }
 
   async import(

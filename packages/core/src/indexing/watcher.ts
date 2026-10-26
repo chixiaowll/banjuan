@@ -1,6 +1,7 @@
 import type { PlatformDatabase, PlatformFS } from '../platform/index.js'
 import { join } from '../platform/path.js'
 import { JsonStore } from '../storage/json-store.js'
+import { hasPlainPath } from '../storage/safe-path.js'
 import { parseFrontmatter } from '../storage/frontmatter.js'
 import type { DocumentFileData, AnnotationFileData, MindmapFileData, NoteFileData } from '../types.js'
 
@@ -13,7 +14,7 @@ export class FileWatcher {
 
   constructor(private db: PlatformDatabase, private rootPath: string, private fs: PlatformFS) {
     const banjuanDir = join(rootPath, '.banjuan')
-    this.docStore = new JsonStore(join(banjuanDir, 'data', 'documents'), fs)
+    this.docStore = new JsonStore<DocumentFileData>(join(banjuanDir, 'data', 'documents'), fs, hasPlainPath)
     this.annStore = new JsonStore(join(banjuanDir, 'data', 'annotations'), fs)
     this.mmStore = new JsonStore(join(banjuanDir, 'data', 'mindmaps'), fs)
   }

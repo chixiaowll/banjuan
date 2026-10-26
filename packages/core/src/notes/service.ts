@@ -13,6 +13,7 @@ import { markdownToBlocks } from './migration.js'
 import { AttachmentService } from './attachment-service.js'
 import type { TrashService } from '../trash/service.js'
 import { importMarkdownImages } from './import-images.js'
+import { isSafeId } from '../storage/safe-path.js'
 
 interface NoteJsonFile {
   meta: NoteFileData
@@ -65,6 +66,11 @@ export class NoteService {
               const rawText = await this.fs.readTextFile(join(dir, entry.name))
               const raw = JSON.parse(rawText)
               const m = raw.meta as NoteFileData
+              // The id becomes part of file paths (attachments): a file from a peer must not smuggle in "../".
+              if (!isSafeId(m?.id)) {
+                console.warn('[notes] skipping note file with an invalid id', relPath)
+                continue
+              }
               const noteType = m.type ?? 'markdown'
               const typeMeta = m.typeMeta ? JSON.stringify(m.typeMeta) : null
               this.db.run(

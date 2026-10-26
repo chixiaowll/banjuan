@@ -375,6 +375,10 @@ export interface PluginInfo {
   description: string
   enabled: boolean
   path: string
+  /** 'library': from this library's .banjuan/plugins (runs only once allowed on this device); 'global': installed with the app. */
+  source?: 'library' | 'global'
+  /** Library plugins: whether this exact code was allowed on this device. */
+  trusted?: boolean
 }
 
 export interface PluginCommand {

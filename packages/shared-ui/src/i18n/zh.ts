@@ -306,6 +306,7 @@ const zh = {
 
   // Plugins
   'plugin.openPanel': '打开',
+  'plugin.untrustedLibrary': '此插件随书库而来，未经你允许不会运行；打开开关即允许它在本机运行。',
 
   // Dialogs & notices
   'welcome.tooManyFilesImported': '该目录文件数超过上限（{0}），未导入任何文件。请选择文件更少的目录或更小的子目录重新打开。',
