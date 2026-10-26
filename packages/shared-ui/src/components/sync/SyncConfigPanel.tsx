@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { Save, RefreshCw, Wifi } from 'lucide-react'
 import { useI18n, LOCALE_TAGS } from '../../i18n/index.js'
+import { useThemeLayout } from '../../theme/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { confirmDialog } from '../feedback.js'
 
@@ -30,6 +31,8 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
   const api = useBanjuanAPI()
   const canHost = api.lan.canHost !== false   // undefined (older desktop) treated as can-host; mobile sets false
   const { t, locale } = useI18n()
+  // Buttons follow the theme's primary colour (blue in Notebook, ink in Minimal).
+  const { home: { primaryButtonBg: primary, primaryButtonShadow: primaryShadow } } = useThemeLayout()
   // Wide enough for the placeholder in every language ("6-stellige PIN" was cut off at 100px).
   const pinInputWidth = `calc(${Math.max(8, t('welcome.pinPlaceholder').length + 1)}ch + 28px)`
   const lanUrlKey = `banjuan.lan.peerUrl:${libraryKey ?? ''}`
@@ -340,7 +343,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
                 {getEstimatedRemaining() && <span>{t('sync.remaining', getEstimatedRemaining()!)}</span>}
               </div>
               <div style={{ height: 6, borderRadius: 3, background: 'var(--paper-edge, #e0e0e0)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 3, background: '#4A90E2', width: progress.phase === 'scanning' ? '0%' : `${pct}%`, transition: 'width 0.3s ease' }} />
+                <div style={{ height: '100%', borderRadius: 3, background: primary, width: progress.phase === 'scanning' ? '0%' : `${pct}%`, transition: 'width 0.3s ease' }} />
               </div>
               <div style={{ fontSize: 12, color: 'var(--ink-mute)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{progress.currentFile}</div>
             </div>
@@ -358,7 +361,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
               <Wifi size={13} />{testing ? t('sync.testing') : t('sync.testConnection')}
             </button>
             <button onClick={handleSave} disabled={saving || syncing}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', fontSize: 13, fontWeight: 500, borderRadius: 8, background: '#4A90E2', color: '#fff', border: 'none', cursor: 'pointer', opacity: saving || syncing ? 0.6 : 1, boxShadow: '0 2px 6px rgba(74,144,226,.25)' }}>
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', fontSize: 13, fontWeight: 500, borderRadius: 8, background: primary, color: '#fff', border: 'none', cursor: 'pointer', opacity: saving || syncing ? 0.6 : 1, boxShadow: primaryShadow }}>
               <Save size={13} />{saving ? t('sync.saving') : t('sync.saveConfig')}
             </button>
             <button onClick={handleSync} disabled={syncing}
@@ -378,7 +381,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
             <div style={{ marginBottom: 20, paddingBottom: 20, borderBottom: '1px solid var(--paper-edge, #eee)' }}>
               <div style={{ ...labelStyle, marginBottom: 10 }}>{t('sync.hostSection')}</div>
               <button onClick={toggleHost} disabled={lanBusy}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 500, borderRadius: 8, cursor: lanBusy ? 'not-allowed' : 'pointer', opacity: lanBusy ? 0.6 : 1, border: hostStatus.running ? '1px solid rgba(255,59,48,0.25)' : 'none', background: hostStatus.running ? 'rgba(255,59,48,0.08)' : '#4A90E2', color: hostStatus.running ? '#ff3b30' : '#fff', boxShadow: hostStatus.running ? 'none' : '0 2px 6px rgba(74,144,226,.25)' }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 500, borderRadius: 8, cursor: lanBusy ? 'not-allowed' : 'pointer', opacity: lanBusy ? 0.6 : 1, border: hostStatus.running ? '1px solid rgba(255,59,48,0.25)' : 'none', background: hostStatus.running ? 'rgba(255,59,48,0.08)' : primary, color: hostStatus.running ? '#ff3b30' : '#fff', boxShadow: hostStatus.running ? 'none' : primaryShadow }}>
                 {hostStatus.running ? t('sync.stopSharing') : t('sync.startSharing')}
               </button>
               {hostStatus.running && hostStatus.url && hostStatus.pin && (
@@ -420,7 +423,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
                         style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--paper-edge, #e5e5e7)', background: 'var(--surface-raised, #fff)', cursor: 'pointer' }}>{t('sync.sync')}</button>
                     ) : (
                       <button onClick={() => { setPeerUrl(s.url); connectNearby(s.url) }} disabled={lanBusy}
-                        style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6, border: 'none', background: '#4A90E2', color: '#fff', cursor: 'pointer' }}>{t('sync.connect')}</button>
+                        style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6, border: 'none', background: primary, color: '#fff', cursor: 'pointer' }}>{t('sync.connect')}</button>
                     )}
                   </div>
                 ))}
@@ -447,7 +450,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <button onClick={() => peerUrl && connectNearby(peerUrl)} disabled={lanBusy}
-                style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: 'none', background: '#4A90E2', color: '#fff', cursor: 'pointer', opacity: lanBusy ? 0.6 : 1 }}>{t('sync.connect')}</button>
+                style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: 'none', background: primary, color: '#fff', cursor: 'pointer', opacity: lanBusy ? 0.6 : 1 }}>{t('sync.connect')}</button>
               <button onClick={() => peerUrl && syncWith(peerUrl)} disabled={lanBusy}
                 style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--paper-edge, #e5e5e7)', background: 'var(--surface-raised, #fff)', cursor: 'pointer', opacity: lanBusy ? 0.6 : 1 }}>{t('sync.sync')}</button>
             </div>
@@ -476,7 +479,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
                       <div style={{ display: 'flex', gap: 6 }}>
                         {onlineUrl && (
                           <button onClick={() => syncWith(onlineUrl)} disabled={lanBusy}
-                            style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#4A90E2', color: '#fff', cursor: 'pointer', opacity: lanBusy ? 0.6 : 1 }}>
+                            style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', background: primary, color: '#fff', cursor: 'pointer', opacity: lanBusy ? 0.6 : 1 }}>
                             {t('sync.sync')}
                           </button>
                         )}

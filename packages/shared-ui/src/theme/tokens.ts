@@ -92,6 +92,18 @@ export interface ThemeLayout {
     buttonRadius: number
   }
 
+  // Document / note lists. Buttons and the active filter use home.primaryButtonBg.
+  list: {
+    /** Search box, sort menu, filter bar. */
+    controlBackground: string
+    /** Selected row, and the bar on its left edge. */
+    selectedBackground: string
+    selectedBar: string
+    /** Hovered row. */
+    hoverBackground: string
+    hoverShadow: string
+  }
+
   // PoetryCard variant
   poetryCardVariant: 'classic' | 'minimal' | 'notebook'
 
@@ -186,6 +198,14 @@ const minimal: ThemeLayout = {
     buttonRadius: 9,
   },
 
+  list: {
+    controlBackground: 'var(--surface-raised)',
+    selectedBackground: 'var(--selected)',
+    selectedBar: 'var(--ink)',
+    hoverBackground: 'var(--hover)',
+    hoverShadow: 'none',
+  },
+
   poetryCardVariant: 'minimal',
   sidebarResizable: true,
 }
@@ -275,6 +295,14 @@ const notebook: ThemeLayout = {
     buttonHeight: 32,
     buttonPadding: '0 12px',
     buttonRadius: 9,
+  },
+
+  list: {
+    controlBackground: '#fff',
+    selectedBackground: '#E8F1FB',
+    selectedBar: '#4A90E2',
+    hoverBackground: '#fff',
+    hoverShadow: '0 1px 3px rgba(60,40,20,.06), 0 1px 2px rgba(60,40,20,.04)',
   },
 
   poetryCardVariant: 'notebook',

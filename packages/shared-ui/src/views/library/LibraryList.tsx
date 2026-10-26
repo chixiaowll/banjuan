@@ -76,8 +76,8 @@ export default function LibraryList() {
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                     height: 32, padding: '0 12px', borderRadius: 9,
                     fontSize: 13, fontWeight: 500,
-                    background: '#4A90E2', color: '#fff', border: 'none',
-                    cursor: 'pointer', boxShadow: '0 2px 8px rgba(74,144,226,0.3)',
+                    background: layout.home.primaryButtonBg, color: '#fff', border: 'none',
+                    cursor: 'pointer', boxShadow: layout.home.primaryButtonShadow,
                   }}
                 ><Upload size={14} />{t('library.import')}</button>
               </>)}
@@ -118,8 +118,8 @@ export default function LibraryList() {
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                     height: 32, padding: '0 12px', borderRadius: 9,
                     fontSize: 13, fontWeight: 500,
-                    background: '#4A90E2', color: '#fff', border: 'none',
-                    cursor: 'pointer', boxShadow: '0 2px 8px rgba(74,144,226,0.3)',
+                    background: layout.home.primaryButtonBg, color: '#fff', border: 'none',
+                    cursor: 'pointer', boxShadow: layout.home.primaryButtonShadow,
                   }}
                 ><Plus size={14} />{t('library.newNote')}</button>
               </>)}
@@ -156,13 +156,13 @@ export default function LibraryList() {
                 return (
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0,
-                    background: '#fff', border: '1px solid var(--paper-edge)',
+                    background: layout.list.controlBackground, border: '1px solid var(--paper-edge)',
                     borderRadius: 9, padding: 3, boxShadow: '0 1px 3px rgba(60,40,20,.06)',
                   }}>
                     <button onClick={() => setTypeFilter('')} style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5,
                       height: 24, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                      background: !typeFilter ? '#4A90E2' : 'transparent',
+                      background: !typeFilter ? layout.home.primaryButtonBg : 'transparent',
                       color: !typeFilter ? '#fff' : 'var(--ink-soft)',
                       border: 'none', cursor: 'pointer',
                       boxShadow: !typeFilter ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
@@ -177,7 +177,7 @@ export default function LibraryList() {
                         <button key={tp} onClick={() => setTypeFilter(isActive ? '' : tp)} style={{
                           display: 'inline-flex', alignItems: 'center', gap: 5,
                           height: 24, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                          background: isActive ? '#4A90E2' : 'transparent',
+                          background: isActive ? layout.home.primaryButtonBg : 'transparent',
                           color: isActive ? '#fff' : 'var(--ink-soft)',
                           border: 'none', cursor: 'pointer',
                           boxShadow: isActive ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
@@ -212,13 +212,13 @@ export default function LibraryList() {
                 return (
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0,
-                    background: '#fff', border: '1px solid var(--paper-edge)',
+                    background: layout.list.controlBackground, border: '1px solid var(--paper-edge)',
                     borderRadius: 9, padding: 3, boxShadow: '0 1px 3px rgba(60,40,20,.06)',
                   }}>
                     <button onClick={() => setTypeFilter('')} style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5,
                       height: 24, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                      background: !typeFilter ? '#4A90E2' : 'transparent',
+                      background: !typeFilter ? layout.home.primaryButtonBg : 'transparent',
                       color: !typeFilter ? '#fff' : 'var(--ink-soft)',
                       border: 'none', cursor: 'pointer',
                       boxShadow: !typeFilter ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
@@ -233,7 +233,7 @@ export default function LibraryList() {
                         <button key={tp} onClick={() => setTypeFilter(isActive ? '' : tp)} style={{
                           display: 'inline-flex', alignItems: 'center', gap: 5,
                           height: 24, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                          background: isActive ? '#4A90E2' : 'transparent',
+                          background: isActive ? layout.home.primaryButtonBg : 'transparent',
                           color: isActive ? '#fff' : 'var(--ink-soft)',
                           border: 'none', cursor: 'pointer',
                           boxShadow: isActive ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
@@ -282,7 +282,7 @@ export default function LibraryList() {
             <div style={{
               height: 30, width: 200,
               display: 'flex', alignItems: 'center', gap: 7, padding: '0 12px',
-              background: '#fff', border: '1px solid var(--paper-edge)', borderRadius: 8,
+              background: layout.list.controlBackground, border: '1px solid var(--paper-edge)', borderRadius: 8,
               boxShadow: '0 1px 3px rgba(60,40,20,.06)',
             }}>
               <Search size={13} style={{ color: 'var(--ink-mute)', flexShrink: 0 }} />
@@ -300,7 +300,7 @@ export default function LibraryList() {
               display: 'inline-flex', alignItems: 'center', gap: 5,
               height: 30, padding: '0 4px 0 10px', borderRadius: 8,
               fontSize: 12, color: 'var(--ink-soft)', fontWeight: 500,
-              background: '#fff', border: '1px solid var(--paper-edge)',
+              background: layout.list.controlBackground, border: '1px solid var(--paper-edge)',
               boxShadow: '0 1px 3px rgba(60,40,20,.06)', position: 'relative',
             }}>
               <span style={{ fontSize: 11 }}>⇅</span>
@@ -326,7 +326,7 @@ export default function LibraryList() {
               style={{
                 width: 30, height: 30, borderRadius: 8,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: '#fff', border: '1px solid var(--paper-edge)',
+                background: layout.list.controlBackground, border: '1px solid var(--paper-edge)',
                 cursor: 'pointer', boxShadow: '0 1px 3px rgba(60,40,20,.06)',
                 fontSize: 12, color: 'var(--ink-soft)',
               }}
@@ -340,7 +340,7 @@ export default function LibraryList() {
                 style={{
                   width: 30, height: 30, borderRadius: 8,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: '#fff', border: '1px solid var(--paper-edge)',
+                  background: layout.list.controlBackground, border: '1px solid var(--paper-edge)',
                   cursor: 'pointer', boxShadow: '0 1px 3px rgba(60,40,20,.06)',
                   color: 'var(--ink-soft)',
                 }}
@@ -351,8 +351,8 @@ export default function LibraryList() {
               <button onClick={async () => { if (api.documents.importFilesDialog) { await api.documents.importFilesDialog(selectedDir || undefined) } else { await api.documents.import(selectedDir || undefined) }; await loadDocuments() }} style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, height: 30,
               padding: '0 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
-              background: '#4A90E2', color: '#fff', border: 'none',
-              cursor: 'pointer', boxShadow: '0 2px 6px rgba(74,144,226,.3)',
+              background: layout.home.primaryButtonBg, color: '#fff', border: 'none',
+              cursor: 'pointer', boxShadow: layout.home.primaryButtonShadow,
               whiteSpace: 'nowrap',
             }}><Upload size={13} />{t('common.import')}</button>
             </>}
@@ -362,7 +362,7 @@ export default function LibraryList() {
                 style={{
                   width: 30, height: 30, borderRadius: 8,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: '#fff', border: '1px solid var(--paper-edge)',
+                  background: layout.list.controlBackground, border: '1px solid var(--paper-edge)',
                   cursor: 'pointer', boxShadow: '0 1px 3px rgba(60,40,20,.06)',
                   color: 'var(--ink-soft)',
                 }}
@@ -373,8 +373,8 @@ export default function LibraryList() {
               <button onClick={handleCreateNote} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6, height: 30,
                 padding: '0 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
-                background: '#4A90E2', color: '#fff', border: 'none',
-                cursor: 'pointer', boxShadow: '0 2px 6px rgba(74,144,226,.3)',
+                background: layout.home.primaryButtonBg, color: '#fff', border: 'none',
+                cursor: 'pointer', boxShadow: layout.home.primaryButtonShadow,
                 whiteSpace: 'nowrap',
               }}><FilePlus size={13} />{t('common.new')}</button>
             </>}
@@ -488,17 +488,17 @@ export default function LibraryList() {
                       gap: 14, alignItems: 'center',
                       padding: '10px 12px', marginBottom: 2,
                       cursor: 'pointer', borderRadius: 10,
-                      background: isSelected ? '#E8F1FB' : 'transparent',
+                      background: isSelected ? layout.list.selectedBackground : 'transparent',
                       transition: 'all 0.12s',
                       position: 'relative',
                     }}
                     onClick={() => handleSelectItem(item.id, 'document')}
                     onDoubleClick={() => onOpenDoc(item)}
                     onContextMenu={(e) => handleDocItemContextMenu(e, item.id, item.title)}
-                    onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.background = '#fff'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(60,40,20,.06), 0 1px 2px rgba(60,40,20,.04)' } }}
-                    onMouseLeave={e => { e.currentTarget.style.background = isSelected ? '#E8F1FB' : 'transparent'; e.currentTarget.style.boxShadow = 'none' }}
+                    onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.background = layout.list.hoverBackground; e.currentTarget.style.boxShadow = layout.list.hoverShadow } }}
+                    onMouseLeave={e => { e.currentTarget.style.background = isSelected ? layout.list.selectedBackground : 'transparent'; e.currentTarget.style.boxShadow = 'none' }}
                   >
-                    {isSelected && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, background: '#4A90E2', borderRadius: '0 3px 3px 0' }} />}
+                    {isSelected && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, background: layout.list.selectedBar, borderRadius: '0 3px 3px 0' }} />}
                     {/* Mini cover */}
                     <div style={{
                       width: 48, height: 60, borderRadius: '3px 5px 5px 3px',
@@ -628,17 +628,17 @@ export default function LibraryList() {
                       gap: 14, alignItems: 'center',
                       padding: '10px 12px', marginBottom: 2,
                       cursor: 'pointer', borderRadius: 10,
-                      background: isSelected ? '#E8F1FB' : 'transparent',
+                      background: isSelected ? layout.list.selectedBackground : 'transparent',
                       transition: 'all 0.12s',
                       position: 'relative',
                     }}
                     onClick={() => handleSelectItem(item.id, 'note')}
                     onDoubleClick={() => { if (item.type === 'mindmap') onOpenMindmap(item); else onOpenNote(item) }}
                     onContextMenu={(e) => handleNoteItemContextMenu(e, item.id, item.title)}
-                    onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.background = '#fff'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(60,40,20,.06), 0 1px 2px rgba(60,40,20,.04)' } }}
-                    onMouseLeave={e => { e.currentTarget.style.background = isSelected ? '#E8F1FB' : 'transparent'; e.currentTarget.style.boxShadow = 'none' }}
+                    onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.background = layout.list.hoverBackground; e.currentTarget.style.boxShadow = layout.list.hoverShadow } }}
+                    onMouseLeave={e => { e.currentTarget.style.background = isSelected ? layout.list.selectedBackground : 'transparent'; e.currentTarget.style.boxShadow = 'none' }}
                   >
-                    {isSelected && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, background: '#4A90E2', borderRadius: '0 3px 3px 0' }} />}
+                    {isSelected && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, background: layout.list.selectedBar, borderRadius: '0 3px 3px 0' }} />}
                     {/* Mini cover */}
                     <div style={{
                       width: 40, height: 48, borderRadius: 6,
