@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { join, dirname } from 'node:path'
 import { app } from 'electron'
-import { extractPdf, extractEpub, extractPlain, type PdfjsLocation, type ExtractedPage } from './doc-text-extract.js'
+import { extractPdf, extractEpub, extractPlain, type PdfjsLocation, type ExtractedPage } from '@banjuan/core'
 
 // Bound the text returned per call so a huge book/chapter can't blow up tokens.
 const MAX_TOTAL_CHARS = 80_000

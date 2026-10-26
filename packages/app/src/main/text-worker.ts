@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { extractPdf, extractEpub, extractPlain, type PdfjsLocation, type ExtractedPage } from './doc-text-extract.js'
+import { extractPdf, extractEpub, extractPlain, type PdfjsLocation, type ExtractedPage } from '@banjuan/core/dist/search/doc-text-extract.js'   // just the extractor: this process needs nothing else
 
 /**
  * Background text extraction for the search index, in an Electron utility

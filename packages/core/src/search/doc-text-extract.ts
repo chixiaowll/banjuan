@@ -1,9 +1,9 @@
 import { unzipSync, strFromU8 } from 'fflate'
 
 /**
- * Text extraction from PDF / EPUB / plain-text / HTML files. Electron-free, so
- * both the main process (local API) and the background text-index process
- * (text-worker.ts) can use it; the caller says where pdf.js lives.
+ * Text extraction from PDF / EPUB / plain-text / HTML files, shared by the
+ * desktop (main process + background text-index process) and the iPad's
+ * in-app indexer; the caller provides pdf.js.
  */
 
 export interface PdfjsLocation {
@@ -111,14 +111,18 @@ export function joinTextItems(items: TextItem[]): string {
   return out.replace(/[ \t\u00a0]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim()
 }
 
-export async function extractPdf(
-  data: Uint8Array, loc: PdfjsLocation,
-  opts: { fromPage?: number; toPage?: number; maxPages?: number } = {},
+/**
+ * PDF text with a given pdf.js: the desktop loads its own copy (extractPdf);
+ * the iPad passes the viewer's, and a file URL instead of the bytes.
+ */
+export async function extractPdfWith(
+  pdfjs: any, source: { data?: Uint8Array; url?: string; cMapUrl?: string },
+  opts: { fromPage?: number; toPage?: number; maxPages?: number; onPage?: () => Promise<void> } = {},
 ): Promise<ExtractedText> {
-  const pdfjs = await loadPdfjs(loc)
+  const { cMapUrl, ...src } = source
   const doc = await pdfjs.getDocument({
-    data, useWorkerFetch: false, isEvalSupported: false, disableFontFace: true,
-    cMapUrl: loc.cMapDir, cMapPacked: true,
+    ...src, useWorkerFetch: false, isEvalSupported: false, disableFontFace: true,
+    ...(cMapUrl ? { cMapUrl, cMapPacked: true } : {}),
   }).promise
   try {
     const numPages: number = doc.numPages
@@ -131,11 +135,19 @@ export async function extractPdf(
       const tc = await page.getTextContent()
       pages.push({ page: p, text: normalizeText(joinTextItems(tc.items)) })
       try { page.cleanup() } catch { /* ignore */ }
+      await opts.onPage?.()
     }
     return { numPages, pages }
   } finally {
     try { await doc.destroy() } catch { /* ignore */ }
   }
+}
+
+export async function extractPdf(
+  data: Uint8Array, loc: PdfjsLocation,
+  opts: { fromPage?: number; toPage?: number; maxPages?: number } = {},
+): Promise<ExtractedText> {
+  return extractPdfWith(await loadPdfjs(loc), { data, cMapUrl: loc.cMapDir }, opts)
 }
 
 // Inline markup sits inside a word: removing it must not insert a space —

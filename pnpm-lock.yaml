@@ -175,6 +175,9 @@ importers:
       better-sqlite3:
         specifier: ^11.7.0
         version: 11.10.0
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
@@ -212,6 +215,9 @@ importers:
       '@banjuan/shared-ui':
         specifier: workspace:*
         version: link:../shared-ui
+      '@banjuan/zotero-pdfjs-dist':
+        specifier: workspace:*
+        version: link:../zotero-pdfjs-dist
       '@capacitor-community/sqlite':
         specifier: ^6.0.0
         version: 6.0.2(@capacitor/core@6.2.1)
@@ -239,6 +245,9 @@ importers:
       capacitor-zeroconf:
         specifier: 3.0.0
         version: 3.0.0(@capacitor/core@6.2.1)(bonjour@3.5.1)
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       react:
         specifier: ^19.0.0
         version: 19.2.5

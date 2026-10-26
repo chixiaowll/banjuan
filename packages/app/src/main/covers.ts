@@ -2,8 +2,7 @@ import { nativeImage, type NativeImage } from 'electron'
 import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { unzipSync, strFromU8 } from 'fflate'
-import type { Library } from '@banjuan/core'
+import { epubCoverImage, type Library } from '@banjuan/core'
 
 /**
  * Cover thumbnails of documents for the home page and the document list. Made
@@ -79,25 +78,9 @@ async function makeCover(abs: string, type: string, dir: string, docId: string, 
   return coverUrl(file)
 }
 
-/** The EPUB's cover image: EPUB 3 "cover-image" item, EPUB 2 <meta name="cover">, or an image named like a cover. */
+/** The EPUB's cover image (see core's epubCoverImage) as an image, or null. */
 export function epubCover(data: Uint8Array): NativeImage | null {
-  const files = unzipSync(data, { filter: f => f.name.endsWith('.opf') || f.name === 'META-INF/container.xml' || /\.(jpe?g|png|gif|webp)$/i.test(f.name) })
-  const container = files['META-INF/container.xml']
-  const opfPath = container ? strFromU8(container).match(/full-path="([^"]+)"/)?.[1] : undefined
-  if (!opfPath || !files[opfPath]) return null
-  const opf = strFromU8(files[opfPath])
-  const dir = opfPath.includes('/') ? opfPath.slice(0, opfPath.lastIndexOf('/') + 1) : ''
-  const items = [...opf.matchAll(/<item\b[^>]*>/g)].map(m => {
-    const tag = m[0]
-    const attr = (n: string) => tag.match(new RegExp(`\\b${n}="([^"]*)"`))?.[1]
-    return { id: attr('id'), href: attr('href'), type: attr('media-type') ?? '', props: attr('properties') ?? '' }
-  })
-  const coverId = opf.match(/<meta\b[^>]*name="cover"[^>]*content="([^"]+)"/)?.[1] ?? opf.match(/<meta\b[^>]*content="([^"]+)"[^>]*name="cover"/)?.[1]
-  const pick = items.find(i => /\bcover-image\b/.test(i.props))
-    ?? items.find(i => coverId && i.id === coverId)
-    ?? items.find(i => i.type.startsWith('image/') && /cover/i.test(`${i.id} ${i.href}`))
-  if (!pick?.href) return null
-  const bytes = files[dir + decodeURIComponent(pick.href)] ?? files[decodeURIComponent(pick.href)]
+  const bytes = epubCoverImage(data)
   if (!bytes) return null
   const img = nativeImage.createFromBuffer(Buffer.from(bytes))
   return img.isEmpty() ? null : img
