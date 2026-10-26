@@ -22,7 +22,9 @@ export interface HandwritingState {
   duplicatePage: (index: number) => void
   movePage: (fromIndex: number, toIndex: number) => void
   setPageTemplate: (index: number, template: HandwritingTemplate) => void
-  saveCurrentPageSnapshot: (snapshot: CanvasSnapshot) => void
+  /** Store a page's strokes/images by page id (not by the current index — the
+   *  user may have turned the page since the editor captured them). */
+  savePageSnapshot: (pageId: string, snapshot: CanvasSnapshot) => void
   /** Cancel a pending debounced save (called when a new stroke starts, so the
    *  synchronous serialize+write never fires mid-stroke and drops it). */
   cancelPendingSave: () => void
@@ -128,10 +130,12 @@ export function createHandwritingStore(api: BanjuanAPI): HandwritingStoreApi {
       get().save()
     },
 
-    saveCurrentPageSnapshot: (snapshot: CanvasSnapshot) => {
-      const { pages, currentPageIndex } = get()
+    savePageSnapshot: (pageId: string, snapshot: CanvasSnapshot) => {
+      const { pages } = get()
+      const index = pages.findIndex(p => p.id === pageId)
+      if (index === -1) return   // the page was deleted meanwhile
       const newPages = [...pages]
-      newPages[currentPageIndex] = { ...newPages[currentPageIndex], snapshot }
+      newPages[index] = { ...newPages[index], snapshot }
       set({ pages: newPages })
 
       if (saveTimer) clearTimeout(saveTimer)

@@ -3,6 +3,7 @@ import { PanelLeft, PanelRight, ArrowLeft, FileDown, FileImage, FileText } from 
 import { exportToDirectory, exportSingleNote } from '../../utils/exportToDirectory.js'
 import HandwritingEditor from './HandwritingEditor.js'
 import { useHandwritingStore } from './useHandwritingStore.js'
+import type { CanvasSnapshot } from '@banjuan/core'
 import { generateThumbnailDataUrl, renderAllStrokes } from './renderStrokes.js'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
@@ -26,7 +27,7 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
   const saving = useHandwritingStore(s => s.saving)
   const saveError = useHandwritingStore(s => s.saveError)
   const init = useHandwritingStore(s => s.init)
-  const saveCurrentPageSnapshot = useHandwritingStore(s => s.saveCurrentPageSnapshot)
+  const savePageSnapshot = useHandwritingStore(s => s.savePageSnapshot)
   const cancelPendingSave = useHandwritingStore(s => s.cancelPendingSave)
   const updateThumbnail = useHandwritingStore(s => s.updateThumbnail)
 
@@ -121,9 +122,9 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
 
   const currentPage = pages[currentPageIndex]
 
-  const handleSnapshotChange = useCallback((snapshot: any) => {
-    saveCurrentPageSnapshot(snapshot)
-  }, [saveCurrentPageSnapshot])
+  const handleSnapshotChange = useCallback((snapshot: CanvasSnapshot, pageId: string) => {
+    savePageSnapshot(pageId, snapshot)
+  }, [savePageSnapshot])
 
   const handleThumbnailGenerated = useCallback((dataUrl: string) => {
     if (currentPage) {

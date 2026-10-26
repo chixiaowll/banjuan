@@ -13,7 +13,8 @@ interface Props {
   template: HandwritingTemplate
   pageWidth: number
   pageHeight: number
-  onSnapshotChange: (snapshot: CanvasSnapshot) => void
+  /** `pageId` is the page the snapshot belongs to (the editor may already show another one). */
+  onSnapshotChange: (snapshot: CanvasSnapshot, pageId: string) => void
   onThumbnailGenerated: (dataUrl: string) => void
   /** Called when the user starts interacting (stroke down). Lets the host cancel
    *  any pending debounced save so it can't fire mid-stroke and drop it. */
@@ -216,6 +217,8 @@ export default function HandwritingEditor({
   const cursorRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const strokesRef = useRef<Stroke[]>(snapshot.strokes ?? [])
+  /** The page whose strokes strokesRef/imagesRef hold (lags `pageId` until the page-change effect runs). */
+  const pageIdRef = useRef(pageId)
   const currentPointsRef = useRef<StrokePoint[]>([])
   const isDrawingRef = useRef(false)
   const isPanningRef = useRef(false)
@@ -459,6 +462,11 @@ export default function HandwritingEditor({
 
   // --- Page change ---
   useEffect(() => {
+    // Strokes from the last 2s on the page being left are still waiting for the
+    // debounced save: hand them over now, tagged with that page, before the
+    // refs are refilled with the new page.
+    if (pageIdRef.current !== pageId && persistTimerRef.current) flushPersist()
+    pageIdRef.current = pageId
     strokesRef.current = snapshot.strokes ?? []
     imagesRef.current = snapshot.images ?? []
     setUndoStack([{ strokes: snapshot.strokes ?? [], images: snapshot.images ?? [] }])
@@ -523,7 +531,7 @@ export default function HandwritingEditor({
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flushPersist = useCallback(() => {
     if (persistTimerRef.current) { clearTimeout(persistTimerRef.current); persistTimerRef.current = null }
-    onSnapshotChange({ strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) })
+    onSnapshotChange({ strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) }, pageIdRef.current)
   }, [onSnapshotChange])
   const schedulePersist = useCallback(() => {
     if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
@@ -531,7 +539,7 @@ export default function HandwritingEditor({
     // between strokes while writing. A new stroke (pointer down) cancels it.
     persistTimerRef.current = setTimeout(() => {
       persistTimerRef.current = null
-      onSnapshotChange({ strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) })
+      onSnapshotChange({ strokes: [...strokesRef.current], images: imagesRef.current.map(img => ({ ...img })) }, pageIdRef.current)
       generateThumbnail()
     }, 2000)
   }, [onSnapshotChange, generateThumbnail])
@@ -724,7 +732,7 @@ export default function HandwritingEditor({
     deselectImage()
     loadImageElements(imagesRef.current, () => redraw())
     redraw()
-    onSnapshotChange({ strokes: strokesRef.current, images: imagesRef.current })
+    onSnapshotChange({ strokes: strokesRef.current, images: imagesRef.current }, pageIdRef.current)
     generateThumbnail()
   }, [redraw, onSnapshotChange, generateThumbnail, clearSelection, deselectImage, loadImageElements])
 
@@ -741,7 +749,7 @@ export default function HandwritingEditor({
     deselectImage()
     loadImageElements(imagesRef.current, () => redraw())
     redraw()
-    onSnapshotChange({ strokes: strokesRef.current, images: imagesRef.current })
+    onSnapshotChange({ strokes: strokesRef.current, images: imagesRef.current }, pageIdRef.current)
     generateThumbnail()
   }, [redraw, onSnapshotChange, generateThumbnail, clearSelection, deselectImage, loadImageElements])
 

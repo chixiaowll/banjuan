@@ -8,6 +8,7 @@ import { useKeyboardShortcuts } from '../mindmap/useKeyboardShortcuts.js'
 import { createMindmapStore, MindmapStoreContext, useMindmapStore, useMindmapLabels } from '../mindmap/useMindmapStore.js'
 import HandwritingEditor from '../handwriting/HandwritingEditor.js'
 import { createHandwritingStore, HandwritingStoreContext, useHandwritingStore } from '../handwriting/useHandwritingStore.js'
+import type { CanvasSnapshot } from '@banjuan/core'
 import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { emitLinksSynced } from '../../utils/linkEvents.js'
@@ -152,15 +153,15 @@ function SidebarHandwriting({ noteId }: { noteId: string }) {
   const pages = useHandwritingStore(s => s.pages)
   const currentPageIndex = useHandwritingStore(s => s.currentPageIndex)
   const pageSize = useHandwritingStore(s => s.pageSize)
-  const saveCurrentPageSnapshot = useHandwritingStore(s => s.saveCurrentPageSnapshot)
+  const savePageSnapshot = useHandwritingStore(s => s.savePageSnapshot)
 
   useEffect(() => { init(noteId) }, [noteId, init])
 
   const currentPage = pages[currentPageIndex]
 
-  const handleSnapshotChange = useCallback((snapshot: any) => {
-    saveCurrentPageSnapshot(snapshot)
-  }, [saveCurrentPageSnapshot])
+  const handleSnapshotChange = useCallback((snapshot: CanvasSnapshot, pageId: string) => {
+    savePageSnapshot(pageId, snapshot)
+  }, [savePageSnapshot])
 
   if (!currentPage) return null
 
