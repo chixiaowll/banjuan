@@ -67,6 +67,50 @@ describe('recycle bin', () => {
     expect((await lib.search.query('正文')).map(r => r.id)).toContain(target.id)
   })
 
+  it('a deleted note takes its attachments to the bin and gets them back on restore', async () => {
+    const note = await lib.notes.create({ title: '带图', content: para('x') })
+    const rel = await lib.attachments.save(note.id, 'pic.png', new Uint8Array([1, 2, 3]))
+    const abs = join(libPath, '.banjuan', rel)
+    expect(existsSync(abs)).toBe(true)
+
+    await lib.notes.delete(note.id)
+    expect(existsSync(abs)).toBe(false)
+    const [entry] = await lib.trash.list()
+    await lib.trash.restore(entry.id)
+    expect([...readFileSync(abs)]).toEqual([1, 2, 3])
+  })
+
+  it('an edit racing a delete does not bring the note back', async () => {
+    const mm = await lib.notes.create({ title: '导图', type: 'mindmap' } as any)
+    const root = (await lib.mindmaps.getNodes(mm.id)).find(n => !n.parentId)!
+    const path = (await lib.notes.get(mm.id))!.path
+    const results = await Promise.allSettled([
+      lib.mindmaps.updateNode(root.id, { title: 'a' }),
+      lib.notes.delete(mm.id),
+      lib.mindmaps.updateNode(root.id, { title: 'b' }),
+      lib.notes.update(mm.id, { title: 'late' }),
+    ])
+    expect(results[1].status).toBe('fulfilled')
+    expect(results[3].status).toBe('rejected')   // a save after the delete fails instead of passing silently
+    expect(existsSync(join(libPath, '.banjuan', 'notes', path))).toBe(false)
+    expect(await lib.notes.get(mm.id)).toBeNull()
+  })
+
+  it('renaming a folder while its notes are edited leaves no copy behind in the old folder', async () => {
+    await lib.notes.createDir('old')
+    const n = await lib.notes.create({ title: 'n', content: para('x') })
+    await lib.notes.move(n.id, 'old')
+    await Promise.all([
+      lib.notes.update(n.id, { content: para('one') }),
+      lib.notes.renameDir('old', 'new'),
+      lib.notes.update(n.id, { content: para('two') }),
+    ])
+    expect(existsSync(join(libPath, '.banjuan', 'notes', 'old'))).toBe(false)
+    expect((await lib.notes.get(n.id))!.path).toBe(`new/${n.id}.json`)
+    const file = JSON.parse(readFileSync(join(libPath, '.banjuan', 'notes', 'new', `${n.id}.json`), 'utf-8'))
+    expect(JSON.stringify(file.blocks)).toContain('two')
+  })
+
   it('restores next to a file that took the original path, without overwriting it', async () => {
     createTestFile(libPath, 'b.pdf', Buffer.from('OLD'))
     const doc = await lib.documents.import('b.pdf')

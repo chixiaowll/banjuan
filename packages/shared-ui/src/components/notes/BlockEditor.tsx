@@ -288,7 +288,10 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
         }
       }
       ;(async () => {
-        const clipFiles = await api.clipboard!.readFiles()
+        // Desktop: files copied in Finder come with their paths. Elsewhere (iPad)
+        // there's no clipboard API — the pasted files themselves are inserted;
+        // calling it threw, and with the default paste already stopped, nothing appeared.
+        const clipFiles = api.clipboard ? await api.clipboard.readFiles() : []
         if (clipFiles.length > 0) {
           for (const cf of clipFiles) {
             const buffer = await api.clipboard!.readFileBuffer(cf.path)

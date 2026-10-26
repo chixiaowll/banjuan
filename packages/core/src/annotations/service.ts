@@ -60,14 +60,12 @@ export class AnnotationService {
   async update(id: string, updates: { content?: string; color?: string; position?: unknown }): Promise<Annotation> {
     const now = new Date().toISOString()
 
-    const fileData = await this.store.read(id)
-    if (fileData) {
+    await this.store.update(id, (fileData) => {
       if (updates.content !== undefined) fileData.content = updates.content
       if (updates.color !== undefined) fileData.color = updates.color
       if (updates.position !== undefined) fileData.position = updates.position as any
       fileData.updatedAt = now
-      await this.store.write(fileData)
-    }
+    })
 
     const sets: string[] = ['updated_at = ?']
     const params: unknown[] = [now]

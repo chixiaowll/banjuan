@@ -1,5 +1,5 @@
 import type { PlatformDatabase, PlatformFS, PlatformCrypto } from '../platform/index.js'
-import { join, relative, isAbsolute, dirname, basename } from '../platform/path.js'
+import { join, relative, isAbsolute, dirname, basename, extname } from '../platform/path.js'
 import type { Document, DocumentListOptions, DocumentFileData } from '../types.js'
 import { detectDocumentType, extractTitle } from './metadata.js'
 import type { SearchService } from '../search/service.js'
@@ -8,6 +8,7 @@ import { JsonStore } from '../storage/json-store.js'
 import { hasPlainPath } from '../storage/safe-path.js'
 import { escapeLike, LIKE_ESCAPE } from '../db/like.js'
 import type { TrashService } from '../trash/service.js'
+import { v4 as uuid } from 'uuid'
 
 export class DocumentService {
   private store: JsonStore<DocumentFileData>
@@ -82,10 +83,14 @@ export class DocumentService {
     // (dedup is path-based; `hash`'s only consumer is a cosmetic detail field),
     // so importing is O(1) per file regardless of file size.
     const pathHash = await this.crypto.sha256(new TextEncoder().encode(relPath))
-    const existing = await this.findExistingByPath(relPath, pathHash.slice(0, 32), pathIndex)
+    const pathId = pathHash.slice(0, 32)
+    const existing = await this.findExistingByPath(relPath, pathId, pathIndex)
     const type = detectDocumentType(absPath)
     const title = options?.title ?? existing?.title ?? extractTitle(absPath)
-    const id = existing?.id ?? pathHash.slice(0, 32)
+    // The path's id may already belong to another document: one moved away
+    // from this path, or one in the recycle bin. Reusing it overwrote that
+    // document's metadata and handed it this file's annotations; a fresh id instead.
+    const id = existing?.id ?? ((await this.idIsFree(pathId)) ? pathId : uuid().replace(/-/g, ''))
     const hash = existing?.hash ?? pathHash
     const now = new Date().toISOString()
     const tags = options?.tags ?? existing?.tags ?? []
@@ -94,16 +99,22 @@ export class DocumentService {
       id, title, authors: existing?.authors ?? [], path: relPath, type, hash,
       tags, metadata: existing?.metadata ?? {}, createdAt: existing?.createdAt ?? now, updatedAt: now,
     }
-    if (!existing) {
-      await this.store.write(fileData)
-      if (pathIndex) (await pathIndex()).set(relPath, fileData)
-    }
-
     this.db.run(
       `INSERT INTO documents (id, title, authors, path, type, hash, metadata, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, title, JSON.stringify(fileData.authors), relPath, type, hash, JSON.stringify(fileData.metadata), fileData.createdAt, fileData.updatedAt],
     )
+    // Metadata only once the row is in: a failed insert used to leave a JSON
+    // file behind that could clobber another document's.
+    if (!existing) {
+      try {
+        await this.store.write(fileData)
+      } catch (e) {
+        this.db.run('DELETE FROM documents WHERE id = ?', [id])
+        throw e
+      }
+      if (pathIndex) (await pathIndex()).set(relPath, fileData)
+    }
 
     this.search.index({ id, title, content: title, type: 'document' })
 
@@ -132,6 +143,13 @@ export class DocumentService {
       if (doc.path === relPath) return doc
     }
     return null
+  }
+
+  /** No document — in the library, in its metadata, or in the recycle bin — has this id. */
+  private async idIsFree(id: string): Promise<boolean> {
+    if (this.db.queryOne('SELECT 1 FROM documents WHERE id = ?', [id])) return false
+    if (await this.store.read(id).catch(() => null)) return false
+    return !(await this.trash?.holdsDocument(id))
   }
 
   async list(options?: DocumentListOptions): Promise<Document[]> {
@@ -163,31 +181,34 @@ export class DocumentService {
   }
 
   async update(id: string, updates: { title?: string; authors?: string[]; metadata?: Record<string, unknown> }): Promise<Document | null> {
-    const existing = await this.get(id)
-    if (!existing) return null
-
+    if (!(await this.get(id))) return null
     const now = new Date().toISOString()
-    const newTitle = updates.title ?? existing.title
-    const newAuthors = updates.authors ?? existing.authors
-    const newMetadata = updates.metadata ? { ...existing.metadata, ...updates.metadata } : existing.metadata
 
+    // Only the fields given are written, each onto the current record: two
+    // updates made together used to write back each other's stale fields.
+    await this.store.update(id, (fileData) => {
+      if (updates.title !== undefined) fileData.title = updates.title
+      if (updates.authors !== undefined) fileData.authors = updates.authors
+      if (updates.metadata) fileData.metadata = { ...(fileData.metadata ?? {}), ...updates.metadata }
+      fileData.updatedAt = now
+    })
+
+    // Read and write the row with no await between (one step for other callers).
+    const current = (await this.get(id))
+    if (!current) return null
+    const updated: Document = {
+      ...current,
+      title: updates.title ?? current.title,
+      authors: updates.authors ?? current.authors,
+      metadata: updates.metadata ? { ...current.metadata, ...updates.metadata } : current.metadata,
+      updatedAt: now,
+    }
     this.db.run(
       `UPDATE documents SET title = ?, authors = ?, metadata = ?, updated_at = ? WHERE id = ?`,
-      [newTitle, JSON.stringify(newAuthors), JSON.stringify(newMetadata), now, id],
+      [updated.title, JSON.stringify(updated.authors), JSON.stringify(updated.metadata), now, id],
     )
-
-    const fileData = await this.store.read(id)
-    if (fileData) {
-      fileData.title = newTitle
-      fileData.authors = newAuthors
-      fileData.metadata = newMetadata
-      fileData.updatedAt = now
-      await this.store.write(fileData)
-    }
-
-    this.search.index({ id, title: newTitle, content: newTitle, type: 'document' })
-
-    return { ...existing, title: newTitle, authors: newAuthors, metadata: newMetadata, updatedAt: now }
+    this.search.index({ id, title: updated.title, content: updated.title, type: 'document' })
+    return updated
   }
 
   async purgeOrphanMetadata(diskFiles: Set<string>): Promise<number> {
@@ -257,14 +278,14 @@ export class DocumentService {
 
   /** Set/clear the fileMissing flag in both the JSON store (source of truth) and the DB row. */
   private async setFileMissing(id: string, missing: boolean): Promise<void> {
-    const meta = await this.store.read(id)
+    const meta = await this.store.update(id, (meta) => {
+      const md: Record<string, unknown> = { ...(meta.metadata ?? {}) }
+      if (missing) md.fileMissing = true
+      else delete md.fileMissing
+      meta.metadata = md
+    })
     if (!meta) return
-    const md: Record<string, unknown> = { ...(meta.metadata ?? {}) }
-    if (missing) md.fileMissing = true
-    else delete md.fileMissing
-    meta.metadata = md
-    await this.store.write(meta)
-    this.db.run('UPDATE documents SET metadata = ? WHERE id = ?', [JSON.stringify(md), id])
+    this.db.run('UPDATE documents SET metadata = ? WHERE id = ?', [JSON.stringify(meta.metadata), id])
   }
 
   async move(id: string, destDir: string): Promise<Document | null> {
@@ -273,10 +294,13 @@ export class DocumentService {
 
     const srcAbs = join(this.rootPath, doc.path)
     const destDirAbs = join(this.rootPath, destDir)
+    if (relative(this.rootPath, destDirAbs).startsWith('..')) throw new Error('Destination must be inside the library')
+    if (join(destDirAbs, basename(doc.path)) === srcAbs) return doc   // already there
     await this.fs.mkdir(destDirAbs, { recursive: true })
 
-    const fileName = basename(doc.path)
-    const destAbs = join(destDirAbs, fileName)
+    // A file of the same name already in the folder is kept: this one takes
+    // "name (2).pdf" — rename() would have replaced the other file silently.
+    const destAbs = join(destDirAbs, await this.freeName(destDirAbs, basename(doc.path)))
     const newRelPath = relative(this.rootPath, destAbs)
 
     await this.fs.rename(srcAbs, destAbs)
@@ -284,12 +308,10 @@ export class DocumentService {
     const now = new Date().toISOString()
     this.db.run('UPDATE documents SET path = ?, updated_at = ? WHERE id = ?', [newRelPath, now, id])
 
-    const fileData = await this.store.read(id)
-    if (fileData) {
+    await this.store.update(id, (fileData) => {
       fileData.path = newRelPath
       fileData.updatedAt = now
-      await this.store.write(fileData)
-    }
+    })
 
     this.events.emit('document:moved', { id, from: doc.path, to: newRelPath })
     return { ...doc, path: newRelPath, updatedAt: now }
@@ -321,13 +343,27 @@ export class DocumentService {
     for (const row of rows) {
       const to = newPath + '/' + row.path.substring(prefix.length)
       this.db.run('UPDATE documents SET path = ?, updated_at = ? WHERE id = ?', [to, now, row.id])
-      const fileData = await this.store.read(row.id)
-      if (fileData) {
+      await this.store.update(row.id, (fileData) => {
         fileData.path = to
         fileData.updatedAt = now
-        await this.store.write(fileData)
-      }
+      })
       this.events.emit('document:moved', { id: row.id, from: row.path, to })
+    }
+  }
+
+  /** `name` if nothing in `dirAbs` has it (in the library or on disk), else "stem (2).ext", "stem (3).ext", … */
+  private async freeName(dirAbs: string, name: string): Promise<string> {
+    const taken = async (n: string) => {
+      const abs = join(dirAbs, n)
+      return (await this.fs.exists(abs))
+        || !!this.db.queryOne('SELECT 1 FROM documents WHERE path = ?', [relative(this.rootPath, abs)])
+    }
+    if (!(await taken(name))) return name
+    const ext = extname(name)
+    const stem = basename(name, ext)
+    for (let i = 2; ; i++) {
+      const candidate = `${stem} (${i})${ext}`
+      if (!(await taken(candidate))) return candidate
     }
   }
 

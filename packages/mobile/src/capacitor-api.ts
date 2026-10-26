@@ -69,13 +69,14 @@ async function pickAndImportMarkdown(targetFolder: string | null): Promise<Impor
   try {
     const { files } = await FilePreview.pickFiles({ dest: await documentsUri(staging), extensions: ['md', 'markdown', 'txt'], multiple: true })
     if (!files.length) return null
-    const fs = createDeps(lib.rootPath).fs
     const results: ImportResult[] = []
     for (const f of files) {
       if (f.error) { results.push({ title: f.name, success: false, error: f.error }); continue }
       const baseName = f.name.replace(/\.(md|markdown|txt)$/i, '')
       let content: string
-      try { content = await fs.readTextFile(`${staging}/${f.name}`) } catch (e) {
+      // Read straight from Documents: the staging folder is outside the library,
+      // and a library-rooted CapacitorFS prefixed the path a second time.
+      try { content = (await Filesystem.readFile({ path: `${staging}/${f.name}`, directory: Directory.Documents, encoding: Encoding.UTF8 })).data as string } catch (e) {
         results.push({ title: baseName, success: false, error: (e as Error)?.message ?? String(e) }); continue
       }
       let done = false

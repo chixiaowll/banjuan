@@ -2,6 +2,15 @@ import type { PlatformFS } from '../platform/index.js'
 import { join } from '../platform/path.js'
 import { mapLimit } from './map-limit.js'
 import { isSafeId } from './safe-path.js'
+import { KeyedLock } from './keyed-lock.js'
+
+/**
+ * One lock per record file, shared by every JsonStore on the same directory
+ * (documents, tags and the recycle bin each keep their own store over
+ * .banjuan/data/documents): two read → change → write passes overlapping on a
+ * file used to let the later write drop the earlier change.
+ */
+const recordLock = new KeyedLock()
 
 // Parallel reads per listAll (bounded: thread pool / Capacitor bridge).
 const READ_CONCURRENCY = 32
@@ -32,17 +41,39 @@ export class JsonStore<T extends { id: string }> {
   }
 
   async write(data: T): Promise<void> {
-    const dir = this.dirFor(data.id)
-    await this.fs.mkdir(dir, { recursive: true })
-    await this.fs.writeTextFile(this.pathFor(data.id), JSON.stringify(data, null, 2))
+    const p = this.pathFor(data.id)
+    await recordLock.run(p, () => this.writeUnlocked(data))
+  }
+
+  /**
+   * Read → change → write the record under its file lock. `change` edits the
+   * record in place; returning false skips the write. Resolves to the record
+   * as written (or as read, when skipped), or null when there is none.
+   */
+  async update(id: string, change: (data: T) => void | false): Promise<T | null> {
+    if (!isSafeId(id)) return null
+    return recordLock.run(this.pathFor(id), async () => {
+      const data = await this.read(id)
+      if (!data) return null
+      if (change(data) === false) return data
+      await this.writeUnlocked(data)
+      return data
+    })
   }
 
   async delete(id: string): Promise<boolean> {
     if (!isSafeId(id)) return false
     const p = this.pathFor(id)
-    if (!(await this.fs.exists(p))) return false
-    await this.fs.remove(p)
-    return true
+    return recordLock.run(p, async () => {
+      if (!(await this.fs.exists(p))) return false
+      await this.fs.remove(p)
+      return true
+    })
+  }
+
+  private async writeUnlocked(data: T): Promise<void> {
+    await this.fs.mkdir(this.dirFor(data.id), { recursive: true })
+    await this.fs.writeTextFile(this.pathFor(data.id), JSON.stringify(data, null, 2))
   }
 
   async listAll(): Promise<T[]> {

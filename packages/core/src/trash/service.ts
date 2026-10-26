@@ -4,7 +4,8 @@ import type { DocumentFileData } from '../types.js'
 import type { IndexService } from '../indexing/service.js'
 import type { AnnotationService } from '../annotations/service.js'
 import { JsonStore } from '../storage/json-store.js'
-import { hasPlainPath } from '../storage/safe-path.js'
+import { hasPlainPath, isSafeId } from '../storage/safe-path.js'
+import { v4 as uuid } from 'uuid'
 
 /**
  * Recycle bin. Deleting a document, note or folder moves its files into
@@ -36,6 +37,8 @@ export interface TrashEntry {
 interface StoredEntry extends TrashEntry {
   /** The deleted file's name inside the entry directory. */
   fileName?: string
+  /** A note's attachment folder went into the entry with it (as `attachments/`). */
+  attachments?: boolean
   /** Fallback document fields when its metadata JSON was missing. */
   docRow?: { title: string; type: string; path: string }
   /** Links that pointed at the item; restored when their source still exists. */
@@ -44,6 +47,9 @@ interface StoredEntry extends TrashEntry {
 }
 
 export const TRASH_RETENTION_DAYS = 30
+
+/** The item id as it appears in an entry's directory name. */
+const entryIdPart = (itemId: string) => itemId.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 60)
 const ENTRY_FILE = 'entry.json'
 
 export class TrashService {
@@ -90,9 +96,14 @@ export class TrashService {
   ): Promise<void> {
     const entryDir = await this.newEntryDir('note', note.id)
     await this.fs.rename(join(this.notesDir, note.path), join(entryDir, 'note.json'))
+    // Its pasted images and files go with it — they used to be erased on
+    // delete, so a restored note came back with broken images.
+    const attachments = this.attachmentsDir(note.id)
+    const withAttachments = !!attachments && (await this.fs.exists(attachments))
+    if (withAttachments) await this.fs.rename(attachments!, join(entryDir, 'attachments'))
     await this.writeEntry(entryDir, {
       kind: 'note', itemId: note.id, title: note.title, originalPath: note.path, itemType: note.type,
-      fileName: 'note.json', incomingNoteLinks,
+      fileName: 'note.json', incomingNoteLinks, attachments: withAttachments || undefined,
     })
   }
 
@@ -156,18 +167,26 @@ export class TrashService {
             hash: '', tags: [], metadata: {}, createdAt: now, updatedAt: now,
           }
       record.path = target
+      // Its id was given to another document meanwhile (libraries from before
+      // ids were checked against the bin, or one synced in): restore under a
+      // new id rather than replace that document's row and metadata.
+      if (await this.docIdTaken(record.id, target)) record.id = uuid().replace(/-/g, '')
       await this.docStore.write(record)
       this.createIndex().indexDocumentRecord(record)
       for (const l of entry.incomingDocLinks ?? []) {
         if (this.db.queryOne('SELECT 1 FROM notes WHERE id = ?', [l.sourceId])) {
-          this.db.run('INSERT OR IGNORE INTO doc_links (source_id, target_id, context) VALUES (?, ?, ?)', [l.sourceId, entry.itemId, l.context])
+          this.db.run('INSERT OR IGNORE INTO doc_links (source_id, target_id, context) VALUES (?, ?, ?)', [l.sourceId, record.id, l.context])
         }
       }
-      result = { kind: 'document', id: entry.itemId }
+      result = { kind: 'document', id: record.id }
     } else if (entry.kind === 'note') {
       const target = join(this.notesDir, entry.originalPath)
       await this.fs.mkdir(dirname(target), { recursive: true })
       await this.fs.rename(join(entryDir, 'note.json'), target)
+      const attachments = this.attachmentsDir(entry.itemId)
+      if (entry.attachments && attachments && (await this.fs.exists(join(entryDir, 'attachments')))) {
+        await this.mergeInto(join(entryDir, 'attachments'), attachments)
+      }
       await this.createIndex().indexNoteFile(entry.originalPath)
       for (const l of entry.incomingNoteLinks ?? []) {
         if (this.db.queryOne('SELECT 1 FROM notes WHERE id = ?', [l.sourceId])) {
@@ -183,6 +202,24 @@ export class TrashService {
 
     await this.fs.rmdir(entryDir, { recursive: true })
     return result
+  }
+
+  /** Whether a document with this id is in the bin — its id must not be given to a new document meanwhile. */
+  async holdsDocument(id: string): Promise<boolean> {
+    if (!(await this.fs.exists(this.dir))) return false
+    const marker = `-document-${entryIdPart(id)}-`
+    return (await this.fs.readdir(this.dir)).some(n => n.includes(marker))
+  }
+
+  private attachmentsDir(noteId: string): string | null {
+    return isSafeId(noteId) ? join(this.rootPath, '.banjuan', 'attachments', noteId) : null
+  }
+
+  private async docIdTaken(id: string, path: string): Promise<boolean> {
+    const row = this.db.queryOne<{ path: string }>('SELECT path FROM documents WHERE id = ?', [id])
+    if (row) return row.path !== path
+    const meta = await this.docStore.read(id).catch(() => null)
+    return !!meta && meta.path !== path
   }
 
   // ---- deleting for good ----------------------------------------------------
@@ -215,8 +252,7 @@ export class TrashService {
   // ---- helpers --------------------------------------------------------------
 
   private async newEntryDir(kind: TrashKind, itemId: string): Promise<string> {
-    const safe = itemId.replace(/[^A-Za-z0-9_-]+/g, '_').slice(0, 60)
-    const name = `${Date.now()}-${kind}-${safe}-${Math.random().toString(36).slice(2, 6)}`
+    const name = `${Date.now()}-${kind}-${entryIdPart(itemId)}-${Math.random().toString(36).slice(2, 6)}`
     const dir = join(this.dir, name)
     await this.fs.mkdir(dir, { recursive: true })
     return dir

@@ -6,6 +6,7 @@ import type { EventBus } from '../events/bus.js'
 import { JsonStore } from '../storage/json-store.js'
 import { hasPlainPath } from '../storage/safe-path.js'
 import { mutateNoteFile } from '../notes/note-file.js'
+import { tagCatalogLock } from '../storage/keyed-lock.js'
 import type { TagEntry, TagTombstone } from '../sync/tag-merge.js'
 
 
@@ -73,10 +74,12 @@ export class TagService {
     const id = uuid()
     const color = input.color ?? autoColor(input.name)
 
-    const tags = await this.readTagsFile()
-    tags.push({ id, name: input.name, color, updatedAt: Date.now() })
-    await this.writeTagsFile(tags)
-    await this.clearTombstone(input.name)
+    await this.changeCatalog(async () => {
+      const tags = await this.readTagsFile()
+      tags.push({ id, name: input.name, color, updatedAt: Date.now() })
+      await this.writeTagsFile(tags)
+      await this.clearTombstone(input.name)
+    })
 
     this.db.run('INSERT INTO tags (id, name, color) VALUES (?, ?, ?)', [id, input.name, color])
 
@@ -89,12 +92,10 @@ export class TagService {
 
   async assign(targetId: string, targetType: TagTarget, tagNames: string[]): Promise<void> {
     if (targetType === 'document') {
-      const data = await this.docStore.read(targetId)
-      if (data) {
-        data.tags = [...new Set([...data.tags, ...tagNames])]
+      await this.docStore.update(targetId, (data) => {
+        data.tags = [...new Set([...(data.tags ?? []), ...tagNames])]
         data.updatedAt = new Date().toISOString()
-        await this.docStore.write(data)
-      }
+      })
     } else if (targetType === 'note' || targetType === 'mindmap') {
       const queryCondition = targetType === 'mindmap'
         ? 'SELECT id FROM notes WHERE id = ? AND type = ?'
@@ -129,12 +130,10 @@ export class TagService {
 
   async unassign(targetId: string, targetType: TagTarget, tagName: string): Promise<void> {
     if (targetType === 'document') {
-      const data = await this.docStore.read(targetId)
-      if (data) {
-        data.tags = data.tags.filter(t => t !== tagName)
+      await this.docStore.update(targetId, (data) => {
+        data.tags = (data.tags ?? []).filter(t => t !== tagName)
         data.updatedAt = new Date().toISOString()
-        await this.docStore.write(data)
-      }
+      })
     } else if (targetType === 'note' || targetType === 'mindmap') {
       const queryCondition = targetType === 'mindmap'
         ? 'SELECT id FROM notes WHERE id = ? AND type = ?'
@@ -193,6 +192,7 @@ export class TagService {
   async delete(tagId: string): Promise<void> {
     const tag = this.db.queryOne<Tag>('SELECT * FROM tags WHERE id = ?', [tagId])
     if (!tag) return
+    const { docIds, noteIds } = this.taggedWith(tagId)
 
     // Remove from all junction tables
     this.db.transaction(() => {
@@ -203,24 +203,21 @@ export class TagService {
     })
 
     // Remove from tags.json and record a tombstone so the deletion syncs.
-    const tags = await this.readTagsFile()
-    await this.writeTagsFile(tags.filter(t => t.id !== tagId))
-    await this.addTombstone(tag.name)
+    await this.changeCatalog(async () => {
+      const tags = await this.readTagsFile()
+      await this.writeTagsFile(tags.filter(t => t.id !== tagId))
+      await this.addTombstone(tag.name)
+    })
 
-    // Remove from document files
-    const docRows = this.db.query<{ id: string }>('SELECT id FROM documents')
-    for (const { id } of docRows) {
-      const data = await this.docStore.read(id)
-      if (data && data.tags.includes(tag.name)) {
+    // Remove from the files of what carried it
+    for (const id of docIds) {
+      await this.docStore.update(id, (data) => {
+        if (!data.tags?.includes(tag.name)) return false
         data.tags = data.tags.filter(t => t !== tag.name)
         data.updatedAt = new Date().toISOString()
-        await this.docStore.write(data)
-      }
+      }).catch(() => {})
     }
-
-    // Remove from note/mindmap files (JSON)
-    const noteRows = this.db.query<{ id: string }>('SELECT id FROM notes')
-    for (const { id } of noteRows) {
+    for (const id of noteIds) {
       await mutateNoteFile(this.db, this.fs, this.notesDir, id, (fileData) => {
         const noteTags: string[] = fileData.tags ?? []
         if (!noteTags.includes(tag.name)) return false
@@ -235,31 +232,29 @@ export class TagService {
     if (!tag) return
 
     const oldName = tag.name
+    const { docIds, noteIds } = this.taggedWith(tagId)
 
     // Update DB
     this.db.run('UPDATE tags SET name = ? WHERE id = ?', [newName, tagId])
 
     // Update tags.json (bump updatedAt; renaming to a name clears its tombstone)
-    const tags = await this.readTagsFile()
-    const entry = tags.find(t => t.id === tagId)
-    if (entry) { entry.name = newName; entry.updatedAt = Date.now() }
-    await this.writeTagsFile(tags)
-    await this.clearTombstone(newName)
+    await this.changeCatalog(async () => {
+      const tags = await this.readTagsFile()
+      const entry = tags.find(t => t.id === tagId)
+      if (entry) { entry.name = newName; entry.updatedAt = Date.now() }
+      await this.writeTagsFile(tags)
+      await this.clearTombstone(newName)
+    })
 
-    // Update document files
-    const docRows = this.db.query<{ id: string }>('SELECT id FROM documents')
-    for (const { id } of docRows) {
-      const data = await this.docStore.read(id)
-      if (data && data.tags.includes(oldName)) {
+    // Update the files of what carries it
+    for (const id of docIds) {
+      await this.docStore.update(id, (data) => {
+        if (!data.tags?.includes(oldName)) return false
         data.tags = data.tags.map(t => (t === oldName ? newName : t))
         data.updatedAt = new Date().toISOString()
-        await this.docStore.write(data)
-      }
+      }).catch(() => {})
     }
-
-    // Update note/mindmap files (JSON)
-    const noteRows = this.db.query<{ id: string }>('SELECT id FROM notes')
-    for (const { id } of noteRows) {
+    for (const id of noteIds) {
       await mutateNoteFile(this.db, this.fs, this.notesDir, id, (fileData) => {
         const noteTags: string[] = fileData.tags ?? []
         if (!noteTags.includes(oldName)) return false
@@ -274,10 +269,29 @@ export class TagService {
     this.db.run('UPDATE tags SET color = ? WHERE id = ?', [color, tagId])
 
     // Update tags.json (bump updatedAt)
-    const tags = await this.readTagsFile()
-    const entry = tags.find(t => t.id === tagId)
-    if (entry) { entry.color = color; entry.updatedAt = Date.now() }
-    await this.writeTagsFile(tags)
+    await this.changeCatalog(async () => {
+      const tags = await this.readTagsFile()
+      const entry = tags.find(t => t.id === tagId)
+      if (entry) { entry.color = color; entry.updatedAt = Date.now() }
+      await this.writeTagsFile(tags)
+    })
+  }
+
+  /** Read → change → write of tags.json / tags-deleted.json, one at a time (sync's merge takes the same lock). */
+  private changeCatalog(job: () => Promise<void>): Promise<void> {
+    return tagCatalogLock.run(this.tagsFilePath, job)
+  }
+
+  /**
+   * What carries a tag, from the index — a rename or delete then rewrites only
+   * those files instead of reading every document and note in the library.
+   */
+  private taggedWith(tagId: string): { docIds: string[]; noteIds: string[] } {
+    const docIds = this.db.query<{ id: string }>('SELECT doc_id AS id FROM doc_tags WHERE tag_id = ?', [tagId]).map(r => r.id)
+    const noteIds = this.db.query<{ id: string }>(
+      'SELECT note_id AS id FROM note_tags WHERE tag_id = ? UNION SELECT mindmap_id AS id FROM mindmap_tags WHERE tag_id = ?',
+      [tagId, tagId]).map(r => r.id)
+    return { docIds, noteIds }
   }
 
   async syncFromFiles(): Promise<void> {

@@ -38,58 +38,165 @@ export class IndexService {
   }
 
   async rebuildFull(): Promise<void> {
+    // Phase 1 — read every source file, leaving the index as it is: the library
+    // stays usable meanwhile. The rebuild used to clear the tables and then
+    // await these reads, and an edit made in that gap found no row for its
+    // note and was dropped (or went into the rebuild's transaction).
+    // Rows changed while reading are noted by temporary triggers and carried
+    // over in phase 2, so the slower file reads can't overwrite them.
+    this.startChangeLog()
+    let changed: Set<string>
+    let tags: TagFileEntry[], docs: DocumentFileData[], anns: AnnotationFileData[], notes: NoteSource[]
+    try {
+      tags = await this.readTagsFile()
+      docs = await this.docStore.listAll()
+      anns = await this.annStore.listAll()
+      notes = await this.readAllNotes()
+    } finally {
+      changed = this.stopChangeLog()
+    }
+
+    // Phase 2 — swap in one synchronous step: no other code runs between
+    // clearing the tables and the commit. One transaction: a failure rolls back
+    // to the previous index instead of leaving tables half refilled.
     this.db.pragma('foreign_keys = OFF')   // must be set outside a transaction
-    // One transaction for the whole rebuild: a failure part-way rolls back to the
-    // previous index instead of leaving cleared tables half refilled (which still
-    // looked valid, so nothing re-triggered a rebuild). One commit is also far
-    // faster than auto-committing every row. better-sqlite3's own transaction()
-    // nests as a SAVEPOINT if other code writes during an await here.
     this.db.execute('BEGIN')
     let committed = false
     try {
-    // The DB now persists across opens, so a rebuild may run on a populated DB.
-    // Clear the derived tables first, otherwise FTS rows duplicate (append-only
-    // INSERT) and removed links/notes linger (INSERT OR IGNORE never deletes).
-    // Reading history (last_read_at) exists only in the DB — it isn't in the
-    // document JSON — so carry it over instead of wiping "recently read".
-    const lastRead = this.db.query<{ id: string; last_read_at: string }>(
-      'SELECT id, last_read_at FROM documents WHERE last_read_at IS NOT NULL')
-    this.clearDerivedTables()
-    await this.indexTags()
+      // Reading history (last_read_at) exists only in the DB — it isn't in the
+      // document JSON — so carry it over instead of wiping "recently read".
+      const lastRead = this.db.query<{ id: string; last_read_at: string }>(
+        'SELECT id, last_read_at FROM documents WHERE last_read_at IS NOT NULL')
+      const notePaths = new Map(this.db.query<{ id: string; path: string }>('SELECT id, path FROM notes').map(r => [r.id, r.path]))
+      const carried = this.snapshotRows(changed)
+      this.clearDerivedTables()
 
-    for (const doc of await this.docStore.listAll()) {
-      this.indexDocument(doc)
-    }
-    for (const r of lastRead) {
-      this.db.run('UPDATE documents SET last_read_at = ? WHERE id = ?', [r.last_read_at, r.id])
-    }
+      for (const tag of tags) {
+        this.db.run('INSERT OR REPLACE INTO tags (id, name, color) VALUES (?, ?, ?)', [tag.id, tag.name, tag.color])
+      }
+      for (const doc of docs) this.indexDocument(doc)
+      for (const r of lastRead) {
+        this.db.run('UPDATE documents SET last_read_at = ? WHERE id = ?', [r.last_read_at, r.id])
+      }
+      for (const ann of anns) this.indexAnnotation(ann)
 
-    for (const ann of await this.annStore.listAll()) {
-      this.indexAnnotation(ann)
-    }
+      const pendingLinks: PendingNoteLink[] = []
+      const pendingDocLinks: PendingDocLink[] = []
+      for (const note of pickOnePerId(notes, notePaths)) this.insertNote(note, pendingLinks, pendingDocLinks)
+      // Title-only links (markdown-imported) resolve here, after every note row
+      // exists — first note wins on duplicate titles, same as click-to-open.
+      const titleToId = new Map<string, string>()
+      for (const r of this.db.query<{ id: string; title: string }>('SELECT id, title FROM notes')) {
+        if (!titleToId.has(r.title)) titleToId.set(r.title, r.id)
+      }
+      for (const link of pendingLinks) {
+        const targetId = link.targetId || (link.targetTitle ? titleToId.get(link.targetTitle) ?? '' : '')
+        if (!targetId || targetId === link.sourceId) continue
+        this.db.run('INSERT OR IGNORE INTO note_links (source_id, target_id, context) VALUES (?, ?, ?)', [link.sourceId, targetId, link.context])
+      }
+      for (const link of pendingDocLinks) {
+        this.db.run('INSERT OR IGNORE INTO doc_links (source_id, target_id, context) VALUES (?, ?, ?)', [link.sourceId, link.targetId, link.context])
+      }
 
-    const { noteLinks: pendingLinks, docLinks: pendingDocLinks } = await this.indexAllNotes()
-    // Title-only links (markdown-imported) resolve here, after every note row
-    // exists — first note wins on duplicate titles, same as click-to-open.
-    const titleToId = new Map<string, string>()
-    for (const r of this.db.query<{ id: string; title: string }>('SELECT id, title FROM notes')) {
-      if (!titleToId.has(r.title)) titleToId.set(r.title, r.id)
-    }
-    for (const link of pendingLinks) {
-      const targetId = link.targetId || (link.targetTitle ? titleToId.get(link.targetTitle) ?? '' : '')
-      if (!targetId || targetId === link.sourceId) continue
-      this.db.run('INSERT OR IGNORE INTO note_links (source_id, target_id, context) VALUES (?, ?, ?)', [link.sourceId, targetId, link.context])
-    }
-    for (const link of pendingDocLinks) {
-      this.db.run('INSERT OR IGNORE INTO doc_links (source_id, target_id, context) VALUES (?, ?, ?)', [link.sourceId, link.targetId, link.context])
-    }
-
-    this.db.execute('COMMIT')
-    committed = true
-    await this.writeMetaTimestamp()
+      this.restoreRows(changed, carried)
+      this.db.execute('COMMIT')
+      committed = true
     } finally {
       if (!committed) this.db.execute('ROLLBACK')
       this.db.pragma('foreign_keys = ON')
+    }
+    await this.writeMetaTimestamp()
+  }
+
+  // ---- rows changed while a rebuild reads files ------------------------------
+
+  private startChangeLog(): void {
+    this.stopChangeLog()
+    this.db.execute('CREATE TEMP TABLE IF NOT EXISTS rebuild_changed (id TEXT PRIMARY KEY)')
+    this.db.execute('DELETE FROM temp.rebuild_changed')
+    for (const [table, col] of [...ITEM_TABLES, ['tags', null] as const]) {
+      const key = (row: 'NEW' | 'OLD') => (col ? `${row}.${col}` : `'${TAGS_CHANGED}'`)
+      for (const [op, rows] of [['INSERT', ['NEW']], ['UPDATE', ['OLD', 'NEW']], ['DELETE', ['OLD']]] as const) {
+        const body = rows.map(r => `INSERT OR IGNORE INTO rebuild_changed (id) VALUES (${key(r)});`).join(' ')
+        try {
+          this.db.execute(`CREATE TEMP TRIGGER IF NOT EXISTS rebuild_log_${table}_${op.toLowerCase()} AFTER ${op} ON ${table} BEGIN ${body} END`)
+        } catch { /* table absent in this schema */ }
+      }
+    }
+  }
+
+  /** Drops the triggers; returns the ids of items whose rows changed. */
+  private stopChangeLog(): Set<string> {
+    for (const [table] of [...ITEM_TABLES, ['tags', null] as const]) {
+      for (const op of ['insert', 'update', 'delete']) this.db.execute(`DROP TRIGGER IF EXISTS temp.rebuild_log_${table}_${op}`)
+    }
+    try {
+      const ids = new Set(this.db.query<{ id: string }>('SELECT id FROM temp.rebuild_changed').map(r => r.id))
+      this.db.execute('DELETE FROM temp.rebuild_changed')
+      return ids
+    } catch {
+      return new Set()
+    }
+  }
+
+  private snapshotRows(changed: Set<string>): CarriedRows {
+    const carried: CarriedRows = { tables: new Map(), search: [], tags: null }
+    if (changed.size === 0) return carried
+    const ids = [...changed]
+    for (const [table, col] of ITEM_TABLES) {
+      try { carried.tables.set(table, this.rowsWhereIn(`SELECT * FROM ${table} WHERE ${col} IN`, ids)) } catch { /* table absent */ }
+    }
+    if (this.ftsAvailable) {
+      carried.search = this.rowsWhereIn('SELECT title, content, type FROM search_index WHERE type IN', searchKeys(ids)) as CarriedRows['search']
+    }
+    if (changed.has(TAGS_CHANGED)) carried.tags = this.db.query('SELECT * FROM tags')
+    return carried
+  }
+
+  /** Put back the rows of items changed while files were read: they are newer than what was read. */
+  private restoreRows(changed: Set<string>, carried: CarriedRows): void {
+    if (changed.size === 0) return
+    const ids = [...changed]
+    if (carried.tags) {
+      this.db.run('DELETE FROM tags')
+      for (const row of carried.tags) this.insertRow('tags', row)
+    }
+    for (const [table, col] of ITEM_TABLES) {
+      const rows = carried.tables.get(table)
+      if (!rows) continue
+      this.runWhereIn(`DELETE FROM ${table} WHERE ${col} IN`, ids)
+      for (const row of rows) this.insertRow(table, row)
+    }
+    if (this.ftsAvailable) {
+      this.runWhereIn('DELETE FROM search_index WHERE type IN', searchKeys(ids))
+      for (const r of carried.search) {
+        this.db.run(
+          `INSERT INTO search_index (rowid, title, content, type)
+           VALUES ((SELECT COALESCE(MAX(rowid), 0) + 1 FROM search_index), ?, ?, ?)`,
+          [r.title, r.content, r.type],
+        )
+      }
+    }
+  }
+
+  private insertRow(table: string, row: Record<string, unknown>): void {
+    const cols = Object.keys(row)
+    this.db.run(`INSERT OR REPLACE INTO ${table} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`, cols.map(c => row[c]))
+  }
+
+  private rowsWhereIn(sqlPrefix: string, values: string[]): Array<Record<string, unknown>> {
+    const out: Array<Record<string, unknown>> = []
+    for (let i = 0; i < values.length; i += 500) {
+      const chunk = values.slice(i, i + 500)
+      out.push(...this.db.query<Record<string, unknown>>(`${sqlPrefix} (${chunk.map(() => '?').join(',')})`, chunk))
+    }
+    return out
+  }
+
+  private runWhereIn(sqlPrefix: string, values: string[]): void {
+    for (let i = 0; i < values.length; i += 500) {
+      const chunk = values.slice(i, i + 500)
+      this.db.run(`${sqlPrefix} (${chunk.map(() => '?').join(',')})`, chunk)
     }
   }
 
@@ -103,9 +210,11 @@ export class IndexService {
    * tags, mind-map data and the links it makes to notes / documents that exist.
    */
   async indexNoteFile(relPath: string): Promise<void> {
-    const noteLinks: Array<{ sourceId: string; targetId: string; targetTitle?: string; context: string }> = []
-    const docLinks: Array<{ sourceId: string; targetId: string; context: string }> = []
-    await this.indexNoteJsonFile(relPath, noteLinks, docLinks)
+    const note = await this.readNote(relPath)
+    if (!note) return
+    const noteLinks: PendingNoteLink[] = []
+    const docLinks: PendingDocLink[] = []
+    this.insertNote(note, noteLinks, docLinks)
     for (const link of noteLinks) {
       const targetId = link.targetId
         || (link.targetTitle ? this.db.queryOne<{ id: string }>('SELECT id FROM notes WHERE title = ? LIMIT 1', [link.targetTitle])?.id ?? '' : '')
@@ -118,12 +227,9 @@ export class IndexService {
     }
   }
 
-  private async indexTags(): Promise<void> {
-    if (!(await this.fs.exists(this.tagsPath))) return
-    const tags = JSON.parse(await this.fs.readTextFile(this.tagsPath)) as Array<{ id: string; name: string; color: string | null }>
-    for (const tag of tags) {
-      this.db.run('INSERT OR REPLACE INTO tags (id, name, color) VALUES (?, ?, ?)', [tag.id, tag.name, tag.color])
-    }
+  private async readTagsFile(): Promise<TagFileEntry[]> {
+    if (!(await this.fs.exists(this.tagsPath))) return []
+    return JSON.parse(await this.fs.readTextFile(this.tagsPath)) as TagFileEntry[]
   }
 
   private indexDocument(doc: DocumentFileData): void {
@@ -163,41 +269,56 @@ export class IndexService {
     )
   }
 
-  private async indexAllNotes(): Promise<{ noteLinks: Array<{ sourceId: string; targetId: string; targetTitle?: string; context: string }>; docLinks: Array<{ sourceId: string; targetId: string; context: string }> }> {
-    const noteLinks: Array<{ sourceId: string; targetId: string; targetTitle?: string; context: string }> = []
-    const docLinks: Array<{ sourceId: string; targetId: string; context: string }> = []
-    if (!(await this.fs.exists(this.notesDir))) {
-      return { noteLinks, docLinks }
-    }
-    await this.scanNotesDir(this.notesDir, '', noteLinks, docLinks)
-    return { noteLinks, docLinks }
+  private async readAllNotes(): Promise<NoteSource[]> {
+    const out: NoteSource[] = []
+    if (!(await this.fs.exists(this.notesDir))) return out
+    await this.scanNotesDir(this.notesDir, '', out)
+    return out
   }
 
-  private async scanNotesDir(dir: string, prefix: string, pendingLinks: Array<{ sourceId: string; targetId: string; targetTitle?: string; context: string }>, pendingDocLinks: Array<{ sourceId: string; targetId: string; context: string }>): Promise<void> {
+  private async scanNotesDir(dir: string, prefix: string, out: NoteSource[]): Promise<void> {
     const entries = await this.fs.readdirWithTypes(dir)
     for (const entry of entries) {
       if (entry.isDirectory) {
-        await this.scanNotesDir(join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name, pendingLinks, pendingDocLinks)
-      } else {
-        const relPath = prefix ? `${prefix}/${entry.name}` : entry.name
-        if (entry.name.endsWith('.json')) {
-          await this.indexNoteJsonFile(relPath, pendingLinks, pendingDocLinks)
-        } else if (entry.name.endsWith('.md')) {
-          await this.indexNoteMdFile(relPath)
-        }
+        await this.scanNotesDir(join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name, out)
+      } else if (entry.name.endsWith('.json') || entry.name.endsWith('.md')) {
+        const note = await this.readNote(prefix ? `${prefix}/${entry.name}` : entry.name)
+        if (note) out.push(note)
       }
     }
   }
 
-  private async indexNoteJsonFile(relPath: string, pendingLinks: Array<{ sourceId: string; targetId: string; targetTitle?: string; context: string }>, pendingDocLinks: Array<{ sourceId: string; targetId: string; context: string }>): Promise<void> {
+  private async readNote(relPath: string): Promise<NoteSource | null> {
     const filePath = join(this.notesDir, relPath)
-    let raw: { meta: NoteFileData; tags?: string[]; blocks?: unknown[]; nodes?: any[]; edges?: any[]; boundaries?: any[]; summaries?: any[] }
+    if (relPath.endsWith('.md')) {
+      try {
+        const { data, content } = parseFrontmatter<NoteFileData>(await this.fs.readTextFile(filePath))
+        return data.id ? { kind: 'md', relPath, id: data.id, data, content } : null
+      } catch (e) {
+        console.error(`[index] failed to read note ${relPath}:`, (e as Error)?.message)
+        return null
+      }
+    }
+    let raw: NoteJson
     try {
       raw = JSON.parse(await this.fs.readTextFile(filePath))
     } catch (e) {
       console.error(`[index] failed to read/parse note ${relPath}:`, (e as Error)?.message)
-      return
+      return null
     }
+    if (!raw?.meta?.id) {
+      console.warn(`[index] note ${relPath} has no id, skipping`)
+      return null
+    }
+    return { kind: 'json', relPath, id: raw.meta.id, raw }
+  }
+
+  private insertNote(note: NoteSource, pendingLinks: PendingNoteLink[], pendingDocLinks: PendingDocLink[]): void {
+    if (note.kind === 'md') this.insertNoteMd(note.relPath, note.data, note.content)
+    else this.insertNoteJson(note.relPath, note.raw, pendingLinks, pendingDocLinks)
+  }
+
+  private insertNoteJson(relPath: string, raw: NoteJson, pendingLinks: PendingNoteLink[], pendingDocLinks: PendingDocLink[]): void {
     const data = raw.meta
 
     if (!data.id) {
@@ -280,13 +401,7 @@ export class IndexService {
     }
   }
 
-  private async indexNoteMdFile(relPath: string): Promise<void> {
-    const filePath = join(this.notesDir, relPath)
-    const raw = await this.fs.readTextFile(filePath)
-    const { data, content } = parseFrontmatter<NoteFileData>(raw)
-
-    if (!data.id) return
-
+  private insertNoteMd(relPath: string, data: NoteFileData, content: string): void {
     this.db.run(
       `INSERT OR REPLACE INTO notes (id, title, type, path, doc_id, folder_id, content_format, type_meta, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [data.id, data.title ?? relPath, 'markdown', relPath, data.docId ?? null, null, data.contentFormat ?? 'markdown', null, data.createdAt ?? new Date().toISOString(), data.updatedAt ?? new Date().toISOString()],
@@ -367,4 +482,46 @@ export class IndexService {
       return false
     }
   }
+}
+
+type PendingNoteLink = { sourceId: string; targetId: string; targetTitle?: string; context: string }
+type PendingDocLink = { sourceId: string; targetId: string; context: string }
+type TagFileEntry = { id: string; name: string; color: string | null }
+type NoteJson = { meta: NoteFileData; tags?: string[]; blocks?: unknown[]; nodes?: any[]; edges?: any[]; boundaries?: any[]; summaries?: any[] }
+type NoteSource =
+  | { kind: 'json'; relPath: string; id: string; raw: NoteJson }
+  | { kind: 'md'; relPath: string; id: string; data: NoteFileData; content: string }
+type CarriedRows = {
+  tables: Map<string, Array<Record<string, unknown>>>
+  search: Array<{ title: string; content: string; type: string }>
+  tags: Array<Record<string, unknown>> | null
+}
+
+/** Tables holding an item's rows, and the column naming the item (note, document or annotation). */
+const ITEM_TABLES: ReadonlyArray<readonly [string, string]> = [
+  ['notes', 'id'], ['note_tags', 'note_id'], ['mindmap_tags', 'mindmap_id'],
+  ['mindmap_nodes', 'mindmap_id'], ['mindmap_edges', 'mindmap_id'],
+  ['mindmap_boundaries', 'mindmap_id'], ['mindmap_summaries', 'mindmap_id'],
+  ['note_links', 'source_id'], ['doc_links', 'source_id'], ['note_annotations', 'note_id'],
+  ['documents', 'id'], ['doc_tags', 'doc_id'], ['annotations', 'id'],
+]
+/** Marks a change to the tag catalog table in the change log. */
+const TAGS_CHANGED = '*tags*'
+
+const searchKeys = (ids: string[]) => ids.flatMap(id => [`note:${id}`, `document:${id}`])
+
+/**
+ * Two note files with the same id (a copied file, a sync conflict): index one —
+ * the one at the path the index already had, else the first found — instead of
+ * letting whichever was read last take over the row.
+ */
+function pickOnePerId(notes: NoteSource[], knownPaths: Map<string, string>): NoteSource[] {
+  const chosen = new Map<string, NoteSource>()
+  for (const n of notes) {
+    const prev = chosen.get(n.id)
+    if (!prev) { chosen.set(n.id, n); continue }
+    console.warn(`[index] two note files with id ${n.id}: ${prev.relPath} and ${n.relPath}`)
+    if (knownPaths.get(n.id) === n.relPath) chosen.set(n.id, n)
+  }
+  return [...chosen.values()]
 }

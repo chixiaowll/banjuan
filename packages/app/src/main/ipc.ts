@@ -557,10 +557,9 @@ export function registerIpcHandlers() {
     return getLib(event).notes.update(id, updates)
   })
 
+  // Attachments go to the recycle bin with the note (TrashService.putNote).
   ipcMain.handle('notes:delete', async (event, id: string) => {
-    const lib = getLib(event)
-    await lib.attachments.deleteAllForNote(id)
-    return lib.notes.delete(id)
+    return getLib(event).notes.delete(id)
   })
 
   ipcMain.handle('notes:getAnnotations', async (event, noteId: string) => {

@@ -180,15 +180,20 @@ export class NoteService {
   async renameDir(oldPath: string, newPath: string): Promise<void> {
     const oldFull = join(this.notesDir, oldPath)
     const newFull = join(this.notesDir, newPath)
-    if (!(await this.fs.exists(oldFull))) throw new Error('Directory not found')
-    await this.fs.mkdir(dirname(newFull), { recursive: true })
-    await this.fs.rename(oldFull, newFull)
     const prefix = oldPath + '/'
-    const notes = this.db.query<{ id: string; path: string }>(`SELECT id, path FROM notes WHERE path LIKE ? ${LIKE_ESCAPE}`, [escapeLike(prefix) + '%'])
-    const now = new Date().toISOString()
-    for (const note of notes) {
-      this.db.run('UPDATE notes SET path = ?, updated_at = ? WHERE id = ?', [newPath + '/' + note.path.substring(prefix.length), now, note.id])
-    }
+    const inDir = () => this.db.query<{ id: string; path: string }>(`SELECT id, path FROM notes WHERE path LIKE ? ${LIKE_ESCAPE}`, [escapeLike(prefix) + '%'])
+    // Holding every moved note's lock: an edit queued on one of them looked up
+    // the old path and, writing after the rename, recreated the old folder with
+    // a stale copy of the note.
+    await noteFileLock.runAll(inDir().map(n => noteLockKey(this.notesDir, n.id)), async () => {
+      if (!(await this.fs.exists(oldFull))) throw new Error('Directory not found')
+      await this.fs.mkdir(dirname(newFull), { recursive: true })
+      await this.fs.rename(oldFull, newFull)
+      const now = new Date().toISOString()
+      for (const note of inDir()) {
+        this.db.run('UPDATE notes SET path = ?, updated_at = ? WHERE id = ?', [newPath + '/' + note.path.substring(prefix.length), now, note.id])
+      }
+    })
   }
 
   async create(input: NoteCreateInput): Promise<Note> {
@@ -381,26 +386,42 @@ export class NoteService {
 
   async get(id: string): Promise<Note | null> {
     id = this.resolveId(id)
-    const row = this.db.queryOne<Record<string, unknown>>('SELECT * FROM notes WHERE id = ?', [id])
-    if (!row) return null
-    const note = this.rowToNote(row)
-    const filePath = join(this.notesDir, note.path)
-    if (await this.fs.exists(filePath)) {
-      const raw = await this.fs.readTextFile(filePath)
-      if (note.type === 'mindmap') {
-        const parsed = JSON.parse(raw) as MindmapNoteJsonFile
-        note.content = JSON.stringify({ nodes: parsed.nodes ?? [], edges: parsed.edges ?? [] })
-      } else if (note.type === 'handwriting') {
-        const parsed = JSON.parse(raw) as HandwritingNoteJsonFile
-        note.content = JSON.stringify({ pages: parsed.pages ?? [], currentPageIndex: parsed.currentPageIndex ?? 0 })
-      } else if (note.contentFormat === 'json') {
-        const parsed = JSON.parse(raw) as NoteJsonFile
-        note.content = JSON.stringify(parsed.blocks)
-      } else {
-        const { parseFrontmatter } = await import('../storage/frontmatter.js')
-        const { content } = parseFrontmatter(raw)
-        note.content = content
+    // The file can move (the note or its folder moved) while it is being read.
+    // Then wait for that move — it holds the note's lock — and follow the row
+    // to the new path, rather than fail with ENOENT. (Not for use inside that lock.)
+    for (let attempt = 0; ; attempt++) {
+      const row = this.db.queryOne<Record<string, unknown>>('SELECT * FROM notes WHERE id = ?', [id])
+      if (!row) return null
+      const note = this.rowToNote(row)
+      let raw: string
+      try {
+        raw = await this.fs.readTextFile(join(this.notesDir, note.path))
+      } catch (e) {
+        if (attempt === 0) {
+          await noteFileLock.run(noteLockKey(this.notesDir, id), async () => {})
+          continue
+        }
+        if (!(await this.fs.exists(join(this.notesDir, note.path)))) return note   // no file: the row alone
+        throw e
       }
+      return this.withContent(note, raw)
+    }
+  }
+
+  private async withContent(note: Note, raw: string): Promise<Note> {
+    if (note.type === 'mindmap') {
+      const parsed = JSON.parse(raw) as MindmapNoteJsonFile
+      note.content = JSON.stringify({ nodes: parsed.nodes ?? [], edges: parsed.edges ?? [] })
+    } else if (note.type === 'handwriting') {
+      const parsed = JSON.parse(raw) as HandwritingNoteJsonFile
+      note.content = JSON.stringify({ pages: parsed.pages ?? [], currentPageIndex: parsed.currentPageIndex ?? 0 })
+    } else if (note.contentFormat === 'json') {
+      const parsed = JSON.parse(raw) as NoteJsonFile
+      note.content = JSON.stringify(parsed.blocks)
+    } else {
+      const { parseFrontmatter } = await import('../storage/frontmatter.js')
+      const { content } = parseFrontmatter(raw)
+      note.content = content
     }
     return note
   }
@@ -422,7 +443,8 @@ export class NoteService {
     // rewrite this file too), with the row — and so the path — read inside it.
     await noteFileLock.run(noteLockKey(this.notesDir, id), async () => {
       const row = this.db.queryOne<Record<string, unknown>>('SELECT * FROM notes WHERE id = ?', [id])
-      if (!row || (row.content_format as string) !== 'json') return
+      if (!row) throw new Error('Note not found')   // deleted while this save waited
+      if ((row.content_format as string) !== 'json') return
       const filePath = join(this.notesDir, row.path as string)
       if (!(await this.fs.exists(filePath))) return
       if ((row.type as string) === 'mindmap') {
@@ -518,6 +540,12 @@ export class NoteService {
 
   async delete(id: string): Promise<void> {
     id = this.resolveId(id)
+    // Under the note's lock: an edit already reading the file would otherwise
+    // write it back after it went to the bin, and the note came back.
+    await noteFileLock.run(noteLockKey(this.notesDir, id), () => this.deleteLocked(id))
+  }
+
+  private async deleteLocked(id: string): Promise<void> {
     const row = this.db.queryOne<{ path: string; type: string; title: string }>('SELECT path, type, title FROM notes WHERE id = ?', [id])
     if (!row) return
     const incoming = this.db.query<{ source_id: string; context: string }>(
@@ -551,6 +579,7 @@ export class NoteService {
         }
       } else {
         await this.fs.remove(filePath)
+        await new AttachmentService(this.rootPath, this.fs).deleteAllForNote(id)
       }
     }
     this.events.emit('note:deleted', { id })

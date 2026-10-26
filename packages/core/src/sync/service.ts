@@ -8,7 +8,7 @@ import { mergeTagState, type TagState, type TagEntry, type TagTombstone } from '
 import { reconcileFile } from './reconcile.js'
 import { conflictCopyPath, rewriteNoteConflict } from './conflict.js'
 import { v4 as uuid } from 'uuid'
-import { KeyedLock } from '../storage/keyed-lock.js'
+import { KeyedLock, tagCatalogLock } from '../storage/keyed-lock.js'
 
 // Files excluded from the generic mtime-based sync by their FULL relative path.
 // - config.json / paired-devices.json / sync.json: per-device identity & settings
@@ -591,18 +591,21 @@ export class SyncService {
   // fresh/empty device never clobbers a peer's tags and deletions propagate.
   /** Returns whether the local tag files' content changed. */
   private async mergeTags(): Promise<boolean> {
-    const local = await this.readLocalTagState()
     const remote = await this.fetchRemoteTagState()
-    const merged = mergeTagState(local, remote)
-
     const tagsAbs = join(this.rootPath, TAGS_REL)
     const tombAbs = join(this.rootPath, TAGS_DELETED_REL)
-    const readOr = (p: string) => this.fs.readTextFile(p).catch(() => '')
-    const before = (await readOr(tagsAbs)) + '\0' + (await readOr(tombAbs))
-    const tagsText = JSON.stringify(merged.tags, null, 2)
-    const tombText = JSON.stringify(merged.tombstones, null, 2)
-    await this.fs.writeTextFile(tagsAbs, tagsText)
-    await this.fs.writeTextFile(tombAbs, tombText)
+    // Read local and write the merge under the catalog lock: a tag created or
+    // renamed while the remote copy downloaded would otherwise be overwritten.
+    const { before, tagsText, tombText } = await tagCatalogLock.run(tagsAbs, async () => {
+      const merged = mergeTagState(await this.readLocalTagState(), remote)
+      const readOr = (p: string) => this.fs.readTextFile(p).catch(() => '')
+      const before = (await readOr(tagsAbs)) + '\0' + (await readOr(tombAbs))
+      const tagsText = JSON.stringify(merged.tags, null, 2)
+      const tombText = JSON.stringify(merged.tombstones, null, 2)
+      await this.fs.writeTextFile(tagsAbs, tagsText)
+      await this.fs.writeTextFile(tombAbs, tombText)
+      return { before, tagsText, tombText }
+    })
 
     await this.ensureRemoteDir(TAGS_REL)
     await this.adapter.upload(tagsAbs, this.toRemotePath(TAGS_REL))
