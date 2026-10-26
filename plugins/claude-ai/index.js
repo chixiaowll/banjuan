@@ -145,15 +145,19 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
   buildMcpConfig() {
     const configDir = join(this.getPluginPath(), '.runtime')
     if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true })
-    const configPath = join(configDir, 'mcp-config.json')
+    // The plugin folder is shared by every library: one config per library, each
+    // pointing the MCP server at its own library.
+    const root = this.library.rootPath
+    let h = 5381
+    for (let i = 0; i < root.length; i++) h = ((h << 5) + h + root.charCodeAt(i)) | 0
+    const configPath = join(configDir, `mcp-config-${(h >>> 0).toString(36)}.json`)
     const mcpServerPath = join(this.getPluginPath(), 'mcp-server.mjs')
     const port = this.getApiPort()
+    const args = [mcpServerPath, `--library=${root}`]
+    if (port) args.push(`--port=${port}`)
     const config = {
       mcpServers: {
-        banjuan: {
-          command: 'node',
-          args: port ? [mcpServerPath, `--port=${port}`] : [mcpServerPath],
-        },
+        banjuan: { command: 'node', args },
       },
     }
     writeFileSync(configPath, JSON.stringify(config, null, 2))
@@ -211,7 +215,7 @@ export default class ClaudeAIPlugin extends BanjuanPlugin {
     const base = this.getApiBase()
     if (!base) return null
     try {
-      const res = await fetch(`${base}/api/documents/${encodeURIComponent(docId)}/text?page=${page}`, { headers: this.getApiHeaders() })
+      const res = await fetch(`${base}/api/documents/${encodeURIComponent(docId)}/text?page=${page}&library=${encodeURIComponent(this.library.rootPath)}`, { headers: this.getApiHeaders() })
       if (!res.ok) return null
       const data = await res.json()
       return data.pages?.[0]?.text || null

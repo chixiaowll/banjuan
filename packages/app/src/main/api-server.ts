@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { mkdirSync, writeFileSync, unlinkSync, existsSync, chmodSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, webContents } from 'electron'
 import { randomUUID, randomBytes } from 'node:crypto'
 import { app } from 'electron'
 import type { Library } from '@banjuan/core'
@@ -42,9 +42,20 @@ export function getActiveLibrary(): string | null {
   return activeLibraryPath
 }
 
-function requestRendererScreenshot(noteId: string): Promise<string | null> {
+/** The window showing `lib` (a note is rendered by its own library's window). */
+function windowOf(lib: Library): BrowserWindow | null {
+  for (const [key, l] of libraries) {
+    if (l !== lib || key < 0) continue
+    const wc = webContents.fromId(key)
+    const win = wc ? BrowserWindow.fromWebContents(wc) : null
+    if (win && !win.isDestroyed()) return win
+  }
+  return null
+}
+
+function requestRendererScreenshot(lib: Library, noteId: string): Promise<string | null> {
   return new Promise((resolve) => {
-    const win = BrowserWindow.getAllWindows()[0]
+    const win = windowOf(lib)
     if (!win) { resolve(null); return }
     const requestId = randomUUID()
     const timeout = setTimeout(() => { ipcMain.removeHandler(`note-render-reply:${requestId}`); resolve(null) }, 10000)
@@ -366,7 +377,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const note = await lib.notes.get(noteRenderMatch[1])
     if (!note) { json(res, 404, { error: 'Note not found' }); return }
     try {
-      const dataUrl = await requestRendererScreenshot(note.id)
+      const dataUrl = await requestRendererScreenshot(lib, note.id)
       if (!dataUrl) { json(res, 500, { error: 'Render failed or timed out' }); return }
       json(res, 200, { dataUrl })
     } catch (e: any) {

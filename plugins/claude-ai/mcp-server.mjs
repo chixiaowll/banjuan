@@ -33,9 +33,18 @@ function authHeaders(extra = {}) {
 const PORT = getApiPort()
 const BASE = PORT ? `http://127.0.0.1:${PORT}` : null
 
+// The library the assistant was started from (--library=<path>). Every call
+// names it: without it the app used whichever library was open first, so with
+// two windows open the assistant read and edited the other library.
+const LIBRARY = (() => {
+  const arg = process.argv.find(a => a.startsWith('--library='))
+  return arg ? arg.slice('--library='.length) : null
+})()
+const inLibrary = (path) => LIBRARY ? `${path}${path.includes('?') ? '&' : '?'}library=${encodeURIComponent(LIBRARY)}` : path
+
 async function apiCall(path) {
   if (!BASE) throw new Error('Banjuan app is not running (no api-port found)')
-  const res = await fetch(`${BASE}${path}`, { headers: authHeaders() })
+  const res = await fetch(`${BASE}${inLibrary(path)}`, { headers: authHeaders() })
   if (!res.ok) {
     const body = await res.text()
     throw new Error(`API ${res.status}: ${body}`)
@@ -45,7 +54,7 @@ async function apiCall(path) {
 
 async function apiPost(path, body) {
   if (!BASE) throw new Error('Banjuan app is not running')
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${BASE}${inLibrary(path)}`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
@@ -59,7 +68,7 @@ async function apiPost(path, body) {
 
 async function apiPut(path, body) {
   if (!BASE) throw new Error('Banjuan app is not running')
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${BASE}${inLibrary(path)}`, {
     method: 'PUT',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
@@ -73,7 +82,7 @@ async function apiPut(path, body) {
 
 async function apiDelete(path) {
   if (!BASE) throw new Error('Banjuan app is not running')
-  const res = await fetch(`${BASE}${path}`, { method: 'DELETE', headers: authHeaders() })
+  const res = await fetch(`${BASE}${inLibrary(path)}`, { method: 'DELETE', headers: authHeaders() })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`API ${res.status}: ${text}`)

@@ -7,7 +7,7 @@ import { webdavTarget } from '@banjuan/core'
 import { Library, MAX_LIBRARY_FILES, type MindmapNodeCreateInput, type MindmapNode, type MindmapSnapshot, type PlatformDeps, type SearchOptions } from '@banjuan/core'
 import { NodeFS, NodeDatabaseFactory, NodeCrypto } from '@banjuan/platform-node'
 import { setLibraryGetter } from './api-server.js'
-import { createWindow } from './windows.js'
+import { createWindow, getLastFocusedLibraryWindow } from './windows.js'
 import { LanHostServer, type HostStatus } from './lan-host-server.js'
 import { getDeviceIdentity } from './device-identity.js'
 import { writeZip } from './zip.js'
@@ -151,16 +151,38 @@ export const libraries = new Map<number, Library>()
 const clipboardFiles = new Set<string>()
 let nextApiKey = -1
 
+/**
+ * Drop the library a window had open — when it opens another one, or closes.
+ * It used to stay open for the rest of the session (database handle, loaded
+ * plugins, a LAN host serving it). Closed unless another key still uses it.
+ */
+async function releaseLibrary(key: number): Promise<void> {
+  const lib = libraries.get(key)
+  if (!lib) return
+  libraries.delete(key)
+  if (lanHost && lanHostOwner === key) {
+    await lanHost.stop().catch(() => {})
+    lanHost = null
+    lanHostOwner = null
+  }
+  if ([...libraries.values()].includes(lib)) return
+  try { await lib.close() } catch (e) { console.warn('[library] closing failed', lib.rootPath, e) }
+}
+
+const releasedOnDestroy = new Set<number>()
+function releaseWhenClosed(sender: Electron.WebContents): void {
+  const id = sender.id
+  if (releasedOnDestroy.has(id)) return
+  releasedOnDestroy.add(id)
+  sender.once('destroyed', () => { releasedOnDestroy.delete(id); void releaseLibrary(id) })
+}
+
 function getLib(event: Electron.IpcMainInvokeEvent): Library {
   const lib = libraries.get(event.sender.id)
   if (!lib) throw new Error('No library open')
   return lib
 }
 
-export function getLibraryRootPath(): string | null {
-  const first = libraries.values().next()
-  return first.done ? null : first.value.rootPath
-}
 
 export async function initLibraryForApi(path: string, name?: string): Promise<Library> {
   const existing = [...libraries.values()].find(l => l.rootPath === path)
@@ -219,8 +241,10 @@ export function registerIpcHandlers() {
     if (await Library.exceedsFileCap(path, deps.fs)) {
       throw new Error(`FILE_CAP_EXCEEDED:${MAX_LIBRARY_FILES}`)
     }
+    await releaseLibrary(event.sender.id)
     const lib = await Library.init(path, deps, name)
     libraries.set(event.sender.id, lib)
+    releaseWhenClosed(event.sender)
     const scanResult = await lib.scanAndImport()
     lib.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
     await lib.plugins.loadAll()
@@ -232,8 +256,10 @@ export function registerIpcHandlers() {
   })
 
   ipcMain.handle('library:open', async (event, path: string) => {
+    await releaseLibrary(event.sender.id)
     const lib = await Library.open(path, deps)
     libraries.set(event.sender.id, lib)
+    releaseWhenClosed(event.sender)
     await Library.migrateNotes(path, deps.fs)
     const syncResult = await lib.syncWithDisk()
     try { await lib.notes.syncDisk() } catch { /* non-critical */ }
@@ -1244,7 +1270,7 @@ export function registerIpcHandlers() {
     const lib = getLib(event)
     const safeTitle = input.title.replace(/[/\\:*?"<>|]/g, '_')
 
-    const rootPath = getLibraryRootPath()
+    const rootPath = lib.rootPath   // this window's library (was: the first one opened)
     let contentHtml = input.html
     if (rootPath) {
       contentHtml = contentHtml.replace(/banjuan-attachment:\/\//g,
@@ -1418,7 +1444,12 @@ img { max-width: 100%; } table { border-collapse: collapse; width: 100%; } th, t
     return image.toDataURL()
   })
 
+  // Local API calls that don't name a library go to the one the user last
+  // worked in, not to whichever was opened first.
   setLibraryGetter(() => {
+    const win = getLastFocusedLibraryWindow()
+    const focused = win && !win.isDestroyed() ? libraries.get(win.webContents.id) : undefined
+    if (focused) return focused
     const first = libraries.values().next()
     return first.done ? null : first.value
   })
