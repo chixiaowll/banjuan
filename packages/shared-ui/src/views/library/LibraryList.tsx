@@ -435,7 +435,8 @@ export default function LibraryList() {
             await loadNoteDirs()
           } else if (selectedSection === 'documents' && api.documents.importFiles) {
             const results = await api.documents.importFiles(paths, selectedDir || undefined)
-            const failed = results.filter((r: any) => !r.success)
+            // Files already in the library are simply left as they are.
+            const failed = results.filter((r: any) => !r.success && r.error !== 'ALREADY_IN_LIBRARY')
             if (failed.length > 0) {
               void alertDialog({ title: t('import.someFailed'), message: failed.map((r: any) => `${r.title}: ${r.error}`).join('\n') })
             }

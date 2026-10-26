@@ -113,7 +113,6 @@ export class IndexService {
   private startChangeLog(): void {
     this.stopChangeLog()
     this.db.execute('CREATE TEMP TABLE IF NOT EXISTS rebuild_changed (id TEXT PRIMARY KEY)')
-    this.db.execute('DELETE FROM temp.rebuild_changed')
     for (const [table, col] of [...ITEM_TABLES, ['tags', null] as const]) {
       const key = (row: 'NEW' | 'OLD') => (col ? `${row}.${col}` : `'${TAGS_CHANGED}'`)
       for (const [op, rows] of [['INSERT', ['NEW']], ['UPDATE', ['OLD', 'NEW']], ['DELETE', ['OLD']]] as const) {
@@ -132,7 +131,7 @@ export class IndexService {
     }
     try {
       const ids = new Set(this.db.query<{ id: string }>('SELECT id FROM temp.rebuild_changed').map(r => r.id))
-      this.db.execute('DELETE FROM temp.rebuild_changed')
+      this.db.execute('DROP TABLE IF EXISTS temp.rebuild_changed')
       return ids
     } catch {
       return new Set()

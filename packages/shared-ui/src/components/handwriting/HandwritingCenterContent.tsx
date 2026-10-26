@@ -10,6 +10,7 @@ import { useNoteChangedElsewhere } from '../../utils/noteChanges.js'
 import { useBanjuanAPI } from '../../api.js'
 import { toast } from '../feedback.js'
 import { useEscapeKey } from '../../utils/useEscapeKey.js'
+import { useIsActiveTab } from '../tabActive.js'
 
 interface Props {
   noteId: string
@@ -37,13 +38,16 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
   const cancelPendingSave = useHandwritingStore(s => s.cancelPendingSave)
   const updateThumbnail = useHandwritingStore(s => s.updateThumbnail)
 
-  // iPad: while a handwriting note is open, disable the WebView's text-selection
+  // iPad: while a handwriting note is on screen, disable the WebView's text-selection
   // gesture recognizers so they can't intercept/swallow pen or finger strokes.
-  // Restore normal selection behavior when leaving the note.
+  // Only while its tab is the active one: a handwriting tab left open in the
+  // background kept text selection off in every other note.
+  const tabActive = useIsActiveTab()
   useEffect(() => {
+    if (!tabActive) return
     api.setDrawingMode?.(true)
     return () => { api.setDrawingMode?.(false) }
-  }, [api])
+  }, [api, tabActive])
 
   useEffect(() => {
     if (saveError) toast.error(t('note.saveFailedDetail', saveError), { key: 'note-save' })

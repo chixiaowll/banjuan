@@ -406,7 +406,8 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
 
   const getNoteEmbedItems = useCallback(async (query: string) => {
     return filterSuggestionItems(
-      allNotes.map(note => ({
+      // Not the note itself: it would embed itself without end.
+      allNotes.filter(note => note.id !== noteId).map(note => ({
         title: note.title,
         aliases: [] as string[],
         group: t('note.notes'),
@@ -424,7 +425,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
       })),
       query,
     )
-  }, [allNotes, editor, t])
+  }, [allNotes, editor, t, noteId])
 
   const getSlashMenuItems = useCallback(async (query: string) => {
     const defaultItems = getDefaultReactSlashMenuItems(editor)
@@ -447,7 +448,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   }, [])
 
   return (
-    <div ref={rootRef} className={readOnly ? 'reading-mode' : ''}>
+    <div ref={rootRef} className={readOnly ? 'reading-mode' : ''} data-host-note-id={noteId || undefined}>
       <BlockNoteView
         editor={editor}
         editable={!readOnly}

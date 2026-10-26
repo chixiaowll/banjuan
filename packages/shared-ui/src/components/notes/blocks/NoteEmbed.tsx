@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, lazy, Suspense } from 'react'
+import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, lazy, Suspense } from 'react'
 import { RefreshCw, X, ChevronLeft } from 'lucide-react'
 import { createReactBlockSpec } from '@blocknote/react'
 import { renderAllStrokes } from '../../handwriting/renderStrokes.js'
@@ -46,6 +46,29 @@ export const NoteEmbed = createReactBlockSpec(
 )()
 
 const noop = () => {}
+
+/** Embeds inside embeds are shown down to this depth. */
+const MAX_EMBED_DEPTH = 3
+
+/**
+ * The notes this embed sits inside: the embeds around it and the note being
+ * edited (BlockEditor marks its root with data-host-note-id). An embedded note
+ * that embeds one of them would render itself forever.
+ */
+function enclosingNotes(el: HTMLElement | null): { ids: Set<string>; depth: number } {
+  const ids = new Set<string>()
+  let depth = 0
+  const selector = '[data-embed-note-id], [data-host-note-id]'
+  for (let p = el?.parentElement?.closest<HTMLElement>(selector); p; p = p.parentElement?.closest<HTMLElement>(selector)) {
+    if (p.dataset.embedNoteId !== undefined) {
+      depth++
+      if (p.dataset.embedNoteId) ids.add(p.dataset.embedNoteId)
+    } else if (p.dataset.hostNoteId) {
+      ids.add(p.dataset.hostNoteId)
+    }
+  }
+  return { ids, depth }
+}
 
 interface NoteItem {
   id: string
@@ -124,9 +147,17 @@ function NoteEmbedContent({
   const searchRef = useRef<HTMLInputElement>(null)
   const [pagePicker, setPagePicker] = useState<PagePickerState | null>(null)
   useEscapeKey(showPicker || !!pagePicker, () => { setShowPicker(false); setPagePicker(null) })
+  const rootRef = useRef<HTMLDivElement>(null)
+  // null until checked; then whether this embed may expand.
+  const [blocked, setBlocked] = useState<null | false | 'cycle' | 'depth'>(null)
+
+  useLayoutEffect(() => {
+    const { ids, depth } = enclosingNotes(rootRef.current)
+    setBlocked(noteId && ids.has(noteId) ? 'cycle' : depth >= MAX_EMBED_DEPTH ? 'depth' : false)
+  }, [noteId])
 
   useEffect(() => {
-    if (!noteId) return
+    if (!noteId || blocked !== false) return
     api.notes.get(noteId).then((note: any) => {
       if (!note) return
       setNoteType(note.type ?? 'markdown')
@@ -152,11 +183,12 @@ function NoteEmbedContent({
         setContent(note.content ?? '')
       }
     })
-  }, [noteId])
+  }, [noteId, blocked])
 
   const openPicker = useCallback(async () => {
     const notes = await api.notes.list({})
-    setPickerNotes(notes.map((n: any) => ({ id: n.id, title: n.title, type: n.type })))
+    const { ids: around } = enclosingNotes(rootRef.current)   // embedding one of these would loop
+    setPickerNotes(notes.filter((n: any) => !around.has(n.id)).map((n: any) => ({ id: n.id, title: n.title, type: n.type })))
     setPickerQuery('')
     setPagePicker(null)
     setShowPicker(true)
@@ -218,7 +250,7 @@ function NoteEmbedContent({
   const noteIcon = (type: string) => type === 'mindmap' ? '🧠' : type === 'handwriting' ? '✏️' : '📝'
 
   return (
-    <div className="note-embed-clean" data-embed-note-id={noteId} contentEditable={false}>
+    <div ref={rootRef} className="note-embed-clean" data-embed-note-id={noteId} contentEditable={false}>
       <div className="note-embed-clean-header">
         <span className="note-embed-clean-icon">{icon}</span>
         <span className="note-embed-clean-title">{title}</span>
@@ -362,7 +394,9 @@ function NoteEmbedContent({
       )}
 
       <div className="note-embed-clean-body">
-        {noteType === 'mindmap' ? (
+        {blocked ? (
+          <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t(blocked === 'cycle' ? 'embed.cycle' : 'embed.tooDeep')}</span>
+        ) : noteType === 'mindmap' ? (
           <Suspense fallback={<span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('embed.loadingMindmap')}</span>}>
             <MindmapEmbedPreview noteId={noteId} noteTitle={noteTitle} />
           </Suspense>

@@ -9,6 +9,16 @@ import { toast, errorMessage } from '../feedback.js'
 import { announceNoteChanged, useNoteChangedElsewhere } from '../../utils/noteChanges.js'
 import { useT } from '../../i18n/index.js'
 
+
+/** This map's measured node sizes, as one comparable string. */
+export function sizeKeyOf(nodes: Array<{ id: string }>): string {
+  const sizes = useNodeSizeStore.getState().sizes
+  return nodes.map(n => {
+    const s = sizes.get(n.id)
+    return s ? `${n.id}:${s.width}x${s.height}` : n.id
+  }).join('|')
+}
+
 export interface MindmapNodeData {
   [key: string]: unknown
   id: string
@@ -44,6 +54,8 @@ export interface MindmapState {
   /** The title was edited in this canvas and not saved yet — only then does persist() send it. */
   titleDirty: boolean
   theme: string
+  /** sizeKeyOf(rfNodes) as last loaded or saved: node sizes are saved only when this map's change. */
+  savedSizeKey: string
 
   rfNodes: Node<MindmapNodeData>[]
   rfEdges: Edge[]
@@ -307,6 +319,7 @@ export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLab
       const s = sizes.get(n.id)
       if (s) nodeSizes[n.id] = { w: s.width, h: s.height }
     }
+    store.setState({ savedSizeKey: sizeKeyOf(rfNodes) })
     // The title only when it was edited here: sending the loaded one back on
     // every layout/size save undid a rename made elsewhere.
     const updates: { title?: string; typeMeta: Record<string, unknown> } = { typeMeta: { layout, theme, nodeSizes, ...(layoutChosen ? { layoutChosen } : {}) } }
@@ -327,6 +340,7 @@ export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLab
     layoutChosen: false,
     titleDirty: false,
     theme: 'classic',
+    savedSizeKey: '',
 
     rfNodes: [],
     rfEdges: [],
@@ -395,6 +409,7 @@ export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLab
         layoutChosen,
         titleDirty: false,
         theme: mmTheme,
+        savedSizeKey: sizeKeyOf(layoutResult.nodes),
         rfNodes: layoutResult.nodes,
         rfEdges: layoutResult.edges,
         selectedNodeIds: [],

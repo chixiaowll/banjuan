@@ -14,6 +14,7 @@ import { writeZip } from './zip.js'
 import { DiscoveryService } from './discovery-service.js'
 import { docTextStatus } from './doc-text-indexer.js'
 import { getCover } from './covers.js'
+import { importDocumentFiles } from './document-import.js'
 import { libraryPath, rememberPickedDir, exportDir, openPathSafely, rememberUserChosenPath, assertUserChosen, uniquePath } from './path-guard.js'
 
 // Global plugins live here (shared by every library), à la Claude Code's
@@ -643,68 +644,6 @@ export function registerIpcHandlers() {
         results.push({ title: basename(filePath), success: false, error: err?.message })
       }
     }
-    return results
-  }
-
-  const importDocumentFiles = async (lib: Library, filePaths: string[], destDir: string | null) => {
-    const results: Array<{ title: string; success: boolean; error?: string }> = []
-    const targetDir = destDir ? libraryPath(lib.rootPath, destDir) : lib.rootPath
-    mkdirSync(targetDir, { recursive: true })
-
-    // Files are copied as the tree is walked, then imported in one batch below.
-    const pending: Array<{ title: string; destPath: string }> = []
-    const importFile = async (srcPath: string, dir: string) => {
-      const fileName = basename(srcPath)
-      let destName = fileName
-      const ext = fileName.includes('.') ? '.' + fileName.split('.').pop() : ''
-      const stem = ext ? fileName.slice(0, -ext.length) : fileName
-      let destPath = join(dir, destName)
-      let counter = 2
-      while (existsSync(destPath)) {
-        destName = `${stem} (${counter})${ext}`
-        destPath = join(dir, destName)
-        counter++
-      }
-      try {
-        if (srcPath !== destPath) copyFileSync(srcPath, destPath)
-        pending.push({ title: destName, destPath })
-      } catch (err: any) {
-        results.push({ title: destName, success: false, error: err?.message })
-      }
-    }
-
-    const importDir = async (dirPath: string, parentDir: string) => {
-      const dirName = basename(dirPath)
-      const subDir = join(parentDir, dirName)
-      mkdirSync(subDir, { recursive: true })
-      const entries = readdirSync(dirPath, { withFileTypes: true })
-      for (const entry of entries) {
-        const fullPath = join(dirPath, entry.name)
-        if (entry.isDirectory() && !entry.name.startsWith('.')) {
-          await importDir(fullPath, subDir)
-        } else if (entry.isFile() && !entry.name.startsWith('.')) {
-          await importFile(fullPath, subDir)
-        }
-      }
-    }
-
-    for (const filePath of filePaths) {
-      try {
-        const stat = statSync(filePath)
-        if (stat.isDirectory()) {
-          await importDir(filePath, targetDir)
-        } else {
-          await importFile(filePath, targetDir)
-        }
-      } catch (err: any) {
-        results.push({ title: basename(filePath), success: false, error: err?.message })
-      }
-    }
-    // One batch import (per-file import() re-read every document JSON: O(N²)).
-    const imported = await lib.documents.importMany(pending.map(p => p.destPath))
-    imported.forEach((r, i) => results.push(r.doc
-      ? { title: pending[i].title, success: true }
-      : { title: pending[i].title, success: false, error: r.error }))
     return results
   }
 

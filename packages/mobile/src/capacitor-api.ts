@@ -22,6 +22,10 @@ const NativeVideo = registerPlugin<{
 const DrawingMode = registerPlugin<{
   setEnabled(options: { enabled: boolean }): Promise<void>
 }>('DrawingMode')
+// Every visible handwriting editor (a tab, a PDF's side panel) asks for it:
+// it stays on while any of them is shown, and the native calls stay in order.
+let drawingModeUsers = 0
+let drawingModeCalls: Promise<unknown> = Promise.resolve()
 
 // Files in and out of the library (see FilePreviewPlugin.swift): Quick Look,
 // the share sheet, and the system document picker.
@@ -823,7 +827,14 @@ export function createCapacitorAPI(): BanjuanAPI {
     },
 
     async setDrawingMode(enabled: boolean) {
-      try { await DrawingMode.setEnabled({ enabled }) } catch { /* native plugin unavailable */ }
+      const wasOn = drawingModeUsers > 0
+      drawingModeUsers = Math.max(0, drawingModeUsers + (enabled ? 1 : -1))
+      const on = drawingModeUsers > 0
+      if (on === wasOn) return
+      drawingModeCalls = drawingModeCalls
+        .then(() => DrawingMode.setEnabled({ enabled: on }))
+        .catch(() => { /* native plugin unavailable */ })
+      await drawingModeCalls
     },
   }
 }

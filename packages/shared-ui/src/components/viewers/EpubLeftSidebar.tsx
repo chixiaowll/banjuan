@@ -39,7 +39,8 @@ export default function EpubLeftSidebar({
     } else if ((ann?.position?.type === 'ink' && ann?.position?.bounds) || (ann?.position?.type === 'area' && ann?.position?.rect)) {
       const y = ann.position.type === 'ink' ? ann.position.bounds.y : ann.position.rect.y
       const scroll = () => {
-        const sc = document.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
+        // This book's scroll container (epub.js keeps it on the rendition's manager).
+        const sc = (ctx.rendition as any)?.manager?.container as HTMLElement | undefined
         if (sc) sc.scrollTo({ top: Math.max(0, y - sc.clientHeight / 3), behavior: 'smooth' })
       }
       // Marks belong to a chapter: open it first when it isn't the one on screen.

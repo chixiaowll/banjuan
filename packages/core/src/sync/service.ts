@@ -202,6 +202,16 @@ export class SyncService {
           hadArchive: !!arc, remoteReliable, localReliable,
         })
 
+        // The plan was made from the scan at the start. A file written locally
+        // since (an editor save during a long sync) must not be overwritten or
+        // binned on that old view: leave it for the next sync.
+        if ((action === 'download' || action === 'conflict' || action === 'deleteLocal')
+          && !(await this.unchangedSinceScan(local, path))) {
+          console.log(`[sync] "${path}" changed locally during sync — left for the next sync`)
+          if (arc) nextArchive[path] = arc
+          continue
+        }
+
         switch (action) {
           case 'skip':
             if (arc) nextArchive[path] = arc
@@ -328,6 +338,13 @@ export class SyncService {
 
     this.events?.emit('sync:completed', { result })
     return result
+  }
+
+  /** Whether the local file is still as the scan found it (or still absent, if it was). */
+  private async unchangedSinceScan(local: { absolutePath: string; size: number; mtime: number } | undefined, path: string): Promise<boolean> {
+    const now = await this.fs.stat(local?.absolutePath ?? join(this.rootPath, path)).catch(() => null)
+    if (!local) return now === null
+    return !!now && now.size === local.size && now.mtime === local.mtime
   }
 
   private async collectLocalFiles(): Promise<Array<{ relativePath: string; absolutePath: string; mtime: number; size: number }>> {

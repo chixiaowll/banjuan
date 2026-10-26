@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, utimesSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { Library } from '../../src/library.js'
 import { createTempDir, cleanupTempDir, createTestFile, testDeps } from '../helpers.js'
@@ -237,6 +237,42 @@ describe('SyncService', () => {
       expect(archive.files).toBeTypeOf('object')
       expect(archive.files).not.toBeNull()
       expect(Array.isArray(archive.files)).toBe(false)
+    })
+  })
+
+  // The plan is made from the scan at the start; a file saved locally while the
+  // sync runs must not then be overwritten or binned on that stale view.
+  describe('local writes during a sync', () => {
+    const editDuring = (rel: string, content: string) => (p: { phase: string; currentFile?: string }) => {
+      if (p.phase === 'syncing' && p.currentFile === rel) {
+        writeFileSync(join(libPath, rel), content)
+        const t = new Date(Date.now() + 5000)
+        utimesSync(join(libPath, rel), t, t)
+      }
+    }
+
+    it('a remote change does not overwrite a local save made meanwhile', async () => {
+      createTestFile(libPath, 'doc.txt', 'v1')
+      await syncService.sync()
+      adapter.seed('/doc.txt', 'remote v2', Date.now() + 60_000)
+
+      const result = await syncService.sync(editDuring('doc.txt', 'local edit') as any)
+      expect(readFileSync(join(libPath, 'doc.txt'), 'utf-8')).toBe('local edit')
+      expect(result.downloaded).toBe(0)
+
+      // the next sync sees both sides changed: the local edit is kept as a conflict copy
+      const next = await syncService.sync()
+      expect(next.conflicts).toBe(1)
+    })
+
+    it('a remote deletion does not bin a file edited meanwhile', async () => {
+      createTestFile(libPath, 'gone.txt', 'v1')
+      await syncService.sync()
+      await adapter.delete('/gone.txt')
+
+      const result = await syncService.sync(editDuring('gone.txt', 'still wanted') as any)
+      expect(result.deletedLocal).toBe(0)
+      expect(readFileSync(join(libPath, 'gone.txt'), 'utf-8')).toBe('still wanted')
     })
   })
 })

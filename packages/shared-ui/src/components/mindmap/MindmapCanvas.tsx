@@ -7,7 +7,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { nodeTypes } from './nodes/index.js'
 import { edgeTypes } from './edges/index.js'
-import { useMindmapStore, useMindmapStoreApi, useFollowMindmapChanges } from './useMindmapStore.js'
+import { useMindmapStore, useMindmapStoreApi, useFollowMindmapChanges, sizeKeyOf } from './useMindmapStore.js'
 import { useLayoutEngine } from './useLayoutEngine.js'
 import { getTheme } from './themes.js'
 import ViewportOverlay from './overlays/ViewportOverlay.js'
@@ -61,8 +61,12 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
       hasInitialLayoutRef.current = true
       setTimeout(() => fitView({ duration: 300, padding: 0.2, maxZoom: 1 }), 50)
     }
-    if (sizeVersion > 0) {
-      storeApi.getState().persist()
+    // Save measured sizes only when this map's changed, and never from a
+    // read-only view: the size version is shared by every open map, and an
+    // embedded preview used to write its stale layout/theme back.
+    const s = storeApi.getState()
+    if (!readonly && sizeVersion > 0 && sizeKeyOf(merged) !== s.savedSizeKey) {
+      s.persist()
     }
   }, [structuralFingerprint, layout, sizeVersion])
 

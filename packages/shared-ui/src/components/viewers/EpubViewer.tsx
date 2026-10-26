@@ -73,7 +73,9 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
 
       const raf = requestAnimationFrame(() => {
         if (cancelled) return
-        const container = document.querySelector('[data-epub-container]') as HTMLElement | null
+        // This viewer's own container — with two books open, a document-wide
+        // lookup found the other tab's and rendered this book into it.
+        const container = rootRef.current?.querySelector('[data-epub-container]') as HTMLElement | null
         if (!container) return
 
         container.innerHTML = ''
@@ -219,7 +221,7 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
     if (!ctx.rendition) return
     await ctx.rendition.display(cfi)
     requestAnimationFrame(() => {
-      const sc = document.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
+      const sc = rootRef.current?.querySelector('[data-epub-container] .epub-container') as HTMLElement | null
       if (sc && sc.scrollTop > 80) {
         sc.scrollBy({ top: -80, behavior: 'smooth' })
       }

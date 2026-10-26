@@ -4,6 +4,9 @@ import type { Database as SqlJsDatabase } from 'sql.js'
 import type { PlatformDatabase, DatabaseFactory, PlatformFS } from '@banjuan/core'
 
 class WasmDatabase implements PlatformDatabase {
+  /** Inside an explicit BEGIN … COMMIT/ROLLBACK (see save()). */
+  private inTransaction = false
+
   constructor(private db: SqlJsDatabase, private dbPath: string, private fs: PlatformFS) {}
 
   execute(sql: string, params?: unknown[]): void {
@@ -12,6 +15,8 @@ class WasmDatabase implements PlatformDatabase {
     } else {
       this.db.exec(sql)
     }
+    if (/^\s*BEGIN\b/i.test(sql)) this.inTransaction = true
+    else if (/^\s*(COMMIT|END|ROLLBACK)\b/i.test(sql)) this.inTransaction = false
   }
 
   run(sql: string, params?: unknown[]): { changes: number } {
@@ -51,9 +56,36 @@ class WasmDatabase implements PlatformDatabase {
     }
   }
 
+  /**
+   * sql.js export() closes and reopens the database: an open transaction is
+   * rolled back, and temporary tables and triggers (an index rebuild's change
+   * log) are dropped. A flush (the text indexer, going to the background) that
+   * landed mid-rebuild undid it — so wait until neither is in use.
+   */
   async save(): Promise<void> {
-    const data = this.db.export()
+    for (let waited = 0; this.busy() && waited < 120_000; waited += 100) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    const data = this.exportKeepingPragmas()
     await this.fs.writeFile(this.dbPath, data)
+  }
+
+  private busy(): boolean {
+    if (this.inTransaction) return true
+    try {
+      return (this.queryOne<{ n: number }>('SELECT count(*) AS n FROM sqlite_temp_master')?.n ?? 0) > 0
+    } catch {
+      return false
+    }
+  }
+
+  /** export(), then the connection settings it resets (foreign key checks). */
+  private exportKeepingPragmas(): Uint8Array {
+    let foreignKeys = false
+    try { foreignKeys = !!(this.queryOne<{ foreign_keys: number }>('PRAGMA foreign_keys')?.foreign_keys) } catch { /* default */ }
+    const data = this.db.export()
+    if (foreignKeys) this.db.exec('PRAGMA foreign_keys = ON')
+    return data
   }
 
   close(): void {
