@@ -13,6 +13,8 @@ interface Props {
   template: HandwritingTemplate
   pageWidth: number
   pageHeight: number
+  /** Changes when the pages were reloaded from outside: show the stored strokes again. */
+  reloadToken?: number
   /** `pageId` is the page the snapshot belongs to (the editor may already show another one). */
   onSnapshotChange: (snapshot: CanvasSnapshot, pageId: string) => void
   onThumbnailGenerated: (dataUrl: string) => void
@@ -210,7 +212,7 @@ function loadAndResizeImage(dataUrl: string): Promise<{ dataUrl: string; width: 
 }
 
 export default function HandwritingEditor({
-  pageId, snapshot, template, pageWidth, pageHeight, onSnapshotChange, onThumbnailGenerated, onInteractionStart,
+  pageId, snapshot, template, pageWidth, pageHeight, onSnapshotChange, onThumbnailGenerated, onInteractionStart, reloadToken,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -466,6 +468,9 @@ export default function HandwritingEditor({
     // debounced save: hand them over now, tagged with that page, before the
     // refs are refilled with the new page.
     if (pageIdRef.current !== pageId && persistTimerRef.current) flushPersist()
+    // Reloaded from outside while strokes from here still wait to be saved: keep
+    // them (they're saved over it, as with any unsaved edit).
+    else if (pageIdRef.current === pageId && persistTimerRef.current) return
     pageIdRef.current = pageId
     strokesRef.current = snapshot.strokes ?? []
     imagesRef.current = snapshot.images ?? []
@@ -481,7 +486,7 @@ export default function HandwritingEditor({
       fitToViewport()
       generateThumbnail()
     })
-  }, [pageId])
+  }, [pageId, reloadToken])
 
   // --- Refit on viewport resize ---
   useEffect(() => {

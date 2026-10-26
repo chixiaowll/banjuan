@@ -6,6 +6,7 @@ import { useI18n } from '../../i18n/index.js'
 import { useTheme, useThemeLayout } from '../../theme/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { notifyDocumentsChanged, notifyNotesChanged } from '../../utils/libraryEvents.js'
+import { announceAllNotesChanged } from '../../utils/noteChanges.js'
 import { toast, errorMessage } from '../../components/feedback.js'
 import { useEscapeKey } from '../../utils/useEscapeKey.js'
 import { useFitInViewport } from '../../utils/useFitInViewport.js'
@@ -245,7 +246,7 @@ export function useLibraryState(props: LibraryViewProps) {
   // Added from outside this window — CLI, web clipper, scripts via the local API.
   useEffect(() => api.library.onExternalChange?.((kind) => {
     if (kind !== 'notes') { loadDocuments(); loadRecentAnnotations(); notifyDocumentsChanged() }
-    if (kind !== 'documents') notifyNotesChanged()
+    if (kind !== 'documents') { notifyNotesChanged(); announceAllNotesChanged() }   // open editors follow too
     loadTags()
   }), [])
 

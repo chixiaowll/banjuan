@@ -37,7 +37,8 @@ export class LanHostServer {
   private pin = ''
   private port = 0
 
-  constructor(private rootPath: string, private fs: PlatformFS) {}
+  /** `onPeerWrite` runs after a peer changed files here (PUT / DELETE / MKCOL / MOVE succeeded). */
+  constructor(private rootPath: string, private fs: PlatformFS, private onPeerWrite?: () => void) {}
 
   async start(): Promise<HostStatus> {
     if (this.server) return this.status()
@@ -106,6 +107,7 @@ export class LanHostServer {
         }
 
         const out = await handleDavRequest({ method, path, headers, query, body }, ctx)
+        if (out.status < 300 && /^(PUT|DELETE|MKCOL|MOVE|COPY)$/i.test(method)) this.onPeerWrite?.()
         res.statusCode = out.status
         for (const [k, v] of Object.entries(out.headers)) res.setHeader(k, v)
         if (out.body == null) res.end()

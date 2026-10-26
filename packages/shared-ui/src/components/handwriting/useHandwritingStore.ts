@@ -2,7 +2,8 @@ import { createContext, useContext } from 'react'
 import { createStore, useStore, type StoreApi } from 'zustand'
 import type { HandwritingPage, HandwritingTemplate, CanvasSnapshot } from '@banjuan/core'
 import type { BanjuanAPI } from '../../api.js'
-import { errorMessage } from '../feedback.js'
+import { errorMessage, toast } from '../feedback.js'
+import { announceNoteChanged } from '../../utils/noteChanges.js'
 
 export interface HandwritingState {
   noteId: string | null
@@ -32,6 +33,13 @@ export interface HandwritingState {
   /** Write a pending debounced save now (before the window closes / app quits). */
   flushPendingSave: () => Promise<void>
   updateThumbnail: (pageId: string, dataUrl: string) => void
+
+  /** Identifies this store's saves in note-change announcements (utils/noteChanges.ts). */
+  changeSource: object
+  /** Bumped when pages are reloaded from outside; the editor then reloads its strokes. */
+  externalVersion: number
+  /** The note changed elsewhere (another editor, a sync): reload it, unless a save from here is pending. */
+  reloadIfChanged: () => Promise<void>
 }
 
 type HandwritingStoreApi = StoreApi<HandwritingState>
@@ -44,6 +52,7 @@ function generatePageId(): string {
 
 export function createHandwritingStore(api: BanjuanAPI): HandwritingStoreApi {
   let saveTimer: ReturnType<typeof setTimeout> | null = null
+  const changeSource = {}
 
   return createStore<HandwritingState>((set, get) => ({
     noteId: null,
@@ -159,6 +168,7 @@ export function createHandwritingStore(api: BanjuanAPI): HandwritingStoreApi {
       try {
         await api.notes.update(noteId, { content: JSON.stringify({ pages, currentPageIndex }) })
         set({ saveError: null })
+        announceNoteChanged(noteId, changeSource)
       } catch (e) {
         // Callers fire-and-forget save(); swallowing here (after recording it)
         // keeps a failure from becoming an unhandled rejection — the UI shows it.
@@ -174,6 +184,24 @@ export function createHandwritingStore(api: BanjuanAPI): HandwritingStoreApi {
       const newThumbnails = new Map(thumbnails)
       newThumbnails.set(pageId, dataUrl)
       set({ thumbnails: newThumbnails })
+    },
+
+    changeSource,
+    externalVersion: 0,
+    reloadIfChanged: async () => {
+      const { noteId } = get()
+      if (!noteId) return
+      const note = await api.notes.get(noteId).catch(() => null)
+      if (!note || get().noteId !== noteId) return
+      let pages: HandwritingPage[]
+      try { pages = JSON.parse(note.content).pages ?? [] } catch { return }
+      if (JSON.stringify(pages) === JSON.stringify(get().pages)) return
+      if (saveTimer || get().saving) {
+        toast.info({ key: 'note.changedElsewhere' }, { key: `note-changed-${noteId}` })
+        return
+      }
+      const currentPageIndex = Math.min(get().currentPageIndex, Math.max(0, pages.length - 1))
+      set({ pages, currentPageIndex, externalVersion: get().externalVersion + 1 })
     },
   }))
 }

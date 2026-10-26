@@ -7,7 +7,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { nodeTypes } from './nodes/index.js'
 import { edgeTypes } from './edges/index.js'
-import { useMindmapStore, useMindmapStoreApi } from './useMindmapStore.js'
+import { useMindmapStore, useMindmapStoreApi, useFollowMindmapChanges } from './useMindmapStore.js'
 import { useLayoutEngine } from './useLayoutEngine.js'
 import { getTheme } from './themes.js'
 import ViewportOverlay from './overlays/ViewportOverlay.js'
@@ -28,6 +28,7 @@ export default function MindmapCanvas({ readonly = false }: { readonly?: boolean
   } = useMindmapStore()
 
   const storeApi = useMindmapStoreApi()
+  useFollowMindmapChanges()
   const { computeLayout, sizeVersion } = useLayoutEngine()
   const { fitView } = useReactFlow()
   const theme = getTheme(themeName)

@@ -4,6 +4,16 @@ import { useI18n, LOCALE_TAGS } from '../../i18n/index.js'
 import { useThemeLayout } from '../../theme/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { confirmDialog } from '../feedback.js'
+import { announceAllNotesChanged } from '../../utils/noteChanges.js'
+import { notifyNotesChanged, notifyDocumentsChanged } from '../../utils/libraryEvents.js'
+
+/** After a sync brought changes in: refresh lists, and open editors that have no unsaved edits. */
+function afterSyncChanges(r: { downloaded: number; deletedLocal: number; conflicts?: number }): void {
+  if (r.downloaded + r.deletedLocal + (r.conflicts ?? 0) === 0) return
+  notifyNotesChanged()
+  notifyDocumentsChanged()
+  announceAllNotesChanged()
+}
 
 interface SyncConfig {
   url: string
@@ -158,6 +168,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
     const conflictPart = r.conflicts ? t('sync.lanConflicts', r.conflicts) : ''
     const errorPart = r.errors.length ? t('sync.lanErrors', r.errors.length) : ''
     setLanMsg(t('sync.lanDone', r.downloaded, r.uploaded, r.deletedLocal + r.deletedRemote, conflictPart + errorPart))
+    afterSyncChanges(r)
   }
 
   useEffect(() => {
@@ -247,6 +258,7 @@ export default function SyncConfigPanel({ onClose, libraryKey }: Props) {
       setProgress(null)
       const r = result ?? { uploaded: 0, downloaded: 0, deletedLocal: 0, deletedRemote: 0 }
       setStatus({ message: t('sync.syncSuccess', r.uploaded, r.downloaded, r.deletedLocal, r.deletedRemote), isError: false })
+      afterSyncChanges(r)
     } catch (err: any) {
       setProgress(null)
       setStatus({ message: t('sync.syncFailed', err?.message ?? String(err)), isError: true })

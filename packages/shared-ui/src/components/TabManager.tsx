@@ -124,7 +124,10 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     }
     const tabId = `doc-${doc.id}`
     const newTab: Tab = { id: tabId, type: 'document', title: doc.title, closable: true }
-    setTabs(prev => [...prev, newTab])
+    // Checked against the latest tabs too: two opens in a row (a double-click,
+    // a link plus a list click) both saw the old `tabs` and added two tabs —
+    // two editors on one document/note, each saving over the other.
+    setTabs(prev => prev.some(t => t.id === tabId) ? prev : [...prev, newTab])
     setTabData(prev => new Map(prev).set(tabId, doc))
     activateTab(tabId)
     api.documents.markRead(doc.id).catch(() => {})
@@ -140,7 +143,7 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     if (!full) return
     const tabId = `note-${full.id}`
     const newTab: Tab = { id: tabId, type: 'note', title: full.title, closable: true }
-    setTabs(prev => [...prev, newTab])
+    setTabs(prev => prev.some(t => t.id === tabId) ? prev : [...prev, newTab])   // see openDocument
     setTabData(prev => new Map(prev).set(tabId, full))
     activateTab(tabId)
   }, [tabs, tabData, activateTab])
@@ -190,6 +193,35 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     document.addEventListener('banjuan:open-document', handler)
     return () => document.removeEventListener('banjuan:open-document', handler)
   }, [openDocument])
+
+  // Note and document links in notes (editors, previews) and #note/ links the
+  // main process intercepts. Handled here, once: every open editor used to
+  // handle them, so one click opened the target once per open note.
+  useEffect(() => {
+    const openNoteLink = async (noteId?: string, title?: string) => {
+      let note = noteId ? await api.notes.get(noteId).catch(() => null) : null
+      // Markdown-created links ([[Title]]) carry no id — resolve by title.
+      if (!note && title) note = (await api.notes.list()).find((n: any) => n.title === title) ?? null
+      if (note) openNote(note)
+    }
+    const onNoteLink = (e: Event) => {
+      const { noteId, title } = (e as CustomEvent).detail || {}
+      void openNoteLink(noteId, title)
+    }
+    const onDocLink = async (e: Event) => {
+      const { docId, title } = (e as CustomEvent).detail || {}
+      const id = docId || (title ? (await api.documents.list()).find((d: any) => d.title === title)?.id : undefined)
+      if (id) document.dispatchEvent(new CustomEvent('banjuan:open-document', { detail: { docId: id } }))
+    }
+    document.addEventListener('note-link-click', onNoteLink)
+    document.addEventListener('document-link-click', onDocLink)
+    const offNavigate = api.notes.onNavigateLink?.((noteId) => { void openNoteLink(noteId) })
+    return () => {
+      document.removeEventListener('note-link-click', onNoteLink)
+      document.removeEventListener('document-link-click', onDocLink)
+      offNavigate?.()
+    }
+  }, [api, openNote])
 
   // Relay batch-export progress from the background export window into the
   // local export-manager store so the progress panel updates live.

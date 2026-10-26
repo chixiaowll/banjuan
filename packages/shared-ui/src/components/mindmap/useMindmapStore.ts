@@ -6,6 +6,7 @@ import { layoutMindmap } from './useLayoutEngine.js'
 import type { BanjuanAPI } from '../../api.js'
 import type { MindmapSnapshot } from '@banjuan/core'
 import { toast, errorMessage } from '../feedback.js'
+import { announceNoteChanged, useNoteChangedElsewhere } from '../../utils/noteChanges.js'
 import { useT } from '../../i18n/index.js'
 
 export interface MindmapNodeData {
@@ -103,6 +104,11 @@ export interface MindmapState {
   persist: () => Promise<void>
   /** Write a pending persist() now (before the window closes / app quits). */
   flushPersist: () => Promise<void>
+
+  /** Identifies this canvas's own writes in note-change announcements (utils/noteChanges.ts). */
+  changeSource: object
+  /** The map changed elsewhere (another editor, a sync): reload it, unless edits here are still being written. */
+  reloadIfChanged: () => Promise<void>
 }
 
 function buildTreeDepths(nodes: Node<MindmapNodeData>[]): Map<string, number> {
@@ -221,6 +227,16 @@ function toSnapshot(rfNodes: Node<MindmapNodeData>[], rfEdges: Edge[]): MindmapS
   }
 }
 
+/** Order-independent comparison key for a snapshot. */
+function snapshotKey(s: MindmapSnapshot): string {
+  const byId = <T extends { id: string }>(a: T, b: T) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  return JSON.stringify({
+    nodes: [...s.nodes].sort(byId).map(n => [n.id, n.parentId, n.title, n.content, n.hyperlink, n.imageUrl, n.color, n.notes,
+      n.shape, n.styleOverrides, n.positionX, n.positionY, n.sortOrder, !!n.collapsed, !!n.floating]),
+    edges: [...s.edges].sort(byId).map(e => [e.id, e.sourceId, e.targetId, e.label ?? null, e.style ?? null]),
+  })
+}
+
 export type MindmapStoreApi = StoreApi<MindmapState>
 
 export const MindmapStoreContext = createContext<MindmapStoreApi | null>(null)
@@ -241,8 +257,30 @@ export function useMindmapLabels(): () => MindmapLabels {
   }), [])
 }
 
-export function createMindmapStore(api: BanjuanAPI, labels: () => MindmapLabels = () => DEFAULT_LABELS): MindmapStoreApi {
+export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLabels = () => DEFAULT_LABELS): MindmapStoreApi {
   let persistTimer: ReturnType<typeof setTimeout> | null = null
+  // Every node/edge write goes through here: counted while in flight, and
+  // announced when done so another editor showing this map reloads it.
+  const changeSource = {}
+  let writesInFlight = 0
+  const trackedMindmaps = new Proxy(baseApi.mindmaps, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver)
+      if (typeof value !== 'function') return value
+      if (typeof prop !== 'string' || !/^(add|update|remove|restore)/.test(prop)) return value.bind(target)
+      return (...args: unknown[]) => {
+        writesInFlight++
+        return Promise.resolve(value.apply(target, args))
+          .then((result) => {
+            const id = store.getState().mindmapId
+            if (id) announceNoteChanged(id, changeSource)
+            return result
+          })
+          .finally(() => { writesInFlight-- })
+      }
+    },
+  })
+  const api: BanjuanAPI = { ...baseApi, mindmaps: trackedMindmaps }
   const writePersist = async (get: () => MindmapState) => {
     const { mindmapId, mindmapTitle, layout, theme } = get()
     if (!mindmapId) return
@@ -260,7 +298,7 @@ export function createMindmapStore(api: BanjuanAPI, labels: () => MindmapLabels 
     toast.error({ key: 'note.saveFailedDetail', args: [errorMessage(e)] }, { key: 'note-save' })
   }
 
-  return createStore<MindmapState>((set, get) => ({
+  const store = createStore<MindmapState>((set, get) => ({
     mindmapId: null,
     mindmapTitle: '',
     layout: 'mindmap',
@@ -704,7 +742,25 @@ export function createMindmapStore(api: BanjuanAPI, labels: () => MindmapLabels 
       persistTimer = null
       await writePersist(get)
     },
+
+    changeSource,
+    reloadIfChanged: async () => {
+      const { mindmapId } = get()
+      if (!mindmapId) return
+      const [nodes, edges] = await Promise.all([baseApi.mindmaps.getNodes(mindmapId), baseApi.mindmaps.getEdges(mindmapId)])
+      const stored = snapshotKey({
+        nodes: nodes.map(({ mindmapId: _m, createdAt: _c, ...n }) => n),
+        edges: edges.map(e => ({ id: e.id, sourceId: e.sourceId, targetId: e.targetId, label: e.label, style: e.style })),
+      })
+      if (get().mindmapId !== mindmapId || stored === snapshotKey(toSnapshot(get().rfNodes, get().rfEdges))) return
+      if (persistTimer || writesInFlight > 0) {
+        toast.info({ key: 'note.changedElsewhere' }, { key: `note-changed-${mindmapId}` })
+        return
+      }
+      await get().init(mindmapId)
+    },
   }))
+  return store
 }
 
 export function useMindmapStore(): MindmapState
@@ -719,4 +775,11 @@ export function useMindmapStoreApi(): MindmapStoreApi {
   const store = useContext(MindmapStoreContext)
   if (!store) throw new Error('useMindmapStoreApi must be used within MindmapStoreContext.Provider')
   return store
+}
+
+/** Keep this canvas's map current when another editor, a sync or the AI assistant changes it. */
+export function useFollowMindmapChanges(): void {
+  const storeApi = useMindmapStoreApi()
+  const mindmapId = useMindmapStore(s => s.mindmapId)
+  useNoteChangedElsewhere(mindmapId, storeApi.getState().changeSource, () => { void storeApi.getState().reloadIfChanged() })
 }

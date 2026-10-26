@@ -13,6 +13,7 @@ import { useT } from '../../i18n/index.js'
 import { useBanjuanAPI } from '../../api.js'
 import { emitLinksSynced } from '../../utils/linkEvents.js'
 import { useDebouncedSaver } from '../../utils/debouncedSaver.js'
+import { useNoteContentSync, useNoteChangedElsewhere } from '../../utils/noteChanges.js'
 import { registerFlush } from '../../utils/flushRegistry.js'
 import { toast, errorMessage } from '../feedback.js'
 
@@ -154,6 +155,11 @@ function SidebarHandwriting({ noteId }: { noteId: string }) {
   const currentPageIndex = useHandwritingStore(s => s.currentPageIndex)
   const pageSize = useHandwritingStore(s => s.pageSize)
   const savePageSnapshot = useHandwritingStore(s => s.savePageSnapshot)
+  const externalVersion = useHandwritingStore(s => s.externalVersion)
+  const changeSource = useHandwritingStore(s => s.changeSource)
+  const reloadIfChanged = useHandwritingStore(s => s.reloadIfChanged)
+  // Follow saves from another editor of this note (tab ↔ PDF side panel) and syncs.
+  useNoteChangedElsewhere(noteId, changeSource, () => { void reloadIfChanged() })
 
   useEffect(() => { init(noteId) }, [noteId, init])
 
@@ -169,6 +175,7 @@ function SidebarHandwriting({ noteId }: { noteId: string }) {
     <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
       <HandwritingEditor
         pageId={currentPage.id}
+        reloadToken={externalVersion}
         snapshot={currentPage.snapshot}
         template={currentPage.template}
         pageWidth={pageSize.width}
@@ -188,6 +195,12 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const saver = useDebouncedSaver(800, noteId)   // flushes on unmount / window close, never drops the last edit
+  const savesInFlight = useRef(0)
+  // The same note may be open in a tab too: follow its saves (and syncs) while clean here.
+  const contentSync = useNoteContentSync(noteId, {
+    isDirty: () => saver.hasPending || savesInFlight.current > 0,
+    apply: (content) => setNote(n => n ? { ...n, content } : n),
+  })
 
   const noteType = (note?.type ?? 'markdown') as string
 
@@ -209,6 +222,7 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
     api.notes.get(noteId).then((n: any) => {
       if (cancelled) return
       setNote(n)
+      if (n) contentSync.known(n.content ?? '')
       setLoading(false)
     }).catch(() => {
       if (!cancelled) setLoading(false)
@@ -220,19 +234,23 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
     const id = noteId
     setSaving(true)
     saver.schedule(async () => {
+      savesInFlight.current++
       try {
         await api.notes.update(id, { content: json })
         setSaveError(null)
+        contentSync.known(json)
+        contentSync.announceSaved()
         emitLinksSynced()
       } catch (e) {
         console.error('[PdfNoteSidebar] save failed', id, e)
         setSaveError(errorMessage(e))
         toast.error(t('note.saveFailedDetail', errorMessage(e)), { key: 'note-save' })
       } finally {
+        savesInFlight.current--
         setSaving(false)
       }
     })
-  }, [noteId, saver, t])
+  }, [noteId, saver, t, contentSync.known, contentSync.announceSaved])
 
   if (loading) {
     return (
@@ -273,6 +291,7 @@ export default function PdfNoteSidebar({ noteId, onClose, onOpenNote, width = 40
     return (
       <div className="sidebar-editor" style={{ flex: 1, overflow: 'auto' }}>
         <BlockEditor
+          key={`${note.id}:${contentSync.reloadKey}`}
           noteId={note.id}
           initialContent={note.content || ''}
           onChange={handleChange}

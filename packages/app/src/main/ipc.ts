@@ -989,7 +989,27 @@ export function registerIpcHandlers() {
   ipcMain.handle('lan:startHost', async (event): Promise<HostStatus> => {
     const library = getLib(event)
     if (lanHost) { await lanHost.stop(); lanHost = null }
-    const host = new LanHostServer(library.rootPath, deps.fs)
+    // A peer syncing into this library changes files under the index: once it has
+    // been quiet for a moment, re-index and let this window refresh (lists and
+    // open editors without unsaved edits).
+    let reindexTimer: ReturnType<typeof setTimeout> | null = null
+    let reindexing: Promise<void> | null = null
+    const sender = event.sender
+    const reindexAfterPeerWrites = () => {
+      if (reindexTimer) clearTimeout(reindexTimer)
+      reindexTimer = setTimeout(() => {
+        reindexTimer = null
+        reindexing = (reindexing ?? Promise.resolve()).then(async () => {
+          try {
+            await library.createIndexService().rebuildFull()
+            if (!sender.isDestroyed()) sender.send('library:external-change', 'all')
+          } catch (e) {
+            console.error('[lan-host] re-index after peer sync failed', e)
+          }
+        })
+      }, 2000)
+    }
+    const host = new LanHostServer(library.rootPath, deps.fs, reindexAfterPeerWrites)
     const status = await host.start()   // assign only on success — a failed start leaves lanHost null
     lanHost = host
     lanHostOwner = event.sender.id

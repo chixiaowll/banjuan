@@ -112,6 +112,7 @@ interface Props {
   readOnly?: boolean
   skipLinkSync?: boolean
   autoParseMarkdown?: boolean
+  /** @deprecated Link clicks are handled by TabManager; kept so hosts still compile. */
   onOpenNote?: (note: NoteItem) => void
   onHeadingsChange?: (headings: HeadingItem[]) => void
 }
@@ -219,22 +220,13 @@ async function uploadFile(api: BanjuanAPI, noteId: string, file: File): Promise<
   return { relativePath, isImage: IMAGE_TYPES.has(file.type) }
 }
 
-const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ noteId, initialContent, onChange, readOnly, skipLinkSync, autoParseMarkdown, onOpenNote, onHeadingsChange }, ref) {
+const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ noteId, initialContent, onChange, readOnly, skipLinkSync, autoParseMarkdown, onHeadingsChange }, ref) {
   const api = useBanjuanAPI()
   const [allNotes, setAllNotes] = useState<NoteItem[]>([])
   const [allDocs, setAllDocs] = useState<Array<{ id: string; title: string }>>([])
-  const onOpenNoteRef = useRef(onOpenNote)
   const allNotesRef = useRef(allNotes)
-  const allDocsRef = useRef(allDocs)
   const editorRef = useRef<any>(null)
-  onOpenNoteRef.current = onOpenNote
   allNotesRef.current = allNotes
-  allDocsRef.current = allDocs
-
-  const openNoteById = useCallback((noteId: string) => {
-    const note = allNotesRef.current.find(n => n.id === noteId)
-    if (note && onOpenNoteRef.current) onOpenNoteRef.current(note)
-  }, [])
 
   useEffect(() => {
     api.notes.list().then((notes: any[]) => {
@@ -245,31 +237,8 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     })
   }, [])
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail || {}
-      if (detail.noteId) { openNoteById(detail.noteId); return }
-      // Markdown-created links ([[Title]]) carry no id — resolve by title.
-      if (detail.title) {
-        const note = allNotesRef.current.find(n => n.title === detail.title)
-        if (note && onOpenNoteRef.current) onOpenNoteRef.current(note)
-      }
-    }
-    const docHandler = (e: Event) => {
-      const detail = (e as CustomEvent).detail || {}
-      let docId = detail.docId
-      if (!docId && detail.title) docId = allDocsRef.current.find(d => d.title === detail.title)?.id
-      if (docId) {
-        document.dispatchEvent(new CustomEvent('banjuan:open-document', { detail: { docId } }))
-      }
-    }
-    document.addEventListener('note-link-click', handler)
-    document.addEventListener('document-link-click', docHandler)
-    return () => {
-      document.removeEventListener('note-link-click', handler)
-      document.removeEventListener('document-link-click', docHandler)
-    }
-  }, [openNoteById])
+  // Clicks on note/document links are handled once, by TabManager (every open
+  // editor used to handle them, so one click opened the target once per editor).
 
   const { parsedContent, rawMarkdown } = useMemo(() => {
     if (!initialContent) return { parsedContent: undefined, rawMarkdown: null }

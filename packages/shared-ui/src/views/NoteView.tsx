@@ -25,6 +25,7 @@ import { useT } from '../i18n/index.js'
 import { useBanjuanAPI } from '../api.js'
 import { emitLinksSynced } from '../utils/linkEvents.js'
 import { useDebouncedSaver } from '../utils/debouncedSaver.js'
+import { useNoteContentSync } from '../utils/noteChanges.js'
 import { registerFlush } from '../utils/flushRegistry.js'
 import { toast, errorMessage, promptDialog } from '../components/feedback.js'
 import { useIsActiveTab } from '../components/tabActive.js'
@@ -334,6 +335,13 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
   }, [])
   const editorRef = useRef<BlockEditorHandle>(null)
   const saver = useDebouncedSaver(800, note.id)   // flushes on unmount / window close, never drops the last edit
+  const savesInFlight = useRef(0)
+  // Reload when this note is saved in another editor (a PDF side panel) or
+  // changes through a sync / the AI assistant — unless there are unsaved edits here.
+  const contentSync = useNoteContentSync(note.id, {
+    isDirty: () => saver.hasPending || savesInFlight.current > 0,
+    apply: setContent,
+  })
   const leftPanel = useResizable(240, 160, 480, 'left')
   const rightPanel = useResizable(260, 180, 720, 'right')
 
@@ -351,6 +359,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     api.notes.get(note.id).then((full: any) => {
       if (full) {
         setContent(full.content ?? '')
+        contentSync.known(full.content ?? '')
         setDocId(full.docId)
       } else {
         setContent('')
@@ -377,19 +386,23 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     const id = note.id
     saver.schedule(async () => {
       setSaving(true)
+      savesInFlight.current++
       try {
         await api.notes.update(id, { content: json })
         setSaveError(null)
+        contentSync.known(json)
+        contentSync.announceSaved()
         emitLinksSynced()
       } catch (e) {
         console.error('[NoteView] save failed', id, e)
         setSaveError(errorMessage(e))
         toast.error(t('note.saveFailedDetail', errorMessage(e)), { key: 'note-save' })
       } finally {
+        savesInFlight.current--
         setSaving(false)
       }
     })
-  }, [note.id, saver, t])
+  }, [note.id, saver, t, contentSync.known, contentSync.announceSaved])
 
   const saveTitle = useCallback(async () => {
     if (title !== note.title) {
@@ -710,7 +723,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
               >
                 <BlockEditor
                   ref={editorRef}
-                  key={note.id}
+                  key={`${note.id}:${contentSync.reloadKey}`}
                   noteId={note.id}
                   initialContent={content!}
                   onChange={saveContent}

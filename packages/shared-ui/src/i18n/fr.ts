@@ -298,6 +298,7 @@ const fr = {
   'common.retry': 'Réessayer',
   'note.saveFailed': 'Échec de l’enregistrement',
   'note.saveFailedDetail': 'Impossible d’enregistrer la note : {0}. Le contenu reste dans l’éditeur ; une nouvelle tentative aura lieu pendant que vous continuez à écrire.',
+  'note.changedElsewhere': 'Cette note a été modifiée ailleurs. Vos modifications non enregistrées ici remplaceront ce changement.',
   'viewer.loadFailed': 'Impossible d’ouvrir ce document',
   'viewer.fileMissing': 'Fichier introuvable. Il a peut-être été déplacé, renommé ou supprimé.',
   'viewer.openInSystem': 'Ouvrir avec l’application par défaut',

@@ -6,6 +6,7 @@ import { useHandwritingStore } from './useHandwritingStore.js'
 import type { CanvasSnapshot } from '@banjuan/core'
 import { generateThumbnailDataUrl, renderAllStrokes } from './renderStrokes.js'
 import { useT } from '../../i18n/index.js'
+import { useNoteChangedElsewhere } from '../../utils/noteChanges.js'
 import { useBanjuanAPI } from '../../api.js'
 import { toast } from '../feedback.js'
 import { useEscapeKey } from '../../utils/useEscapeKey.js'
@@ -28,6 +29,11 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
   const saveError = useHandwritingStore(s => s.saveError)
   const init = useHandwritingStore(s => s.init)
   const savePageSnapshot = useHandwritingStore(s => s.savePageSnapshot)
+  const externalVersion = useHandwritingStore(s => s.externalVersion)
+  const changeSource = useHandwritingStore(s => s.changeSource)
+  const reloadIfChanged = useHandwritingStore(s => s.reloadIfChanged)
+  // Follow saves from another editor of this note (tab ↔ PDF side panel) and syncs.
+  useNoteChangedElsewhere(noteId, changeSource, () => { void reloadIfChanged() })
   const cancelPendingSave = useHandwritingStore(s => s.cancelPendingSave)
   const updateThumbnail = useHandwritingStore(s => s.updateThumbnail)
 
@@ -204,6 +210,7 @@ export default function HandwritingCenterContent({ noteId, title, onBack, onTogg
       <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         <HandwritingEditor
           pageId={currentPage.id}
+          reloadToken={externalVersion}
           snapshot={currentPage.snapshot}
           template={currentPage.template}
           pageWidth={pageSize.width}
