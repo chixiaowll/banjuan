@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createServer, type Server } from 'node:http'
-import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync, utimesSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync, readdirSync, utimesSync, createReadStream } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { NodeFS, NodeCrypto } from '@banjuan/platform-node'
@@ -24,6 +24,7 @@ function startServer(ctx: DavContext): Promise<{ server: Server; port: number }>
         { method: req.method || 'GET', path: decodeURIComponent(u.pathname), headers, query, body }, ctx)
       res.statusCode = out.status
       for (const [k, v] of Object.entries(out.headers)) res.setHeader(k, v)
+      if (out.bodyFile) { createReadStream(out.bodyFile).pipe(res); return }
       if (out.body == null) res.end()
       else if (typeof out.body === 'string') res.end(out.body)
       else res.end(Buffer.from(out.body))
@@ -66,6 +67,20 @@ describe('LAN sync integration (webdav client ↔ handler)', () => {
     expect(result.downloaded).toBeGreaterThanOrEqual(1)
     expect(existsSync(join(clientRoot, 'paper.pdf'))).toBe(true)
     expect(readFileSync(join(clientRoot, 'paper.pdf'), 'utf-8')).toBe('HOSTDATA')
+  })
+
+  it('moves a large file both ways without holding it in memory as one buffer', async () => {
+    const big = Buffer.alloc(20 * 1024 * 1024)
+    for (let i = 0; i < big.length; i += 4096) big[i] = i % 251
+    writeFileSync(join(hostRoot, 'host-video.mp4'), big)
+    writeFileSync(join(clientRoot, 'client-video.mp4'), big)
+    const adapter = new WebDAVAdapter(new NodeFS())
+    await adapter.connect({ type: 'webdav', url: `http://127.0.0.1:${port}`, username: 'banjuan', password: TOKEN, remotePath: '/' })
+    const result = await new SyncService(clientRoot, adapter, undefined, new NodeFS(), '/').sync()
+    expect(result.errors).toEqual([])
+    expect(readFileSync(join(clientRoot, 'host-video.mp4')).equals(big)).toBe(true)
+    expect(readFileSync(join(hostRoot, 'client-video.mp4')).equals(big)).toBe(true)
+    expect(readdirSync(clientRoot).some(n => n.endsWith('.banjuan-tmp'))).toBe(false)
   })
 
   it('uploads client-only files to host (client -> host)', async () => {

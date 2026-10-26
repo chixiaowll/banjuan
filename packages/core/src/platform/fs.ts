@@ -13,4 +13,11 @@ export interface PlatformFS {
   setMtime?(path: string, mtimeMs: number): Promise<void>
   rename(from: string, to: string): Promise<void>
   watch?(path: string, options: { recursive?: boolean }, callback: (event: string, filename: string | null) => void): { close(): void }
+  /**
+   * Streams, for files too big to hold in memory (multi-GB videos); desktop only.
+   * openReadStream returns a Node Readable; writeStream writes one to `path`
+   * atomically (temp file + rename).
+   */
+  openReadStream?(path: string): unknown
+  writeStream?(path: string, stream: unknown): Promise<void>
 }

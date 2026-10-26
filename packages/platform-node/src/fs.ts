@@ -1,6 +1,8 @@
 import * as fs from 'node:fs'
 import * as fsp from 'node:fs/promises'
 import * as path from 'node:path'
+import { pipeline } from 'node:stream/promises'
+import type { Readable } from 'node:stream'
 import type { PlatformFS } from '@banjuan/core'
 
 /** Suffix of in-flight temp files; sync excludes it (see core sync/exclusions). */
@@ -36,6 +38,24 @@ function writeAtomic(filePath: string, data: Uint8Array | string): void {
 // block the Electron main process — IPC from the UI keeps being served between
 // reads. Writes stay synchronous (see writeAtomic).
 export class NodeFS implements PlatformFS {
+  openReadStream(filePath: string): Readable {
+    return fs.createReadStream(filePath)
+  }
+
+  /** Stream into a temp file next to the target, then rename — never a half-written file in place. */
+  async writeStream(filePath: string, stream: unknown): Promise<void> {
+    const dir = path.dirname(filePath)
+    fs.mkdirSync(dir, { recursive: true })
+    const tmp = path.join(dir, `.${path.basename(filePath)}.${process.pid}-${Math.random().toString(36).slice(2)}${TEMP_SUFFIX}`)
+    try {
+      await pipeline(stream as Readable, fs.createWriteStream(tmp))
+      fs.renameSync(tmp, filePath)
+    } catch (e) {
+      fs.rmSync(tmp, { force: true })
+      throw e
+    }
+  }
+
   async readFile(filePath: string): Promise<Uint8Array> {
     return fsp.readFile(filePath)
   }

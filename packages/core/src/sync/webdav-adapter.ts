@@ -12,6 +12,11 @@ interface WebDAVStat {
   type: 'file' | 'directory'
 }
 
+// Files above this go through streams when the platform has them (desktop):
+// reading a multi-GB video into one buffer ran out of memory, and past 2 GB
+// Node can't even allocate it.
+const STREAM_BYTES = 16 * 1024 * 1024
+
 export class WebDAVAdapter implements SyncAdapter {
   private client: WebDAVClient | null = null
 
@@ -55,15 +60,31 @@ export class WebDAVAdapter implements SyncAdapter {
 
   async upload(localPath: string, remotePath: string, mtimeMs?: number): Promise<void> {
     const client = this.getClient()
+    const headers = mtimeMs && mtimeMs > 0 ? { 'X-Banjuan-Mtime': String(mtimeMs) } : undefined
+    if (this.fs.openReadStream) {
+      const { size } = await this.fs.stat(localPath)
+      if (size > STREAM_BYTES) {
+        await client.putFileContents(remotePath, this.fs.openReadStream(localPath) as any, { contentLength: size, headers })
+        return
+      }
+    }
     const content = await this.fs.readFile(localPath)
-    const options = mtimeMs && mtimeMs > 0
-      ? { headers: { 'X-Banjuan-Mtime': String(mtimeMs) } }
-      : undefined
-    await client.putFileContents(remotePath, Buffer.from(content), options)
+    await client.putFileContents(remotePath, Buffer.from(content), headers ? { headers } : undefined)
   }
 
   async download(remotePath: string, localPath: string, onProgress?: (p: { loaded: number; total: number }) => void): Promise<void> {
     const client = this.getClient()
+    if (this.fs.writeStream) {
+      const total = onProgress ? ((await client.stat(remotePath)) as WebDAVStat).size : 0
+      const stream = client.createReadStream(remotePath)
+      if (onProgress) {
+        let loaded = 0
+        stream.on('data', (chunk: { length: number }) => { loaded += chunk.length; onProgress({ loaded, total }) })
+      }
+      await this.fs.mkdir(dirname(localPath), { recursive: true })
+      await this.fs.writeStream(localPath, stream)
+      return
+    }
     const content = (await client.getFileContents(remotePath, {
       onDownloadProgress: onProgress,
     })) as ArrayBuffer

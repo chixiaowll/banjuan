@@ -1,7 +1,9 @@
 import { createServer, type Server } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { randomBytes } from 'node:crypto'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
+import { createReadStream, createWriteStream, mkdirSync, rmSync } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
 import { handleDavRequest, isDavAuthorized, isPublicDavRoute, generatePairing, PairLimiter, LAN_PREFERRED_PORTS, type DavContext } from '@banjuan/core'
 import { PairingStore } from '@banjuan/core'
 import type { PlatformFS } from '@banjuan/core'
@@ -89,6 +91,7 @@ export class LanHostServer {
         // Authenticate from the headers BEFORE reading the body: buffering first
         // let any stranger on the LAN fill this process's memory with one upload.
         let body: Uint8Array | undefined
+        let bodyFile: string | undefined
         if (isPublicDavRoute(method, path, ctx)) {
           req.resume()   // public routes take no body; discard it
         } else if (!(await isDavAuthorized(headers, ctx))) {
@@ -100,16 +103,27 @@ export class LanHostServer {
           req.on('data', (c: Buffer) => { discarded += c.length; if (discarded > 1 << 20) req.destroy() })
           req.resume()
           return
+        } else if (method.toUpperCase() === 'PUT') {
+          // Uploads go to a temp file in the library (same volume, renamed into
+          // place) instead of memory: a multi-GB video would exhaust it.
+          bodyFile = join(this.rootPath, '.banjuan', `.dav-upload-${randomBytes(6).toString('hex')}.banjuan-tmp`)
+          mkdirSync(dirname(bodyFile), { recursive: true })
+          await pipeline(req, createWriteStream(bodyFile))
         } else {
           const chunks: Buffer[] = []
           for await (const c of req) chunks.push(c as Buffer)
           body = chunks.length ? new Uint8Array(Buffer.concat(chunks)) : undefined
         }
 
-        const out = await handleDavRequest({ method, path, headers, query, body }, ctx)
+        const out = await handleDavRequest({ method, path, headers, query, body, bodyFile }, ctx)
+          .finally(() => { if (bodyFile) rmSync(bodyFile, { force: true }) })   // unless moved into place
         if (out.status < 300 && /^(PUT|DELETE|MKCOL|MOVE|COPY)$/i.test(method)) this.onPeerWrite?.()
         res.statusCode = out.status
         for (const [k, v] of Object.entries(out.headers)) res.setHeader(k, v)
+        if (out.bodyFile) {
+          await pipeline(createReadStream(out.bodyFile), res)
+          return
+        }
         if (out.body == null) res.end()
         else if (typeof out.body === 'string') res.end(out.body)
         else res.end(Buffer.from(out.body))

@@ -9,13 +9,21 @@ export interface DavRequest {
   headers: Record<string, string>       // lowercased keys
   query?: Record<string, string>
   body?: Uint8Array
+  /** A PUT body the server already streamed to this temp file (same volume as the library); moved into place. */
+  bodyFile?: string
 }
 
 export interface DavResponse {
   status: number
   headers: Record<string, string>
   body?: Uint8Array | string
+  /** Send this file's contents as the body (streamed by the server) instead of `body`. */
+  bodyFile?: string
 }
+
+// GET responses bigger than this are streamed from disk, not read into memory:
+// a multi-GB video would exhaust it (and can't exceed 2 GB as one buffer).
+const STREAM_BYTES = 16 * 1024 * 1024
 
 export interface DavContext {
   rootPath: string
@@ -163,13 +171,15 @@ async function routeDavRequest(req: DavRequest, ctx: DavContext): Promise<DavRes
     case 'GET': {
       if (!(await fs.exists(abs))) return { status: 404, headers: {}, body: 'Not Found' }
       const stat = await fs.stat(abs)
-      const data = await fs.readFile(abs)
-      return { status: 200, headers: { 'Content-Length': String(stat.size), 'Content-Type': 'application/octet-stream' }, body: data }
+      const headers = { 'Content-Length': String(stat.size), 'Content-Type': 'application/octet-stream' }
+      if (stat.size > STREAM_BYTES && fs.openReadStream) return { status: 200, headers, bodyFile: abs }
+      return { status: 200, headers, body: await fs.readFile(abs) }
     }
     case 'PUT': {
       // Deliberate RFC 4918 deviation: create missing parents (recursive) for sync robustness.
       await fs.mkdir(dirname(abs), { recursive: true })
-      await fs.writeFile(abs, req.body ?? new Uint8Array())
+      if (req.bodyFile) await fs.rename(req.bodyFile, abs)
+      else await fs.writeFile(abs, req.body ?? new Uint8Array())
       // Preserve the client's mtime when provided, so the next sync sees the files
       // as identical instead of re-transferring them. Best-effort.
       const rawMtime = req.headers['x-banjuan-mtime']
