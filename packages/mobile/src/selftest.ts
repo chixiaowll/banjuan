@@ -129,6 +129,28 @@ export async function runSelftest() {
     return { before, after: after.length, results }
   })
 
+  await step('dropped files are imported (documents and markdown notes)', async () => {
+    const doc = await api.documents.importDropped([new File(['# 拖入的文档\n'], '拖入的文档.md', { type: 'text/markdown' })])
+    const md = await api.notes.importDroppedMarkdown([new File(['拖入笔记的正文'], '拖入的笔记.md', { type: 'text/markdown' })], null)
+    const docs = (await api.documents.list()).map((d: any) => d.path)
+    const note = (await api.notes.list()).find((n: any) => n.title === '拖入的笔记')
+    const ok = docs.includes('拖入的文档.md') && !!note && ((await api.notes.get(note.id))?.content ?? '').includes('拖入笔记的正文')
+    if (!ok) throw new Error(JSON.stringify({ doc, md, docs }))
+    return { doc, md }
+  })
+
+  await step('switching to another library and back', async () => {
+    const other = `${path}-other`
+    const before = (await api.notes.list()).length
+    await api.library.init(other, '另一个书房')
+    const inOther = (await api.notes.list()).length
+    await api.library.open(path)
+    const after = (await api.notes.list()).length
+    await api.library.delete(other).catch(() => {})
+    if (inOther !== 0 || after !== before) throw new Error(JSON.stringify({ before, inOther, after }))
+    return { before, inOther, after }
+  })
+
   await step('rebuild library', async () => {
     const missing = await api.library.detectMissing()
     const r = await api.library.rebuild([])
