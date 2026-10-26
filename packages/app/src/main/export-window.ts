@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
-import { libraries } from './ipc.js'
+import { libraries, assignLibrary } from './ipc.js'
 
 interface BatchExportJob {
   runId: string
@@ -97,7 +97,7 @@ function sendToOrigin(channel: string, ...args: unknown[]) {
 }
 
 export function registerExportWindowHandlers() {
-  ipcMain.handle('batch-export:run', (event, job: BatchExportJob) => {
+  ipcMain.handle('batch-export:run', async (event, job: BatchExportJob) => {
     // Reuse the visible window's already-open library instance for the worker
     // (same DB connection) — never re-open, which would reindex and risk locks.
     const lib = libraries.get(event.sender.id)
@@ -107,7 +107,7 @@ export function registerExportWindowHandlers() {
     clearIdleTimer()
 
     const win = getOrCreateExportWindow()
-    libraries.set(win.webContents.id, lib)
+    await assignLibrary(win.webContents.id, lib)
 
     if (workerReady) {
       win.webContents.send('batch-export:job', job)

@@ -169,6 +169,13 @@ async function releaseLibrary(key: number): Promise<void> {
   try { await lib.close() } catch (e) { console.warn('[library] closing failed', lib.rootPath, e) }
 }
 
+/** Point `key` (a window) at `lib`, releasing what it pointed at before. */
+export async function assignLibrary(key: number, lib: Library): Promise<void> {
+  if (libraries.get(key) === lib) return
+  await releaseLibrary(key)
+  libraries.set(key, lib)
+}
+
 const releasedOnDestroy = new Set<number>()
 function releaseWhenClosed(sender: Electron.WebContents): void {
   const id = sender.id
