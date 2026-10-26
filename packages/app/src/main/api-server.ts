@@ -8,7 +8,7 @@ import { app } from 'electron'
 import type { Library } from '@banjuan/core'
 import { blocksToMarkdown, markdownToBlocks } from '@banjuan/core'
 import { saveClip } from './clip-service.js'
-import { openLibraryForApi, initLibraryForApi, libraries, getLibraryHistory } from './ipc.js'
+import { openLibraryForApi, initLibraryForApi, libraries, getLibraryHistory, releaseLibrary } from './ipc.js'
 import { extractDocumentText } from './pdf-text.js'
 import { isAuthorized, isPublicRoute, isLoopbackHost, corsHeaders } from './api-auth.js'
 import { isInside, libraryPath, uniquePath } from './path-guard.js'
@@ -248,8 +248,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       for (const [key, lib] of [...libraries.entries()]) {
         if (targetPath && lib.rootPath !== targetPath) continue
         if (key >= 0) { inWindow = true; continue }
-        await lib.close()
-        libraries.delete(key)
+        await releaseLibrary(key)   // closes it unless a window shares the instance
         found = true
       }
       if (!found && inWindow) { json(res, 409, { error: 'The library is open in a window; close the window instead' }); return }

@@ -1,4 +1,4 @@
-import { ipcMain, dialog, clipboard, shell, BrowserWindow, app, safeStorage } from 'electron'
+import { ipcMain, dialog, clipboard, shell, BrowserWindow, app, safeStorage, webContents } from 'electron'
 import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync, renameSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, basename, dirname, resolve, sep } from 'node:path'
@@ -156,7 +156,7 @@ let nextApiKey = -1
  * It used to stay open for the rest of the session (database handle, loaded
  * plugins, a LAN host serving it). Closed unless another key still uses it.
  */
-async function releaseLibrary(key: number): Promise<void> {
+export async function releaseLibrary(key: number): Promise<void> {
   const lib = libraries.get(key)
   if (!lib) return
   libraries.delete(key)
@@ -174,6 +174,23 @@ export async function assignLibrary(key: number, lib: Library): Promise<void> {
   if (libraries.get(key) === lib) return
   await releaseLibrary(key)
   libraries.set(key, lib)
+}
+
+/** The instance of the library at `path` some window or the local API already has open. */
+function openInstanceOf(path: string): Library | undefined {
+  const target = resolve(path)
+  return [...libraries.values()].find(l => resolve(l.rootPath) === target)
+}
+
+/** Plugin messages for a library go to every window showing it. */
+function sendToLibraryWindows(lib: Library): (channel: string, data: any) => void {
+  return (channel, data) => {
+    for (const [key, l] of libraries) {
+      if (l !== lib || key < 0) continue
+      const wc = webContents.fromId(key)
+      if (wc && !wc.isDestroyed()) wc.send(channel, data)
+    }
+  }
 }
 
 const releasedOnDestroy = new Set<number>()
@@ -253,7 +270,7 @@ export function registerIpcHandlers() {
     libraries.set(event.sender.id, lib)
     releaseWhenClosed(event.sender)
     const scanResult = await lib.scanAndImport()
-    lib.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
+    lib.plugins.setWebContentsSender(sendToLibraryWindows(lib))
     await lib.plugins.loadAll()
     const indexService = lib.createIndexService()
     await indexService.rebuildFull()
@@ -264,6 +281,18 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('library:open', async (event, path: string) => {
     await releaseLibrary(event.sender.id)
+    // Already open in another window (or by the local API): share that instance.
+    // A second one loaded the library's plugins twice and kept a second copy of
+    // everything in memory, both writing the same files.
+    const shared = openInstanceOf(path)
+    if (shared) {
+      libraries.set(event.sender.id, shared)
+      releaseWhenClosed(event.sender)
+      shared.plugins.setWebContentsSender(sendToLibraryWindows(shared))
+      const libName = await shared.getName()
+      recordLibraryOpen(shared.rootPath, libName)
+      return { rootPath: shared.rootPath, name: libName, imported: 0, removed: 0, truncated: false, limit: MAX_LIBRARY_FILES }
+    }
     const lib = await Library.open(path, deps)
     libraries.set(event.sender.id, lib)
     releaseWhenClosed(event.sender)
@@ -271,7 +300,7 @@ export function registerIpcHandlers() {
     const syncResult = await lib.syncWithDisk()
     try { await lib.notes.syncDisk() } catch { /* non-critical */ }
     try { await lib.tags.syncFromFiles() } catch {}
-    lib.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
+    lib.plugins.setWebContentsSender(sendToLibraryWindows(lib))
     await lib.plugins.loadAll()
     const indexService = lib.createIndexService()
     // The DB now persists across opens. Only pay for a full rebuild when it is
@@ -1428,12 +1457,14 @@ img { max-width: 100%; } table { border-collapse: collapse; width: 100%; } th, t
     const purged = await lib.purgeDocuments(purgeIds)
     await lib.close()
     const fresh = await Library.open(rootPath, deps)
+    // Every window (and the API) sharing the old instance moves to the new one.
+    for (const [key, l] of libraries) if (l === lib) libraries.set(key, fresh)
     libraries.set(event.sender.id, fresh)
     await Library.migrateNotes(rootPath, deps.fs)
     const sync = await fresh.syncWithDisk()
     try { await fresh.notes.syncDisk() } catch { /* non-critical */ }
     try { await fresh.tags.syncFromFiles() } catch { /* non-critical */ }
-    fresh.plugins.setWebContentsSender((channel, data) => event.sender.send(channel, data))
+    fresh.plugins.setWebContentsSender(sendToLibraryWindows(fresh))
     await fresh.plugins.loadAll()
     await fresh.createIndexService().rebuildFull()
     return { reimported: sync.imported, purged, markedMissing: sync.missing }
