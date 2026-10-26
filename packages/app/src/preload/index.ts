@@ -47,6 +47,7 @@ const api = {
     get: (id: string) => ipcRenderer.invoke('documents:get', id),
     delete: (id: string) => ipcRenderer.invoke('documents:delete', id),
     markRead: (id: string) => ipcRenderer.invoke('documents:markRead', id),
+    getCover: (id: string) => ipcRenderer.invoke('documents:getCover', id) as Promise<string | null>,
     refresh: () => ipcRenderer.invoke('documents:refresh'),
     createDir: (dirPath: string) => ipcRenderer.invoke('documents:createDir', dirPath),
     move: (id: string, destDir: string) => ipcRenderer.invoke('documents:move', id, destDir),

@@ -190,3 +190,14 @@ export const COVER_COLORS: Record<string, string> = {
 }
 
 export const FOLDER_COLORS = ['#6B95C9', '#F0A858', '#7AAE7E', '#9881B8', '#E07856', '#5FA3A0', '#D89AA8', '#A8835C', '#E6C84A', '#6BAABD']
+
+/**
+ * How far a document has been read, 0–100, from the position its viewer saved.
+ * `percentage` is a fraction (0–1); EPUBs used to store 0–100, read as such.
+ */
+export function readingProgress(doc: { metadata?: Record<string, unknown> }): number {
+  const rp = doc.metadata?.readingPosition as { percentage?: number; page?: number; totalPages?: number } | undefined
+  if (typeof rp?.percentage === 'number') return Math.min(100, Math.round(rp.percentage > 1 ? rp.percentage : rp.percentage * 100))
+  if (rp?.page != null && rp.totalPages) return Math.min(100, Math.round((rp.page / rp.totalPages) * 100))
+  return 0
+}

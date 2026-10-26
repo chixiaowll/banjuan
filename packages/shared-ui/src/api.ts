@@ -111,6 +111,8 @@ export interface BanjuanAPI {
   documents: {
     import(destDir?: string): Promise<Document | null>
     markRead(id: string): Promise<void>
+    /** Desktop: URL of the document's cover thumbnail (first page / EPUB cover), or null. */
+    getCover?(id: string): Promise<string | null>
     refresh(): Promise<{ imported: number; removed: number }>
     list(options?: DocumentListOptions): Promise<Document[]>
     get(id: string): Promise<Document | null>

@@ -12,6 +12,7 @@ import { getDeviceIdentity } from './device-identity.js'
 import { writeZip } from './zip.js'
 import { DiscoveryService } from './discovery-service.js'
 import { docTextStatus } from './doc-text-indexer.js'
+import { getCover } from './covers.js'
 
 // Global plugins live here (shared by every library), à la Claude Code's
 // global plugin dir. Built-in plugins are installed here once at startup.
@@ -287,6 +288,8 @@ export function registerIpcHandlers() {
   ipcMain.handle('documents:delete', async (event, id: string) => {
     return getLib(event).documents.delete(id)
   })
+
+  ipcMain.handle('documents:getCover', async (event, id: string) => getCover(getLib(event), id))
 
   ipcMain.handle('documents:markRead', async (event, id: string) => {
     return getLib(event).documents.markRead(id)

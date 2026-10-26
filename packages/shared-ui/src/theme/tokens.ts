@@ -102,6 +102,8 @@ export interface ThemeLayout {
     /** Hovered row. */
     hoverBackground: string
     hoverShadow: string
+    /** The selected type filter. */
+    activeChipShadow: string
   }
 
   // PoetryCard variant
@@ -204,6 +206,7 @@ const minimal: ThemeLayout = {
     selectedBar: 'var(--ink)',
     hoverBackground: 'var(--hover)',
     hoverShadow: 'none',
+    activeChipShadow: 'none',
   },
 
   poetryCardVariant: 'minimal',
@@ -303,6 +306,7 @@ const notebook: ThemeLayout = {
     selectedBar: '#4A90E2',
     hoverBackground: '#fff',
     hoverShadow: '0 1px 3px rgba(60,40,20,.06), 0 1px 2px rgba(60,40,20,.04)',
+    activeChipShadow: '0 1px 3px rgba(74,144,226,.3)',
   },
 
   poetryCardVariant: 'notebook',

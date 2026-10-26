@@ -1,8 +1,18 @@
 import { Upload, Plus, ChevronRight } from 'lucide-react'
 import { PoetryCard } from '../../components/PoetryCard.js'
 import { requestDocPage } from '../../utils/docNavigation.js'
-import { type Document, TYPE_PILLS, formatDate } from './helpers.js'
+import { type Document, TYPE_PILLS, formatDate, readingProgress } from './helpers.js'
+import DocCover, { CoverImage } from './DocCover.js'
 import { useLibrary } from './LibraryContext.js'
+
+// Placeholder covers while (or when) a document has no thumbnail.
+const HOME_COVER_COLORS = ['#E8DCC8', '#B85C4A', '#5B8C6B', '#8B7E9B', '#6B8EA0']
+const NOTE_COVER_COLORS = ['#5B8C6B', '#B85C4A', '#6B8EA0', '#8B7E9B', '#E07856']
+function stableIndex(text: string, n: number): number {
+  let h = 0
+  for (let i = 0; i < text.length; i++) h = ((h << 5) - h + text.charCodeAt(i)) | 0
+  return Math.abs(h) % n
+}
 
 /** Home: the library's title and counts, today's card, recent documents, notes and annotations. */
 export default function LibraryHome() {
@@ -166,38 +176,43 @@ export default function LibraryHome() {
               <span onClick={() => handleSectionChange('documents')} style={{ fontSize: 13, color: layout.home.linkColor, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 18 }}>
-              {[...documents].sort((a, b) => ((b as any).lastReadAt || b.updatedAt || b.createdAt || '').localeCompare((a as any).lastReadAt || a.updatedAt || a.createdAt || '')).slice(0, 6).map((doc, di) => {
+              {[...documents].sort((a, b) => ((b as any).lastReadAt || b.updatedAt || b.createdAt || '').localeCompare((a as any).lastReadAt || a.updatedAt || a.createdAt || '')).slice(0, 6).map(doc => {
                 const pill = TYPE_PILLS[doc.type]
-                const coverColors = ['#E8DCC8', '#B85C4A', '#5B8C6B', '#8B7E9B', '#6B8EA0']
-                const coverBg = coverColors[di % coverColors.length]
-                const isLight = di === 0
+                // Per document, not per position: a book keeps its colour as the order changes.
+                const coverBg = HOME_COVER_COLORS[stableIndex(doc.title, HOME_COVER_COLORS.length)]
+                const isLight = coverBg === HOME_COVER_COLORS[0]
                 const extLabel = doc.type === 'other' || (doc.type === 'txt' && doc.path && !doc.path.endsWith('.txt'))
                   ? (doc.path?.split('.').pop()?.toUpperCase() || (pill?.label ?? doc.type))
                   : (pill?.label ?? doc.type)
+                const progress = readingProgress(doc)
                 return (
                   <div key={doc.id} onClick={() => onOpenDoc(doc)} style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
                     onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)' }}
                     onMouseLeave={e => { e.currentTarget.style.transform = 'none' }}
                   >
+                    <DocCover doc={doc}>{cover => (
                     <div style={{
                       aspectRatio: '3/4', borderRadius: 10, overflow: 'hidden', position: 'relative',
-                      background: coverBg, padding: 16,
+                      background: cover ? 'var(--paper, #fff)' : coverBg, padding: 16,
                       display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
                       boxShadow: '0 2px 8px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)',
                     }}>
+                      {/* The first page (PDF), the book's cover (EPUB), … */}
+                      {cover && <CoverImage src={cover} />}
                       {/* Binding lines */}
                       <div style={{ position: 'absolute', left: 12, top: 0, bottom: 0, width: 2, background: 'rgba(0,0,0,0.08)' }} />
                       <div style={{ position: 'absolute', left: 15, top: 0, bottom: 0, width: 1, background: 'rgba(0,0,0,0.05)' }} />
                       {/* Type badge */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative' }}>
                         <span style={{
                           fontSize: 9, fontWeight: 600, letterSpacing: '0.05em',
                           padding: '2px 6px', borderRadius: 3,
-                          background: 'rgba(255,255,255,0.25)', color: isLight ? 'var(--ink-soft)' : '#fff',
+                          background: cover ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.25)',
+                          color: cover || !isLight ? '#fff' : 'var(--ink-soft)',
                         }}>{extLabel}</span>
                       </div>
-                      {/* Title */}
-                      <div style={{ marginTop: 'auto' }}>
+                      {/* Title (the thumbnail already shows it) */}
+                      {!cover && <div style={{ marginTop: 'auto' }}>
                         <div style={{
                           fontSize: 14, fontWeight: 600, lineHeight: 1.3,
                           color: isLight ? 'var(--ink)' : '#fff',
@@ -207,13 +222,21 @@ export default function LibraryHome() {
                           fontSize: 11, color: isLight ? 'var(--ink-mute)' : 'rgba(255,255,255,0.7)',
                           marginTop: 4,
                         }}>{doc.authors[0]}</div>}
-                      </div>
+                      </div>}
+                      {/* Reading progress along the bottom edge */}
+                      {progress > 0 && (
+                        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, background: 'rgba(0,0,0,0.12)' }}>
+                          <div style={{ height: '100%', width: `${progress}%`, background: progress >= 100 ? '#7AAE7E' : 'linear-gradient(90deg, #F0A858, #E07856)' }} />
+                        </div>
+                      )}
                     </div>
+                    )}</DocCover>
                     {/* Card footer */}
                     <div style={{ padding: '8px 2px 0', fontSize: 12, color: 'var(--ink-soft)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{doc.title}</div>
-                    <div style={{ padding: '2px 2px 0', fontSize: 11, color: 'var(--ink-faint)' }}>
+                    <div style={{ padding: '2px 2px 0', fontSize: 11, color: 'var(--ink-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {doc.authors?.[0] && <>{doc.authors[0]} · </>}
                       {formatDate((doc as any).lastReadAt || doc.updatedAt || doc.createdAt, locale)}
+                      {progress > 0 && <> · {progress >= 100 ? t('library.progressDone') : `${progress}%`}</>}
                     </div>
                   </div>
                 )
@@ -235,10 +258,9 @@ export default function LibraryHome() {
             <span onClick={() => handleSectionChange('notes')} style={{ fontSize: 13, color: layout.home.linkColor, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>{t('library.viewAll')}<ChevronRight size={11} /></span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 18 }}>
-            {[...notes].sort((a, b) => ((b.updatedAt || b.createdAt) || '').localeCompare((a.updatedAt || a.createdAt) || '')).slice(0, 5).map((note, ni) => {
+            {[...notes].sort((a, b) => ((b.updatedAt || b.createdAt) || '').localeCompare((a.updatedAt || a.createdAt) || '')).slice(0, 5).map(note => {
               const pill = TYPE_PILLS[note.type]
-              const noteColors = ['#5B8C6B', '#B85C4A', '#6B8EA0', '#8B7E9B', '#E07856']
-              const coverBg = noteColors[ni % noteColors.length]
+              const coverBg = NOTE_COVER_COLORS[stableIndex(note.title || '', NOTE_COVER_COLORS.length)]
               return (
                 <div key={note.id} onClick={() => { if (note.type === 'mindmap') onOpenMindmap(note); else onOpenNote(note) }}
                   style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
@@ -262,6 +284,9 @@ export default function LibraryHome() {
                       <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3, color: '#fff',
                         display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
                       }}>{note.title}</div>
+                      {note.excerpt && <div style={{ fontSize: 11, lineHeight: 1.45, color: 'rgba(255,255,255,0.72)', marginTop: 6,
+                        display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                      }}>{note.excerpt}</div>}
                     </div>
                   </div>
                   <div style={{ padding: '8px 2px 0', fontSize: 12, color: 'var(--ink-soft)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{note.title}</div>

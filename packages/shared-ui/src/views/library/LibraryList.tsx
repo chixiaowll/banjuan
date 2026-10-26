@@ -1,7 +1,8 @@
 import React from 'react'
-import { ChevronRight, RefreshCw, Upload, Plus, FilePlus, Search, ChevronDown, Star, Folder } from 'lucide-react'
+import { ChevronRight, RefreshCw, Upload, Plus, FilePlus, Search, ChevronDown, Star, Folder, FileText, Brain, PenTool } from 'lucide-react'
 import { alertDialog } from '../../components/feedback.js'
-import { TYPE_PILLS, coverColorFor, formatRelativeTime, formatDate } from './helpers.js'
+import { TYPE_PILLS, coverColorFor, formatRelativeTime, formatDate, readingProgress } from './helpers.js'
+import DocCover, { CoverImage } from './DocCover.js'
 import { useLibrary } from './LibraryContext.js'
 
 /** The documents / notes list: header, type filters, search and sorting, rows grouped by day. */
@@ -152,6 +153,7 @@ export default function LibraryList() {
                 const typeCounts: Record<string, number> = {}
                 for (const n of baseItems) { typeCounts[n.type] = (typeCounts[n.type] || 0) + 1 }
                 const types = Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]).slice(0, 5)
+                if (types.length <= 1 && !typeFilter) return null   // "All 7 / MD 7" filters nothing
                 const DOT_COLORS: Record<string, string> = { note: '#5B8C6B', mindmap: '#9881B8', canvas: '#6B8EA0' }
                 return (
                   <div style={{
@@ -165,7 +167,7 @@ export default function LibraryList() {
                       background: !typeFilter ? layout.home.primaryButtonBg : 'transparent',
                       color: !typeFilter ? '#fff' : 'var(--ink-soft)',
                       border: 'none', cursor: 'pointer',
-                      boxShadow: !typeFilter ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
+                      boxShadow: !typeFilter ? layout.list.activeChipShadow : 'none',
                     }}>
                       {t('library.allNotes')}
                       <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, opacity: 0.7, fontWeight: 400 }}>{baseItems.length}</span>
@@ -180,7 +182,7 @@ export default function LibraryList() {
                           background: isActive ? layout.home.primaryButtonBg : 'transparent',
                           color: isActive ? '#fff' : 'var(--ink-soft)',
                           border: 'none', cursor: 'pointer',
-                          boxShadow: isActive ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
+                          boxShadow: isActive ? layout.list.activeChipShadow : 'none',
                         }}>
                           <span style={{ width: 5, height: 5, borderRadius: '50%', background: DOT_COLORS[tp] || pill?.color || '#888', boxShadow: isActive ? '0 0 0 1.5px rgba(255,255,255,.4)' : 'none' }} />
                           {pill?.label || tp}
@@ -208,6 +210,7 @@ export default function LibraryList() {
                 const typeCounts: Record<string, number> = {}
                 for (const doc of baseItems) { typeCounts[doc.type] = (typeCounts[doc.type] || 0) + 1 }
                 const types = Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]).slice(0, 5)
+                if (types.length <= 1 && !typeFilter) return null
                 const DOT_COLORS: Record<string, string> = { markdown: '#E6C84A', pdf: '#E07856', epub: '#7AAE7E', mindmap: '#9881B8' }
                 return (
                   <div style={{
@@ -221,7 +224,7 @@ export default function LibraryList() {
                       background: !typeFilter ? layout.home.primaryButtonBg : 'transparent',
                       color: !typeFilter ? '#fff' : 'var(--ink-soft)',
                       border: 'none', cursor: 'pointer',
-                      boxShadow: !typeFilter ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
+                      boxShadow: !typeFilter ? layout.list.activeChipShadow : 'none',
                     }}>
                       {t('library.allDocs')}
                       <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, opacity: 0.7, fontWeight: 400 }}>{baseItems.length}</span>
@@ -236,7 +239,7 @@ export default function LibraryList() {
                           background: isActive ? layout.home.primaryButtonBg : 'transparent',
                           color: isActive ? '#fff' : 'var(--ink-soft)',
                           border: 'none', cursor: 'pointer',
-                          boxShadow: isActive ? '0 1px 3px rgba(74,144,226,.3)' : 'none',
+                          boxShadow: isActive ? layout.list.activeChipShadow : 'none',
                         }}>
                           <span style={{ width: 5, height: 5, borderRadius: '50%', background: DOT_COLORS[tp] || pill?.color || '#888', boxShadow: isActive ? '0 0 0 1.5px rgba(255,255,255,.4)' : 'none' }} />
                           {pill?.label || tp}
@@ -468,10 +471,7 @@ export default function LibraryList() {
                   ? (item.path?.split('.').pop()?.toUpperCase() || (pill?.label ?? item.type))
                   : pill?.label ?? item.type
                 const coverColor = coverColorFor(item.type, item.title || item.name || '')
-                const rp = (item as any).metadata?.readingPosition
-                const progressPct = rp?.percentage != null ? Math.round(rp.percentage * 100)
-                  : rp?.page != null && rp?.totalPages ? Math.round((rp.page / rp.totalPages) * 100)
-                  : 0
+                const progressPct = readingProgress(item)
                 const { relative, absolute } = formatRelativeTime(item.updatedAt || item.createdAt, locale, t)
                 const pathParts = item.path?.split('/').filter(Boolean) || []
                 const itemTags = (item as any).tags || []
@@ -499,19 +499,27 @@ export default function LibraryList() {
                     onMouseLeave={e => { e.currentTarget.style.background = isSelected ? layout.list.selectedBackground : 'transparent'; e.currentTarget.style.boxShadow = 'none' }}
                   >
                     {isSelected && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, background: layout.list.selectedBar, borderRadius: '0 3px 3px 0' }} />}
-                    {/* Mini cover */}
+                    {/* Mini cover: the thumbnail, or the type on a colour while there is none */}
+                    <DocCover doc={item}>{cover => (
                     <div style={{
                       width: 48, height: 60, borderRadius: '3px 5px 5px 3px',
-                      background: `linear-gradient(135deg, ${coverColor} 0%, ${coverColor}CC 100%)`,
+                      background: cover ? 'var(--paper, #fff)' : `linear-gradient(135deg, ${coverColor} 0%, ${coverColor}CC 100%)`,
                       position: 'relative', overflow: 'hidden',
                       boxShadow: '0 1px 3px rgba(60,40,20,.06), 0 1px 2px rgba(60,40,20,.04)',
+                      border: cover ? '1px solid var(--paper-edge)' : undefined,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       flexShrink: 0,
                     }}>
-                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: 'rgba(0,0,0,0.12)' }} />
-                      <div style={{ position: 'absolute', bottom: 0, right: 0, width: 0, height: 0, borderStyle: 'solid', borderWidth: '0 0 8px 8px', borderColor: 'transparent transparent rgba(255,255,255,.3) transparent' }} />
-                      <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.85)', letterSpacing: '0.06em', paddingLeft: 5, position: 'relative', zIndex: 1 }}>{typeLabel}</span>
+                      {cover ? (<>
+                        <CoverImage src={cover} />
+                        <span style={{ position: 'absolute', left: 3, bottom: 3, fontFamily: 'var(--font-mono, monospace)', fontSize: 8, fontWeight: 700, color: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 2, padding: '0 3px', letterSpacing: '0.04em' }}>{typeLabel}</span>
+                      </>) : (<>
+                        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: 'rgba(0,0,0,0.12)' }} />
+                        <div style={{ position: 'absolute', bottom: 0, right: 0, width: 0, height: 0, borderStyle: 'solid', borderWidth: '0 0 8px 8px', borderColor: 'transparent transparent rgba(255,255,255,.3) transparent' }} />
+                        <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.85)', letterSpacing: '0.06em', paddingLeft: 5, position: 'relative', zIndex: 1 }}>{typeLabel}</span>
+                      </>)}
                     </div>
+                    )}</DocCover>
                     {/* Title + path + tags */}
                     <div style={{ minWidth: 0 }}>
                       <div style={{
@@ -588,16 +596,6 @@ export default function LibraryList() {
             </div>
           ))
         })() : layout.home.sectionCardStyle === 'card' && selectedSection === 'notes' ? (() => {
-          const NOTE_COVER_COLORS: Record<string, string[]> = {
-            note: ['#5B8C6B', '#4A7A5C', '#6B9B7B', '#3D6B4E', '#7DAE8E'],
-            mindmap: ['#9881B8', '#8570A6', '#AB94CA', '#7563A0', '#B9A0D9'],
-            default: ['#6B8EA0', '#5A7D8F', '#7CA0B2', '#4D7080', '#8DB2C4'],
-          }
-          const noteColorFor = (type: string, title: string) => {
-            const palette = NOTE_COVER_COLORS[type] || NOTE_COVER_COLORS.default
-            let h = 0; for (let i = 0; i < (title || '').length; i++) h = ((h << 5) - h + (title || '').charCodeAt(i)) | 0
-            return palette[Math.abs(h) % palette.length]
-          }
           // displayItems is already sorted by the chosen key (getDisplayItems).
           const groups = groupItems(displayItems)
           return groups.map((group, gi) => (
@@ -613,8 +611,7 @@ export default function LibraryList() {
               {group.items.map((item: any) => {
                 const isSelected = selectedItemId === item.id
                 const pill = TYPE_PILLS[item.type]
-                const typeLabel = pill?.label ?? item.type
-                const coverColor = noteColorFor(item.type, item.title || '')
+                const TypeIcon = item.type === 'mindmap' ? Brain : item.type === 'handwriting' ? PenTool : FileText
                 const { relative, absolute } = formatRelativeTime(item.updatedAt || item.createdAt, locale, t)
                 // A note's file is "<folder>/<uuid>.json": show the folder, never the id file name.
                 const pathParts = (item.path?.split('/').filter(Boolean) || []).slice(0, -1)
@@ -624,7 +621,7 @@ export default function LibraryList() {
                     className="nb-doc-row"
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '60px minmax(0,1fr) 110px',
+                      gridTemplateColumns: '36px minmax(0,1fr) 110px',
                       gap: 14, alignItems: 'center',
                       padding: '10px 12px', marginBottom: 2,
                       cursor: 'pointer', borderRadius: 10,
@@ -639,19 +636,16 @@ export default function LibraryList() {
                     onMouseLeave={e => { e.currentTarget.style.background = isSelected ? layout.list.selectedBackground : 'transparent'; e.currentTarget.style.boxShadow = 'none' }}
                   >
                     {isSelected && <div style={{ position: 'absolute', left: 0, top: 8, bottom: 8, width: 3, background: layout.list.selectedBar, borderRadius: '0 3px 3px 0' }} />}
-                    {/* Mini cover */}
-                    <div style={{
-                      width: 40, height: 48, borderRadius: 6,
-                      background: `linear-gradient(135deg, ${coverColor} 0%, ${coverColor}CC 100%)`,
-                      position: 'relative', overflow: 'hidden',
-                      boxShadow: '0 1px 3px rgba(60,40,20,.06)',
+                    {/* Type: the same colours as the type filter */}
+                    <div title={pill?.label ?? item.type} style={{
+                      width: 32, height: 32, borderRadius: 8,
+                      background: pill?.bg ?? 'var(--tag-txt-bg)', color: pill?.color ?? 'var(--tag-txt-color)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       flexShrink: 0,
                     }}>
-                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'rgba(0,0,0,0.1)' }} />
-                      <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.85)', letterSpacing: '0.04em', position: 'relative', zIndex: 1 }}>{typeLabel}</span>
+                      <TypeIcon size={16} />
                     </div>
-                    {/* Title + path */}
+                    {/* Title, then folder and the start of the text */}
                     <div style={{ minWidth: 0 }}>
                       <div style={{
                         fontSize: 14, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.35,
@@ -659,19 +653,23 @@ export default function LibraryList() {
                       }}>
                         {item.title || item.name}
                       </div>
-                      {pathParts.length > 0 && (
+                      {(pathParts.length > 0 || item.excerpt) && (
                         <div style={{
                           fontSize: 11, color: 'var(--ink-mute)', marginTop: 3,
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                           display: 'flex', alignItems: 'center', gap: 4,
                         }}>
-                          <Folder size={10} style={{ flexShrink: 0, opacity: 0.5 }} />
-                          {pathParts.map((seg: string, si: number) => (
-                            <React.Fragment key={si}>
-                              {si > 0 && <span style={{ opacity: 0.3 }}>/</span>}
-                              <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10 }}>{seg}</span>
-                            </React.Fragment>
-                          ))}
+                          {pathParts.length > 0 && <>
+                            <Folder size={10} style={{ flexShrink: 0, opacity: 0.5 }} />
+                            {pathParts.map((seg: string, si: number) => (
+                              <React.Fragment key={si}>
+                                {si > 0 && <span style={{ opacity: 0.3 }}>/</span>}
+                                <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 10, flexShrink: 0 }}>{seg}</span>
+                              </React.Fragment>
+                            ))}
+                            {item.excerpt && <span style={{ opacity: 0.4, flexShrink: 0 }}>·</span>}
+                          </>}
+                          {item.excerpt && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{item.excerpt}</span>}
                         </div>
                       )}
                     </div>

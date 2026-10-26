@@ -146,6 +146,8 @@ export interface Note {
   typeMeta: Record<string, unknown> | null
   createdAt: string
   updatedAt: string
+  /** In lists: the start of the note's text (a mind map: its first topics). */
+  excerpt?: string
 }
 
 export interface NoteCreateInput {

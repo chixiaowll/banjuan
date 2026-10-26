@@ -53,7 +53,8 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
     saveTimerRef.current = setTimeout(() => {
       const d = docRef.current
       api.documents.update(d.id, {
-        metadata: { readingPosition: { cfi, percentage } },
+        // A fraction, like the PDF / Markdown viewers (this used to store 0–100).
+        metadata: { readingPosition: { cfi, percentage: percentage / 100 } },
       }).catch(() => {})
     }, 1000)
   }, [])

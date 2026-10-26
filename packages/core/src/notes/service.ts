@@ -323,7 +323,45 @@ export class NoteService {
     const sort = options?.sort ?? 'created_at'
     const order = options?.order ?? 'desc'
     sql += ` ORDER BY ${sort} ${order}`
-    return (this.db.query<Record<string, unknown>>(sql, params)).map(r => this.rowToNote(r))
+    const notes = this.db.query<Record<string, unknown>>(sql, params).map(r => this.rowToNote(r))
+    this.attachExcerpts(notes)
+    return notes
+  }
+
+  /**
+   * A line of each note's text for the lists: the start of a note's body (from
+   * the search index — no file is read) or a mind map's first branches.
+   */
+  private attachExcerpts(notes: Note[]): void {
+    if (!notes.length) return
+    const wanted = new Set(notes.map(n => n.id))
+    const text = new Map<string, string>()
+    try {
+      for (const r of this.db.query<{ type: string; head: string | null }>(
+        "SELECT type, substr(content, 1, 240) AS head FROM search_index WHERE type LIKE 'note:%'",
+      )) {
+        const id = r.type.slice('note:'.length)
+        if (r.head && wanted.has(id)) text.set(id, r.head)
+      }
+    } catch { /* no full-text index on this platform */ }
+    const maps = notes.filter(n => n.type === 'mindmap').map(n => n.id)
+    if (maps.length) {
+      const topics = new Map<string, string[]>()
+      for (const r of this.db.query<{ mindmap_id: string; title: string | null }>(
+        // Not the root: it carries the map's title, which the list shows already.
+        `SELECT mindmap_id, title FROM mindmap_nodes WHERE parent_id IS NOT NULL AND mindmap_id IN (${maps.map(() => '?').join(',')})
+          ORDER BY mindmap_id, sort_order`, maps,
+      )) {
+        const list = topics.get(r.mindmap_id) ?? []
+        if (list.length < 6 && r.title?.trim()) list.push(r.title.trim())
+        topics.set(r.mindmap_id, list)
+      }
+      for (const [id, list] of topics) if (list.length) text.set(id, list.join(' · '))
+    }
+    for (const n of notes) {
+      const t = text.get(n.id)?.replace(/\s+/g, ' ').trim()
+      if (t) n.excerpt = t.length > 160 ? t.slice(0, 160) + '…' : t
+    }
   }
 
   resolveId(id: string): string {
