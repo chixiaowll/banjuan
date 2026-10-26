@@ -227,6 +227,19 @@ function toSnapshot(rfNodes: Node<MindmapNodeData>[], rfEdges: Edge[]): MindmapS
   }
 }
 
+/** A copy of `target` whose methods (own or inherited, bound to `target`) pass through `wrap`. */
+function wrapMethods<T extends object>(target: T, wrap: (name: string, fn: (...args: any[]) => any) => (...args: any[]) => any): T {
+  const out: Record<string, unknown> = {}
+  for (let o: object | null = target; o && o !== Object.prototype; o = Object.getPrototypeOf(o)) {
+    for (const name of Object.getOwnPropertyNames(o)) {
+      if (name === 'constructor' || name in out) continue
+      const value = (target as any)[name]
+      out[name] = typeof value === 'function' ? wrap(name, value.bind(target)) : value
+    }
+  }
+  return out as T
+}
+
 /** Order-independent comparison key for a snapshot. */
 function snapshotKey(s: MindmapSnapshot): string {
   const byId = <T extends { id: string }>(a: T, b: T) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
@@ -263,22 +276,20 @@ export function createMindmapStore(baseApi: BanjuanAPI, labels: () => MindmapLab
   // announced when done so another editor showing this map reloads it.
   const changeSource = {}
   let writesInFlight = 0
-  const trackedMindmaps = new Proxy(baseApi.mindmaps, {
-    get(target, prop, receiver) {
-      const value = Reflect.get(target, prop, receiver)
-      if (typeof value !== 'function') return value
-      if (typeof prop !== 'string' || !/^(add|update|remove|restore)/.test(prop)) return value.bind(target)
-      return (...args: unknown[]) => {
-        writesInFlight++
-        return Promise.resolve(value.apply(target, args))
-          .then((result) => {
-            const id = store.getState().mindmapId
-            if (id) announceNoteChanged(id, changeSource)
-            return result
-          })
-          .finally(() => { writesInFlight-- })
-      }
-    },
+  // A plain wrapper, not a Proxy: the desktop API object comes frozen through
+  // contextBridge, and a Proxy may not hand out anything but its frozen values.
+  const trackedMindmaps = wrapMethods(baseApi.mindmaps, (name, fn) => {
+    if (!/^(add|update|remove|restore)/.test(name)) return fn
+    return (...args: unknown[]) => {
+      writesInFlight++
+      return Promise.resolve(fn(...args))
+        .then((result) => {
+          const id = store.getState().mindmapId
+          if (id) announceNoteChanged(id, changeSource)
+          return result
+        })
+        .finally(() => { writesInFlight-- })
+    }
   })
   const api: BanjuanAPI = { ...baseApi, mindmaps: trackedMindmaps }
   const writePersist = async (get: () => MindmapState) => {
