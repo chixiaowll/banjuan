@@ -167,3 +167,32 @@ describe('remote listing cannot write outside the library or into excluded paths
     expect(existsSync(join(parent, 'escape.txt'))).toBe(false)
   })
 })
+
+describe('a failing remote listing', () => {
+  it('stops the sync instead of treating the files as deleted on the server', async () => {
+    const root = join(createTempDir(), 'lib')
+    mkdirSync(root)
+    const adapter = new GenericDavAdapter(() => 1_800_000_000_000)
+    const svc = new SyncService(root, adapter, undefined, new NodeFS(), '/')
+    edit(join(root, 'a.md'), 'a', 1_799_999_000_000)
+    edit(join(root, 'sub', 'b.md'), 'b', 1_799_999_000_000)
+    await svc.sync()
+
+    // A subfolder fails to list (server hiccup): the listing is incomplete.
+    const realList = adapter.list.bind(adapter)
+    adapter.list = async (p: string) => { const all = await realList(p); if (all.length) throw Object.assign(new Error('PROPFIND /sub/: 503'), { status: 503 }); return all }
+    await expect(svc.sync()).rejects.toThrow(/Couldn't list the files on the server/)
+    expect(readFileSync(join(root, 'a.md'), 'utf-8')).toBe('a')
+    expect(readFileSync(join(root, 'sub', 'b.md'), 'utf-8')).toBe('b')
+  })
+
+  it('treats a sync folder that does not exist yet (404) as empty', async () => {
+    const root = join(createTempDir(), 'lib')
+    mkdirSync(root)
+    const adapter = new GenericDavAdapter(() => 1_800_000_000_000)
+    adapter.list = async () => { throw Object.assign(new Error('Not Found'), { status: 404 }) }
+    const svc = new SyncService(root, adapter, undefined, new NodeFS(), '/')
+    edit(join(root, 'a.md'), 'a', 1_799_999_000_000)
+    expect((await svc.sync()).uploaded).toBe(1)
+  })
+})

@@ -319,8 +319,12 @@ export class SyncService {
         }
         results.push({ relativePath: rel, mtime: item.mtime, size: item.size })
       }
-    } catch {
-      // Remote might be empty on first sync
+    } catch (err) {
+      // The sync folder not existing yet (first sync) means an empty remote.
+      // Anything else (network, auth, a failing subfolder) must stop the sync:
+      // treating it as "no files there" would make files look deleted remotely.
+      const status = (err as any)?.status ?? (err as any)?.response?.status
+      if (status !== 404) throw new Error(`Couldn't list the files on the server: ${(err as Error)?.message ?? err}`)
     }
     return results
   }

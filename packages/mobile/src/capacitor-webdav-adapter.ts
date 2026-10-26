@@ -1,7 +1,7 @@
 import { CapacitorHttp } from '@capacitor/core'
 import { Filesystem, Directory } from '@capacitor/filesystem'
 import type { PlatformFS } from '@banjuan/core'
-import { dirname } from '@banjuan/core'
+import { dirname, parsePropfind } from '@banjuan/core'
 import type { SyncConfig, RemoteFile } from '@banjuan/core'
 import type { SyncAdapter } from '@banjuan/core'
 import { FileUploader } from './file-uploader-plugin'
@@ -31,7 +31,8 @@ export class CapacitorWebDAVAdapter implements SyncAdapter {
 
   async list(remotePath: string): Promise<RemoteFile[]> {
     const results: RemoteFile[] = []
-    const queue = [remotePath.endsWith('/') ? remotePath : remotePath + '/']
+    const root = remotePath.endsWith('/') ? remotePath : remotePath + '/'
+    const queue = [root]
 
     while (queue.length > 0) {
       const dir = queue.shift()!
@@ -42,52 +43,17 @@ export class CapacitorWebDAVAdapter implements SyncAdapter {
         headers: { ...this.headers, 'Depth': '1', 'Content-Type': 'application/xml' },
       })
       console.log(`[sync] PROPFIND ${dir} ${resp.status} ${(performance.now() - t0).toFixed(0)}ms`)
-      console.log(`[sync] resp.data type: ${typeof resp.data}`, typeof resp.data === 'string' ? resp.data.substring(0, 200) : resp.data)
-      if (resp.status >= 400) { console.warn(`[sync] PROPFIND ${dir} failed: ${resp.status}, skipping`); continue }
+      // Nothing synced to this server yet.
+      if (resp.status === 404 && dir === root) return []
+      // Any other failure must fail the listing: skipping a folder made its
+      // files look deleted on the server, and the sync then deleted them here.
+      if (resp.status >= 400) throw Object.assign(new Error(`PROPFIND ${dir}: ${resp.status}`), { status: resp.status })
 
       const xml = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data)
-      const entries = this.parsePropfind(xml, dir)
-      for (const entry of entries) {
-        if (entry.isDirectory) {
-          queue.push(entry.path.endsWith('/') ? entry.path : entry.path + '/')
-        }
+      for (const entry of parsePropfind(xml, dir, this.baseUrl)) {
+        if (entry.isDirectory) queue.push(entry.path + '/')
         results.push(entry)
       }
-    }
-    return results
-  }
-
-  private parsePropfind(xml: string, requestDir: string): RemoteFile[] {
-    const results: RemoteFile[] = []
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(xml, 'text/xml')
-    const responses = doc.getElementsByTagNameNS('DAV:', 'response')
-
-    for (let i = 0; i < responses.length; i++) {
-      const resp = responses[i]
-      const hrefEl = resp.getElementsByTagNameNS('DAV:', 'href')[0]
-      if (!hrefEl) continue
-      let href = hrefEl.textContent || ''
-
-      try {
-        const parsed = new URL(href, this.baseUrl)
-        href = decodeURIComponent(parsed.pathname)
-      } catch {
-        href = decodeURIComponent(href)
-      }
-
-      const normalizedDir = requestDir.endsWith('/') ? requestDir : requestDir + '/'
-      if (href.replace(/\/$/, '') === requestDir.replace(/\/$/, '')) continue
-
-      const isDirectory = resp.getElementsByTagNameNS('DAV:', 'collection').length > 0
-      const lastmodEl = resp.getElementsByTagNameNS('DAV:', 'getlastmodified')[0]
-      const sizeEl = resp.getElementsByTagNameNS('DAV:', 'getcontentlength')[0]
-
-      const path = href.replace(/\/$/, '')
-      const mtime = lastmodEl ? new Date(lastmodEl.textContent || '').getTime() : 0
-      const size = sizeEl ? parseInt(sizeEl.textContent || '0', 10) : 0
-
-      results.push({ path, mtime, size, isDirectory })
     }
     return results
   }

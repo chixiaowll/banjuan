@@ -2,6 +2,7 @@ import type { PlatformFS } from '../platform/index.js'
 import { dirname } from '../platform/path.js'
 import type { SyncConfig, RemoteFile } from '../types.js'
 import type { SyncAdapter } from './adapter.js'
+import { parsePropfind } from './propfind.js'
 
 export class WebDAVFetchAdapter implements SyncAdapter {
   private baseUrl = ''
@@ -29,68 +30,23 @@ export class WebDAVFetchAdapter implements SyncAdapter {
   async list(remotePath: string): Promise<RemoteFile[]> {
     const t0 = performance.now()
     const results: RemoteFile[] = []
-    const queue = [remotePath.endsWith('/') ? remotePath : remotePath + '/']
+    const root = remotePath.endsWith('/') ? remotePath : remotePath + '/'
+    const queue = [root]
 
     while (queue.length > 0) {
       const dir = queue.shift()!
-      const t1 = performance.now()
       const resp = await fetch(this.url(dir), {
         method: 'PROPFIND',
         headers: { ...this.headers, 'Depth': '1', 'Content-Type': 'application/xml' },
       })
-      if (!resp.ok) throw new Error(`PROPFIND ${dir}: ${resp.status} ${resp.statusText}`)
-
-      const xml = await resp.text()
-      console.log(`[sync] PROPFIND ${dir} took ${(performance.now() - t1).toFixed(0)}ms`)
-      const entries = this.parsePropfind(xml, dir)
-      for (const entry of entries) {
-        if (entry.isDirectory) {
-          queue.push(entry.path.endsWith('/') ? entry.path : entry.path + '/')
-        }
+      if (resp.status === 404 && dir === root) return []   // nothing synced here yet
+      if (!resp.ok) throw Object.assign(new Error(`PROPFIND ${dir}: ${resp.status} ${resp.statusText}`), { status: resp.status })
+      for (const entry of parsePropfind(await resp.text(), dir, this.baseUrl)) {
+        if (entry.isDirectory) queue.push(entry.path + '/')
         results.push(entry)
       }
     }
     console.log(`[sync] list total: ${(performance.now() - t0).toFixed(0)}ms, ${results.length} items`)
-    return results
-  }
-
-  private parsePropfind(xml: string, requestDir: string): RemoteFile[] {
-    const results: RemoteFile[] = []
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(xml, 'text/xml')
-    const responses = doc.getElementsByTagNameNS('DAV:', 'response')
-
-    for (let i = 0; i < responses.length; i++) {
-      const resp = responses[i]
-      const hrefEl = resp.getElementsByTagNameNS('DAV:', 'href')[0]
-      if (!hrefEl) continue
-      let href = decodeURIComponent(hrefEl.textContent || '')
-
-      // Remove base URL prefix if present
-      try {
-        const parsed = new URL(href, this.baseUrl)
-        href = parsed.pathname
-      } catch {
-        // already a path
-      }
-
-      // Skip the directory itself
-      const normalizedDir = requestDir.endsWith('/') ? requestDir : requestDir + '/'
-      const normalizedHref = href.endsWith('/') ? href : href
-      if (normalizedHref === normalizedDir || normalizedHref === normalizedDir.slice(0, -1)) continue
-      // Also skip if href without trailing slash matches dir without trailing slash
-      if (href.replace(/\/$/, '') === requestDir.replace(/\/$/, '')) continue
-
-      const isDirectory = resp.getElementsByTagNameNS('DAV:', 'collection').length > 0
-      const lastmodEl = resp.getElementsByTagNameNS('DAV:', 'getlastmodified')[0]
-      const sizeEl = resp.getElementsByTagNameNS('DAV:', 'getcontentlength')[0]
-
-      const path = href.replace(/\/$/, '')
-      const mtime = lastmodEl ? new Date(lastmodEl.textContent || '').getTime() : 0
-      const size = sizeEl ? parseInt(sizeEl.textContent || '0', 10) : 0
-
-      results.push({ path, mtime, size, isDirectory })
-    }
     return results
   }
 
