@@ -7,8 +7,9 @@ import fr from './fr.js'
 import de from './de.js'
 import es from './es.js'
 import { formatMessage } from './format.js'
+import { localeFromLanguage, type Locale } from './locale.js'
 
-export type Locale = 'zh' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es'
+export type { Locale }
 
 /** BCP 47 tag of each UI language, for Intl / toLocaleDateString / toLocaleTimeString. */
 export const LOCALE_TAGS: Record<Locale, string> = {
@@ -36,14 +37,7 @@ function getInitialLocale(): Locale {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored && stored in locales) return stored as Locale
   } catch {}
-  const lang = navigator.language
-  if (lang.startsWith('zh')) return 'zh'
-  if (lang.startsWith('ja')) return 'ja'
-  if (lang.startsWith('ko')) return 'ko'
-  if (lang.startsWith('fr')) return 'fr'
-  if (lang.startsWith('de')) return 'de'
-  if (lang.startsWith('es')) return 'es'
-  return 'en'
+  return localeFromLanguage(navigator.language)
 }
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
