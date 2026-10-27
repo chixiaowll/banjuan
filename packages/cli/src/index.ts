@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { Command } from 'commander'
 import chalk from 'chalk'
-import { resolve, dirname } from 'node:path'
-import { existsSync, mkdirSync, cpSync, rmSync } from 'node:fs'
+import { resolve, dirname, basename } from 'node:path'
+import { existsSync, mkdirSync, cpSync, rmSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { apiGet, apiPost, isAppRunning, ensureApp, readLibraryHistory, setLibraryOption } from './lib.js'
 import { docCmd } from './commands/doc.js'
@@ -15,7 +15,7 @@ import { folderCmd } from './commands/folder.js'
 
 const program = new Command()
   .name('banjuan')
-  .description('Banjuan — study & research toolkit')
+  .description('Banjuan — study & research toolkit\n\n  banjuan <file>   open a file on its own (PDF, EPUB, Markdown, text, image)')
   .version('0.1.0')
   .option('--library <path>', 'path to the library to operate on')
   .hook('preAction', (thisCommand) => {
@@ -274,4 +274,14 @@ program.addCommand(searchCmd)
 program.addCommand(tagCmd)
 program.addCommand(folderCmd)
 
-program.parse()
+// `banjuan <file>`: open a file on its own in the app, like `code <file>`. A
+// name that is also a command runs the command (write ./name for the file).
+const first = process.argv[2]
+const isFile = (p: string) => { try { return statSync(p).isFile() } catch { return false } }
+if (first && !first.startsWith('-') && !program.commands.some(c => c.name() === first) && isFile(resolve(first))) {
+  apiPost('/api/view', { path: resolve(first) })
+    .then((result: { path: string }) => console.log(chalk.green(`✓ Opened ${basename(result.path)}`)))
+    .catch((e: Error) => { console.error(chalk.red(e.message)); process.exit(1) })
+} else {
+  program.parse()
+}

@@ -56,6 +56,29 @@ mac:
   icon: resources/icon.icns
   artifactName: "banjuan-${version}-mac-${arch}.${ext}"   # the zip; the dmg has its own below
   category: public.app-category.productivity
+  # "Open With → 半卷" for these (single-file windows). Alternate: offered, never
+  # taking over as the default app unless the user makes it one.
+  fileAssociations:
+    - ext: pdf
+      name: PDF Document
+      role: Viewer
+      rank: Alternate
+    - ext: epub
+      name: EPUB Book
+      role: Viewer
+      rank: Alternate
+    - ext: [md, markdown]
+      name: Markdown Document
+      role: Editor
+      rank: Alternate
+    - ext: txt
+      name: Plain Text
+      role: Editor
+      rank: Alternate
+    - ext: [png, jpg, jpeg, gif, webp]
+      name: Image
+      role: Viewer
+      rank: Alternate
   # arch order matters: electron-builder rebuilds the native better-sqlite3 for
   # each target in turn, and the LAST one is what stays in node_modules. Build
   # x64 first and arm64 last so the dev machine (Apple Silicon) keeps a working
