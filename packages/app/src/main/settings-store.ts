@@ -11,7 +11,7 @@ const SETTINGS_FILE = join(homedir(), '.banjuan', 'settings.json')
  */
 export const DEFAULT_SCREENSHOT_HOTKEY = 'Control+Shift+A'
 
-interface Settings { screenshotHotkey?: string }
+interface Settings { screenshotHotkey?: string; showInDock?: boolean; locale?: string }
 
 function read(): Settings {
   try { return JSON.parse(readFileSync(SETTINGS_FILE, 'utf-8')) as Settings } catch { return {} }
@@ -27,4 +27,22 @@ export function getScreenshotHotkey(): string {
 
 export function setScreenshotHotkey(accelerator: string): void {
   write({ ...read(), screenshotHotkey: accelerator })
+}
+
+/** macOS: show the app in the Dock as well as the menu bar (default on). */
+export function getShowInDock(): boolean {
+  return read().showInDock !== false
+}
+
+export function setShowInDock(show: boolean): void {
+  write({ ...read(), showInDock: show })
+}
+
+/** The UI language the windows last reported (for the menu bar menu before any window is open). */
+export function getLocale(): string | undefined {
+  return read().locale
+}
+
+export function setLocale(locale: string): void {
+  if (read().locale !== locale) write({ ...read(), locale })
 }

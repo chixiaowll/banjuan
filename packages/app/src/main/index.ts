@@ -4,8 +4,9 @@ import { registerExportWindowHandlers } from './export-window.js'
 import { startApiServer, stopApiServer } from './api-server.js'
 import { startDocTextIndexer, stopDocTextIndexer } from './doc-text-indexer.js'
 import { installCli } from './install-cli.js'
-import { createWindow, getWindowCount, isLibraryWindow, flushAllWindowsForQuit } from './windows.js'
-import { initScreenshot, disposeScreenshot } from './screenshot/index.js'
+import { createWindow, getWindowCount, isLibraryWindow, flushAllWindowsForQuit, showAllWindows } from './windows.js'
+import { initScreenshot, disposeScreenshot, triggerCapture } from './screenshot/index.js'
+import { initMenuBar } from './menu-bar.js'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
@@ -115,6 +116,13 @@ app.whenReady().then(() => {
   if (launchFiles.length > 0) openFiles(launchFiles)
   else createWindow()
   initScreenshot()
+  initMenuBar({
+    open: () => { if (!showAllWindows()) createWindow() },
+    screenshot: () => { void triggerCapture() },
+    // From the menu bar the app may not be frontmost (Dock hidden): bring it forward for the dialog.
+    openFile: () => { app.focus({ steal: true }); void openFileDialog() },
+    quit: () => app.quit(),
+  })
 })
 
 app.on('activate', () => {

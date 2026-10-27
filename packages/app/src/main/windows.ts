@@ -134,3 +134,19 @@ export function isLibraryWindow(win: BrowserWindow | null | undefined): win is B
 export function getWindowCount(): number {
   return windows.size
 }
+
+/**
+ * Bring every library and file window forward, the last focused library window
+ * on top (menu bar “Open Banjuan”). False when there are none.
+ */
+export function showAllWindows(): boolean {
+  if (windows.size === 0) return false
+  app.focus({ steal: true })
+  for (const w of windows) {
+    if (w.isMinimized()) w.restore()
+    w.show()
+  }
+  const top = lastFocused && !lastFocused.isDestroyed() ? lastFocused : [...windows].at(-1)
+  top?.focus()
+  return true
+}
