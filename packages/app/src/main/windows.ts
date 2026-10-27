@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 
 const windows = new Set<BrowserWindow>()
+/** Single-file windows (a file opened on its own): never the "library window" for screenshots or notices. */
+const fileWindows = new WeakSet<BrowserWindow>()
 
 // Unsaved edits wait behind timers in the renderer (debounced note saves,
 // handwriting stroke batching). Before a library window closes or the app
@@ -15,7 +17,7 @@ let lastFocused: BrowserWindow | null = null
 /** The library window the user used last — target for "insert into note" and screenshot notices. */
 export function getLastFocusedLibraryWindow(): BrowserWindow | null {
   if (lastFocused && !lastFocused.isDestroyed()) return lastFocused
-  return [...windows].find(w => !w.isDestroyed()) ?? null
+  return [...windows].find(w => !w.isDestroyed() && !fileWindows.has(w)) ?? null
 }
 
 function flushWindow(win: BrowserWindow): Promise<void> {
@@ -36,10 +38,16 @@ export function flushAllWindowsForQuit(): Promise<void> {
   return Promise.all([...windows].map(flushWindow)).then(() => {})
 }
 
-export function createWindow(): BrowserWindow {
+/**
+ * A library window, or (`kind: 'file'`) a single-file window. `hash` is handed
+ * to the page (it picks what to show from it). Both kinds write pending edits
+ * before closing and before the app quits.
+ */
+export function createWindow(opts: { hash?: string; kind?: 'library' | 'file' } = {}): BrowserWindow {
+  const isFile = opts.kind === 'file'
   const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: isFile ? 1000 : 1200,
+    height: isFile ? 760 : 800,
     icon: join(__dirname, '../../resources/icon.png'),
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 12, y: 12 },
@@ -92,7 +100,8 @@ export function createWindow(): BrowserWindow {
   })
 
   windows.add(win)
-  win.on('focus', () => { lastFocused = win })
+  if (isFile) fileWindows.add(win)
+  else win.on('focus', () => { lastFocused = win })
   win.on('closed', () => {
     windows.delete(win)
     if (lastFocused === win) lastFocused = null
@@ -109,9 +118,9 @@ export function createWindow(): BrowserWindow {
   })
 
   if (process.env.VITE_DEV_SERVER_URL) {
-    win.loadURL(process.env.VITE_DEV_SERVER_URL)
+    win.loadURL(process.env.VITE_DEV_SERVER_URL + (opts.hash ? `#${opts.hash}` : ''))
   } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'), opts.hash ? { hash: opts.hash } : undefined)
   }
 
   return win
