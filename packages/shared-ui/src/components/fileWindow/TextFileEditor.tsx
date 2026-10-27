@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
 import { markdown } from '@codemirror/lang-markdown'
+import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { search, searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { withLocalImages } from './localImages.js'
@@ -55,7 +56,7 @@ export default function TextFileEditor({ initialText, reload, onChange, onSaveNo
             ...defaultKeymap,
             indentWithTab,
           ]),
-          ...(isMarkdown ? [markdown()] : []),
+          ...(isMarkdown ? [markdown(), syntaxHighlighting(defaultHighlightStyle, { fallback: true })] : []),
           EditorView.lineWrapping,
           EditorState.readOnly.of(readOnly),
           EditorView.editable.of(!readOnly),
