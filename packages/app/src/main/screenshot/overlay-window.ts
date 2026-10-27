@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, type Display, type WebContents } from 'electron'
+import { BrowserWindow, type Display, type WebContents } from 'electron'
 import { join } from 'node:path'
 import type { Rect } from './pure.js'
 
@@ -62,10 +62,13 @@ function getOverlay(): BrowserWindow {
   // 'floating' stays above normal windows without covering the menu bar or
   // blocking Mission Control / Cmd-Tab — a glitch can never trap the user.
   w.setAlwaysOnTop(true, 'floating')
+  // Rebuilt on the next capture. Logged, not a dialog: the page also goes when
+  // the app is being shut down (or the system reclaims memory), and a modal box
+  // here blocked the main process — the app could then not quit.
   w.webContents.on('render-process-gone', (_e, d) => {
+    console.error(`[screenshot] overlay page gone: ${d.reason}, exit code ${d.exitCode}`)
     destroyOverlay()
     onGone()
-    dialog.showErrorBox('Screenshot overlay crashed', `reason: ${d.reason}, exitCode: ${d.exitCode}`)
   })
   w.on('unresponsive', () => { destroyOverlay(); onGone() })
   w.on('closed', () => { if (win === w) { win = null; pageReady = null } })
