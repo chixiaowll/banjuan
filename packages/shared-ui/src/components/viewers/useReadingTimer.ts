@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useBanjuanAPI } from '../../api.js'
 import { useIsActiveTab } from '../tabActive.js'
+import { useViewerCapabilities } from './viewerCapabilities.js'
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)
@@ -23,11 +24,14 @@ export function useReadingTimer(docId: string, _metadata: Record<string, unknown
   // Time counts only while this document is in front: its tab the active one
   // and the window focused. Every open book used to count, all at once.
   const tabActive = useIsActiveTab()
+  // A file opened on its own has nowhere to keep reading time.
+  const { library } = useViewerCapabilities()
   const [focused, setFocused] = useState(() => typeof document === 'undefined' || document.hasFocus())
-  const running = ready && tabActive && focused
+  const running = library && ready && tabActive && focused
 
   useEffect(() => {
     setReady(false)
+    if (!library) return
     let cancelled = false
     api.documents.get(docId).then((fresh: any) => {
       if (cancelled) return
@@ -44,7 +48,7 @@ export function useReadingTimer(docId: string, _metadata: Record<string, unknown
       setReady(true)
     })
     return () => { cancelled = true }
-  }, [docId])
+  }, [docId, library])
 
   useEffect(() => {
     const onBlur = () => setFocused(false)

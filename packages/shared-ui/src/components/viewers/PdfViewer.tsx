@@ -21,6 +21,7 @@ import { takeDocPage, onDocPageRequest } from '../../utils/docNavigation.js'
 import TextSelectionToolbar from './TextSelectionToolbar.js'
 import AnnotationContextMenu from './AnnotationContextMenu.js'
 import { onInkStrokeSaved } from './inkWrites.js'
+import { useViewerCapabilities } from './viewerCapabilities.js'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   '@banjuan/zotero-pdfjs-dist/build/pdf.worker.mjs',
@@ -56,6 +57,7 @@ interface Props {
 }
 
 function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPageSizesComputed?: (sizes: Array<{ w: number; h: number }>) => void }) {
+  const capabilities = useViewerCapabilities()
   const api = useBanjuanAPI()
   const t = useT()
   const ctx = usePdfViewer()
@@ -376,14 +378,16 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <PdfToolbar docId={doc.id} metadata={doc.metadata} />
-      <div style={{
-        padding: '4px 12px', borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
-      }}>
-        <TagInput targetId={doc.id} targetType="document" compact />
-      </div>
+      {capabilities.library && (
+        <div style={{
+          padding: '4px 12px', borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+        }}>
+          <TagInput targetId={doc.id} targetType="document" compact />
+        </div>
+      )}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-        {(ctx.activeTool === 'ink' || ctx.activeTool === 'lasso') && (
+        {capabilities.annotate && (ctx.activeTool === 'ink' || ctx.activeTool === 'lasso') && (
           <PdfInkToolbar
             onUndo={handleInkUndo}
             onRedo={handleInkRedo}
@@ -415,8 +419,8 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
           onAnnotationUpdate={handleAnnotationUpdate}
           onPageSizesComputed={onPageSizesComputed}
         />
-        {(sidebarNoteId || ctx.rightSidebarOpen) && <ResizeHandle onPointerDown={rightResize.onPointerDown} />}
-        {sidebarNoteId ? (
+        {capabilities.library && (sidebarNoteId || ctx.rightSidebarOpen) && <ResizeHandle onPointerDown={rightResize.onPointerDown} />}
+        {!capabilities.library ? null : sidebarNoteId ? (
           <PdfNoteSidebar
             noteId={sidebarNoteId}
             onClose={handleCloseNoteSidebar}
@@ -437,14 +441,14 @@ function PdfViewerInner({ doc: initialDoc, onPageSizesComputed }: Props & { onPa
         <TextSelectionToolbar
           position={selectionToolbar.pos}
           color={ctx.activeColor}
-          onHighlight={handleSelectionHighlight}
-          onUnderline={handleSelectionUnderline}
+          onHighlight={capabilities.annotate ? handleSelectionHighlight : undefined}
+          onUnderline={capabilities.annotate ? handleSelectionUnderline : undefined}
           onCopy={handleSelectionCopy}
-          onChangeColor={(c) => ctx.setActiveColor(c)}
+          onChangeColor={capabilities.annotate ? (c) => ctx.setActiveColor(c) : undefined}
           onClose={() => setSelectionToolbar(null)}
         />
       )}
-      {contextMenu && (() => {
+      {capabilities.annotate && contextMenu && (() => {
         const ann = annotations.find(a => a.id === contextMenu.annotationId)
         if (!ann) return null
         return (

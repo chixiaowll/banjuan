@@ -9,6 +9,7 @@ import { chapterMarks } from './epubSection.js'
 import EpubInkToolbar from './EpubInkToolbar.js'
 import EpubAreaSelectTool from './EpubAreaSelectTool.js'
 import { useT } from '../../i18n/index.js'
+import { useViewerCapabilities } from './viewerCapabilities.js'
 
 interface Props {
   annotations: Array<{
@@ -158,6 +159,7 @@ function EpubAreaOverlays({ annotations, containerRef }: {
 }
 
 export default function EpubContentArea({ annotations, docId, onHighlightCreated, onUnderlineCreated, onNoteCreated, onInkCreated, onInkUndo, onInkRedo, onInkClearPage, onAnnotationDelete, onAnnotationUpdate, inkCanUndo, inkCanRedo }: Props) {
+  const { annotate } = useViewerCapabilities()
   const t = useT()
   const ctx = useEpubViewer()
   const { eyeProtection } = useEyeProtection()
@@ -580,10 +582,10 @@ export default function EpubContentArea({ annotations, docId, onHighlightCreated
           position={{ x: selectionPopup.x, y: selectionPopup.y, bottom: selectionPopup.bottom }}
           color={ctx.activeColor}
           colors={ANNOTATION_COLORS}
-          onHighlight={handleHighlight}
-          onUnderline={handleUnderline}
+          onHighlight={annotate ? handleHighlight : undefined}
+          onUnderline={annotate ? handleUnderline : undefined}
           onCopy={handleCopy}
-          onChangeColor={handleChangeColor}
+          onChangeColor={annotate ? handleChangeColor : undefined}
           onClose={dismissSelection}
         />
       )}

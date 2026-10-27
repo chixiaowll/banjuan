@@ -5,6 +5,7 @@ import { useReadingTimer } from './useReadingTimer.js'
 import { useEyeProtection, useEinkMode } from './useEyeProtection.js'
 import { useT, type MessageKey } from '../../i18n/index.js'
 import { useEscapeKey } from '../../utils/useEscapeKey.js'
+import { useViewerCapabilities } from './viewerCapabilities.js'
 
 const TOOL_IDS: Array<{ id: AnnotationTool; icon: React.ReactNode; key: string }> = [
   { id: 'highlight', icon: <Highlighter size={16} />, key: 'tool.highlight' },
@@ -24,6 +25,7 @@ export default function PdfToolbar({ docId, metadata }: Props) {
   const { eyeProtection, toggleEyeProtection } = useEyeProtection()
   const { einkMode, toggleEinkMode } = useEinkMode()
   const { formatted: readingTime } = useReadingTimer(docId, metadata)
+  const { annotate, library } = useViewerCapabilities()
   const [showColorPicker, setShowColorPicker] = useState(false)
   useEscapeKey(showColorPicker, () => setShowColorPicker(false))
   const [pageInput, setPageInput] = useState('')
@@ -127,9 +129,9 @@ export default function PdfToolbar({ docId, metadata }: Props) {
           <ChevronRight size={16} />
         </button>
 
-        <div style={sepStyle} />
+        {annotate && <div style={sepStyle} />}
 
-        {TOOL_IDS.map(tool => (
+        {annotate && TOOL_IDS.map(tool => (
           <button
             key={tool.id}
             style={ctx.activeTool === tool.id ? activeBtnStyle : btnStyle}
@@ -140,7 +142,7 @@ export default function PdfToolbar({ docId, metadata }: Props) {
           </button>
         ))}
 
-        {ctx.activeTool !== 'ink' && ctx.activeTool !== 'eraser' && ctx.activeTool !== 'lasso' && (
+        {annotate && ctx.activeTool !== 'ink' && ctx.activeTool !== 'eraser' && ctx.activeTool !== 'lasso' && (
           <div ref={colorRef} style={{ position: 'relative' }}>
             <button
               style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 3 }}
@@ -179,13 +181,13 @@ export default function PdfToolbar({ docId, metadata }: Props) {
         )}
 
         <div style={sepStyle} />
-        <button
+        {annotate && <button
           style={ctx.annotationsVisible ? btnStyle : activeBtnStyle}
           onClick={() => ctx.setAnnotationsVisible(!ctx.annotationsVisible)}
           title={ctx.annotationsVisible ? t('pdf.hideAnnotations') : t('pdf.showAnnotations')}
         >
           {ctx.annotationsVisible ? <Eye size={16} /> : <EyeOff size={16} />}
-        </button>
+        </button>}
         <button
           style={eyeProtection ? { ...btnStyle, color: '#d69e2e' } : btnStyle}
           onClick={toggleEyeProtection}
@@ -202,10 +204,12 @@ export default function PdfToolbar({ docId, metadata }: Props) {
         </button>
       </div>
 
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }} title={t('viewer.readingTime')}>
-        <Clock size={12} />
-        {readingTime}
-      </span>
+      {library && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }} title={t('viewer.readingTime')}>
+          <Clock size={12} />
+          {readingTime}
+        </span>
+      )}
       <button
         style={ctx.searchOpen ? activeBtnStyle : btnStyle}
         onClick={() => ctx.setSearchOpen(!ctx.searchOpen)}
@@ -213,9 +217,11 @@ export default function PdfToolbar({ docId, metadata }: Props) {
       >
         <Search size={16} />
       </button>
-      <button style={btnStyle} onClick={() => ctx.setRightSidebarOpen(!ctx.rightSidebarOpen)} title={t('viewer.toggleRightSidebar')}>
-        <PanelRight size={16} />
-      </button>
+      {library && (
+        <button style={btnStyle} onClick={() => ctx.setRightSidebarOpen(!ctx.rightSidebarOpen)} title={t('viewer.toggleRightSidebar')}>
+          <PanelRight size={16} />
+        </button>
+      )}
     </div>
   )
 }

@@ -5,6 +5,7 @@ import EpubOutlinePanel from './EpubOutlinePanel.js'
 import AnnotationPanel from './AnnotationPanel.js'
 import NotesPanel from './NotesPanel.js'
 import { useT } from '../../i18n/index.js'
+import { useViewerCapabilities } from './viewerCapabilities.js'
 
 const TAB_IDS: Array<{ id: EpubLeftSidebarTab; icon: React.ReactNode; key: string }> = [
   { id: 'outline', icon: <List size={16} />, key: 'epub.outline' },
@@ -29,6 +30,8 @@ export default function EpubLeftSidebar({
 }: Props) {
   const t = useT()
   const ctx = useEpubViewer()
+  const { annotate } = useViewerCapabilities()
+  const tabs = annotate ? TAB_IDS : TAB_IDS.filter(tab => tab.id === 'outline')
   const { leftSidebarTab, setLeftSidebarTab, leftSidebarOpen } = ctx
 
   if (!leftSidebarOpen) return null
@@ -60,7 +63,7 @@ export default function EpubLeftSidebar({
       background: 'var(--bg)', overflow: 'hidden',
     }}>
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        {TAB_IDS.map(tab => (
+        {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setLeftSidebarTab(tab.id)}
@@ -79,13 +82,13 @@ export default function EpubLeftSidebar({
       </div>
       <div style={{ flex: 1, overflow: 'auto', paddingBottom: 80 }}>
         {leftSidebarTab === 'outline' && <EpubOutlinePanel />}
-        {leftSidebarTab === 'annotations' && (
+        {annotate && leftSidebarTab === 'annotations' && (
           <AnnotationPanel annotations={annotations} onAnnotationClick={() => {}}
             onAnnotationNavigate={handleAnnotationNavigate}
             onAnnotationDelete={onAnnotationDelete} onAnnotationUpdate={onAnnotationUpdate}
             docId={docId} onOpenNote={onOpenNote} />
         )}
-        {leftSidebarTab === 'notes' && (
+        {annotate && leftSidebarTab === 'notes' && (
           <NotesPanel docId={docId} onOpenNote={onOpenNote} onCreateNote={onCreateNote} />
         )}
       </div>

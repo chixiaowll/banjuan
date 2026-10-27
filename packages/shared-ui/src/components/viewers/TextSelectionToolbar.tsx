@@ -7,10 +7,11 @@ interface Props {
   position: { x: number; y: number; bottom: number }
   color: string
   colors?: Array<{ name: string; value: string }>
-  onHighlight: () => void
-  onUnderline: () => void
+  /** Without these (nothing to annotate into) only Copy is offered. */
+  onHighlight?: () => void
+  onUnderline?: () => void
   onCopy: () => void
-  onChangeColor: (color: string) => void
+  onChangeColor?: (color: string) => void
   onClose: () => void
 }
 
@@ -50,15 +51,20 @@ export default function TextSelectionToolbar({
       border: '1px solid var(--border)',
       boxShadow: '0 2px 16px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.04)',
     }}>
-      <ToolBtn onClick={onHighlight} title={t('tool.highlight')} color={color}>
-        <Highlighter size={14} />
-      </ToolBtn>
-      <ToolBtn onClick={onUnderline} title={t('selection.underline')} color={color}>
-        <Underline size={14} />
-      </ToolBtn>
+      {onHighlight && (
+        <ToolBtn onClick={onHighlight} title={t('tool.highlight')} color={color}>
+          <Highlighter size={14} />
+        </ToolBtn>
+      )}
+      {onUnderline && (
+        <ToolBtn onClick={onUnderline} title={t('selection.underline')} color={color}>
+          <Underline size={14} />
+        </ToolBtn>
+      )}
       <ToolBtn onClick={onCopy} title={t('common.copy')}>
         <Copy size={14} />
       </ToolBtn>
+      {onChangeColor && <>
       <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 1px', flexShrink: 0 }} />
       <div style={{ position: 'relative' }}>
         <button
@@ -97,6 +103,7 @@ export default function TextSelectionToolbar({
           </div>
         )}
       </div>
+      </>}
     </div>
   )
 }

@@ -6,6 +6,7 @@ import OutlinePanel from './OutlinePanel.js'
 import AnnotationPanel from './AnnotationPanel.js'
 import NotesPanel from './NotesPanel.js'
 import { useT } from '../../i18n/index.js'
+import { useViewerCapabilities } from './viewerCapabilities.js'
 
 const TAB_IDS: Array<{ id: LeftSidebarTab; icon: React.ReactNode; key: string }> = [
   { id: 'thumbnails', icon: <LayoutGrid size={16} />, key: 'pdf.thumbnails' },
@@ -32,6 +33,8 @@ export default function PdfLeftSidebar({
 }: Props) {
   const t = useT()
   const { leftSidebarTab, setLeftSidebarTab, leftSidebarOpen } = usePdfViewer()
+  const { annotate } = useViewerCapabilities()
+  const tabs = annotate ? TAB_IDS : TAB_IDS.filter(tab => tab.id === 'thumbnails' || tab.id === 'outline')
 
   if (!leftSidebarOpen) return null
 
@@ -42,7 +45,7 @@ export default function PdfLeftSidebar({
       background: 'var(--bg)', overflow: 'hidden',
     }}>
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border-solid, var(--border))', flexShrink: 0 }}>
-        {TAB_IDS.map(tab => (
+        {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setLeftSidebarTab(tab.id)}
@@ -62,12 +65,12 @@ export default function PdfLeftSidebar({
       <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, position: 'relative' }}>
         {leftSidebarTab === 'thumbnails' && <ThumbnailPanel />}
         {leftSidebarTab === 'outline' && <OutlinePanel />}
-        {leftSidebarTab === 'annotations' && (
+        {annotate && leftSidebarTab === 'annotations' && (
           <AnnotationPanel annotations={annotations} onAnnotationClick={onAnnotationClick}
             onAnnotationDelete={onAnnotationDelete} onAnnotationUpdate={onAnnotationUpdate}
             docId={docId} onOpenNote={onOpenNote} />
         )}
-        {leftSidebarTab === 'notes' && (
+        {annotate && leftSidebarTab === 'notes' && (
           <NotesPanel docId={docId} onOpenNote={onOpenNote} onCreateNote={onCreateNote} onDeleteNote={onDeleteNote} />
         )}
       </div>

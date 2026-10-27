@@ -15,6 +15,7 @@ import { takeDocPage, onDocPageRequest } from '../../utils/docNavigation.js'
 import { inSection } from './epubSection.js'
 import { registerFlushUntilWritten } from '../../utils/flushRegistry.js'
 import { queueInkWrite } from './inkWrites.js'
+import { useViewerCapabilities } from './viewerCapabilities.js'
 
 interface DocInfo {
   id: string
@@ -34,6 +35,7 @@ interface Props {
 }
 
 function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuffer; doc: DocInfo; onOpenNote?: (note: any) => void }) {
+  const capabilities = useViewerCapabilities()
   const api = useBanjuanAPI()
   const t = useT()
   const ctx = useEpubViewer()
@@ -403,12 +405,14 @@ function EpubViewerInner({ data, doc: initialDoc, onOpenNote }: { data: ArrayBuf
             </button>
           </div>
         </div>
-        {ctx.rightSidebarOpen && <ResizeHandle onPointerDown={rightResize.onPointerDown} />}
-        <EpubInfoSidebar
-          doc={doc}
-          onDocUpdated={handleDocUpdated}
-          width={rightResize.width}
-        />
+        {capabilities.library && ctx.rightSidebarOpen && <ResizeHandle onPointerDown={rightResize.onPointerDown} />}
+        {capabilities.library && (
+          <EpubInfoSidebar
+            doc={doc}
+            onDocUpdated={handleDocUpdated}
+            width={rightResize.width}
+          />
+        )}
         <EpubSearchPopup />
       </div>
     </div>
