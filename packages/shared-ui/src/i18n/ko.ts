@@ -303,7 +303,7 @@ const ko = {
   'error.retry': '다시 시도',
   'viewer.loadFailed': '이 문서를 열 수 없습니다',
   'viewer.fileMissing': '파일을 찾을 수 없습니다. 이동, 이름 변경 또는 삭제되었을 수 있습니다.',
-  'viewer.pdfTooLarge': '이 PDF는 {0}로, Banjuan에서 열 수 있는 크기(1.5 GB)를 넘습니다. 시스템 기본 앱으로 열 수 있습니다.',
+  'viewer.pdfTooLarge': '이 PDF는 {0}로, 메모리가 부족해 여기서 열 수 없습니다. 시스템 기본 앱으로 열 수 있습니다.',
   'viewer.openInSystem': '기본 앱으로 열기',
   'viewer.openedInSystem': '기본 앱에서 열었습니다',
   'viewer.openInSystemFailed': '기본 앱으로 열 수 없습니다: {0}',

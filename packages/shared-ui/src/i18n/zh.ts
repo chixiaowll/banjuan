@@ -331,7 +331,7 @@ const zh = {
   'error.retry': '重试',
   'viewer.loadFailed': '无法打开这个文档',
   'viewer.fileMissing': '找不到文件，它可能已被移动、重命名或删除。',
-  'viewer.pdfTooLarge': '这个 PDF 有 {0}，超过了半卷闲书能打开的大小（1.5 GB）。可以用系统默认应用打开它。',
+  'viewer.pdfTooLarge': '这个 PDF 有 {0}，内存不够，无法在这里打开。可以用系统默认应用打开它。',
   'viewer.openInSystem': '用系统默认应用打开',
   'viewer.openedInSystem': '已用系统应用打开',
   'viewer.openInSystemFailed': '无法用系统应用打开：{0}',

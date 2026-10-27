@@ -2868,9 +2868,27 @@ class NullStream extends Stream {
 
 
 
+// BANJUAN PATCH (paged ChunkedStream): a range-loaded document longer than
+// PAGED_STREAM_MIN_LENGTH keeps its data in one array per chunk instead of one
+// array the size of the file. Electron can't allocate a single array of 2 GB or
+// more, so such PDFs couldn't be opened at all; and only the chunks actually
+// read take memory. Shorter documents keep the original single-array path.
+const PAGED_STREAM_MIN_LENGTH = globalThis.__banjuanPagedStreamMinLength ?? 512 * 1024 * 1024;
 class ChunkedStream extends Stream {
   constructor(length, chunkSize, manager) {
-    super(new Uint8Array(length), 0, length, null);
+    const paged = length > PAGED_STREAM_MIN_LENGTH;
+    super(paged ? new Uint8Array(0) : new Uint8Array(length), 0, length, null);
+    this._pages = paged ? new Map() : null;
+    this._pageIndex = -1;
+    this._pageBytes = null;
+    if (paged) {
+      Object.defineProperty(this, "bytes", {
+        get() {
+          throw new Error("This PDF is read in parts; its whole data isn't held in one array.");
+        },
+        configurable: true
+      });
+    }
     this.chunkSize = chunkSize;
     this._loadedChunks = new Set();
     this.numChunks = Math.ceil(length / chunkSize);
@@ -2899,10 +2917,14 @@ class ChunkedStream extends Stream {
       throw new Error(`Bad begin offset: ${begin}`);
     }
     const end = begin + chunk.byteLength;
-    if (end % chunkSize !== 0 && end !== this.bytes.length) {
+    if (end % chunkSize !== 0 && end !== (this._pages ? this.end : this.bytes.length)) {
       throw new Error(`Bad end offset: ${end}`);
     }
-    this.bytes.set(new Uint8Array(chunk), begin);
+    if (this._pages) {
+      this._storePaged(begin, new Uint8Array(chunk));
+    } else {
+      this.bytes.set(new Uint8Array(chunk), begin);
+    }
     const beginChunk = Math.floor(begin / chunkSize);
     const endChunk = Math.floor((end - 1) / chunkSize) + 1;
     for (let curChunk = beginChunk; curChunk < endChunk; ++curChunk) {
@@ -2912,7 +2934,11 @@ class ChunkedStream extends Stream {
   onReceiveProgressiveData(data) {
     let position = this.progressiveDataLength;
     const beginChunk = Math.floor(position / this.chunkSize);
-    this.bytes.set(new Uint8Array(data), position);
+    if (this._pages) {
+      this._storePaged(position, new Uint8Array(data));
+    } else {
+      this.bytes.set(new Uint8Array(data), position);
+    }
     position += data.byteLength;
     this.progressiveDataLength = position;
     const endChunk = position >= this.end ? this.numChunks : Math.floor(position / this.chunkSize);
@@ -2975,17 +3001,20 @@ class ChunkedStream extends Stream {
     if (pos >= this.progressiveDataLength) {
       this.ensureByte(pos);
     }
+    if (this._pages) {
+      this.pos++;
+      return this._pagedByte(pos);
+    }
     return this.bytes[this.pos++];
   }
   getBytes(length) {
-    const bytes = this.bytes;
     const pos = this.pos;
     const strEnd = this.end;
     if (!length) {
       if (strEnd > this.progressiveDataLength) {
         this.ensureRange(pos, strEnd);
       }
-      return bytes.subarray(pos, strEnd);
+      return this._pages ? this._pagedRange(pos, strEnd) : this.bytes.subarray(pos, strEnd);
     }
     let end = pos + length;
     if (end > strEnd) {
@@ -2995,7 +3024,7 @@ class ChunkedStream extends Stream {
       this.ensureRange(pos, end);
     }
     this.pos = end;
-    return bytes.subarray(pos, end);
+    return this._pages ? this._pagedRange(pos, end) : this.bytes.subarray(pos, end);
   }
   getByteRange(begin, end) {
     if (begin < 0) {
@@ -3007,7 +3036,54 @@ class ChunkedStream extends Stream {
     if (end > this.progressiveDataLength) {
       this.ensureRange(begin, end);
     }
-    return this.bytes.subarray(begin, end);
+    return this._pages ? this._pagedRange(begin, end) : this.bytes.subarray(begin, end);
+  }
+  _storePaged(begin, data) {
+    const chunkSize = this.chunkSize;
+    const total = this.end;
+    let at = begin;
+    const end = begin + data.length;
+    while (at < end) {
+      const index = Math.floor(at / chunkSize);
+      const pageStart = index * chunkSize;
+      let page = this._pages.get(index);
+      if (!page) {
+        page = new Uint8Array(Math.min(chunkSize, total - pageStart));
+        this._pages.set(index, page);
+      }
+      const upto = Math.min(end, pageStart + page.length);
+      page.set(data.subarray(at - begin, upto - begin), at - pageStart);
+      at = upto;
+    }
+  }
+  _pagedByte(pos) {
+    const index = Math.floor(pos / this.chunkSize);
+    if (index !== this._pageIndex) {
+      this._pageBytes = this._pages.get(index);
+      this._pageIndex = index;
+    }
+    return this._pageBytes[pos - index * this.chunkSize];
+  }
+  _pagedRange(begin, end) {
+    if (end <= begin) {
+      return new Uint8Array(0);
+    }
+    const chunkSize = this.chunkSize;
+    const first = Math.floor(begin / chunkSize);
+    const last = Math.floor((end - 1) / chunkSize);
+    if (first === last) {
+      const start = first * chunkSize;
+      return this._pages.get(first).subarray(begin - start, end - start);
+    }
+    const out = new Uint8Array(end - begin);
+    for (let index = first; index <= last; index++) {
+      const page = this._pages.get(index);
+      const start = index * chunkSize;
+      const from = Math.max(begin, start);
+      const to = Math.min(end, start + page.length);
+      out.set(page.subarray(from - start, to - start), from - begin);
+    }
+    return out;
   }
   makeSubStream(start, length, dict = null) {
     if (length) {
@@ -34221,7 +34297,7 @@ class PartialEvaluator {
       hash.update(`${firstChar}-${lastChar}`);
       if (toUnicode instanceof BaseStream) {
         const stream = toUnicode.str || toUnicode;
-        const uint8array = stream.buffer ? new Uint8Array(stream.buffer.buffer, 0, stream.bufferLength) : new Uint8Array(stream.bytes.buffer, stream.start, stream.end - stream.start);
+        const uint8array = stream.buffer ? new Uint8Array(stream.buffer.buffer, 0, stream.bufferLength) : stream._pages ? stream.getByteRange(stream.start, stream.end) : new Uint8Array(stream.bytes.buffer, stream.start, stream.end - stream.start);
         hash.update(uint8array);
       } else if (toUnicode instanceof Name) {
         hash.update(toUnicode.name);
@@ -61401,7 +61477,7 @@ class WorkerMessageHandler {
         pdfManager = newPdfManager;
         pdfManager.requestLoadedStream(true).then(stream => {
           handler.send("DataLoaded", {
-            length: stream.bytes.byteLength
+            length: stream._pages ? stream.end : stream.bytes.byteLength
           });
         });
       }).then(pdfManagerReady, onFailure);

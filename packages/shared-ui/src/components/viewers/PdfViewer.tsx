@@ -469,12 +469,12 @@ const RANGE_READ_FROM = 64 * 1024 * 1024
 /** pdf.js range chunk; pieces read per call are a multiple of it. */
 const RANGE_CHUNK = 1024 * 1024
 const RANGE_PIECE = 16 * RANGE_CHUNK
-/** pdf.js holds a buffer as large as the file; Electron's limit for one is about 2 GB. */
-const MAX_PDF_BYTES = 1.5 * 1024 * 1024 * 1024
-
 class PdfTooLargeError extends Error {
   constructor(readonly size: number) { super(`PDF too large to open (${size} bytes)`) }
 }
+
+/** A buffer the size of (part of) the file couldn't be allocated. */
+const isAllocationFailure = (e: unknown) => /Array buffer allocation failed|Invalid typed array length|Array buffer allocation|out of memory/i.test(String((e as any)?.message ?? e))
 
 const formatBytes = (n: number) => n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1)} GB` : `${Math.round(n / 1024 ** 2)} MB`
 
@@ -511,9 +511,6 @@ export default function PdfViewer(props: Props) {
           let fileData = props.fileData
           const size = !fileData && api.documents.fileSize ? await api.documents.fileSize(props.docPath) : 0
           if (cancelled) return
-          // pdf.js keeps a buffer the size of the file, and Electron can't
-          // allocate one past about 2 GB: say so instead of failing obscurely.
-          if (size > MAX_PDF_BYTES) throw new PdfTooLargeError(size)
           if (size > RANGE_READ_FROM && api.documents.readFileRange) {
             // A large file is read in pieces as pages need them. Whole, it went
             // over IPC at once and sat in memory three times (main process,
@@ -531,7 +528,13 @@ export default function PdfViewer(props: Props) {
               })().catch(e => console.error('[PdfViewer] reading part of the file failed', e))
             }
             if (cancelled) return
-            doc = await pdfjsLib.getDocument({ range: transport, length: size, rangeChunkSize: RANGE_CHUNK, disableAutoFetch: true, ...commonOpts }).promise
+            // Our pdf.js keeps a file this size in pieces too (see the paged
+            // ChunkedStream in pdf.worker.mjs): files past 2 GB open as well.
+            try {
+              doc = await pdfjsLib.getDocument({ range: transport, length: size, rangeChunkSize: RANGE_CHUNK, disableAutoFetch: true, ...commonOpts }).promise
+            } catch (e) {
+              throw isAllocationFailure(e) ? new PdfTooLargeError(size) : e
+            }
           } else {
             if (!fileData) fileData = await api.documents.readFileBuffer(props.docPath)
             if (cancelled) return

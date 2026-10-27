@@ -303,7 +303,7 @@ const fr = {
   'error.retry': 'Réessayer',
   'viewer.loadFailed': 'Impossible d’ouvrir ce document',
   'viewer.fileMissing': 'Fichier introuvable. Il a peut-être été déplacé, renommé ou supprimé.',
-  'viewer.pdfTooLarge': 'Ce PDF fait {0}, au-delà de ce que Banjuan peut ouvrir (1,5 Go). Vous pouvez l’ouvrir avec l’application par défaut du système.',
+  'viewer.pdfTooLarge': 'Ce PDF fait {0} et la mémoire manque pour l’ouvrir ici. Vous pouvez l’ouvrir avec l’application par défaut du système.',
   'viewer.openInSystem': 'Ouvrir avec l’application par défaut',
   'viewer.openedInSystem': 'Ouvert dans l’application par défaut',
   'viewer.openInSystemFailed': 'Impossible d’ouvrir dans l’application par défaut : {0}',

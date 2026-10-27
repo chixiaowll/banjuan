@@ -303,7 +303,7 @@ const es = {
   'error.retry': 'Reintentar',
   'viewer.loadFailed': 'No se puede abrir este documento',
   'viewer.fileMissing': 'No se encuentra el archivo. Puede que se haya movido, renombrado o eliminado.',
-  'viewer.pdfTooLarge': 'Este PDF ocupa {0}, más de lo que Banjuan puede abrir (1,5 GB). Puede abrirlo con la aplicación predeterminada del sistema.',
+  'viewer.pdfTooLarge': 'Este PDF ocupa {0} y no hay memoria suficiente para abrirlo aquí. Puede abrirlo con la aplicación predeterminada del sistema.',
   'viewer.openInSystem': 'Abrir con la app predeterminada',
   'viewer.openedInSystem': 'Abierto en la app predeterminada',
   'viewer.openInSystemFailed': 'No se pudo abrir en la app predeterminada: {0}',
