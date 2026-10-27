@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
-import { existsSync, statSync } from 'node:fs'
+import { chmodSync, existsSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { NodeFS } from '@banjuan/platform-node'
@@ -101,7 +101,11 @@ export function registerFileWindowHandlers(): void {
     if (file.type !== 'markdown' && file.type !== 'text') throw new Error('Only Markdown and text files are written')
     // Moved or deleted meanwhile: don't create a new file where it was.
     if (!existsSync(file.path)) throw new Error('FILE_GONE')
+    // Written to a temporary file and renamed over (never half-written); the
+    // new file gets the old one's permissions back.
+    const mode = statSync(file.path).mode & 0o7777
     await fs.writeFile(file.path, new Uint8Array(bytes))
+    try { chmodSync(file.path, mode) } catch { /* not ours to change: keep the default */ }
     const stamp = stampOf(statSync(file.path))
     watches.get(event.sender.id)?.markOwnWrite(stamp)
     return { stamp }
