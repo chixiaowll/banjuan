@@ -86,6 +86,13 @@ export interface ScreenshotSession {
 }
 export type ScreenshotAction = 'copy' | 'save' | 'pin' | 'insert'
 
+/** A file to show in a library window (see library.onImportOpen). */
+export interface ImportOpenTarget {
+  absPath: string
+  /** Its path in the library, when it lies in it. */
+  relPath?: string
+}
+
 /** A file opened on its own (desktop single-file window), outside any library. */
 export interface SingleFileInfo {
   /** Real path. */
@@ -130,8 +137,11 @@ export interface BanjuanAPI {
     openNewWindow(): Promise<void>
     isOpen(): Promise<boolean>
     getHistory?(): Promise<Array<{ path: string; name: string; lastOpened: string }>>
-    /** Main asks this library window to import (or find) a file by absolute path and open it. */
-    onImportOpen?(cb: (absPath: string) => void): () => void
+    /**
+     * Main asks this library window to import (or find) a file and open it:
+     * `relPath` when the file already lies in the library, else it is copied in.
+     */
+    onImportOpen?(cb: (target: ImportOpenTarget) => void): () => void
     removeHistory?(path: string): Promise<void>
     rename?(name: string): Promise<{ name: string }>
     delete?(path: string): Promise<void>

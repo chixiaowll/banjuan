@@ -2,7 +2,7 @@ import { ipcMain, dialog, clipboard, shell, BrowserWindow, app, safeStorage, web
 import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync, renameSync, realpathSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { readByteRange } from './read-range.js'
-import { join, basename, dirname, resolve, sep } from 'node:path'
+import { join, basename, dirname, resolve, sep, relative } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
 import { webdavTarget } from '@banjuan/core'
 import { Library, MAX_LIBRARY_FILES, type MindmapNodeCreateInput, type MindmapNode, type MindmapSnapshot, type PlatformDeps, type SearchOptions } from '@banjuan/core'
@@ -16,7 +16,7 @@ import { DiscoveryService } from './discovery-service.js'
 import { docTextStatus } from './doc-text-indexer.js'
 import { getCover } from './covers.js'
 import { importDocumentFiles } from './document-import.js'
-import { libraryPath, rememberPickedDir, exportDir, openPathSafely, rememberUserChosenPath, assertUserChosen, uniquePath } from './path-guard.js'
+import { libraryPath, rememberPickedDir, exportDir, openPathSafely, rememberUserChosenPath, assertUserChosen, uniquePath, isInside } from './path-guard.js'
 
 // Global plugins live here (shared by every library), à la Claude Code's
 // global plugin dir. Built-in plugins are installed here once at startup.
@@ -194,16 +194,20 @@ function openInstanceOf(path: string): Library | undefined {
 export function openPathInLibraryWindow(root: string, absPath: string): void {
   rememberUserChosenPath(absPath)   // the library window's import takes only files the user chose
   const target = realOrResolved(root)
+  const realFile = realOrResolved(absPath)
+  // Its path in the library, by real paths (a symlinked library folder would not match otherwise).
+  const relPath = isInside(target, realFile) ? relative(target, realFile).split(sep).join('/') : undefined
   for (const [key, lib] of libraries) {
     if (key < 0 || realOrResolved(lib.rootPath) !== target) continue
     const wc = webContents.fromId(key)
     if (!wc || wc.isDestroyed()) continue
     const win = BrowserWindow.fromWebContents(wc)
     if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus() }
-    wc.send('library:import-open', absPath)
+    wc.send('library:import-open', { absPath, relPath })
     return
   }
-  createWindow({ hash: `library=${encodeURIComponent(root)}&importOpen=${encodeURIComponent(absPath)}` })
+  const params = new URLSearchParams({ library: root, importOpen: absPath, ...(relPath ? { rel: relPath } : {}) })
+  createWindow({ hash: params.toString() })
 }
 
 const realOrResolved = (p: string) => { try { return realpathSync(p) } catch { return resolve(p) } }

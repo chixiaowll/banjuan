@@ -46,7 +46,7 @@ const api = {
     openNewWindow: () => ipcRenderer.invoke('library:openNewWindow'),
     isOpen: () => ipcRenderer.invoke('library:isOpen'),
     getHistory: () => ipcRenderer.invoke('library:getHistory'),
-    onImportOpen: (cb: (absPath: string) => void) => listen('library:import-open', cb),
+    onImportOpen: (cb: (target: { absPath: string; relPath?: string }) => void) => listen('library:import-open', cb),
     removeHistory: (path: string) => ipcRenderer.invoke('library:removeHistory', path),
     rename: (name: string) => ipcRenderer.invoke('library:rename', name),
     detectMissing: () => ipcRenderer.invoke('library:detectMissing'),

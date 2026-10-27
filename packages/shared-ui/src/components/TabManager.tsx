@@ -21,9 +21,11 @@ import { readTabSession, writeTabSession, tabShortcut, type SavedTab } from './t
 import SearchPalette from './SearchPalette.js'
 import '../styles/mobile.css'
 import { useEscapeKey } from '../utils/useEscapeKey.js'
-import { toast } from './feedback.js'
+import { toast, errorMessage } from './feedback.js'
 import { installLongPressMenu } from '../utils/longPressMenu.js'
 import ErrorBoundary from './ErrorBoundary.js'
+import { importAndOpen } from '../utils/importAndOpen.js'
+import type { ImportOpenTarget } from '../api.js'
 
 const LIBRARY_TAB_ID = 'library'
 
@@ -40,9 +42,11 @@ interface Props {
   libraryName: string
   onSwitchLibrary?: () => void
   onLibraryRenamed?: (name: string) => void
+  /** A file to bring in and open once the library shows (handed over from a single-file window). */
+  pendingImportOpen?: ImportOpenTarget
 }
 
-export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, onLibraryRenamed }: Props) {
+export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, onLibraryRenamed, pendingImportOpen }: Props) {
   const api = useBanjuanAPI()
   const t = useT()
   const [isNarrow, setIsNarrow] = useState(false)
@@ -194,6 +198,16 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     document.addEventListener('banjuan:open-document', handler)
     return () => document.removeEventListener('banjuan:open-document', handler)
   }, [openDocument])
+
+  // Files handed over from single-file windows ("Add to Library", "Open in
+  // Library"): the one this window was opened for, then any sent later.
+  useEffect(() => {
+    const bringIn = (target: ImportOpenTarget) => {
+      importAndOpen(api, target).catch(e => toast.error(errorMessage(e)))
+    }
+    if (pendingImportOpen) bringIn(pendingImportOpen)
+    return api.library.onImportOpen?.(bringIn)
+  }, [api])
 
   // Note and document links in notes (editors, previews) and #note/ links the
   // main process intercepts. Handled here, once: every open editor used to
