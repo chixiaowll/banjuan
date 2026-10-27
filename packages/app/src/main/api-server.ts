@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { mkdirSync, writeFileSync, unlinkSync, existsSync, chmodSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { fileWindows } from './file-window-service.js'
 import { homedir } from 'node:os'
 import { BrowserWindow, ipcMain, webContents } from 'electron'
 import { randomUUID, randomBytes } from 'node:crypto'
@@ -185,6 +186,19 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       json(res, 200, { status: 'ok', path: lib.rootPath, name })
     } catch (e: any) {
       json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  // `banjuan <file>`: open a file on its own (single-file window).
+  if (path === '/api/view' && req.method === 'POST') {
+    try {
+      const body = JSON.parse(await readBody(req))
+      if (typeof body.path !== 'string' || !body.path) { json(res, 400, { error: 'path required' }); return }
+      const file = fileWindows.open(resolve(body.path))
+      json(res, 200, { status: 'ok', path: file.path, type: file.type })
+    } catch (e: any) {
+      json(res, 400, { error: e.message })
     }
     return
   }

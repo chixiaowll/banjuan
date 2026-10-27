@@ -10,6 +10,19 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { isInside } from './path-guard.js'
+import { fileWindows, openFiles, openFileDialog, registerFileWindowHandlers, flushFileViewState } from './file-window-service.js'
+import { filesFromArgv } from './file-windows.js'
+
+// Files opened from the Finder (double-click, Open With, dropped on the Dock
+// icon) open on their own (single-file windows). macOS sends them as events,
+// the first ones before the app is ready: those wait.
+const filesBeforeReady: string[] = []
+let ready = false
+app.on('open-file', (event, path) => {
+  event.preventDefault()
+  if (ready) openFiles([path])
+  else filesBeforeReady.push(path)
+})
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'local-file', privileges: { bypassCSP: true, supportFetchAPI: true, stream: true } },
@@ -40,7 +53,7 @@ app.whenReady().then(() => {
   // (EPUB/HTML documents, synced notes), so only files inside an open library.
   protocol.handle('local-file', (request) => {
     const filePath = decodeURIComponent(request.url.replace('local-file://', ''))
-    if (![...libraries.values()].some(lib => isInside(lib.rootPath, filePath))) {
+    if (![...libraries.values()].some(lib => isInside(lib.rootPath, filePath)) && !fileWindows.isServable(filePath)) {
       console.warn('[local-file] refused a path outside the open libraries:', filePath)
       return new Response('Forbidden', { status: 403 })
     }
@@ -81,6 +94,7 @@ app.whenReady().then(() => {
     {
       label: 'File',
       submenu: [
+        { label: 'Open File…', accelerator: 'CmdOrCtrl+O', click: () => { void openFileDialog() } },
         { label: 'Open Another Library', click: () => createWindow() },
         { type: 'separator' as const },
         { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: closeTab },
@@ -93,7 +107,12 @@ app.whenReady().then(() => {
   ]
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 
-  createWindow()
+  // Started to open files (Finder, command line): just those windows, no library window.
+  registerFileWindowHandlers()
+  const launchFiles = [...filesBeforeReady, ...filesFromArgv(process.argv, app.isPackaged)]
+  ready = true
+  if (launchFiles.length > 0) openFiles(launchFiles)
+  else createWindow()
   initScreenshot()
 })
 
@@ -108,7 +127,7 @@ app.on('before-quit', (e) => {
   if (quitReady) return
   e.preventDefault()
   quitReady = true
-  void flushAllWindowsForQuit().finally(() => app.quit())
+  void flushAllWindowsForQuit().then(flushFileViewState).finally(() => app.quit())
 })
 
 // Remove ~/.banjuan/api-port and api-token on every platform's quit, so clients

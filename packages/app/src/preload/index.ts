@@ -24,6 +24,20 @@ ipcRenderer.on('app:flush', async (_e, id: number) => {
 })
 
 const api = {
+  // Single-file windows only (a file opened on its own); main answers just for this window's file.
+  file: {
+    info: () => ipcRenderer.invoke('file:info'),
+    readBuffer: () => ipcRenderer.invoke('file:readBuffer'),
+    readRange: (start: number, end: number) => ipcRenderer.invoke('file:readRange', start, end),
+    writeBytes: (bytes: Uint8Array) => ipcRenderer.invoke('file:writeBytes', bytes),
+    getViewState: () => ipcRenderer.invoke('file:getViewState'),
+    setViewState: (state: Record<string, unknown>) => ipcRenderer.invoke('file:setViewState', state),
+    openInSystem: () => ipcRenderer.invoke('file:openInSystem'),
+    libraries: () => ipcRenderer.invoke('file:libraries'),
+    addToLibrary: (libraryPath: string) => ipcRenderer.invoke('file:addToLibrary', libraryPath),
+    openInLibrary: () => ipcRenderer.invoke('file:openInLibrary'),
+    onChanged: (cb: (e: { kind: 'changed' | 'gone'; stamp?: string }) => void) => listen('file:changed', cb),
+  },
   library: {
     check: (path: string) => ipcRenderer.invoke('library:check', path),
     checkSize: (path: string) => ipcRenderer.invoke('library:checkSize', path),
@@ -32,6 +46,7 @@ const api = {
     openNewWindow: () => ipcRenderer.invoke('library:openNewWindow'),
     isOpen: () => ipcRenderer.invoke('library:isOpen'),
     getHistory: () => ipcRenderer.invoke('library:getHistory'),
+    onImportOpen: (cb: (absPath: string) => void) => listen('library:import-open', cb),
     removeHistory: (path: string) => ipcRenderer.invoke('library:removeHistory', path),
     rename: (name: string) => ipcRenderer.invoke('library:rename', name),
     detectMissing: () => ipcRenderer.invoke('library:detectMissing'),

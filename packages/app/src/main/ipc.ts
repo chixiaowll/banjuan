@@ -1,6 +1,7 @@
 import { ipcMain, dialog, clipboard, shell, BrowserWindow, app, safeStorage, webContents } from 'electron'
-import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync, renameSync } from 'node:fs'
-import { readFile, stat, open } from 'node:fs/promises'
+import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync, renameSync, realpathSync } from 'node:fs'
+import { readFile, stat } from 'node:fs/promises'
+import { readByteRange } from './read-range.js'
 import { join, basename, dirname, resolve, sep } from 'node:path'
 import { tmpdir, homedir } from 'node:os'
 import { webdavTarget } from '@banjuan/core'
@@ -183,6 +184,29 @@ function openInstanceOf(path: string): Library | undefined {
   const target = resolve(path)
   return [...libraries.values()].find(l => resolve(l.rootPath) === target)
 }
+
+/**
+ * Show `absPath` in a library window of the library at `root`: imported into it
+ * (a file inside the library in place, one from outside copied in) and opened.
+ * A window already showing that library does it; otherwise a new window opens
+ * that library and does it.
+ */
+export function openPathInLibraryWindow(root: string, absPath: string): void {
+  rememberUserChosenPath(absPath)   // the library window's import takes only files the user chose
+  const target = realOrResolved(root)
+  for (const [key, lib] of libraries) {
+    if (key < 0 || realOrResolved(lib.rootPath) !== target) continue
+    const wc = webContents.fromId(key)
+    if (!wc || wc.isDestroyed()) continue
+    const win = BrowserWindow.fromWebContents(wc)
+    if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus() }
+    wc.send('library:import-open', absPath)
+    return
+  }
+  createWindow({ hash: `library=${encodeURIComponent(root)}&importOpen=${encodeURIComponent(absPath)}` })
+}
+
+const realOrResolved = (p: string) => { try { return realpathSync(p) } catch { return resolve(p) } }
 
 /** Plugin messages for a library go to every window showing it. */
 function sendToLibraryWindows(lib: Library): (channel: string, data: any) => void {
@@ -473,17 +497,7 @@ export function registerIpcHandlers() {
 
   // Bytes [start, end) of a document; one call reads at most 64 MB.
   ipcMain.handle('documents:readFileRange', async (event, relativePath: string, start: number, end: number) => {
-    const fullPath = libraryPath(getLib(event).rootPath, relativePath)
-    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) throw new Error('Invalid byte range')
-    const length = Math.min(end - start, 64 * 1024 * 1024)
-    const handle = await open(fullPath, 'r')
-    try {
-      const buf = Buffer.alloc(length)
-      const { bytesRead } = await handle.read(buf, 0, length, start)
-      return buf.subarray(0, bytesRead)
-    } finally {
-      await handle.close()
-    }
+    return readByteRange(libraryPath(getLib(event).rootPath, relativePath), start, end)
   })
 
   ipcMain.handle('documents:openInSystem', async (event, relativePath: string) => {
