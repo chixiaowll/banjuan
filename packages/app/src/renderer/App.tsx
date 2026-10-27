@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
-import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService, FeedbackHost, FileWindowApp, useT, flushAll, type ImportOpenTarget } from '@banjuan/shared-ui'
+import { BanjuanAPIProvider, I18nProvider, ThemeProvider, TabManager, NoteRenderService, FeedbackHost, FileWindowApp, useT, useI18n, flushAll, type ImportOpenTarget } from '@banjuan/shared-ui'
 import WelcomeView from './views/WelcomeView.js'
 import { electronAPI } from './electron-api.js'
 
@@ -48,11 +48,19 @@ function ExportWorkerRoot() {
   )
 }
 
+/** Tells main the UI language (the menu bar menu uses it). */
+function LocaleReporter() {
+  const { locale } = useI18n()
+  useEffect(() => { electronAPI.menuBar?.setLocale(locale) }, [locale])
+  return null
+}
+
 function FileWindowRoot() {
   return (
     <BanjuanAPIProvider value={electronAPI}>
       <ThemeProvider>
         <I18nProvider>
+          <LocaleReporter />
           <FileWindowApp />
           <FeedbackHost />
         </I18nProvider>
@@ -130,6 +138,7 @@ function MainApp() {
     <BanjuanAPIProvider value={electronAPI}>
       <ThemeProvider>
       <I18nProvider>
+        <LocaleReporter />
         {!library
           ? <WelcomeView onOpen={(path, name) => setLibrary({ path, name })} />
           : <TabManager

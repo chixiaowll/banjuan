@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react'
 import { ScreenshotHotkeySetting } from '../../components/ScreenshotHotkeySetting.js'
+import { DockSetting } from '../../components/DockSetting.js'
 import { getStoredNoteTheme, applyNoteTheme, NOTE_THEME_KEYS, NOTE_THEMES } from '../../components/notes/noteThemes.js'
 import type { Locale, MessageKey } from '../../i18n/index.js'
 import { useTheme, APP_THEMES } from '../../theme/index.js'
@@ -75,6 +76,7 @@ export default function SettingsPanel({ locale, setLocale, t }: { locale: string
       </div>
 
       <ScreenshotHotkeySetting />
+      <DockSetting />
 
       <div style={{ marginBottom: 12, fontSize: 14, fontWeight: 600 }}>{t('settings.appTheme')}</div>
       <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>

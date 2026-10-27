@@ -356,6 +356,12 @@ const api = {
       return () => { if (closeTabHandler === handler) closeTabHandler = null }
     },
   },
+  menuBar: process.platform === 'darwin' ? {
+    getShowInDock: () => ipcRenderer.invoke('menuBar:getShowInDock') as Promise<boolean>,
+    setShowInDock: (show: boolean) => ipcRenderer.invoke('menuBar:setShowInDock', show) as Promise<boolean>,
+    onShowInDockChanged: (cb: (show: boolean) => void) => listen('menuBar:showInDockChanged', cb),
+    setLocale: (locale: string) => ipcRenderer.send('menuBar:setLocale', locale),
+  } : undefined,
   screenshot: {
     trigger: () => ipcRenderer.invoke('screenshot:trigger'),
     getHotkey: () => ipcRenderer.invoke('settings:getScreenshotHotkey') as Promise<{ hotkey: string; registered: boolean }>,

@@ -427,6 +427,15 @@ export interface BanjuanAPI {
     onCloseTab(handler: () => boolean): () => void
   }
 
+  /** Desktop, macOS only: the menu bar icon — whether the app also shows in the Dock, and the language its menu uses. */
+  menuBar?: {
+    getShowInDock(): Promise<boolean>
+    setShowInDock(show: boolean): Promise<boolean>
+    onShowInDockChanged(cb: (show: boolean) => void): () => void
+    /** The UI language, for the menu bar menu. */
+    setLocale(locale: string): void
+  }
+
   /** Desktop only: Feishu-style screen capture. Absent on mobile. */
   screenshot?: {
     trigger: () => Promise<void>
