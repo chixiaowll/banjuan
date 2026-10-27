@@ -86,7 +86,41 @@ export interface ScreenshotSession {
 }
 export type ScreenshotAction = 'copy' | 'save' | 'pin' | 'insert'
 
+/** A file opened on its own (desktop single-file window), outside any library. */
+export interface SingleFileInfo {
+  /** Real path. */
+  path: string
+  name: string
+  type: 'pdf' | 'epub' | 'markdown' | 'text' | 'image' | 'unsupported'
+  size: number
+  /** The known library this file lies in, if any. */
+  library?: { root: string; name: string }
+}
+
+/** The single-file window's access to its one file (see FileWindowApp). */
+export interface SingleFileAPI {
+  info(): Promise<SingleFileInfo>
+  readBuffer(): Promise<ArrayBuffer | Uint8Array>
+  readRange(start: number, end: number): Promise<ArrayBuffer | Uint8Array>
+  /** Markdown / text only: replace the file's bytes (atomically). */
+  writeBytes(bytes: Uint8Array): Promise<{ stamp: string }>
+  /** Reading position and the like, kept per file on this device. */
+  getViewState(): Promise<Record<string, unknown>>
+  setViewState(state: Record<string, unknown>): Promise<void>
+  openInSystem(): Promise<void>
+  /** Known libraries, most recently used first. */
+  libraries(): Promise<Array<{ path: string; name: string }>>
+  /** Copy the file into that library and open it there (this window closes). */
+  addToLibrary(libraryPath: string): Promise<void>
+  /** The file lies in a library: open it there. */
+  openInLibrary(): Promise<void>
+  /** The file changed outside this window (new stamp), or is gone. */
+  onChanged(cb: (e: { kind: 'changed' | 'gone'; stamp?: string }) => void): () => void
+}
+
 export interface BanjuanAPI {
+  /** Desktop single-file windows only. */
+  file?: SingleFileAPI
   library: {
     check(path: string): Promise<LibraryConfig | null>
     checkSize?(path: string): Promise<{ exceeds: boolean; limit: number }>
@@ -96,6 +130,8 @@ export interface BanjuanAPI {
     openNewWindow(): Promise<void>
     isOpen(): Promise<boolean>
     getHistory?(): Promise<Array<{ path: string; name: string; lastOpened: string }>>
+    /** Main asks this library window to import (or find) a file by absolute path and open it. */
+    onImportOpen?(cb: (absPath: string) => void): () => void
     removeHistory?(path: string): Promise<void>
     rename?(name: string): Promise<{ name: string }>
     delete?(path: string): Promise<void>
