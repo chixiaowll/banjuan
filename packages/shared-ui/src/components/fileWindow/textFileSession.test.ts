@@ -144,3 +144,4 @@ describe('TextFileSession', () => {
     expect(s.status).toBe('readonly')
   })
 })
+
