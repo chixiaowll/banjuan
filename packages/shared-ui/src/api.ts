@@ -98,7 +98,7 @@ export interface SingleFileInfo {
   /** Real path. */
   path: string
   name: string
-  type: 'pdf' | 'epub' | 'markdown' | 'text' | 'image' | 'unsupported'
+  type: 'pdf' | 'epub' | 'markdown' | 'text' | 'image' | 'html' | 'unsupported'
   size: number
   /** The known library this file lies in, if any. */
   library?: { root: string; name: string }

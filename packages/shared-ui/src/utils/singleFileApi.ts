@@ -1,4 +1,5 @@
 import type { BanjuanAPI, SingleFileAPI, SingleFileInfo } from '../api.js'
+import { htmlPageForFile } from '../components/fileWindow/htmlPage.js'
 
 /**
  * The API the document viewers get in a single-file window: their one file
@@ -46,7 +47,10 @@ export function createSingleFileApi(base: BanjuanAPI, file: SingleFileAPI, info:
       // without one it reads in ranges (readFileRange).
       getFileSrc: undefined,
       readFileBuffer: async () => asArrayBuffer(await file.readBuffer()),
-      readContent: async () => new TextDecoder().decode(await file.readBuffer()),
+      readContent: async () => {
+        const bytes = new Uint8Array(asArrayBuffer(await file.readBuffer()))
+        return info.type === 'html' ? htmlPageForFile(bytes, info.path) : new TextDecoder().decode(bytes)
+      },
       fileSize: async () => info.size,
       readFileRange: (_path: string, start: number, end: number) => file.readRange(start, end),
       openInSystem: async () => { await file.openInSystem(); return '' },

@@ -22,7 +22,8 @@ export default function HtmlViewer({ docPath }: Props) {
 
   const blobUrl = useMemo(() => {
     if (!content) return null
-    const blob = new Blob([content], { type: 'text/html' })
+    // The string is UTF-8 in the blob whatever the page's <meta charset> says.
+    const blob = new Blob([content], { type: 'text/html;charset=utf-8' })
     return URL.createObjectURL(blob)
   }, [content])
 

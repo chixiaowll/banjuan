@@ -13,7 +13,7 @@ import { openPathSafely } from './path-guard.js'
 import { getLibraryHistory, openPathInLibraryWindow } from './ipc.js'
 
 /** Extensions offered in File › Open File… (the same as the Finder associations). */
-export const OPENABLE_EXTENSIONS = ['pdf', 'epub', 'md', 'markdown', 'txt', 'png', 'jpg', 'jpeg', 'gif', 'webp']
+export const OPENABLE_EXTENSIONS = ['pdf', 'epub', 'md', 'markdown', 'txt', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'html', 'htm']
 
 const fs = new NodeFS()
 const watches = new Map<number, ReturnType<typeof watchFile>>()

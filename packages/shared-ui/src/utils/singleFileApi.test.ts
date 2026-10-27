@@ -53,6 +53,17 @@ describe('createSingleFileApi', () => {
     expect(api.documents.getFileSrc).toBeUndefined()
   })
 
+  it('gives an HTML page a base in its own folder, so its relative CSS and images load', async () => {
+    const htmlInfo: SingleFileInfo = { path: '/Users/x/网页/索引 页.html', name: '索引 页.html', type: 'html', size: 10 }
+    const file = fakeFile()
+    file.readBuffer.mockResolvedValue(new TextEncoder().encode('<html><head><title>t</title></head><body><img src="a.png"></body></html>'))
+    const api = createSingleFileApi(base, file, htmlInfo)
+    const html = await api.documents.readContent('x')
+    expect(html).toContain(`<head><base href="local-file:///Users/x/${encodeURIComponent('网页')}/"><title>`)
+    file.readBuffer.mockResolvedValue(new TextEncoder().encode('<p>no head</p>'))
+    expect(await api.documents.readContent('x')).toMatch(/^<base href="local-file:\/\/\/Users\/x\/[^"]+\/"><p>no head<\/p>$/)
+  })
+
   it('has no annotations, notes or tags, and refuses to create any', async () => {
     const api = createSingleFileApi(base, fakeFile(), info)
     expect(await api.annotations.list({ docId: 'x' })).toEqual([])

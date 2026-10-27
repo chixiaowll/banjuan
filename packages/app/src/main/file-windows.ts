@@ -12,6 +12,8 @@ import type { SingleFileInfo } from '@banjuan/shared-ui'
 export type SingleFileType = SingleFileInfo['type']
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp'])
+// What a web page saved to disk loads from beside it — not scripts, not other pages.
+const PAGE_RESOURCE_EXTENSIONS = new Set([...IMAGE_EXTENSIONS, '.svg', '.avif', '.bmp', '.ico', '.css', '.woff', '.woff2', '.ttf', '.otf'])
 
 export function fileTypeOf(path: string): SingleFileType {
   const ext = extname(path).toLowerCase()
@@ -20,6 +22,7 @@ export function fileTypeOf(path: string): SingleFileType {
   if (ext === '.md' || ext === '.markdown') return 'markdown'
   if (ext === '.txt') return 'text'
   if (IMAGE_EXTENSIONS.has(ext)) return 'image'
+  if (ext === '.html' || ext === '.htm') return 'html'
   return 'unsupported'
 }
 
@@ -95,17 +98,20 @@ export class FileWindowRegistry<W> {
   }
 
   /**
-   * May the local-file protocol serve `path`? An opened file itself, and the
+   * May the local-file protocol serve `path`? An opened file itself, the
    * images in the folder of an opened Markdown / text file (relative image
-   * links in its preview) — nothing else.
+   * links in its preview), and the stylesheets, images and fonts in the folder
+   * of an opened HTML page — nothing else.
    */
   isServable(path: string): boolean {
     const p = real(path)
     if (!p) return false
     if (this.byPath.has(p)) return true
-    if (!IMAGE_EXTENSIONS.has(extname(p).toLowerCase())) return false
+    const ext = extname(p).toLowerCase()
     for (const file of this.byWindow.values()) {
-      if ((file.type === 'markdown' || file.type === 'text') && inside(dirname(file.path), p)) return true
+      if (!inside(dirname(file.path), p)) continue
+      if ((file.type === 'markdown' || file.type === 'text') && IMAGE_EXTENSIONS.has(ext)) return true
+      if (file.type === 'html' && PAGE_RESOURCE_EXTENSIONS.has(ext)) return true
     }
     return false
   }

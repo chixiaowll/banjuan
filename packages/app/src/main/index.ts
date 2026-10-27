@@ -52,7 +52,8 @@ app.whenReady().then(() => {
   // Both schemes serve files to pages that may show other people's content
   // (EPUB/HTML documents, synced notes), so only files inside an open library.
   protocol.handle('local-file', (request) => {
-    const filePath = decodeURIComponent(request.url.replace('local-file://', ''))
+    // A web page's relative links resolve to plain local-file:///dir/name?query URLs.
+    const filePath = decodeURIComponent(request.url.replace('local-file://', '').replace(/[?#].*$/, ''))
     if (![...libraries.values()].some(lib => isInside(lib.rootPath, filePath)) && !fileWindows.isServable(filePath)) {
       console.warn('[local-file] refused a path outside the open libraries:', filePath)
       return new Response('Forbidden', { status: 403 })
