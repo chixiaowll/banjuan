@@ -18,16 +18,30 @@ let tray: Tray | null = null   // kept: a collected Tray disappears from the men
 const POSITION_KEY = 'NSStatusItem Preferred Position Item-0'
 const FIRST_POSITION = 345
 
-function applyDock(show: boolean): void {
-  if (!app.dock) return
-  console.log(`[menu-bar] dock ${show ? 'shown' : 'hidden'}`)
-  if (show) void app.dock.show()
-  else app.dock.hide()
+// One change at a time, to the setting as it is by then: dock.show() finishes
+// later, and a hide() made meanwhile (switched off right after on) would be undone.
+let dockChanges = Promise.resolve()
+function applyDock(): void {
+  const dock = app.dock
+  if (!dock) return
+  dockChanges = dockChanges.then(async () => {
+    const show = getShowInDock()
+    if (show === dock.isVisible()) return
+    if (show) { await dock.show(); console.log('[menu-bar] dock shown'); return }
+    // Right after a show() macOS ignores the hide for a few seconds: repeat it until it holds.
+    let tries = 0
+    while (dock.isVisible() && !getShowInDock() && tries < 10) {
+      dock.hide()
+      tries++
+      await new Promise(r => setTimeout(r, 500))
+    }
+    console.log(`[menu-bar] dock ${dock.isVisible() ? 'still shown' : 'hidden'} after ${tries} hide(s)`)
+  }).catch(e => console.error('[menu-bar] dock change failed:', e))
 }
 
 function changeShowInDock(show: boolean): void {
   setShowInDock(show)
-  applyDock(show)
+  applyDock()
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.isDestroyed()) w.webContents.send('menuBar:showInDockChanged', show)
   }
@@ -44,7 +58,7 @@ export function initMenuBar(actions: Omit<TrayActions, 'setShowInDock'>): void {
   ipcMain.handle('menuBar:setShowInDock', (_e, show: unknown) => { changeShowInDock(show !== false); return getShowInDock() })
   ipcMain.on('menuBar:setLocale', (_e, locale: unknown) => { if (isLocale(locale)) setLocale(locale) })
 
-  if (!getShowInDock()) applyDock(false)
+  if (!getShowInDock()) applyDock()
 
   if (!(systemPreferences.getUserDefault(POSITION_KEY, 'float') > 0)) {
     systemPreferences.setUserDefault(POSITION_KEY, 'float', FIRST_POSITION)
