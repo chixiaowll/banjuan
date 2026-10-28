@@ -96,7 +96,12 @@ If you dropped files into the library folder directly (outside the app), run
 banjuan note create <title> [--doc <id>] [--folder <folder-id>] [--content "<md>" | --file <path>]
 banjuan note list [--doc <id>] [--type <type>] [--tag <tag>] [--folder <folder-id>] [--json]
 banjuan note show <id> [--body]                         # --body: only the Markdown, ready to edit
-banjuan note update <id> [--title "new"] [--content "markdown 文本" | --file <path>]   # replaces the whole content
+banjuan note update <id> [--title "new"] [--content "markdown 文本" | --file <path>] [--json]   # replaces the whole content
+banjuan note ensure <title> [--folder <f>] [--content "<md>" | --file <path>] [--json]  # find it in the folder, or create it once
+banjuan note section <id> "## 标题" (--content "<md>" | --file <path>) [--mode replace|append] [--new-at top|bottom] [--json]
+banjuan note history <id> [--json]                      # earlier versions (kept before every write)
+banjuan note restore <id> <version> [--json]            # put one back (undoable)
+banjuan note list --since 2026-10-24 [--json]           # changed since a day (local time) or a time
 banjuan note delete <id>
 banjuan note move <id> [folder-id]
 ```
@@ -289,6 +294,22 @@ banjuan --library ~/lib2 search "topic"
 | Wrong library targeted | Check `banjuan status`, use `banjuan use <path>` to switch |
 | Can't find document by ID | Copy the full UUID from list output |
 | App not responding | Run `banjuan start` or check `banjuan status` |
+
+## Writing from programs and automations (daily logs, reports)
+
+Write in place, never by rewriting a long note, and keep everything findable:
+```bash
+banjuan note ensure "202610" --folder "[0] DailyNotes" --content "# 十月工作日记" --json   # → { id, path, link, created }
+banjuan note section <id> "## 20261028" --file today.md --mode append --new-at top --json   # only that day changes
+banjuan note list --since 2026-10-24 --json             # what changed this week (for a weekly report)
+```
+- `section`: a section runs from its heading to the next heading of the same level or higher; `replace` swaps
+  its content, `append` adds to its end; a missing one is created `top` (before the first heading of its level)
+  or `bottom`.
+- Every write from outside keeps the note's previous version on this device: if something went wrong,
+  `banjuan note history <id>` and `banjuan note restore <id> <version>`. A write the user's editor then saved
+  over is kept there too.
+- `--json` on every write; failures exit non-zero with the reason on stderr.
 
 ## MCP (AI tools without a shell)
 
