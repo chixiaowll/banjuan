@@ -230,6 +230,7 @@ banjuan note delete <id>             # 删除笔记
 banjuan doc list                     # 列出所有文档
 banjuan doc import <file>            # 导入文档
 banjuan doc info <id>                # 查看文档详情
+banjuan doc read <id> --pages 3-5    # 读正文（PDF 按页、EPUB 按章）
 banjuan doc delete <id>              # 删除文档
 
 # 搜索
@@ -271,8 +272,17 @@ banjuan search "机器学习" --json
 # 读取笔记详情
 banjuan note show <id> --json
 
+# 按页读文档正文（回答时可注明页码）
+banjuan doc read <id> --pages 12-14
+
 # 批量写入笔记内容
 banjuan note update <id> --content "$(cat notes.md)"
+```
+
+也可以把书房作为 MCP 工具接入 AI 工具（搜索、按页读文档、读写笔记、脑图、标签），需要半卷在运行：
+
+```bash
+claude mcp add banjuan -- banjuan mcp
 ```
 
 ## Development

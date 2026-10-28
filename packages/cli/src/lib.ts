@@ -141,6 +141,10 @@ export function setLibraryOption(path: string): void {
   libraryOption = path
 }
 
+export function getLibraryOption(): string | null {
+  return libraryOption
+}
+
 export async function getBaseUrl(): Promise<string> {
   if (cachedBaseUrl) return cachedBaseUrl
   cachedBaseUrl = await ensureApp()

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import { Command } from 'commander'
 import chalk from 'chalk'
-import { resolve, dirname, basename } from 'node:path'
+import { resolve, dirname, basename, join } from 'node:path'
 import { existsSync, mkdirSync, cpSync, rmSync, statSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { apiGet, apiPost, isAppRunning, ensureApp, readLibraryHistory, setLibraryOption } from './lib.js'
+import { apiGet, apiPost, isAppRunning, ensureApp, readLibraryHistory, setLibraryOption, getLibraryOption } from './lib.js'
 import { docCmd } from './commands/doc.js'
 import { annCmd } from './commands/ann.js'
 import { noteCmd } from './commands/note.js'
@@ -42,6 +44,33 @@ program
         console.log(`  ${chalk.cyan('•')} ${p}${marker}`)
       }
     }
+  })
+
+program
+  .command('mcp')
+  .description('run the MCP server (stdio) that gives AI tools the library: search, read documents by page, notes, mindmaps, tags')
+  .addHelpText('after', `
+Add it to an AI tool, e.g. Claude Code:
+  claude mcp add banjuan -- banjuan mcp
+  claude mcp add banjuan -- banjuan --library ~/Documents/研究资料 mcp   # always this library
+
+The Banjuan app has to be running for its tools to work; it is not started from here.`)
+  .action(() => {
+    const here = dirname(fileURLToPath(import.meta.url))
+    // Next to this CLI in the app, then the copy the app keeps up to date, then the repo.
+    const server = [
+      join(here, '..', '..', 'plugins', 'claude-ai', 'mcp-server.mjs'),
+      join(homedir(), '.banjuan', 'plugins', 'claude-ai', 'mcp-server.mjs'),
+      join(here, '..', '..', '..', 'plugins', 'claude-ai', 'mcp-server.mjs'),
+    ].find(p => existsSync(p))
+    if (!server) {
+      console.error(chalk.red('✗ MCP server not found — open the Banjuan app once, then try again'))
+      process.exit(1)
+    }
+    // Only JSON-RPC on stdout: nothing else may be printed here.
+    const lib = getLibraryOption()
+    const child = spawn(process.execPath, [server, ...(lib ? [`--library=${lib}`] : [])], { stdio: 'inherit' })
+    child.on('exit', (code) => process.exit(code ?? 0))
   })
 
 program

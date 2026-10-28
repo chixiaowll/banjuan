@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import chalk from 'chalk'
 import { apiGet, apiPost, apiDelete, resolveFolderArg } from '../lib.js'
 import { outputJson, outputTable, outputItem } from '../output.js'
+import { parsePageRange } from '../page-range.js'
 
 export const docCmd = new Command('doc').description('document management')
 
@@ -83,6 +84,41 @@ docCmd
         ['Hash', (doc.hash ?? '').slice(0, 12) + '...'],
         ['Created', new Date(doc.createdAt).toLocaleString()],
       ])
+    }
+  })
+
+docCmd
+  .command('read')
+  .description('print the text of a document: PDF by page, EPUB by chapter, txt/md/html whole')
+  .argument('<id>', 'document ID')
+  .option('--pages <range>', 'page (EPUB: chapter) or range to read, e.g. 3 or 3-5 (default 1; up to 25 per call)')
+  .option('--json', 'JSON output: { numPages, from, to, pages: [{ page, text }], truncated }')
+  .addHelpText('after', `
+Long documents: read a few pages to find the part you need, then read on.
+When more is left, a hint with the next range is printed to stderr.`)
+  .action(async (id: string, opts: { pages?: string; json?: boolean }) => {
+    const range = opts.pages === undefined ? { from: 1, to: 1 } : parsePageRange(opts.pages)
+    if (!range) {
+      console.error(chalk.red(`✗ --pages: expected a page or a range like 3-5, got "${opts.pages}"`))
+      process.exitCode = 1
+      return
+    }
+    const r = await apiGet(`/api/documents/${encodeURIComponent(id)}/text?from=${range.from}&to=${range.to}`)
+    if (opts.json) { outputJson(r); return }
+    const pages: Array<{ page: number; text: string }> = r.pages ?? []
+    for (const p of pages) {
+      if (r.numPages > 1) console.log(`--- page ${p.page} / ${r.numPages} ---`)
+      console.log(p.text)
+    }
+    // Where to go on (stderr: the text on stdout stays clean).
+    const last = pages.length ? pages[pages.length - 1].page : range.from - 1
+    const next = `banjuan doc read ${id} --pages ${last + 1}-${Math.min(last + 5, r.numPages)}`
+    if (last < range.to && last < r.numPages) {
+      console.error(chalk.dim(`… stopped after page ${last} (limit per call); next: ${next}`))
+    } else if (last < r.numPages) {
+      console.error(chalk.dim(`… ${r.numPages} pages in all; next: ${next}`))
+    } else if (r.truncated) {
+      console.error(chalk.dim('… the last page was cut short (too long to print whole)'))
     }
   })
 

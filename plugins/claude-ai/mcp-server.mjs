@@ -30,8 +30,13 @@ function authHeaders(extra = {}) {
   }
 }
 
-const PORT = getApiPort()
-const BASE = PORT ? `http://127.0.0.1:${PORT}` : null
+// Read per call: an AI tool starts this server with its session, perhaps before
+// Banjuan is opened (or after it restarted on another port).
+function base() {
+  const port = getApiPort()
+  if (!port) throw new Error('Banjuan is not running. Ask the user to open the Banjuan app (or run `banjuan start`), then try again.')
+  return `http://127.0.0.1:${port}`
+}
 
 // The library the assistant was started from (--library=<path>). Every call
 // names it: without it the app used whichever library was open first, so with
@@ -43,8 +48,7 @@ const LIBRARY = (() => {
 const inLibrary = (path) => LIBRARY ? `${path}${path.includes('?') ? '&' : '?'}library=${encodeURIComponent(LIBRARY)}` : path
 
 async function apiCall(path) {
-  if (!BASE) throw new Error('Banjuan app is not running (no api-port found)')
-  const res = await fetch(`${BASE}${inLibrary(path)}`, { headers: authHeaders() })
+  const res = await fetch(`${base()}${inLibrary(path)}`, { headers: authHeaders() })
   if (!res.ok) {
     const body = await res.text()
     throw new Error(`API ${res.status}: ${body}`)
@@ -53,8 +57,7 @@ async function apiCall(path) {
 }
 
 async function apiPost(path, body) {
-  if (!BASE) throw new Error('Banjuan app is not running')
-  const res = await fetch(`${BASE}${inLibrary(path)}`, {
+  const res = await fetch(`${base()}${inLibrary(path)}`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
@@ -67,8 +70,7 @@ async function apiPost(path, body) {
 }
 
 async function apiPut(path, body) {
-  if (!BASE) throw new Error('Banjuan app is not running')
-  const res = await fetch(`${BASE}${inLibrary(path)}`, {
+  const res = await fetch(`${base()}${inLibrary(path)}`, {
     method: 'PUT',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
@@ -81,8 +83,7 @@ async function apiPut(path, body) {
 }
 
 async function apiDelete(path) {
-  if (!BASE) throw new Error('Banjuan app is not running')
-  const res = await fetch(`${BASE}${inLibrary(path)}`, { method: 'DELETE', headers: authHeaders() })
+  const res = await fetch(`${base()}${inLibrary(path)}`, { method: 'DELETE', headers: authHeaders() })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`API ${res.status}: ${text}`)
@@ -156,12 +157,12 @@ const TOOLS = [
   },
   {
     name: 'create_note',
-    description: 'Create a new note. Content should be a JSON string of BlockNote editor blocks. For simple text notes, use: [{"type":"paragraph","content":[{"type":"text","text":"Your text here"}]}]',
+    description: 'Create a new note. Content is Markdown (headings, lists, - [ ] checkboxes, **bold**, `code`, tables, ```code``` and ```mermaid``` blocks, [[Note title]] links), or a JSON array of BlockNote blocks.',
     inputSchema: {
       type: 'object',
       properties: {
         title: { type: 'string', description: 'Note title' },
-        content: { type: 'string', description: 'Note content as JSON string of blocks' },
+        content: { type: 'string', description: 'Note content: Markdown, or a JSON array of BlockNote blocks' },
         docId: { type: 'string', description: 'Link to a document ID (optional)' },
         folder: { type: 'string', description: 'Folder path (optional)' },
       },
@@ -170,13 +171,13 @@ const TOOLS = [
   },
   {
     name: 'update_note',
-    description: 'Update an existing note. Can update title and/or content.',
+    description: 'Update an existing note: its title and/or its whole content (Markdown, or a JSON array of BlockNote blocks). Content written as Markdown turns embedded documents/annotations into plain quotes; to keep them, read the note with format "raw" and send the edited blocks.',
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Note ID to update' },
         title: { type: 'string', description: 'New title (optional)' },
-        content: { type: 'string', description: 'New content as JSON string of blocks (optional)' },
+        content: { type: 'string', description: 'New content: Markdown, or a JSON array of BlockNote blocks (optional)' },
       },
       required: ['id'],
     },

@@ -1,6 +1,6 @@
 ---
 name: banjuan
-description: Use when the user asks to manage their research library, look up documents, import or back up documents/files into the library, store/create/edit notes, search annotations, organize with tags, or work with mindmaps. Also use when the user mentions 半卷, 书房, banjuan, 存笔记, 备份文档, or their PDF/EPUB research collection.
+description: Use when the user asks to manage their research library, look up or read documents (PDF/EPUB text by page), import or back up documents/files into the library, store/create/edit notes, search annotations, organize with tags, or work with mindmaps. Also use when the user mentions 半卷, 书房, banjuan, 存笔记, 备份文档, or their PDF/EPUB research collection.
 ---
 
 # Banjuan CLI
@@ -18,6 +18,7 @@ Most commands auto-launch the desktop app if not running. `history` works offlin
 | Open library | `banjuan open <path>` |
 | Switch active library | `banjuan use <path>` |
 | List documents | `banjuan doc list [--tag <t>] [--type <t>]` |
+| Read a document's text | `banjuan doc read <id> [--pages 3-5]` (PDF page / EPUB chapter) |
 | Import / back up a document | `banjuan doc import <file> [--dir <d>] [--title "标题"] [--tag <t>]` |
 | List folders | `banjuan folder list` |
 | Create folder | `banjuan folder create <name> [--parent <id>]` |
@@ -71,6 +72,7 @@ banjuan doc import <file> [--dir <subdir>] [--title "标题"] [--tag <tag>...]  
 banjuan doc refresh                                                          # 扫描书房目录，同步新增/删除的文件
 banjuan doc list [--tag <tag>] [--type <type>] [--json]
 banjuan doc info <id> [--json]
+banjuan doc read <id> [--pages <n | from-to>] [--json]                        # 正文：PDF 按页、EPUB 按章、txt/md/html 整篇；每次最多 25 页
 banjuan doc delete <id>
 ```
 
@@ -259,6 +261,13 @@ banjuan mindmap add-node <mm-id> "子概念A" --parent <node-id>
 banjuan mindmap add-node <mm-id> "子概念B" --parent <node-id> --color "#ff6b6b"
 ```
 
+**Answer from a document (cite pages):**
+```bash
+banjuan search "注意力机制"                      # document hits carry the page they were found on
+banjuan doc read <doc-id> --pages 12-14          # read around it; stderr says where to go on
+# Quote the page numbers in the answer (“…, p.13”).
+```
+
 **Cross-library query:**
 ```bash
 banjuan --library ~/lib1 search "topic"
@@ -273,6 +282,15 @@ banjuan --library ~/lib2 search "topic"
 | Wrong library targeted | Check `banjuan status`, use `banjuan use <path>` to switch |
 | Can't find document by ID | Copy the full UUID from list output |
 | App not responding | Run `banjuan start` or check `banjuan status` |
+
+## MCP (AI tools without a shell)
+
+The same library is available to AI tools as MCP tools (search, read_document by page, notes, mindmaps, tags):
+```bash
+claude mcp add banjuan -- banjuan mcp                                  # Claude Code
+claude mcp add banjuan -- banjuan --library ~/Documents/研究资料 mcp   # pinned to one library
+```
+The app must be running for the tools to work; `banjuan mcp` does not start it.
 
 ## Output
 

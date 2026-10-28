@@ -230,6 +230,7 @@ banjuan note delete <id>             # Delete a note
 banjuan doc list                     # List all documents
 banjuan doc import <file>            # Import a document
 banjuan doc info <id>                # Show document details
+banjuan doc read <id> --pages 3-5    # Read the text (PDF by page, EPUB by chapter)
 banjuan doc delete <id>              # Delete a document
 
 # Search
@@ -271,8 +272,17 @@ banjuan search "machine learning" --json
 # Read note details
 banjuan note show <id> --json
 
+# Read a document's text by page (so answers can cite pages)
+banjuan doc read <id> --pages 12-14
+
 # Batch write note content
 banjuan note update <id> --content "$(cat notes.md)"
+```
+
+The library is also available to AI tools as MCP tools (search, read documents by page, read/write notes, mindmaps, tags) while Banjuan is running:
+
+```bash
+claude mcp add banjuan -- banjuan mcp
 ```
 
 ## Development
