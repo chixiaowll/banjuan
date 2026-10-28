@@ -20,8 +20,8 @@ describe('NoteHistory', () => {
     const v2 = await history.save('n-1', file('日记', '中午'), 'edit', new Date(t0 + 60_000))
     expect(existsSync(join(root, '.banjuan', '.note-history', 'n-1'))).toBe(true)
     expect(await history.list('n-1')).toEqual([
-      { version: v2, at: new Date(t0 + 60_000).toISOString(), reason: 'edit', title: '日记' },
-      { version: v1, at: new Date(t0).toISOString(), reason: 'external', title: '日记' },
+      { version: v2, at: new Date(t0 + 60_000).toISOString(), reason: 'edit', title: '日记', preview: '中午' },
+      { version: v1, at: new Date(t0).toISOString(), reason: 'external', title: '日记', preview: '早上' },
     ])
     expect(JSON.parse(await history.read('n-1', v1)).blocks[0].content[0].text).toBe('早上')
     expect(await history.newestAt('n-1')).toBe(t0 + 60_000)

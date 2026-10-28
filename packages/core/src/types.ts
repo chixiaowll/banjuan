@@ -176,6 +176,8 @@ export interface NoteListOptions {
   folderId?: string
   folder?: string
   tag?: string
+  /** Only notes changed at or after this time (ISO). */
+  since?: string
   sort?: 'created_at' | 'title' | 'updated_at'
   order?: 'asc' | 'desc'
 }

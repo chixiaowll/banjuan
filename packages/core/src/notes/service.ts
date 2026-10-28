@@ -16,6 +16,18 @@ import { importMarkdownImages } from './import-images.js'
 import { isSafeId } from '../storage/safe-path.js'
 import { noteFileLock } from '../storage/keyed-lock.js'
 import { noteLockKey } from './note-file.js'
+import { NoteHistory, type NoteVersion } from './history.js'
+import { parseHeadingLine, upsertSection } from './sections.js'
+
+/** The app's own saves (an editor saving as you type) keep at most one version per note this often. */
+const EDIT_VERSION_INTERVAL_MS = 10 * 60_000
+
+export interface NoteWriteOptions {
+  /** 'external': a program or AI through the local API — always keeps the previous version. */
+  source?: 'app' | 'external'
+  /** What the kept version is labelled (default: 'external' / 'edit'). */
+  reason?: string
+}
 
 interface NoteJsonFile {
   meta: NoteFileData
@@ -42,6 +54,25 @@ export class NoteService {
     private fs: PlatformFS,
   ) {
     this.notesDir = join(rootPath, '.banjuan', 'notes')
+    this.versions = new NoteHistory(rootPath, fs)
+  }
+
+  /** Earlier versions of Markdown notes (history.ts). */
+  private versions: NoteHistory
+  /** Notes last written from outside: the next save from the app keeps that write as a version. */
+  private externallyWritten = new Set<string>()
+
+  /** A note titled `title` right in `folder` ('' = top level), not one of a document's notes. */
+  private findInFolder(title: string, folder: string): string | null {
+    const pathPrefix = folder ? folder + '/' : ''
+    const row = pathPrefix
+      ? this.db.queryOne<{ id: string }>(
+          `SELECT id FROM notes WHERE title = ? AND path LIKE ? ${LIKE_ESCAPE} AND path NOT LIKE ? ${LIKE_ESCAPE}`,
+          [title, escapeLike(pathPrefix) + '%', escapeLike(pathPrefix) + '%/%'])
+      : this.db.queryOne<{ id: string }>(
+          'SELECT id FROM notes WHERE title = ? AND path NOT LIKE ? AND doc_id IS NULL',
+          [title, '%/%'])
+    return row?.id ?? null
   }
 
   private trash: TrashService | null = null
@@ -209,16 +240,8 @@ export class NoteService {
       const dup = this.db.queryOne<{ id: string }>(
         'SELECT id FROM notes WHERE title = ? AND doc_id = ?', [input.title, input.docId])
       if (dup) throw new Error('DUPLICATE_TITLE')
-    } else {
-      const pathPrefix = folder ? folder + '/' : ''
-      const dup = pathPrefix
-        ? this.db.queryOne<{ id: string }>(
-            `SELECT id FROM notes WHERE title = ? AND path LIKE ? ${LIKE_ESCAPE} AND path NOT LIKE ? ${LIKE_ESCAPE}`,
-            [input.title, escapeLike(pathPrefix) + '%', escapeLike(pathPrefix) + '%/%'])
-        : this.db.queryOne<{ id: string }>(
-            'SELECT id FROM notes WHERE title = ? AND path NOT LIKE ? AND doc_id IS NULL',
-            [input.title, '%/%'])
-      if (dup) throw new Error('DUPLICATE_TITLE')
+    } else if (this.findInFolder(input.title, folder)) {
+      throw new Error('DUPLICATE_TITLE')
     }
 
     const filename = `${id}.json`
@@ -324,6 +347,7 @@ export class NoteService {
     if (options?.docId) { conditions.push('doc_id = ?'); params.push(options.docId) }
     if (options?.folderId) { conditions.push('folder_id = ?'); params.push(options.folderId) }
     if (options?.folder) { conditions.push(`path LIKE ? ${LIKE_ESCAPE}`); params.push(escapeLike(options.folder) + '/%') }
+    if (options?.since) { conditions.push('updated_at >= ?'); params.push(options.since) }
     if (options?.tag) {
       conditions.push(`(id IN (SELECT note_id FROM note_tags JOIN tags ON tags.id = note_tags.tag_id WHERE tags.name = ?) OR id IN (SELECT mindmap_id FROM mindmap_tags JOIN tags ON tags.id = mindmap_tags.tag_id WHERE tags.name = ?))`)
       params.push(options.tag, options.tag)
@@ -422,7 +446,7 @@ export class NoteService {
     return note
   }
 
-  async update(id: string, updates: { title?: string; content?: string; typeMeta?: Record<string, unknown> }): Promise<Note> {
+  async update(id: string, updates: { title?: string; content?: string; typeMeta?: Record<string, unknown> }, opts: NoteWriteOptions = {}): Promise<Note> {
     id = this.resolveId(id)
     // A late save from an editor whose note was just deleted: fail clearly
     // instead of a TypeError on the missing row below.
@@ -463,7 +487,9 @@ export class NoteService {
         }
         await this.fs.writeTextFile(filePath, JSON.stringify(raw, null, 2))
       } else {
-        const raw = JSON.parse(await this.fs.readTextFile(filePath)) as NoteJsonFile
+        const before = await this.fs.readTextFile(filePath)
+        const raw = JSON.parse(before) as NoteJsonFile
+        if (updates.content !== undefined || updates.title !== undefined) await this.keepVersion(id, before, opts)
         if (updates.title !== undefined) raw.meta.title = updates.title
         raw.meta.updatedAt = now
         if (updates.content !== undefined) raw.blocks = contentToBlocks(updates.content)
@@ -483,6 +509,61 @@ export class NoteService {
     const note = (await this.get(id))!
     this.events.emit('note:updated', { note })
     return note
+  }
+
+  /**
+   * Before a write: keep the note as it was. Every write from outside does;
+   * the app's own saves at most every 10 minutes — but always right after a
+   * write from outside, so an editor saving over it can't lose it.
+   */
+  private async keepVersion(id: string, fileText: string, opts: NoteWriteOptions): Promise<void> {
+    const external = opts.source === 'external'
+    try {
+      const newest = await this.versions.newestAt(id)
+      if (external || this.externallyWritten.has(id) || newest === null || Date.now() - newest > EDIT_VERSION_INTERVAL_MS) {
+        await this.versions.save(id, fileText, opts.reason ?? (external ? 'external' : 'edit'))
+      }
+    } catch (e) {
+      console.warn(`[notes] could not keep a version of ${id}:`, e)   // never block the save itself
+    }
+    if (external) this.externallyWritten.add(id)
+    else this.externallyWritten.delete(id)
+  }
+
+  /** Earlier versions of a Markdown note, newest first. */
+  async history(id: string): Promise<NoteVersion[]> {
+    return this.versions.list(id)
+  }
+
+  /** Put a note back as it was in `version` (what it replaces is kept as a version too). */
+  async restore(id: string, version: string): Promise<Note> {
+    const file = JSON.parse(await this.versions.read(id, version)) as Partial<NoteJsonFile>
+    return this.update(id, {
+      ...(typeof file.meta?.title === 'string' ? { title: file.meta.title } : {}),
+      content: JSON.stringify(Array.isArray(file.blocks) ? file.blocks : []),
+    }, { source: 'external', reason: 'restore' })
+  }
+
+  /**
+   * Write one section of a Markdown note — `heading` is a Markdown heading
+   * line ("## 20261028") — leaving the rest of it as it is (sections.ts).
+   */
+  async updateSection(id: string, heading: string, content: string, opts: { mode?: 'replace' | 'append'; newAt?: 'top' | 'bottom' } = {}): Promise<Note> {
+    const target = parseHeadingLine(heading)
+    if (!target) throw new Error(`Not a Markdown heading line: ${heading}`)
+    const note = await this.get(id)
+    if (!note) throw new Error('Note not found')
+    if (note.type !== 'markdown') throw new Error('Only Markdown notes have sections')
+    const blocks = parseBlockList(note.content ?? '[]') ?? []
+    const next = upsertSection(blocks, { heading: target, content: contentToBlocks(content), mode: opts.mode, newAt: opts.newAt })
+    return this.update(id, { content: JSON.stringify(next) }, { source: 'external' })
+  }
+
+  /** The note titled `title` right in `folder`, created (with `content`) when there is none. */
+  async ensure(input: { title: string; folder?: string; content?: string }): Promise<{ note: Note; created: boolean }> {
+    const existing = this.findInFolder(input.title, input.folder ?? '')
+    if (existing) return { note: (await this.get(existing))!, created: false }
+    return { note: await this.create({ title: input.title, folder: input.folder, content: input.content }), created: true }
   }
 
   async move(id: string, targetFolder: string | null): Promise<Note> {

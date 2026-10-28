@@ -14,6 +14,16 @@ export interface NoteVersion {
   at: string
   reason: string
   title: string
+  /** The start of its text, to tell versions apart. */
+  preview: string
+}
+
+function textOf(node: unknown): string {
+  if (Array.isArray(node)) return node.map(textOf).join('')
+  if (!node || typeof node !== 'object') return ''
+  const n = node as { text?: unknown; content?: unknown; props?: { title?: unknown; quote?: unknown } }
+  if (typeof n.text === 'string') return n.text
+  return textOf(n.content) || String(n.props?.title ?? n.props?.quote ?? '')
 }
 
 const MAX_VERSIONS = 50
@@ -51,8 +61,14 @@ export class NoteHistory {
     const out: NoteVersion[] = []
     for (const { version, ms, reason } of await this.versions(noteId)) {
       let title = ''
-      try { title = String(JSON.parse(await this.fs.readTextFile(join(this.noteDir(noteId), version + '.json'))).meta?.title ?? '') } catch { /* unreadable: no title */ }
-      out.push({ version, at: new Date(ms).toISOString(), reason, title })
+      let preview = ''
+      try {
+        const file = JSON.parse(await this.fs.readTextFile(join(this.noteDir(noteId), version + '.json')))
+        title = String(file.meta?.title ?? '')
+        const blocks: unknown[] = Array.isArray(file.blocks) ? file.blocks : []
+        preview = blocks.map(textOf).filter(Boolean).join(' ').slice(0, 80)
+      } catch { /* unreadable: no title or preview */ }
+      out.push({ version, at: new Date(ms).toISOString(), reason, title, preview })
     }
     return out
   }
