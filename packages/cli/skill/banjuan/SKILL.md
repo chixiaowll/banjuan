@@ -95,8 +95,8 @@ If you dropped files into the library folder directly (outside the app), run
 ```bash
 banjuan note create <title> [--doc <id>] [--folder <folder-id>] [--content "<md>" | --file <path>]
 banjuan note list [--doc <id>] [--type <type>] [--tag <tag>] [--folder <folder-id>] [--json]
-banjuan note show <id>
-banjuan note update <id> [--title "new"] [--content "markdown 文本"]
+banjuan note show <id> [--body]                         # --body: only the Markdown, ready to edit
+banjuan note update <id> [--title "new"] [--content "markdown 文本" | --file <path>]   # replaces the whole content
 banjuan note delete <id>
 banjuan note move <id> [folder-id]
 ```
@@ -269,9 +269,11 @@ banjuan doc read <doc-id> --pages 12-14          # each page header shows its li
 Cite with Markdown links, e.g. `[《深度学习》p.13](banjuan://doc/…?page=13&library=…)`: clicking one opens
 Banjuan at that page (annotation and note links work the same way).
 
-**Edit a note:** `banjuan note show <id>` prints Markdown in which note/document links and embedded
-annotations/documents are `banjuan://` links. Keep them when you change the text and write it back with
-`banjuan note update <id> --file note.md` — they come back as links and embeds.
+**Edit a note:** `banjuan note show <id> --body > note.md` gives the Markdown, in which note/document links
+and embedded annotations/documents are `banjuan://` links. Keep them when you change the text and write it
+back with `banjuan note update <id> --file note.md` — they come back as links and embeds. `update` replaces
+the whole note: start from what `show --body` printed, never from a partial copy.
+To link a note you know the ID of, write `[标题](banjuan://note/<id>)` — unlike `[[标题]]`, it survives renames.
 
 **Cross-library query:**
 ```bash

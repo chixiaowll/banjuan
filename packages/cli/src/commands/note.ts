@@ -122,15 +122,18 @@ noteCmd
 
 noteCmd
   .command('show')
-  .description('show note content')
+  .description('show note content (Markdown; links and embeds as banjuan:// links, kept when written back)')
   .argument('<id>', 'note ID')
-  .action(async (id: string) => {
+  .option('--body', 'print only the content, no details above it (to edit it and write it back)')
+  .action(async (id: string, opts: { body?: boolean }) => {
     const note = await apiGet(`/api/notes/${encodeURIComponent(id)}?format=markdown`)
+    if (opts.body) { process.stdout.write((note.content ?? '') + '\n'); return }
+    const parts = String(note.path ?? '').split('/')
     outputItem([
       ['ID', note.id],
       ['Title', note.title],
       ['Type', note.type ?? 'markdown'],
-      ['Folder', note.folderId ?? '-'],
+      ['Folder', parts.length > 1 ? parts.slice(0, -1).join('/') : '-'],
       ['Document', note.docId ?? '-'],
       ['Created', new Date(note.createdAt).toLocaleString()],
     ])
@@ -153,11 +156,21 @@ noteCmd
   .description('update a note')
   .argument('<id>', 'note ID')
   .option('--title <title>', 'new title')
-  .option('--content <content>', 'new content (markdown)')
-  .action(async (id: string, opts: { title?: string; content?: string }) => {
+  .option('--content <content>', 'new content (markdown); replaces the whole note')
+  .option('--file <path>', 'read the new content from a markdown file (--content wins if both are given)')
+  .action(async (id: string, opts: { title?: string; content?: string; file?: string }) => {
     const body: Record<string, string> = {}
     if (opts.title) body.title = opts.title
     if (opts.content) body.content = opts.content
+    else if (opts.file) {
+      try {
+        body.content = readFileSync(opts.file, 'utf-8')
+      } catch (e: any) {
+        console.error(chalk.red(`✗ Cannot read ${opts.file}: ${e.message}`))
+        process.exitCode = 1
+        return
+      }
+    }
     const note = await apiPut(`/api/notes/${encodeURIComponent(id)}`, body)
     console.log(chalk.green(`✓ Updated note: ${note.title}`))
   })
