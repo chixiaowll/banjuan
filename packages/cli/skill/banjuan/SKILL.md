@@ -261,12 +261,17 @@ banjuan mindmap add-node <mm-id> "子概念A" --parent <node-id>
 banjuan mindmap add-node <mm-id> "子概念B" --parent <node-id> --color "#ff6b6b"
 ```
 
-**Answer from a document (cite pages):**
+**Answer from a document (cite sources):**
 ```bash
-banjuan search "注意力机制"                      # document hits carry the page they were found on
-banjuan doc read <doc-id> --pages 12-14          # read around it; stderr says where to go on
-# Quote the page numbers in the answer (“…, p.13”).
+banjuan search "注意力机制" --json               # every hit has a `link` (banjuan://…); document hits a page
+banjuan doc read <doc-id> --pages 12-14          # each page header shows its link; stderr says where to go on
 ```
+Cite with Markdown links, e.g. `[《深度学习》p.13](banjuan://doc/…?page=13&library=…)`: clicking one opens
+Banjuan at that page (annotation and note links work the same way).
+
+**Edit a note:** `banjuan note show <id>` prints Markdown in which note/document links and embedded
+annotations/documents are `banjuan://` links. Keep them when you change the text and write it back with
+`banjuan note update <id> --file note.md` — they come back as links and embeds.
 
 **Cross-library query:**
 ```bash

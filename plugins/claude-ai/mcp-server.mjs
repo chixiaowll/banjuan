@@ -120,7 +120,7 @@ function mindmapToOutline(nodes, edges) {
 const TOOLS = [
   {
     name: 'search',
-    description: 'Search notes and documents in the library. Returns matching items with titles and snippets.',
+    description: 'Search the library: notes, documents (titles and full text — a document hit says the page it was found on) and annotations. Every result has a `link` (banjuan://…): when you use a result in an answer, cite it as a Markdown link, e.g. [Deep Learning p.13](link) — the user can click it to open Banjuan at that page, annotation or note.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -145,7 +145,7 @@ const TOOLS = [
   },
   {
     name: 'read_note',
-    description: 'Read a note by ID. For markdown notes, returns readable markdown text. For mindmap notes, returns a text outline of the node tree. For handwriting notes, returns an image. Optionally request a rendered image for any note type.',
+    description: 'Read a note by ID. For markdown notes, returns Markdown in which links to notes/documents and embedded annotations, documents and notes are banjuan:// links — keep them when you edit, update_note turns them back into links and embeds. For mindmap notes, returns a text outline of the node tree. For handwriting notes, returns an image. Optionally request a rendered image for any note type.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -171,7 +171,7 @@ const TOOLS = [
   },
   {
     name: 'update_note',
-    description: 'Update an existing note: its title and/or its whole content (Markdown, or a JSON array of BlockNote blocks). Content written as Markdown turns embedded documents/annotations into plain quotes; to keep them, read the note with format "raw" and send the edited blocks.',
+    description: 'Update an existing note: its title and/or its whole content (Markdown, or a JSON array of BlockNote blocks). Markdown from read_note can be edited and sent back: its banjuan:// links and embeds are kept. Text colours and alignment are not part of the Markdown; to keep those, read the note with format "raw" and send the edited blocks.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -206,7 +206,7 @@ const TOOLS = [
   },
   {
     name: 'read_document',
-    description: 'Read the extracted text of a document. Returns { numPages, from, to, pages: [{page, text}], truncated }. Supports PDF (page = page), EPUB (page = chapter/spine index), and txt/md/html (single page). For PDF/EPUB, paginate long docs by calling again with a higher fromPage. Output is size-capped per call; `truncated` means there is more. Tip: read a few pages first to locate the relevant section.',
+    description: 'Read the extracted text of a document. Returns { numPages, from, to, pages: [{page, text, link}], truncated } — cite a page with its `link`. Supports PDF (page = page), EPUB (page = chapter/spine index), and txt/md/html (single page). For PDF/EPUB, paginate long docs by calling again with a higher fromPage. Output is size-capped per call; `truncated` means there is more. Tip: read a few pages first to locate the relevant section.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -219,7 +219,7 @@ const TOOLS = [
   },
   {
     name: 'get_annotations',
-    description: 'Get all annotations (highlights, notes) for a document.',
+    description: 'Get all annotations (highlights, notes) for a document. Each has a `link` to cite it.',
     inputSchema: {
       type: 'object',
       properties: {

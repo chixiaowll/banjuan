@@ -105,9 +105,10 @@ When more is left, a hint with the next range is printed to stderr.`)
     }
     const r = await apiGet(`/api/documents/${encodeURIComponent(id)}/text?from=${range.from}&to=${range.to}`)
     if (opts.json) { outputJson(r); return }
-    const pages: Array<{ page: number; text: string }> = r.pages ?? []
+    const pages: Array<{ page: number; text: string; link?: string }> = r.pages ?? []
     for (const p of pages) {
-      if (r.numPages > 1) console.log(`--- page ${p.page} / ${r.numPages} ---`)
+      // The page's banjuan:// link: cite it, and the user can click through.
+      if (r.numPages > 1) console.log(`--- page ${p.page} / ${r.numPages}${p.link ? `  ${p.link}` : ''} ---`)
       console.log(p.text)
     }
     // Where to go on (stderr: the text on stdout stays clean).

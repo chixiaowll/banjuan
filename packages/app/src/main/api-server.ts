@@ -8,6 +8,7 @@ import { randomUUID, randomBytes } from 'node:crypto'
 import { app } from 'electron'
 import type { Library } from '@banjuan/core'
 import { blocksToMarkdown } from '@banjuan/core'
+import { withSearchLinks, withPageLinks, withAnnotationLinks } from './api-links.js'
 import { saveClip } from './clip-service.js'
 import { openLibraryForApi, initLibraryForApi, libraries, getLibraryHistory, releaseLibrary } from './ipc.js'
 import { extractDocumentText } from './pdf-text.js'
@@ -352,7 +353,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     if (query.format === 'markdown' && note.content) {
       try {
         const blocks = JSON.parse(note.content)
-        if (Array.isArray(blocks)) note.content = blocksToMarkdown(blocks)
+        // For AI tools: links and embeds as banjuan:// links, so writing it back keeps them.
+        if (Array.isArray(blocks)) note.content = blocksToMarkdown(blocks, { banjuanLinks: true })
       } catch { /* keep original */ }
     }
     json(res, 200, note)
@@ -526,7 +528,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       if (to - from + 1 > MAX_TEXT_PAGES) to = from + MAX_TEXT_PAGES - 1
       const abs = join(lib.rootPath, doc.path)
       const result = await extractDocumentText(abs, doc.type, from, to)
-      json(res, 200, result)
+      json(res, 200, withPageLinks(result, doc.id, lib.rootPath))
     } catch (e: any) {
       json(res, 500, { error: e.message })
     }
@@ -825,7 +827,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const opts: Record<string, unknown> = { docId: query.docId }
     if (query.page) opts.page = parseInt(query.page, 10)
     const annotations = await lib.annotations.list(opts as any)
-    json(res, 200, annotations)
+    json(res, 200, withAnnotationLinks(annotations, lib.rootPath))
     return
   }
 
@@ -838,7 +840,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     if (query.type) opts.type = query.type
     if (query.limit) opts.limit = parseInt(query.limit, 10)
     const results = await lib.search.query(query.q, opts)
-    json(res, 200, results)
+    json(res, 200, withSearchLinks(results, lib.rootPath))
     return
   }
 
