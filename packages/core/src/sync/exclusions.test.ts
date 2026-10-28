@@ -15,7 +15,7 @@ describe('isSyncablePath', () => {
   it('rejects excluded and per-device paths whatever the case', () => {
     for (const p of ['.banjuan/plugins/x/index.js', '.banjuan/PLUGINS/x/index.js', '.banjuan/Plugins/x/manifest.json',
       '.banjuan/sync.json', '.banjuan/SYNC.json', '.banjuan/config.JSON', '.banjuan/paired-devices.json',
-      '.banjuan/.trash/a', '.banjuan/.TRASH/a', '.banjuan/db.sqlite', '.banjuan/DB.SQLITE', 'x/.DS_Store', 'a.md.banjuan-tmp']) {
+      '.banjuan/.trash/a', '.banjuan/.TRASH/a', '.banjuan/.note-history/n/1-edit.json', '.banjuan/db.sqlite', '.banjuan/DB.SQLITE', 'x/.DS_Store', 'a.md.banjuan-tmp']) {
       expect(isSyncablePath(p)).toBe(false)
     }
   })

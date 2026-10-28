@@ -26,6 +26,7 @@ export const EXCLUDED_DIRS = new Set([
   '.sync-trash',   // .banjuan/.sync-trash: local recovery copies of synced-away deletions
   '.trash',        // .banjuan/.trash: this device's recycle bin
   '.cover-cache',  // .banjuan/.cover-cache: document thumbnails, made per device
+  '.note-history', // .banjuan/.note-history: earlier versions of notes, kept on this device
 ])
 
 // Files that must never be auto-deleted during sync (deletion-tracking only).
