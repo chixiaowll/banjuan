@@ -91,6 +91,9 @@ async function apiDelete(path) {
   return res.json()
 }
 
+// What a write returns to the model: where the note is, not its whole content again (read_note shows that).
+const brief = (note) => ({ id: note.id, title: note.title, path: note.path, link: note.link, updatedAt: note.updatedAt })
+
 function mindmapToOutline(nodes, edges) {
   if (!Array.isArray(nodes) || nodes.length === 0) return '(empty mindmap)'
   const childMap = new Map()
@@ -140,7 +143,51 @@ const TOOLS = [
         type: { type: 'string', enum: ['markdown', 'mindmap', 'handwriting'], description: 'Filter by note type' },
         docId: { type: 'string', description: 'Filter notes linked to a specific document' },
         tag: { type: 'string', description: 'Filter by tag name' },
+        folder: { type: 'string', description: 'Only notes in this folder (path, e.g. "[0] DailyNotes")' },
+        since: { type: 'string', description: 'Only notes changed at or after this time (ISO date or date-time, e.g. 2026-10-24)' },
       },
+    },
+  },
+  {
+    name: 'ensure_note',
+    description: 'Find the note with this exact title right in a folder, or create it (with `content`) when there is none. Safe to call again: an existing note is returned untouched. Returns the note with `created`. Use it to get e.g. this month\'s diary note before writing a section of it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Note title' },
+        folder: { type: 'string', description: 'Folder path (top level if omitted)' },
+        content: { type: 'string', description: 'Markdown for a new note (ignored when it exists)' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'update_note_section',
+    description: 'Write one section of a Markdown note — the part under a heading, up to the next heading of the same level or higher — leaving the rest exactly as it is. Prefer this to update_note for long notes (a diary, a project overview, a report): add a day, append to a list, replace a status. The previous version is kept (note_history).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Note ID' },
+        heading: { type: 'string', description: 'The section heading as a Markdown line, e.g. "## 20261028"' },
+        content: { type: 'string', description: 'The section content in Markdown, without its heading' },
+        mode: { type: 'string', enum: ['replace', 'append'], description: 'replace (default): the section becomes this; append: added at its end' },
+        newAt: { type: 'string', enum: ['top', 'bottom'], description: 'Where a missing section goes: top = before the first heading of its level (newest-first diaries), bottom (default) = end of the note' },
+      },
+      required: ['id', 'heading', 'content'],
+    },
+  },
+  {
+    name: 'note_history',
+    description: 'Earlier versions of a note, newest first: { version, at, reason, title, preview }. A version is kept before every write through these tools, and as the user edits.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Note ID' } }, required: ['id'] },
+  },
+  {
+    name: 'restore_note',
+    description: 'Put a note back as it was in an earlier version (from note_history). What it replaces is kept as a version too, so this can be undone.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', description: 'Note ID' }, version: { type: 'string', description: 'A version from note_history' } },
+      required: ['id', 'version'],
     },
   },
   {
@@ -389,9 +436,21 @@ async function handleToolCall(name, args) {
       if (args.type) params.set('type', args.type)
       if (args.docId) params.set('docId', args.docId)
       if (args.tag) params.set('tag', args.tag)
+      if (args.folder) params.set('folder', args.folder)
+      if (args.since) params.set('since', args.since)
       const qs = params.toString()
       return await apiCall(`/api/notes${qs ? '?' + qs : ''}`)
     }
+    case 'ensure_note': {
+      const note = await apiPost('/api/notes/ensure', { title: args.title, folder: args.folder, content: args.content })
+      return { ...brief(note), created: note.created }
+    }
+    case 'update_note_section':
+      return brief(await apiPost(`/api/notes/${encodeURIComponent(args.id)}/section`, { heading: args.heading, content: args.content, mode: args.mode, newAt: args.newAt }))
+    case 'note_history':
+      return await apiCall(`/api/notes/${encodeURIComponent(args.id)}/history`)
+    case 'restore_note':
+      return brief(await apiPost(`/api/notes/${encodeURIComponent(args.id)}/restore`, { version: args.version }))
     case 'read_note': {
       const format = args.format || 'auto'
       if (format === 'image') {
@@ -414,10 +473,10 @@ async function handleToolCall(name, args) {
       return { title: note.title, type: note.type, content: header + (note.content || '') }
     }
     case 'create_note':
-      return await apiPost('/api/notes', args)
+      return brief(await apiPost('/api/notes', args))
     case 'update_note': {
       const { id, ...updates } = args
-      return await apiPut(`/api/notes/${encodeURIComponent(id)}`, updates)
+      return brief(await apiPut(`/api/notes/${encodeURIComponent(id)}`, updates))
     }
     case 'list_documents': {
       const params = new URLSearchParams()
