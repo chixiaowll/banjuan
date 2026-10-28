@@ -90,72 +90,6 @@ async function apiDelete(path) {
   return res.json()
 }
 
-function blocksToMarkdown(blocks) {
-  if (!Array.isArray(blocks)) return ''
-  const lines = []
-  for (const block of blocks) {
-    const text = inlineToText(block.content)
-    switch (block.type) {
-      case 'heading': {
-        const level = block.props?.level || 1
-        lines.push('#'.repeat(level) + ' ' + text)
-        break
-      }
-      case 'bulletListItem':
-        lines.push('- ' + text)
-        break
-      case 'numberedListItem':
-        lines.push('1. ' + text)
-        break
-      case 'checkListItem':
-        lines.push((block.props?.checked ? '- [x] ' : '- [ ] ') + text)
-        break
-      case 'codeBlock':
-        lines.push('```' + (block.props?.language || ''))
-        lines.push(text)
-        lines.push('```')
-        break
-      case 'table':
-        if (block.content?.rows) {
-          for (const row of block.content.rows) {
-            const cells = row.cells?.map(c => inlineToText(c)) || []
-            lines.push('| ' + cells.join(' | ') + ' |')
-          }
-        }
-        break
-      case 'image':
-        lines.push(`![${block.props?.caption || ''}](${block.props?.url || ''})`)
-        break
-      default:
-        if (text) lines.push(text)
-    }
-    if (block.children?.length) {
-      const childMd = blocksToMarkdown(block.children)
-      lines.push(...childMd.split('\n').map(l => '  ' + l))
-    }
-  }
-  return lines.join('\n')
-}
-
-function inlineToText(content) {
-  if (!content) return ''
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  return content.map(c => {
-    if (typeof c === 'string') return c
-    if (c.type === 'text') {
-      let t = c.text || ''
-      if (c.styles?.bold) t = `**${t}**`
-      if (c.styles?.italic) t = `*${t}*`
-      if (c.styles?.code) t = `\`${t}\``
-      if (c.styles?.strikethrough) t = `~~${t}~~`
-      return t
-    }
-    if (c.type === 'link') return `[${inlineToText(c.content)}](${c.href || ''})`
-    return c.text || ''
-  }).join('')
-}
-
 function mindmapToOutline(nodes, edges) {
   if (!Array.isArray(nodes) || nodes.length === 0) return '(empty mindmap)'
   const childMap = new Map()
@@ -463,8 +397,9 @@ async function handleToolCall(name, args) {
         const img = await apiCall(`/api/notes/${encodeURIComponent(args.id)}/render`)
         return { __image: true, noteId: args.id, dataUrl: img.dataUrl }
       }
-      const note = await apiCall(`/api/notes/${encodeURIComponent(args.id)}`)
-      if (format === 'raw') return note
+      if (format === 'raw') return await apiCall(`/api/notes/${encodeURIComponent(args.id)}`)
+      // Markdown from the app's own converter (links keep their titles, annotation quotes stay).
+      const note = await apiCall(`/api/notes/${encodeURIComponent(args.id)}?format=markdown`)
       const header = `# ${note.title}\nType: ${note.type} | Created: ${note.createdAt}\n\n`
       if (note.type === 'mindmap') {
         let parsed
@@ -475,9 +410,7 @@ async function handleToolCall(name, args) {
         const img = await apiCall(`/api/notes/${encodeURIComponent(args.id)}/render`)
         return { __image: true, noteId: args.id, title: note.title, dataUrl: img.dataUrl }
       }
-      let parsed
-      try { parsed = JSON.parse(note.content) } catch { return { title: note.title, type: note.type, content: header + (note.content || '') } }
-      return { title: note.title, type: note.type, content: header + blocksToMarkdown(parsed) }
+      return { title: note.title, type: note.type, content: header + (note.content || '') }
     }
     case 'create_note':
       return await apiPost('/api/notes', args)

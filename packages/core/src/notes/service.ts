@@ -9,7 +9,7 @@ import type { TemplateService } from './template-service.js'
 import type { NoteLinkService } from './link-service.js'
 import type { DocLinkService } from './doc-link-service.js'
 import { extractNoteLinks, extractDocumentLinks, resolveNoteLinks } from './extract-links.js'
-import { markdownToBlocks } from './migration.js'
+import { contentToBlocks, parseBlockList } from './migration.js'
 import { AttachmentService } from './attachment-service.js'
 import type { TrashService } from '../trash/service.js'
 import { importMarkdownImages } from './import-images.js'
@@ -271,18 +271,14 @@ export class NoteService {
         if (tpl) blocks = JSON.parse(tpl.content)
       }
       if (input.content) {
-        try {
-          blocks = JSON.parse(input.content)
-        } catch {
-          // Markdown content: pull in local images referenced relative to the
-          // source file before converting, so they resolve inside the library.
-          let md = input.content
-          if (input.contentBaseDir) {
-            const attachments = new AttachmentService(this.rootPath, this.fs)
-            md = await importMarkdownImages(this.fs, attachments, id, md, input.contentBaseDir)
-          }
-          blocks = markdownToBlocks(md)
+        let content = input.content
+        // Markdown with local images: pull them in (relative to the source
+        // file) before converting, so they resolve inside the library.
+        if (input.contentBaseDir && !parseBlockList(content)) {
+          const attachments = new AttachmentService(this.rootPath, this.fs)
+          content = await importMarkdownImages(this.fs, attachments, id, content, input.contentBaseDir)
         }
+        blocks = contentToBlocks(content)
       }
       await this.fs.writeTextFile(fullPath, JSON.stringify({ meta, blocks }, null, 2))
       contentStr = JSON.stringify(blocks)
@@ -470,14 +466,7 @@ export class NoteService {
         const raw = JSON.parse(await this.fs.readTextFile(filePath)) as NoteJsonFile
         if (updates.title !== undefined) raw.meta.title = updates.title
         raw.meta.updatedAt = now
-        if (updates.content !== undefined) {
-          try {
-            const parsed = JSON.parse(updates.content)
-            raw.blocks = Array.isArray(parsed) ? parsed : markdownToBlocks(updates.content)
-          } catch {
-            raw.blocks = markdownToBlocks(updates.content)
-          }
-        }
+        if (updates.content !== undefined) raw.blocks = contentToBlocks(updates.content)
         await this.fs.writeTextFile(filePath, JSON.stringify(raw, null, 2))
         // Content may have added/removed wiki-links — keep link tables current
         // so we don't depend on a full rebuild to fix them.

@@ -163,6 +163,25 @@ export function markdownToBlocks(markdown: string): unknown[] {
   return blocks
 }
 
+/** `content` as a JSON list of BlockNote blocks, or null when it is something else (Markdown). */
+export function parseBlockList(content: string): unknown[] | null {
+  try {
+    const parsed: unknown = JSON.parse(content)
+    if (Array.isArray(parsed) && parsed.every(b => !!b && typeof b === 'object' && typeof (b as { type?: unknown }).type === 'string')) {
+      return parsed
+    }
+  } catch { /* Markdown */ }
+  return null
+}
+
+/**
+ * Note content handed in from outside (API, CLI, MCP): a JSON list of
+ * BlockNote blocks is taken as is, anything else is Markdown.
+ */
+export function contentToBlocks(content: string): unknown[] {
+  return parseBlockList(content) ?? markdownToBlocks(content)
+}
+
 /**
  * Migrate markdown (.md) note files in `notesDir` to JSON format.
  *
