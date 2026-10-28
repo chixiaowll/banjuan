@@ -2,6 +2,7 @@ import { join, basename } from '../platform/path.js'
 import { parseFrontmatter } from '../storage/frontmatter.js'
 import type { NoteFileData } from '../types.js'
 import type { PlatformFS } from '../platform/index.js'
+import { parseLink, linkPage, type ParsedLink } from './links.js'
 
 interface NoteJsonFile {
   meta: NoteFileData
@@ -18,7 +19,7 @@ function parseInline(text: string): unknown[] {
   // noteLink branch uses lazy (.+?) rather than [^\]]+ so titles containing
   // brackets (e.g. "[3] P4 冷启动聚合 · 技术方案") still parse; it must sit
   // before the md-link branch so "[[x]](y)"-free inputs never misbind.
-  const re = /(\*\*(.+?)\*\*|__(.+?)__|`(.+?)`|\*(.+?)\*|_(.+?)_|~~(.+?)~~|\[\[(.+?)\]\]|\[([^\]]+)\]\(([^)]+)\))/g
+  const re = /(\*\*(.+?)\*\*|__(.+?)__|`(.+?)`|\*(.+?)\*|_(.+?)_|~~(.+?)~~|\[\[(.+?)\]\]|\[((?:\\.|[^\]\\])+)\]\(([^)]+)\))/g
   let last = 0
   let m: RegExpExecArray | null
   while ((m = re.exec(text)) !== null) {
@@ -36,13 +37,65 @@ function parseInline(text: string): unknown[] {
       // title at click time, since this pure parser has no notes list).
       result.push({ type: 'noteLink', props: { noteId: '', title: m[8] } })
     } else if (m[9] && m[10]) {
-      result.push({ type: 'link', href: m[10], content: [{ type: 'text', text: m[9], styles: {} }] })
+      // banjuan:// links to a note / document (written so by blocksToMarkdown
+      // for AI tools) are note / document links again; one to a page stays a link.
+      const label = unescapeLinkText(m[9])
+      const target = parseLink(m[10])
+      if (target?.kind === 'note' && Object.keys(target.query).length === 0) {
+        result.push({ type: 'noteLink', props: { noteId: target.id, title: label } })
+      } else if (target?.kind === 'doc' && Object.keys(target.query).length === 0) {
+        result.push({ type: 'documentLink', props: { docId: target.id, title: label } })
+      } else {
+        result.push({ type: 'link', href: m[10], content: [{ type: 'text', text: label, styles: {} }] })
+      }
     }
     last = m.index + m[0].length
   }
   if (last < text.length) result.push({ type: 'text', text: text.slice(last), styles: {} })
   if (result.length === 0) result.push({ type: 'text', text, styles: {} })
   return result
+}
+
+const unescapeLinkText = (s: string) => s.replace(/\\(.)/g, '$1')
+
+/** A quote whose first line is just a banjuan:// link: an embed (see blocksToMarkdown). */
+const EMBED_LINE = /^>\s?\[((?:\\.|[^\]\\])*)\]\((banjuan:\/\/[^)\s]+)\)\s*$/
+
+function embedBlock(link: ParsedLink, text: string, rest: string[]): unknown {
+  const label = unescapeLinkText(text).replace(/^(📄|📘|📝)\s?/u, '')
+  const q = link.query
+  if (link.kind === 'note') {
+    return { type: 'noteEmbed', props: { noteId: link.id, noteTitle: label, pageIndex: q.pageIndex ?? '' }, children: [] }
+  }
+  if (link.kind === 'doc' && (q.embed || rest.length === 0)) {
+    return { type: 'documentEmbed', props: { docId: link.id, docTitle: label, authors: q.authors ?? '', pageCount: Number(q.pageCount) || 0 }, children: [] }
+  }
+  // An annotation quote: "the quoted text" (one line or several), then the comment.
+  let quote = ''
+  let i = 0
+  if (rest[0]?.startsWith('"')) {
+    const lines: string[] = []
+    let closed = false
+    for (; i < rest.length && !closed; i++) {
+      lines.push(rest[i])
+      closed = rest[i].endsWith('"') && (i > 0 || rest[i].length > 1)
+    }
+    const all = lines.join('\n')
+    quote = closed ? all.slice(1, -1) : all.slice(1)
+  }
+  const page = linkPage(q) ?? 0
+  return {
+    type: 'annotationEmbed',
+    props: {
+      docId: link.kind === 'annotation' ? (q.doc ?? '') : link.id,
+      annotationId: link.kind === 'annotation' ? link.id : '',
+      quote,
+      comment: rest.slice(i).join('\n'),
+      docTitle: page ? label.replace(new RegExp(`\\s*p\\.${page}$`), '') : label,
+      page,
+    },
+    children: [],
+  }
 }
 
 function parseTableLines(lines: string[]): unknown {
@@ -141,6 +194,19 @@ export function markdownToBlocks(markdown: string): unknown[] {
           children: [],
         })
       }
+      continue
+    }
+
+    const embed = EMBED_LINE.exec(line)
+    const target = embed ? parseLink(embed[2]) : null
+    if (embed && target) {
+      const rest: string[] = []
+      i++
+      while (i < lines.length && lines[i].startsWith('>')) {
+        rest.push(lines[i].replace(/^>\s?/, ''))
+        i++
+      }
+      blocks.push(embedBlock(target, embed[1], rest))
       continue
     }
 
