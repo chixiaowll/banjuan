@@ -28,7 +28,7 @@
 
 - 用一行 Markdown 标题指定章节（如 `## 20261028`），按“级别 + 文字”找第一个匹配的标题块；章节 = 该标题之后直到下一个同级或更高级标题之前。
 - 模式：`replace`（替换章节正文，保留标题）、`append`（追加到章节末尾）。
-- 章节不存在时新建（标题 + 内容），位置 `newAt`：`top` = 第一个同级或更高级标题之前（日记把新的一天放最上面，H1 标题之下），`bottom` = 文末（默认）。
+- 章节不存在时新建（标题 + 内容），位置 `newAt`：`top` = 第一个同级标题之前（日记把新的一天放在最近一天之前、H1 标题之下；没有同级标题时放文末），`bottom` = 文末（默认）。
 - 只改动这一节，其余块原样保留（包括链接、嵌入、样式）。
 - 接口 `POST /api/notes/:id/section {heading, content, mode, newAt}`；命令行 `note section <id> "<标题行>" (--content|--file) [--mode replace|append] [--new-at top|bottom]`；MCP `update_note_section`。
 
