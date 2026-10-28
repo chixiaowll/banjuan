@@ -91,6 +91,9 @@ async function apiDelete(path) {
   return res.json()
 }
 
+// Who is writing: the tool's `source`, else $BANJUAN_SOURCE (an automation sets it once for its run).
+const sourceOf = (args) => args.source || process.env.BANJUAN_SOURCE || undefined
+
 // What a write returns to the model: where the note is, not its whole content again (read_note shows that).
 const brief = (note) => ({ id: note.id, title: note.title, path: note.path, link: note.link, updatedAt: note.updatedAt })
 
@@ -157,6 +160,7 @@ const TOOLS = [
         title: { type: 'string', description: 'Note title' },
         folder: { type: 'string', description: 'Folder path (top level if omitted)' },
         content: { type: 'string', description: 'Markdown for a new note (ignored when it exists)' },
+        source: { type: 'string', description: 'Who is writing (e.g. cc-desk), kept in the note history (default: $BANJUAN_SOURCE)' },
       },
       required: ['title'],
     },
@@ -171,7 +175,9 @@ const TOOLS = [
         heading: { type: 'string', description: 'The section heading as a Markdown line, e.g. "## 20261028"' },
         content: { type: 'string', description: 'The section content in Markdown, without its heading' },
         mode: { type: 'string', enum: ['replace', 'append'], description: 'replace (default): the section becomes this; append: added at its end' },
-        newAt: { type: 'string', enum: ['top', 'bottom'], description: 'Where a missing section goes: top = before the first heading of its level (newest-first diaries), bottom (default) = end of the note' },
+        newAt: { type: 'string', enum: ['top', 'bottom', 'sorted'], description: 'Where a missing section goes: top = before the first heading of its level (newest-first diaries), bottom (default) = end of the note, sorted = where it sorts among those of its level (a day written later lands between its neighbours)' },
+        order: { type: 'string', enum: ['desc', 'asc'], description: 'For sorted: default newest first for dates like 20261028, else A→Z' },
+        source: { type: 'string', description: 'Who is writing (e.g. cc-desk), kept in the note history (default: $BANJUAN_SOURCE)' },
       },
       required: ['id', 'heading', 'content'],
     },
@@ -186,7 +192,7 @@ const TOOLS = [
     description: 'Put a note back as it was in an earlier version (from note_history). What it replaces is kept as a version too, so this can be undone.',
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'string', description: 'Note ID' }, version: { type: 'string', description: 'A version from note_history' } },
+      properties: { id: { type: 'string', description: 'Note ID' }, version: { type: 'string', description: 'A version from note_history' }, source: { type: 'string', description: 'Who is writing (default: $BANJUAN_SOURCE)' } },
       required: ['id', 'version'],
     },
   },
@@ -212,6 +218,7 @@ const TOOLS = [
         content: { type: 'string', description: 'Note content: Markdown, or a JSON array of BlockNote blocks' },
         docId: { type: 'string', description: 'Link to a document ID (optional)' },
         folder: { type: 'string', description: 'Folder path (optional)' },
+        source: { type: 'string', description: 'Who is writing (e.g. cc-desk), kept in the note history (default: $BANJUAN_SOURCE)' },
       },
       required: ['title'],
     },
@@ -225,6 +232,7 @@ const TOOLS = [
         id: { type: 'string', description: 'Note ID to update' },
         title: { type: 'string', description: 'New title (optional)' },
         content: { type: 'string', description: 'New content: Markdown, or a JSON array of BlockNote blocks (optional)' },
+        source: { type: 'string', description: 'Who is writing (e.g. cc-desk), kept in the note history (default: $BANJUAN_SOURCE)' },
       },
       required: ['id'],
     },
@@ -442,15 +450,15 @@ async function handleToolCall(name, args) {
       return await apiCall(`/api/notes${qs ? '?' + qs : ''}`)
     }
     case 'ensure_note': {
-      const note = await apiPost('/api/notes/ensure', { title: args.title, folder: args.folder, content: args.content })
+      const note = await apiPost('/api/notes/ensure', { title: args.title, folder: args.folder, content: args.content, source: sourceOf(args) })
       return { ...brief(note), created: note.created }
     }
     case 'update_note_section':
-      return brief(await apiPost(`/api/notes/${encodeURIComponent(args.id)}/section`, { heading: args.heading, content: args.content, mode: args.mode, newAt: args.newAt }))
+      return brief(await apiPost(`/api/notes/${encodeURIComponent(args.id)}/section`, { heading: args.heading, content: args.content, mode: args.mode, newAt: args.newAt, order: args.order, source: sourceOf(args) }))
     case 'note_history':
       return await apiCall(`/api/notes/${encodeURIComponent(args.id)}/history`)
     case 'restore_note':
-      return brief(await apiPost(`/api/notes/${encodeURIComponent(args.id)}/restore`, { version: args.version }))
+      return brief(await apiPost(`/api/notes/${encodeURIComponent(args.id)}/restore`, { version: args.version, source: sourceOf(args) }))
     case 'read_note': {
       const format = args.format || 'auto'
       if (format === 'image') {
@@ -473,10 +481,10 @@ async function handleToolCall(name, args) {
       return { title: note.title, type: note.type, content: header + (note.content || '') }
     }
     case 'create_note':
-      return brief(await apiPost('/api/notes', args))
+      return brief(await apiPost('/api/notes', { ...args, source: sourceOf(args) }))
     case 'update_note': {
       const { id, ...updates } = args
-      return brief(await apiPut(`/api/notes/${encodeURIComponent(id)}`, updates))
+      return brief(await apiPut(`/api/notes/${encodeURIComponent(id)}`, { ...updates, source: sourceOf(args) }))
     }
     case 'list_documents': {
       const params = new URLSearchParams()

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { withSearchLinks, withPageLinks, withAnnotationLinks, withNoteLink } from './api-links.js'
+import { withSearchLinks, withPageLinks, withAnnotationLinks, withNoteLink, withDocLink } from './api-links.js'
 
 const LIB = '/Users/a/书房'
 const lib = `library=${encodeURIComponent(LIB).replace(/%20/g, '+')}`
@@ -27,6 +27,7 @@ describe('banjuan:// links in API results', () => {
 
   it('gives a note its link', () => {
     expect(withNoteLink({ id: 'n1', title: 't' }, LIB)).toEqual({ id: 'n1', title: 't', link: `banjuan://note/n1?${lib}` })
+    expect(withDocLink({ id: 'd1' }, LIB).link).toBe(`banjuan://doc/d1?${lib}`)
   })
 
   it('leaves results it does not know as they are', () => {

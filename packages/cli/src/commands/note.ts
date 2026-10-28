@@ -31,6 +31,10 @@ function sinceParam(value: string): string | null {
   return Number.isNaN(at.getTime()) ? null : at.toISOString()
 }
 
+/** Who is writing (shown in a note's history): --source, else $BANJUAN_SOURCE (set once by an automation). */
+const SOURCE_HELP = 'who is writing, kept in the note\'s history (default: $BANJUAN_SOURCE)'
+const sourceOf = (opts: { source?: string }) => opts.source || process.env.BANJUAN_SOURCE || undefined
+
 /** A folder argument resolved against the existing ones (a new one is created as typed). */
 async function folderArg(folder: string | undefined): Promise<string | undefined | null> {
   if (!folder) return undefined
@@ -56,6 +60,7 @@ noteCmd
   .option('--folder <folder>', 'folder path')
   .option('--content <markdown>', 'note content as a markdown string')
   .option('--file <path>', 'read note content from a markdown file')
+  .option('--source <name>', SOURCE_HELP)
   .option('--json', 'print { id, title, path, link } as JSON')
   .addHelpText('after', `
 Content can be provided three ways (precedence: --content > --file > stdin):
@@ -67,7 +72,7 @@ Content can be provided three ways (precedence: --content > --file > stdin):
 Local images referenced in the markdown (e.g. ![](img/x.png)) are copied into
 the note. Prefer --file for markdown with images: paths are resolved relative
 to the file. With stdin/--content they resolve relative to the current dir.`)
-  .action(async (title: string, opts: { doc?: string; folder?: string; content?: string; file?: string; json?: boolean }) => {
+  .action(async (title: string, opts: { doc?: string; folder?: string; content?: string; file?: string; source?: string; json?: boolean }) => {
     let content: string | undefined
     // Base dir for resolving local images referenced in the markdown. With
     // --file we know it exactly; otherwise fall back to the current directory.
@@ -98,7 +103,7 @@ to the file. With stdin/--content they resolve relative to the current dir.`)
       if (resolved === null) { process.exitCode = 1; return }
       folder = resolved
     }
-    const note = await apiPost('/api/notes', { title, docId: opts.doc, folder, content, contentBaseDir })
+    const note = await apiPost('/api/notes', { title, docId: opts.doc, folder, content, contentBaseDir, source: sourceOf(opts) })
     if (opts.json) { noteResult(note); return }
     const withContent = content ? chalk.dim(` (+${content.length} chars of content)`) : ''
     console.log(chalk.green(`✓ Created note: ${note.title} (${note.id})`) + withContent)
@@ -197,12 +202,15 @@ noteCmd
   .option('--title <title>', 'new title')
   .option('--content <content>', 'new content (markdown); replaces the whole note')
   .option('--file <path>', 'read the new content from a markdown file (--content wins if both are given)')
+  .option('--source <name>', SOURCE_HELP)
   .option('--json', 'print { id, title, path, link } as JSON')
   .addHelpText('after', `
 The previous version is kept (banjuan note history <id>). To change one part of
 a long note — a day in a diary, a project's status — use \`banjuan note section\`.`)
-  .action(async (id: string, opts: { title?: string; content?: string; file?: string; json?: boolean }) => {
+  .action(async (id: string, opts: { title?: string; content?: string; file?: string; source?: string; json?: boolean }) => {
     const body: Record<string, string> = {}
+    const source = sourceOf(opts)
+    if (source) body.source = source
     if (opts.title) body.title = opts.title
     const content = contentFrom(opts)
     if (content === null) return
@@ -219,16 +227,17 @@ noteCmd
   .option('--folder <folder>', 'folder path (top level if omitted)')
   .option('--content <markdown>', 'content for a new note')
   .option('--file <path>', 'read the content for a new note from a markdown file')
+  .option('--source <name>', SOURCE_HELP)
   .option('--json', 'print { id, title, path, link, created } as JSON')
   .addHelpText('after', `
 Safe to run again: an existing note is returned as it is (its content is not touched).
   banjuan note ensure "202610" --folder "[0] DailyNotes" --content "# 十月工作日记" --json`)
-  .action(async (title: string, opts: { folder?: string; content?: string; file?: string; json?: boolean }) => {
+  .action(async (title: string, opts: { folder?: string; content?: string; file?: string; source?: string; json?: boolean }) => {
     const content = contentFrom(opts)
     if (content === null) return
     const folder = await folderArg(opts.folder)
     if (folder === null) { process.exitCode = 1; return }
-    const note = await apiPost('/api/notes/ensure', { title, folder, content })
+    const note = await apiPost('/api/notes/ensure', { title, folder, content, source: sourceOf(opts) })
     if (opts.json) { noteResult(note, { created: note.created }); return }
     console.log(chalk.green(`✓ ${note.created ? 'Created' : 'Found'} note: ${note.title} (${note.id})`))
   })
@@ -241,20 +250,23 @@ noteCmd
   .option('--content <markdown>', 'the section\'s content (without its heading)')
   .option('--file <path>', 'read the section\'s content from a markdown file')
   .option('--mode <mode>', 'replace: the section\'s content becomes this; append: added at its end', 'replace')
-  .option('--new-at <where>', 'where a missing section goes: top (before the first heading of its level) or bottom', 'bottom')
+  .option('--new-at <where>', 'where a missing section goes: top (before the first heading of its level), bottom, or sorted (where it sorts among those of its level)', 'bottom')
+  .option('--order <order>', 'for --new-at sorted: desc or asc (default: newest first for dates like 20261028, else A→Z)')
+  .option('--source <name>', SOURCE_HELP)
   .option('--json', 'print { id, title, path, link } as JSON')
   .addHelpText('after', `
 A section runs from its heading to the next heading of the same level or higher.
 The previous version of the note is kept (banjuan note history <id>).
-  banjuan note section <id> "## 20261028" --file today.md --mode append --new-at top   # a day in a diary`)
-  .action(async (id: string, heading: string, opts: { content?: string; file?: string; mode: string; newAt: string; json?: boolean }) => {
+  banjuan note section <id> "## 20261028" --file today.md --mode append --new-at top      # today, on top of a diary
+  banjuan note section <id> "## 20261023" --file day.md --mode replace --new-at sorted    # a day written later, in its place`)
+  .action(async (id: string, heading: string, opts: { content?: string; file?: string; mode: string; newAt: string; order?: string; source?: string; json?: boolean }) => {
     const content = contentFrom(opts)
     if (content === null) return
     if (content === undefined) { console.error(chalk.red('✗ Give the section\'s content: --content or --file')); process.exitCode = 1; return }
-    if (!['replace', 'append'].includes(opts.mode) || !['top', 'bottom'].includes(opts.newAt)) {
-      console.error(chalk.red('✗ --mode replace|append, --new-at top|bottom')); process.exitCode = 1; return
+    if (!['replace', 'append'].includes(opts.mode) || !['top', 'bottom', 'sorted'].includes(opts.newAt) || (opts.order && !['asc', 'desc'].includes(opts.order))) {
+      console.error(chalk.red('✗ --mode replace|append, --new-at top|bottom|sorted, --order asc|desc')); process.exitCode = 1; return
     }
-    const note = await apiPost(`/api/notes/${encodeURIComponent(id)}/section`, { heading, content, mode: opts.mode, newAt: opts.newAt })
+    const note = await apiPost(`/api/notes/${encodeURIComponent(id)}/section`, { heading, content, mode: opts.mode, newAt: opts.newAt, order: opts.order, source: sourceOf(opts) })
     if (opts.json) { noteResult(note); return }
     console.log(chalk.green(`✓ Wrote section ${heading.trim()} of ${note.title}`))
   })
@@ -265,11 +277,12 @@ noteCmd
   .argument('<id>', 'note ID')
   .option('--json', 'JSON output')
   .action(async (id: string, opts: { json?: boolean }) => {
-    const versions: Array<{ version: string; at: string; reason: string; title: string; preview: string }> = await apiGet(`/api/notes/${encodeURIComponent(id)}/history`)
+    const versions: Array<{ version: string; at: string; reason: string; title: string; preview: string; by: string }> = await apiGet(`/api/notes/${encodeURIComponent(id)}/history`)
     if (opts.json) { outputJson(versions); return }
     if (versions.length === 0) { console.log('No earlier versions'); return }
-    outputTable(['Version', 'Saved', 'Why', 'Title', 'Starts with'],
-      versions.map(v => [v.version, new Date(v.at).toLocaleString(), v.reason, v.title, v.preview.slice(0, 40)]))
+    // "Written by": who wrote that version's content; "Replaced by": the write it was kept before.
+    outputTable(['Version', 'Kept at', 'Written by', 'Replaced by', 'Title', 'Starts with'],
+      versions.map(v => [v.version, new Date(v.at).toLocaleString(), v.by || '-', v.reason, v.title, v.preview.slice(0, 40)]))
   })
 
 noteCmd
@@ -277,9 +290,10 @@ noteCmd
   .description('put a note back as it was in an earlier version (what it replaces is kept as a version too)')
   .argument('<id>', 'note ID')
   .argument('<version>', 'a version from banjuan note history')
+  .option('--source <name>', SOURCE_HELP)
   .option('--json', 'print { id, title, path, link } as JSON')
-  .action(async (id: string, version: string, opts: { json?: boolean }) => {
-    const note = await apiPost(`/api/notes/${encodeURIComponent(id)}/restore`, { version })
+  .action(async (id: string, version: string, opts: { source?: string; json?: boolean }) => {
+    const note = await apiPost(`/api/notes/${encodeURIComponent(id)}/restore`, { version, source: sourceOf(opts) })
     if (opts.json) { noteResult(note); return }
     console.log(chalk.green(`✓ Restored ${note.title} to ${version}`))
   })

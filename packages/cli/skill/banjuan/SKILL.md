@@ -98,7 +98,7 @@ banjuan note list [--doc <id>] [--type <type>] [--tag <tag>] [--folder <folder-i
 banjuan note show <id> [--body]                         # --body: only the Markdown, ready to edit
 banjuan note update <id> [--title "new"] [--content "markdown 文本" | --file <path>] [--json]   # replaces the whole content
 banjuan note ensure <title> [--folder <f>] [--content "<md>" | --file <path>] [--json]  # find it in the folder, or create it once
-banjuan note section <id> "## 标题" (--content "<md>" | --file <path>) [--mode replace|append] [--new-at top|bottom] [--json]
+banjuan note section <id> "## 标题" (--content "<md>" | --file <path>) [--mode replace|append] [--new-at top|bottom|sorted] [--order desc|asc] [--json]
 banjuan note history <id> [--json]                      # earlier versions (kept before every write)
 banjuan note restore <id> <version> [--json]            # put one back (undoable)
 banjuan note list --since 2026-10-24 [--json]           # changed since a day (local time) or a time
@@ -304,8 +304,13 @@ banjuan note section <id> "## 20261028" --file today.md --mode append --new-at t
 banjuan note list --since 2026-10-24 --json             # what changed this week (for a weekly report)
 ```
 - `section`: a section runs from its heading to the next heading of the same level or higher; `replace` swaps
-  its content, `append` adds to its end; a missing one is created `top` (before the first heading of its level)
-  or `bottom`.
+  its content, `append` adds to its end; a missing one is created `top` (before the first heading of its level),
+  `bottom`, or `sorted` — where it sorts among its level (dates like `## 20261023` newest first by default,
+  `--order asc|desc` to choose): a day written later lands between its neighbours.
+- Say who is writing: `--source <name>` on every write, or set `BANJUAN_SOURCE=<name>` once for a whole run
+  (the MCP tools read it too). It shows in `note history` as who wrote each version.
+- `banjuan doc import <file> --json` → `{ id, title, path, link, duplicate }`: the same file (same bytes) already in
+  the library is returned instead of copied again. `banjuan doc list --dir <folder> --json` lists one folder.
 - Every write from outside keeps the note's previous version on this device: if something went wrong,
   `banjuan note history <id>` and `banjuan note restore <id> <version>`. A write the user's editor then saved
   over is kept there too.

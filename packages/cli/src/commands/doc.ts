@@ -13,7 +13,11 @@ docCmd
   .option('--dir <dir>', 'target subdirectory')
   .option('--title <title>', 'custom title')
   .option('--tag <tags...>', 'tags')
-  .action(async (file: string, opts: { dir?: string; title?: string; tag?: string[] }) => {
+  .option('--json', 'print { id, title, path, link, duplicate } as JSON')
+  .addHelpText('after', `
+The same file (same bytes) already in the library is not copied again: that
+document is returned, with duplicate: true.`)
+  .action(async (file: string, opts: { dir?: string; title?: string; tag?: string[]; json?: boolean }) => {
     const { resolve } = await import('node:path')
     const absPath = resolve(file)
     let destDir = opts.dir
@@ -30,7 +34,8 @@ docCmd
       title: opts.title,
       tags: opts.tag,
     })
-    console.log(chalk.green(`✓ Imported: ${doc.title}`))
+    if (opts.json) { outputJson({ id: doc.id, title: doc.title, path: doc.path, link: doc.link, duplicate: !!doc.duplicate }); return }
+    console.log(doc.duplicate ? chalk.yellow(`✓ Already in the library: ${doc.title}`) : chalk.green(`✓ Imported: ${doc.title}`))
     console.log(chalk.dim(`  ID: ${doc.id}`))
     console.log(chalk.dim(`  Path: ${doc.path}`))
   })
@@ -48,11 +53,19 @@ docCmd
   .description('list documents')
   .option('--tag <tag>', 'filter by tag')
   .option('--type <type>', 'filter by type')
+  .option('--dir <dir>', 'only documents in this folder of the library (and its subfolders)')
   .option('--json', 'JSON output')
-  .action(async (opts: { tag?: string; type?: string; json?: boolean }) => {
+  .action(async (opts: { tag?: string; type?: string; dir?: string; json?: boolean }) => {
     const params = new URLSearchParams()
     if (opts.tag) params.set('tag', opts.tag)
     if (opts.type) params.set('type', opts.type)
+    if (opts.dir) {
+      // Auto-correct to an existing document folder (e.g. a missing "[N] " prefix).
+      const dirs: string[] = await apiGet('/api/documents/dirs')
+      const resolved = resolveFolderArg(opts.dir, dirs, { allowCreate: false })
+      if (resolved === null) { process.exitCode = 1; return }
+      params.set('dir', resolved)
+    }
     const qs = params.toString()
     const docs = await apiGet(`/api/documents${qs ? '?' + qs : ''}`)
     if (opts.json) {

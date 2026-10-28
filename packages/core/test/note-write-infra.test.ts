@@ -31,6 +31,17 @@ describe('writing notes from outside (programs, AI)', () => {
     expect((await lib.notes.history(n.id)).some(v => v.preview === '外部写入')).toBe(true)
   })
 
+  it('says who wrote each version: a named program, an unnamed outside write, or the app', async () => {
+    const n = await lib.notes.create({ title: '日记', content: '人写的', by: 'cli' })
+    await lib.notes.update(n.id, { content: 'CC Desk 写的' }, { source: 'external', by: 'cc-desk' })
+    await lib.notes.update(n.id, { content: '外部无名' }, { source: 'external' })
+    await lib.notes.update(n.id, { content: 'App 里改的' })
+    expect((await lib.notes.history(n.id)).map(v => [v.preview, v.by])).toEqual([
+      ['外部无名', 'external'], ['CC Desk 写的', 'cc-desk'], ['人写的', 'cli'],
+    ])
+    await expect(lib.notes.update(n.id, { content: 'x' }, { source: 'external', by: 'bad name!' })).rejects.toThrow()
+  })
+
   it('restores a version, keeping what it replaced', async () => {
     const n = await lib.notes.create({ title: '原题', content: '原文' })
     await lib.notes.update(n.id, { title: '改题', content: '改坏了' }, { source: 'external' })

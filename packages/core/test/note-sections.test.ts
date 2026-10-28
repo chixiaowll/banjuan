@@ -46,4 +46,19 @@ describe('upsertSection', () => {
     expect(out[1]).toBe(styled[1])
     expect(out[3]).toBe(styled[3])
   })
+
+  it('adds a missing section where it sorts among those of its level (dates newest first by default)', () => {
+    const month = [h(1, '十月'), h(2, '20261028'), p('a'), h(2, '20261024'), h(3, '小节'), p('b'), h(2, '20261022'), p('c')]
+    const put = (text: string, order?: 'asc' | 'desc') => titles(upsertSection(month, { heading: { level: 2, text }, content: [p('新')], newAt: 'sorted', order }))
+    expect(put('20261023')).toEqual(['# 十月', '## 20261028', 'a', '## 20261024', '### 小节', 'b', '## 20261023', '新', '## 20261022', 'c'])
+    expect(put('20261030').slice(0, 3)).toEqual(['# 十月', '## 20261030', '新'])
+    expect(put('20261020').slice(-2)).toEqual(['## 20261020', '新'])
+    const names = [h(1, 'T'), h(2, 'Alpha'), h(2, 'Gamma'), h(1, '附录'), p('x')]
+    expect(titles(upsertSection(names, { heading: { level: 2, text: 'Beta' }, content: [], newAt: 'sorted' })))
+      .toEqual(['# T', '## Alpha', '## Beta', '## Gamma', '# 附录', 'x'])
+    expect(titles(upsertSection(names, { heading: { level: 2, text: 'Zeta' }, content: [], newAt: 'sorted' })))
+      .toEqual(['# T', '## Alpha', '## Gamma', '## Zeta', '# 附录', 'x'])
+    expect(titles(upsertSection(names, { heading: { level: 2, text: 'Beta' }, content: [], newAt: 'sorted', order: 'desc' })))
+      .toEqual(['# T', '## Beta', '## Alpha', '## Gamma', '# 附录', 'x'])
+  })
 })

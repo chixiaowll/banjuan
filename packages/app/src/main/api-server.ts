@@ -8,7 +8,8 @@ import { randomUUID, randomBytes } from 'node:crypto'
 import { app } from 'electron'
 import type { Library } from '@banjuan/core'
 import { blocksToMarkdown } from '@banjuan/core'
-import { withSearchLinks, withPageLinks, withAnnotationLinks, withNoteLink } from './api-links.js'
+import { withSearchLinks, withPageLinks, withAnnotationLinks, withNoteLink, withDocLink } from './api-links.js'
+import { findSameContent } from './same-content.js'
 import { saveClip } from './clip-service.js'
 import { openLibraryForApi, initLibraryForApi, libraries, getLibraryHistory, releaseLibrary } from './ipc.js'
 import { extractDocumentText } from './pdf-text.js'
@@ -311,10 +312,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     try {
       const body = JSON.parse(await readBody(req))
       if (typeof body.title !== 'string' || !body.title.trim()) { json(res, 400, { error: 'title required' }); return }
-      const { note, created } = await lib.notes.ensure({ title: body.title, folder: body.folder || undefined, content: body.content })
+      const { note, created } = await lib.notes.ensure({ title: body.title, folder: body.folder || undefined, content: body.content, by: body.source || undefined })
       json(res, 200, { ...withNoteLink(note, lib.rootPath), created })
     } catch (e: any) {
-      json(res, 500, { error: e.message })
+      json(res, /source name/i.test(e.message) ? 400 : 500, { error: e.message })
     }
     return
   }
@@ -328,11 +329,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const body = JSON.parse(await readBody(req))
       if (typeof body.heading !== 'string' || typeof body.content !== 'string') { json(res, 400, { error: 'heading and content required' }); return }
       if (body.mode !== undefined && body.mode !== 'replace' && body.mode !== 'append') { json(res, 400, { error: 'mode: replace or append' }); return }
-      if (body.newAt !== undefined && body.newAt !== 'top' && body.newAt !== 'bottom') { json(res, 400, { error: 'newAt: top or bottom' }); return }
-      const note = await lib.notes.updateSection(noteSectionMatch[1], body.heading, body.content, { mode: body.mode, newAt: body.newAt })
+      if (body.newAt !== undefined && !['top', 'bottom', 'sorted'].includes(body.newAt)) { json(res, 400, { error: 'newAt: top, bottom or sorted' }); return }
+      if (body.order !== undefined && body.order !== 'asc' && body.order !== 'desc') { json(res, 400, { error: 'order: asc or desc' }); return }
+      const note = await lib.notes.updateSection(noteSectionMatch[1], body.heading, body.content, { mode: body.mode, newAt: body.newAt, order: body.order }, { by: body.source || undefined })
       json(res, 200, withNoteLink(note, lib.rootPath))
     } catch (e: any) {
-      json(res, /not found/i.test(e.message) ? 404 : /heading|sections/i.test(e.message) ? 400 : 500, { error: e.message })
+      json(res, /not found/i.test(e.message) ? 404 : /heading|sections|source name/i.test(e.message) ? 400 : 500, { error: e.message })
     }
     return
   }
@@ -355,7 +357,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     if (!lib) return
     try {
       const body = JSON.parse(await readBody(req))
-      const note = await lib.notes.restore(noteRestoreMatch[1], String(body.version ?? ''))
+      const note = await lib.notes.restore(noteRestoreMatch[1], String(body.version ?? ''), { by: body.source || undefined })
       json(res, 200, withNoteLink(note, lib.rootPath))
     } catch (e: any) {
       json(res, /no such version|invalid/i.test(e.message) ? 400 : 500, { error: e.message })
@@ -432,10 +434,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     if (!lib) return
     try {
       const body = JSON.parse(await readBody(req))
-      const note = await lib.notes.create(body)
+      const { source, ...input } = body
+      const note = await lib.notes.create({ ...input, by: source || undefined })
       json(res, 200, withNoteLink(note, lib.rootPath))
     } catch (e: any) {
-      json(res, 500, { error: e.message })
+      json(res, /source name/i.test(e.message) ? 400 : 500, { error: e.message })
     }
     return
   }
@@ -463,10 +466,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       // Blocks or Markdown: the notes service tells them apart (converting here
       // first read blocks sent by the assistant as Markdown text).
       const body = JSON.parse(await readBody(req))
-      const note = await lib.notes.update(noteMatch[1], body, { source: 'external' })   // keeps the previous version
+      const note = await lib.notes.update(noteMatch[1], body, { source: 'external', by: body.source || undefined })   // keeps the previous version
       json(res, 200, withNoteLink(note, lib.rootPath))
     } catch (e: any) {
-      json(res, 500, { error: e.message })
+      json(res, /source name/i.test(e.message) ? 400 : 500, { error: e.message })
     }
     return
   }
@@ -523,13 +526,17 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       // A file already in the library is imported where it is; anything else is
       // copied in under a free name — it used to overwrite a same-named file.
       if (!isInside(lib.rootPath, absPath)) {
+        // The same file (same bytes) already in the library: that one, not a second copy.
+        const docs = await lib.documents.list({})
+        const same = await findSameContent(absPath, docs.map(d => join(lib.rootPath, d.path)))
+        if (same >= 0) { json(res, 200, { ...withDocLink(docs[same], lib.rootPath), duplicate: true }); return }
         const targetDir = destDir ? libraryPath(lib.rootPath, destDir) : lib.rootPath
         await fs.mkdir(targetDir, { recursive: true })
         destPath = uniquePath(join(targetDir, path.basename(absPath)))
         await fs.copyFile(absPath, destPath)
       }
       const doc = await lib.documents.import(destPath, { title: body.title, tags: body.tags })
-      json(res, 200, doc)
+      json(res, 200, { ...withDocLink(doc, lib.rootPath), duplicate: false })
     } catch (e: any) {
       json(res, 500, { error: e.message })
     }
@@ -554,8 +561,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const opts: Record<string, unknown> = {}
     if (query.type) opts.type = query.type
     if (query.tag) opts.tag = query.tag
-    const docs = await lib.documents.list(opts)
-    json(res, 200, docs)
+    let docs = await lib.documents.list(opts)
+    // In a folder of the library (and its subfolders).
+    if (query.dir) { const prefix = query.dir.replace(/\/+$/, '') + '/'; docs = docs.filter(d => d.path.startsWith(prefix)) }
+    json(res, 200, docs.map(d => withDocLink(d, lib.rootPath)))
     return
   }
 

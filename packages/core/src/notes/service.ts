@@ -27,6 +27,13 @@ export interface NoteWriteOptions {
   source?: 'app' | 'external'
   /** What the kept version is labelled (default: 'external' / 'edit'). */
   reason?: string
+  /** The program writing ('cc-desk', 'cli'), recorded as who wrote the new content. */
+  by?: string
+}
+
+/** A writer's name: short, plain (it ends up in files and lists). */
+export function checkWriterName(by: string | undefined): void {
+  if (by !== undefined && !/^[A-Za-z0-9._-]{1,40}$/.test(by)) throw new Error(`Invalid source name: ${by} (letters, digits, . _ -, up to 40)`)
 }
 
 interface NoteJsonFile {
@@ -260,10 +267,12 @@ export class NoteService {
       }
     }
 
+    checkWriterName(input.by)
     const meta: NoteFileData = {
       id, title: input.title, type: noteType, docId: input.docId ?? null,
       folderId: input.folderId ?? null, annotationIds: input.annotationIds ?? [],
       tags: [], contentFormat: 'json', typeMeta, createdAt: now, updatedAt: now,
+      ...(input.by ? { updatedBy: input.by } : {}),
     }
 
     let contentStr: string
@@ -447,6 +456,7 @@ export class NoteService {
   }
 
   async update(id: string, updates: { title?: string; content?: string; typeMeta?: Record<string, unknown> }, opts: NoteWriteOptions = {}): Promise<Note> {
+    checkWriterName(opts.by)
     id = this.resolveId(id)
     // A late save from an editor whose note was just deleted: fail clearly
     // instead of a TypeError on the missing row below.
@@ -489,7 +499,10 @@ export class NoteService {
       } else {
         const before = await this.fs.readTextFile(filePath)
         const raw = JSON.parse(before) as NoteJsonFile
-        if (updates.content !== undefined || updates.title !== undefined) await this.keepVersion(id, before, opts)
+        if (updates.content !== undefined || updates.title !== undefined) {
+          await this.keepVersion(id, before, opts)
+          raw.meta.updatedBy = opts.by ?? (opts.source === 'external' ? 'external' : 'app')
+        }
         if (updates.title !== undefined) raw.meta.title = updates.title
         raw.meta.updatedAt = now
         if (updates.content !== undefined) raw.blocks = contentToBlocks(updates.content)
@@ -536,34 +549,34 @@ export class NoteService {
   }
 
   /** Put a note back as it was in `version` (what it replaces is kept as a version too). */
-  async restore(id: string, version: string): Promise<Note> {
+  async restore(id: string, version: string, write: NoteWriteOptions = {}): Promise<Note> {
     const file = JSON.parse(await this.versions.read(id, version)) as Partial<NoteJsonFile>
     return this.update(id, {
       ...(typeof file.meta?.title === 'string' ? { title: file.meta.title } : {}),
       content: JSON.stringify(Array.isArray(file.blocks) ? file.blocks : []),
-    }, { source: 'external', reason: 'restore' })
+    }, { ...write, source: 'external', reason: 'restore' })
   }
 
   /**
    * Write one section of a Markdown note — `heading` is a Markdown heading
    * line ("## 20261028") — leaving the rest of it as it is (sections.ts).
    */
-  async updateSection(id: string, heading: string, content: string, opts: { mode?: 'replace' | 'append'; newAt?: 'top' | 'bottom' } = {}): Promise<Note> {
+  async updateSection(id: string, heading: string, content: string, opts: { mode?: 'replace' | 'append'; newAt?: 'top' | 'bottom' | 'sorted'; order?: 'asc' | 'desc' } = {}, write: NoteWriteOptions = {}): Promise<Note> {
     const target = parseHeadingLine(heading)
     if (!target) throw new Error(`Not a Markdown heading line: ${heading}`)
     const note = await this.get(id)
     if (!note) throw new Error('Note not found')
     if (note.type !== 'markdown') throw new Error('Only Markdown notes have sections')
     const blocks = parseBlockList(note.content ?? '[]') ?? []
-    const next = upsertSection(blocks, { heading: target, content: contentToBlocks(content), mode: opts.mode, newAt: opts.newAt })
-    return this.update(id, { content: JSON.stringify(next) }, { source: 'external' })
+    const next = upsertSection(blocks, { heading: target, content: contentToBlocks(content), mode: opts.mode, newAt: opts.newAt, order: opts.order })
+    return this.update(id, { content: JSON.stringify(next) }, { ...write, source: 'external' })
   }
 
   /** The note titled `title` right in `folder`, created (with `content`) when there is none. */
-  async ensure(input: { title: string; folder?: string; content?: string }): Promise<{ note: Note; created: boolean }> {
+  async ensure(input: { title: string; folder?: string; content?: string; by?: string }): Promise<{ note: Note; created: boolean }> {
     const existing = this.findInFolder(input.title, input.folder ?? '')
     if (existing) return { note: (await this.get(existing))!, created: false }
-    return { note: await this.create({ title: input.title, folder: input.folder, content: input.content }), created: true }
+    return { note: await this.create({ title: input.title, folder: input.folder, content: input.content, by: input.by }), created: true }
   }
 
   async move(id: string, targetFolder: string | null): Promise<Note> {

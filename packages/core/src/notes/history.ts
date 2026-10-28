@@ -16,6 +16,8 @@ export interface NoteVersion {
   title: string
   /** The start of its text, to tell versions apart. */
   preview: string
+  /** Who wrote this content: 'app', a program's name, 'external', or '' (not known). */
+  by: string
 }
 
 function textOf(node: unknown): string {
@@ -62,13 +64,15 @@ export class NoteHistory {
     for (const { version, ms, reason } of await this.versions(noteId)) {
       let title = ''
       let preview = ''
+      let by = ''
       try {
         const file = JSON.parse(await this.fs.readTextFile(join(this.noteDir(noteId), version + '.json')))
         title = String(file.meta?.title ?? '')
+        by = String(file.meta?.updatedBy ?? '')
         const blocks: unknown[] = Array.isArray(file.blocks) ? file.blocks : []
         preview = blocks.map(textOf).filter(Boolean).join(' ').slice(0, 80)
       } catch { /* unreadable: no title or preview */ }
-      out.push({ version, at: new Date(ms).toISOString(), reason, title, preview })
+      out.push({ version, at: new Date(ms).toISOString(), reason, title, preview, by })
     }
     return out
   }

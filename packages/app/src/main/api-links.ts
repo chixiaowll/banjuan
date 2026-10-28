@@ -21,6 +21,11 @@ export function withPageLinks<P extends { page: number }, T extends { pages: P[]
   return { ...result, pages: result.pages.map(p => ({ ...p, link: formatLink('doc', docId, { page: p.page, library }) })) }
 }
 
+/** A document with its link. */
+export function withDocLink<T extends { id: string }>(doc: T, library: string): T & { link: string } {
+  return { ...doc, link: formatLink('doc', doc.id, { library }) }
+}
+
 /** A note (or a summary of one) with its link. */
 export function withNoteLink<T extends { id: string }>(note: T, library: string): T & { link: string } {
   return { ...note, link: formatLink('note', note.id, { library }) }

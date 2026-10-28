@@ -156,6 +156,8 @@ export interface Note {
 
 export interface NoteCreateInput {
   title: string
+  /** Who writes it (a program's name), when not the app. */
+  by?: string
   type?: NoteType
   docId?: string
   folderId?: string
@@ -459,6 +461,8 @@ export interface NoteFileData {
   typeMeta: Record<string, unknown> | null
   createdAt: string
   updatedAt: string
+  /** Who wrote this content last: 'app', a program's name ('cc-desk', 'cli'), or 'external'. */
+  updatedBy?: string
 }
 
 export interface MindmapFileData {
