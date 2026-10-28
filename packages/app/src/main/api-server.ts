@@ -8,7 +8,7 @@ import { randomUUID, randomBytes } from 'node:crypto'
 import { app } from 'electron'
 import type { Library } from '@banjuan/core'
 import { blocksToMarkdown } from '@banjuan/core'
-import { withSearchLinks, withPageLinks, withAnnotationLinks } from './api-links.js'
+import { withSearchLinks, withPageLinks, withAnnotationLinks, withNoteLink } from './api-links.js'
 import { saveClip } from './clip-service.js'
 import { openLibraryForApi, initLibraryForApi, libraries, getLibraryHistory, releaseLibrary } from './ipc.js'
 import { extractDocumentText } from './pdf-text.js'
@@ -292,8 +292,74 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     if (query.folderId) opts.folderId = query.folderId
     if (query.folder) opts.folder = query.folder
     if (query.tag) opts.tag = query.tag
+    if (query.since) {
+      const since = new Date(query.since)
+      if (Number.isNaN(since.getTime())) { json(res, 400, { error: `since: not a date or time: ${query.since}` }); return }
+      opts.since = since.toISOString()
+    }
     const notes = await lib.notes.list(opts)
-    json(res, 200, notes.map(n => ({ id: n.id, title: n.title, type: n.type, path: n.path, docId: n.docId, folderId: n.folderId, createdAt: n.createdAt, updatedAt: n.updatedAt })))
+    json(res, 200, notes.map(n => withNoteLink({ id: n.id, title: n.title, type: n.type, path: n.path, docId: n.docId, folderId: n.folderId, createdAt: n.createdAt, updatedAt: n.updatedAt }, lib.rootPath)))
+    return
+  }
+
+  // --- Writing notes from programs (CC Desk, AI tools): safe, in place, findable ---
+
+  // The note titled so right in the folder; created (with content) when there is none.
+  if (path === '/api/notes/ensure' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      if (typeof body.title !== 'string' || !body.title.trim()) { json(res, 400, { error: 'title required' }); return }
+      const { note, created } = await lib.notes.ensure({ title: body.title, folder: body.folder || undefined, content: body.content })
+      json(res, 200, { ...withNoteLink(note, lib.rootPath), created })
+    } catch (e: any) {
+      json(res, 500, { error: e.message })
+    }
+    return
+  }
+
+  // One section of a note, by its heading line ("## 20261028"); the rest stays as it is.
+  const noteSectionMatch = path.match(/^\/api\/notes\/([^/]+)\/section$/)
+  if (noteSectionMatch && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      if (typeof body.heading !== 'string' || typeof body.content !== 'string') { json(res, 400, { error: 'heading and content required' }); return }
+      if (body.mode !== undefined && body.mode !== 'replace' && body.mode !== 'append') { json(res, 400, { error: 'mode: replace or append' }); return }
+      if (body.newAt !== undefined && body.newAt !== 'top' && body.newAt !== 'bottom') { json(res, 400, { error: 'newAt: top or bottom' }); return }
+      const note = await lib.notes.updateSection(noteSectionMatch[1], body.heading, body.content, { mode: body.mode, newAt: body.newAt })
+      json(res, 200, withNoteLink(note, lib.rootPath))
+    } catch (e: any) {
+      json(res, /not found/i.test(e.message) ? 404 : /heading|sections/i.test(e.message) ? 400 : 500, { error: e.message })
+    }
+    return
+  }
+
+  // Earlier versions (kept before every write from outside), and putting one back.
+  const noteHistoryMatch = path.match(/^\/api\/notes\/([^/]+)\/history$/)
+  if (noteHistoryMatch && req.method === 'GET') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      json(res, 200, await lib.notes.history(noteHistoryMatch[1]))
+    } catch (e: any) {
+      json(res, 400, { error: e.message })
+    }
+    return
+  }
+  const noteRestoreMatch = path.match(/^\/api\/notes\/([^/]+)\/restore$/)
+  if (noteRestoreMatch && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      const note = await lib.notes.restore(noteRestoreMatch[1], String(body.version ?? ''))
+      json(res, 200, withNoteLink(note, lib.rootPath))
+    } catch (e: any) {
+      json(res, /no such version|invalid/i.test(e.message) ? 400 : 500, { error: e.message })
+    }
     return
   }
 
@@ -367,7 +433,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     try {
       const body = JSON.parse(await readBody(req))
       const note = await lib.notes.create(body)
-      json(res, 200, note)
+      json(res, 200, withNoteLink(note, lib.rootPath))
     } catch (e: any) {
       json(res, 500, { error: e.message })
     }
@@ -397,8 +463,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       // Blocks or Markdown: the notes service tells them apart (converting here
       // first read blocks sent by the assistant as Markdown text).
       const body = JSON.parse(await readBody(req))
-      const note = await lib.notes.update(noteMatch[1], body)
-      json(res, 200, note)
+      const note = await lib.notes.update(noteMatch[1], body, { source: 'external' })   // keeps the previous version
+      json(res, 200, withNoteLink(note, lib.rootPath))
     } catch (e: any) {
       json(res, 500, { error: e.message })
     }
@@ -432,7 +498,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         targetFolder = folder.name
       }
       const note = await lib.notes.move(noteMoveMatch[1], targetFolder)
-      json(res, 200, note)
+      json(res, 200, withNoteLink(note, lib.rootPath))
     } catch (e: any) {
       json(res, 500, { error: e.message })
     }
