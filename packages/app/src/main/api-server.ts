@@ -7,11 +7,12 @@ import { BrowserWindow, ipcMain, webContents } from 'electron'
 import { randomUUID, randomBytes } from 'node:crypto'
 import { app } from 'electron'
 import type { Library } from '@banjuan/core'
-import { blocksToMarkdown, markdownToBlocks } from '@banjuan/core'
+import { blocksToMarkdown } from '@banjuan/core'
 import { saveClip } from './clip-service.js'
 import { openLibraryForApi, initLibraryForApi, libraries, getLibraryHistory, releaseLibrary } from './ipc.js'
 import { extractDocumentText } from './pdf-text.js'
 import { isAuthorized, isPublicRoute, isLoopbackHost, corsHeaders } from './api-auth.js'
+import { parseUrl } from './api-url.js'
 import { isInside, libraryPath, uniquePath } from './path-guard.js'
 
 const MAX_TEXT_PAGES = 25
@@ -87,18 +88,6 @@ function json(res: ServerResponse, status: number, data: unknown): void {
     ...corsHeaders(res.req?.headers.origin),
   })
   res.end(JSON.stringify(data))
-}
-
-function parseUrl(raw: string): { path: string; query: Record<string, string> } {
-  const [path, qs] = raw.split('?', 2)
-  const query: Record<string, string> = {}
-  if (qs) {
-    for (const pair of qs.split('&')) {
-      const [k, v] = pair.split('=', 2)
-      if (k) query[decodeURIComponent(k)] = decodeURIComponent(v ?? '')
-    }
-  }
-  return { path, query }
 }
 
 function requireLib(res: ServerResponse, query: Record<string, string>): Library | null {
@@ -403,10 +392,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     const lib = requireLib(res, query)
     if (!lib) return
     try {
+      // Blocks or Markdown: the notes service tells them apart (converting here
+      // first read blocks sent by the assistant as Markdown text).
       const body = JSON.parse(await readBody(req))
-      if (body.content && typeof body.content === 'string') {
-        body.content = JSON.stringify(markdownToBlocks(body.content))
-      }
       const note = await lib.notes.update(noteMatch[1], body)
       json(res, 200, note)
     } catch (e: any) {
