@@ -142,6 +142,10 @@ export interface BanjuanAPI {
      * `relPath` when the file already lies in the library, else it is copied in.
      */
     onImportOpen?(cb: (target: ImportOpenTarget) => void): () => void
+    /** Main asks this library window to open a banjuan:// link (a document page, annotation or note of this library). */
+    onOpenLink?(cb: (url: string) => void): () => void
+    /** A banjuan:// link clicked in the app: main finds the library window for it. */
+    openLink?(url: string): void
     removeHistory?(path: string): Promise<void>
     rename?(name: string): Promise<{ name: string }>
     delete?(path: string): Promise<void>

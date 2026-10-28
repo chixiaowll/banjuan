@@ -47,6 +47,8 @@ const api = {
     isOpen: () => ipcRenderer.invoke('library:isOpen'),
     getHistory: () => ipcRenderer.invoke('library:getHistory'),
     onImportOpen: (cb: (target: { absPath: string; relPath?: string }) => void) => listen('library:import-open', cb),
+    onOpenLink: (cb: (url: string) => void) => listen('library:open-link', cb),
+    openLink: (url: string) => ipcRenderer.send('link:open', url),
     removeHistory: (path: string) => ipcRenderer.invoke('library:removeHistory', path),
     rename: (name: string) => ipcRenderer.invoke('library:rename', name),
     detectMissing: () => ipcRenderer.invoke('library:detectMissing'),

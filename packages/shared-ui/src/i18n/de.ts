@@ -218,6 +218,7 @@ const de = {
   'tray.open': 'Banjuan öffnen',
   'tray.openFile': 'Datei öffnen…',
   'tray.quit': 'Banjuan beenden',
+  'link.notFound': 'Das Ziel dieses Links wurde nicht gefunden. Es liegt vielleicht in einer nicht geöffneten Bibliothek oder wurde gelöscht.',
   'settings.hotkeyRecording': 'Neues Tastenkürzel drücken … (Esc zum Abbrechen)',
   'settings.hotkeyHint': 'Gilt systemweit. Nutzt eine andere App dieselben Tasten für Screenshots (z. B. Feishu/Lark ⌘⇧A), öffnen sich beide Werkzeuge gleichzeitig – wähle eine andere Kombination.',
   'settings.hotkeyFailed': 'Dieses Tastenkürzel ist nicht verfügbar (evtl. vom System oder einer anderen App belegt). Das bisherige wurde beibehalten.',

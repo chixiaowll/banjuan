@@ -19,17 +19,18 @@ const IS_EXPORT_WORKER = window.location.hash === '#export-worker'
 const IS_FILE_WINDOW = window.location.hash === '#file'
 
 /**
- * A library window opened for a file handed over from a single-file window:
- * `#library=<path>&importOpen=<file>[&rel=<path in library>]`.
+ * A library window opened for a file handed over from a single-file window
+ * (`#library=<path>&importOpen=<file>[&rel=<path in library>]`), or for a
+ * banjuan:// link (`#library=<path>&openLink=<link>`).
  */
-function launchTarget(): { library: string; importOpen?: ImportOpenTarget } | null {
+function launchTarget(): { library: string; importOpen?: ImportOpenTarget; openLink?: string } | null {
   const params = new URLSearchParams(window.location.hash.slice(1))
   const library = params.get('library')
   if (!library) return null
   const absPath = params.get('importOpen')
   // Once: a reload of this window shouldn't bring the file in again.
   history.replaceState(null, '', window.location.pathname + window.location.search)
-  return { library, importOpen: absPath ? { absPath, relPath: params.get('rel') ?? undefined } : undefined }
+  return { library, importOpen: absPath ? { absPath, relPath: params.get('rel') ?? undefined } : undefined, openLink: params.get('openLink') ?? undefined }
 }
 
 // Only the hidden export window runs the worker (BlockNote + mind-map export):
@@ -147,6 +148,7 @@ function MainApp() {
               onSwitchLibrary={() => setLibrary(null)}
               onLibraryRenamed={(name) => setLibrary(prev => prev ? { ...prev, name } : prev)}
               pendingImportOpen={target?.importOpen}
+              pendingOpenLink={target?.openLink}
             />}
         <NoteRenderService />
         <FeedbackHost />

@@ -7,6 +7,7 @@ import { installCli } from './install-cli.js'
 import { createWindow, getWindowCount, isLibraryWindow, flushAllWindowsForQuit, showAllWindows } from './windows.js'
 import { initScreenshot, disposeScreenshot, triggerCapture } from './screenshot/index.js'
 import { initMenuBar } from './menu-bar.js'
+import { openDeepLink, registerDeepLinkHandlers } from './deep-link.js'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
@@ -23,6 +24,14 @@ app.on('open-file', (event, path) => {
   event.preventDefault()
   if (ready) openFiles([path])
   else filesBeforeReady.push(path)
+})
+
+// banjuan:// links (macOS sends them as events too; deep-link.ts).
+const linksBeforeReady: string[] = []
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  if (ready) void openDeepLink(url)
+  else linksBeforeReady.push(url)
 })
 
 protocol.registerSchemesAsPrivileged([
@@ -112,9 +121,11 @@ app.whenReady().then(() => {
   // Started to open files (Finder, command line): just those windows, no library window.
   registerFileWindowHandlers()
   const launchFiles = [...filesBeforeReady, ...filesFromArgv(process.argv, app.isPackaged)]
+  registerDeepLinkHandlers()
   ready = true
   if (launchFiles.length > 0) openFiles(launchFiles)
-  else createWindow()
+  else if (linksBeforeReady.length === 0) createWindow()   // a link brings its own window
+  for (const url of linksBeforeReady) void openDeepLink(url)
   initScreenshot()
   initMenuBar({
     open: () => { if (!showAllWindows()) createWindow() },

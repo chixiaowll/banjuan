@@ -689,3 +689,10 @@ select.claude-settings-input {
   word-break: break-word;
 }
 .claude-tool-result-preview { color: var(--text, #555); }
+
+.claude-banjuan-link {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--accent-soft, currentColor);
+  cursor: pointer;
+}

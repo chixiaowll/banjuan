@@ -1,20 +1,10 @@
 import type { MenuItemConstructorOptions } from 'electron'
-import zh from '@banjuan/shared-ui/src/i18n/zh'
-import en from '@banjuan/shared-ui/src/i18n/en'
-import ja from '@banjuan/shared-ui/src/i18n/ja'
-import ko from '@banjuan/shared-ui/src/i18n/ko'
-import fr from '@banjuan/shared-ui/src/i18n/fr'
-import de from '@banjuan/shared-ui/src/i18n/de'
-import es from '@banjuan/shared-ui/src/i18n/es'
-import { LOCALES, type Locale } from '@banjuan/shared-ui/src/i18n/locale'
+import type { Locale } from '@banjuan/shared-ui/src/i18n/locale'
+import { MESSAGES, isLocale } from './ui-messages.js'
 
 /** The menu bar icon's menu (macOS), made fresh each time it opens. Pure: tested without Electron. */
 
-const MESSAGES = { zh, en, ja, ko, fr, de, es }
-
-export function isLocale(s: unknown): s is Locale {
-  return typeof s === 'string' && (LOCALES as string[]).includes(s)
-}
+export { isLocale }
 
 export interface TrayState {
   locale: Locale

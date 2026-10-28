@@ -218,6 +218,7 @@ const ko = {
   'tray.open': 'Banjuan 열기',
   'tray.openFile': '파일 열기…',
   'tray.quit': 'Banjuan 종료',
+  'link.notFound': '이 링크가 가리키는 항목을 찾을 수 없습니다. 열려 있지 않은 서재에 있거나 삭제되었을 수 있습니다.',
   'settings.hotkeyRecording': '새 단축키를 누르세요… (Esc로 취소)',
   'settings.hotkeyHint': '시스템 전체에서 동작합니다. 다른 앱의 스크린샷 단축키와 같으면(예: Feishu/Lark ⌘⇧A) 두 캡처 도구가 동시에 열리니 다른 조합을 선택하세요.',
   'settings.hotkeyFailed': '이 단축키는 사용할 수 없습니다(시스템이나 다른 앱이 사용 중일 수 있음). 이전 단축키를 유지했습니다.',

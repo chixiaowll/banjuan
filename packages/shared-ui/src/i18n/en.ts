@@ -235,6 +235,7 @@ const en = {
   'tray.open': 'Open Banjuan',
   'tray.openFile': 'Open File…',
   'tray.quit': 'Quit Banjuan',
+  'link.notFound': 'Couldn’t find what this link points to. It may be in a library that isn’t open, or it was deleted.',
   'settings.hotkeyRecording': 'Press the new shortcut… (Esc to cancel)',
   'settings.hotkeyHint': 'Works system-wide. If another app uses the same keys for screenshots (e.g. Feishu/Lark ⌘⇧A), both capture tools open at once — pick a different combination.',
   'settings.hotkeyFailed': 'That shortcut can\'t be used (it may be reserved by the system or another app). The previous shortcut was kept.',

@@ -218,6 +218,7 @@ const es = {
   'tray.open': 'Abrir Banjuan',
   'tray.openFile': 'Abrir archivo…',
   'tray.quit': 'Salir de Banjuan',
+  'link.notFound': 'No se encuentra el destino de este enlace. Puede estar en una biblioteca que no está abierta, o se eliminó.',
   'settings.hotkeyRecording': 'Pulsa el nuevo atajo… (Esc para cancelar)',
   'settings.hotkeyHint': 'Funciona en todo el sistema. Si otra app usa las mismas teclas para capturas (p. ej. Feishu/Lark ⌘⇧A), se abrirán las dos herramientas a la vez: elige otra combinación.',
   'settings.hotkeyFailed': 'No se puede usar ese atajo (puede estar reservado por el sistema u otra app). Se mantuvo el anterior.',

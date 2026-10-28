@@ -1,8 +1,8 @@
 import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, systemPreferences } from 'electron'
 import { join } from 'node:path'
-import { localeFromLanguage } from '@banjuan/shared-ui/src/i18n/locale'
 import { trayMenuItems, isLocale, type TrayActions } from './menu-bar-menu.js'
-import { getShowInDock, setShowInDock, getLocale, setLocale, getScreenshotHotkey } from './settings-store.js'
+import { getShowInDock, setShowInDock, setLocale, getScreenshotHotkey } from './settings-store.js'
+import { currentLocale } from './main-locale.js'
 
 /**
  * macOS: the app's icon in the menu bar, always there, and whether the app also
@@ -45,11 +45,6 @@ function changeShowInDock(show: boolean): void {
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.isDestroyed()) w.webContents.send('menuBar:showInDockChanged', show)
   }
-}
-
-function currentLocale() {
-  const saved = getLocale()
-  return isLocale(saved) ? saved : localeFromLanguage(app.getPreferredSystemLanguages()[0] ?? app.getLocale())
 }
 
 export function initMenuBar(actions: Omit<TrayActions, 'setShowInDock'>): void {

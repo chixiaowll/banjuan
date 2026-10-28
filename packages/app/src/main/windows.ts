@@ -14,6 +14,13 @@ let nextFlushId = 1
 let quitFlushed = false
 let lastFocused: BrowserWindow | null = null
 
+// banjuan:// links clicked in a window (deep-link.ts sets this; set late, so
+// this module needn't import that one).
+let openBanjuanLink: (url: string) => void = () => {}
+export function setBanjuanLinkHandler(handler: (url: string) => void): void {
+  openBanjuanLink = handler
+}
+
 /** The library window the user used last — target for "insert into note" and screenshot notices. */
 export function getLastFocusedLibraryWindow(): BrowserWindow | null {
   if (lastFocused && !lastFocused.isDestroyed()) return lastFocused
@@ -72,6 +79,7 @@ export function createWindow(opts: { hash?: string; kind?: 'library' | 'file' } 
   // this preload and with it the whole library API — but in the browser.
   const openOutside = (url: string) => {
     if (/^(https?|mailto):/i.test(url)) void shell.openExternal(url)
+    else if (/^banjuan:\/\//i.test(url)) openBanjuanLink(url)   // a page / annotation / note of a library
     else console.warn('[window] blocked navigation to', url)
   }
 

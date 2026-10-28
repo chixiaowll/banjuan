@@ -83,6 +83,10 @@ mac:
       name: HTML Document
       role: Viewer
       rank: Alternate
+  # banjuan://doc/<id>?page=…, /annotation/<id>, /note/<id> (deep-link.ts)
+  protocols:
+    - name: Banjuan Link
+      schemes: [banjuan]
   # arch order matters: electron-builder rebuilds the native better-sqlite3 for
   # each target in turn, and the LAST one is what stays in node_modules. Build
   # x64 first and arm64 last so the dev machine (Apple Silicon) keeps a working

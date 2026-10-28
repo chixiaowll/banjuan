@@ -235,6 +235,7 @@ const zh = {
   'tray.open': '打开半卷',
   'tray.openFile': '打开文件…',
   'tray.quit': '退出半卷',
+  'link.notFound': '找不到这个链接指向的内容：它可能在一个没打开的书房里，或者已经删除了。',
   'settings.hotkeyRecording': '请按下新的快捷键…（Esc 取消）',
   'settings.hotkeyHint': '全局生效。若和其他应用的截图快捷键相同（如飞书的 ⌘⇧A），两个截图界面会同时弹出，请换一个组合。',
   'settings.hotkeyFailed': '无法使用这个快捷键（可能被系统或其他应用占用），已保留原来的快捷键。',

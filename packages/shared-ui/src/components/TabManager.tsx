@@ -22,6 +22,8 @@ import SearchPalette from './SearchPalette.js'
 import '../styles/mobile.css'
 import { useEscapeKey } from '../utils/useEscapeKey.js'
 import { toast, errorMessage } from './feedback.js'
+import { requestDocPage } from '../utils/docNavigation.js'
+import { parseLink, linkPage } from '@banjuan/core/dist/notes/links.js'
 import { installLongPressMenu } from '../utils/longPressMenu.js'
 import ErrorBoundary from './ErrorBoundary.js'
 import { importAndOpen } from '../utils/importAndOpen.js'
@@ -44,9 +46,11 @@ interface Props {
   onLibraryRenamed?: (name: string) => void
   /** A file to bring in and open once the library shows (handed over from a single-file window). */
   pendingImportOpen?: ImportOpenTarget
+  /** A banjuan:// link to open once the library shows (the window was opened for it). */
+  pendingOpenLink?: string
 }
 
-export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, onLibraryRenamed, pendingImportOpen }: Props) {
+export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, onLibraryRenamed, pendingImportOpen, pendingOpenLink }: Props) {
   const api = useBanjuanAPI()
   const t = useT()
   const [isNarrow, setIsNarrow] = useState(false)
@@ -207,6 +211,45 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
     }
     if (pendingImportOpen) bringIn(pendingImportOpen)
     return api.library.onImportOpen?.(bringIn)
+  }, [api])
+
+  // banjuan:// links: from main (a link opened outside the app, or this window
+  // opened for one), and clicked in the app (the assistant's answers) — those
+  // go to main first, which knows which library window has the target.
+  useEffect(() => {
+    const open = async (url: string) => {
+      const link = parseLink(url)
+      if (!link) return
+      const notFound = () => toast.error(t('link.notFound'))
+      // Opened through the events below, whose handlers see the current tabs.
+      if (link.kind === 'note') {
+        const note = await api.notes.get(link.id).catch(() => null)
+        if (note) document.dispatchEvent(new CustomEvent('note-link-click', { detail: { noteId: note.id } }))
+        else notFound()
+        return
+      }
+      let docId = link.id
+      let page = linkPage(link.query)
+      if (link.kind === 'annotation') {
+        const ann = await api.annotations.get(link.id).catch(() => null)
+        docId = ann?.docId ?? link.query.doc ?? ''
+        page = ann?.page ?? page
+      }
+      const doc = docId ? await api.documents.get(docId).catch(() => null) : null
+      if (!doc) { notFound(); return }
+      requestDocPage(doc.id, page)
+      document.dispatchEvent(new CustomEvent('banjuan:open-document', { detail: { docId: doc.id } }))
+    }
+    if (pendingOpenLink) void open(pendingOpenLink)
+    const off = api.library.onOpenLink?.((url) => { void open(url) })
+    const onClick = (e: Event) => {
+      const url = (e as CustomEvent).detail?.url
+      if (typeof url !== 'string') return
+      if (api.library.openLink) api.library.openLink(url)
+      else void open(url)
+    }
+    document.addEventListener('banjuan:open-link', onClick)
+    return () => { off?.(); document.removeEventListener('banjuan:open-link', onClick) }
   }, [api])
 
   // Note and document links in notes (editors, previews) and #note/ links the

@@ -23,6 +23,15 @@ export function activate(api) {
   let sessionsList = []
   let settings = { model: '', claudePath: '' }
 
+  // Sources the assistant cites ([Deep Learning p.13](banjuan://doc/…)): open
+  // them in the app — the library window takes it from here (TabManager).
+  el.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a[data-banjuan-link]')
+    if (!a) return
+    e.preventDefault()
+    document.dispatchEvent(new CustomEvent('banjuan:open-link', { detail: { url: a.dataset.banjuanLink } }))
+  })
+
   api.rpc('getSettings').then(s => { if (s) settings = s })
   api.rpc('getActiveSession').then(s => {
     if (s && s.messages && s.messages.length > 0) {
@@ -485,6 +494,9 @@ export function activate(api) {
   function renderMarkdown(text) {
     if (!text) return ''
     let html = escapeHtml(text)
+    // Links into the library only; other links stay text.
+    html = html.replace(/\[([^\]\n]+)\]\((banjuan:\/\/[^)\s"]+)\)/g,
+      (_, label, url) => `<a href="#" class="claude-banjuan-link" data-banjuan-link="${url}">${label}</a>`)
     html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
       `<pre class="claude-code-block"><code class="lang-${lang}">${code}</code></pre>`)
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>')

@@ -218,6 +218,7 @@ const fr = {
   'tray.open': 'Ouvrir Banjuan',
   'tray.openFile': 'Ouvrir un fichier…',
   'tray.quit': 'Quitter Banjuan',
+  'link.notFound': 'Impossible de trouver la cible de ce lien. Elle se trouve peut-être dans une bibliothèque non ouverte, ou a été supprimée.',
   'settings.hotkeyRecording': 'Appuyez sur le nouveau raccourci… (Échap pour annuler)',
   'settings.hotkeyHint': 'Actif dans tout le système. Si une autre app utilise les mêmes touches pour ses captures (ex. Feishu/Lark ⌘⇧A), les deux outils s\'ouvrent en même temps : choisissez une autre combinaison.',
   'settings.hotkeyFailed': 'Ce raccourci est indisponible (il est peut-être réservé par le système ou une autre app). L\'ancien raccourci a été conservé.',
