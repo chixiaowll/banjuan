@@ -49,7 +49,8 @@ function blockToMd(block: Record<string, unknown>, opts: MarkdownOptions = {}): 
   const props = (block.props ?? {}) as Record<string, unknown>
   const text = inlineToMd(block.content, opts)
   const children = Array.isArray(block.children)
-    ? (block.children as any[]).map(c => blockToMd(c, opts)).filter(Boolean).map(l => '    ' + l).join('\n\n')
+    // Every line of a child one level in (a grandchild then sits two levels in).
+    ? (block.children as any[]).map(c => blockToMd(c, opts)).filter(Boolean).map(l => l.split('\n').map(x => '    ' + x).join('\n')).join('\n\n')
     : ''
 
   let result = ''
@@ -57,6 +58,9 @@ function blockToMd(block: Record<string, unknown>, opts: MarkdownOptions = {}): 
   switch (type) {
     case 'paragraph':
       result = text
+      break
+    case 'quote':
+      result = text.split('\n').map(l => '> ' + l).join('\n')
       break
     case 'heading': {
       const level = Math.min(Math.max(Number(props.level) || 1, 1), 6)

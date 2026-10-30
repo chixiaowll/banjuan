@@ -162,12 +162,38 @@ function markdownLineToBlock(line: string): unknown | null {
   return { type: 'paragraph', content: parseInline(line), children: [] }
 }
 
+/** A list item line: its indentation (tab = 4), marker and the rest. */
+const LIST_LINE = /^([ \t]*)([-*+]|\d+[.)])\s+(.*)$/
+const indentWidth = (ws: string) => ws.replace(/\t/g, '    ').length
+
 export function markdownToBlocks(markdown: string): unknown[] {
   const lines = markdown.split('\n')
   const blocks: unknown[] = []
+  // Open list items, by indentation: a deeper item becomes a child of the one above it.
+  let listStack: Array<{ indent: number; block: { children: unknown[] } }> = []
+  // The paragraph the next plain line continues (lines of one paragraph stay one paragraph).
+  let para: { block: { content: unknown[] }; lines: string[] } | null = null
   let i = 0
   while (i < lines.length) {
     const line = lines[i]
+
+    if (line.trim() === '') { para = null; i++; continue }
+
+    const listMatch = LIST_LINE.exec(line)
+    if (listMatch && !/^\s*[-*+]\s*$/.test(line)) {
+      const block = markdownLineToBlock(listMatch[2] + ' ' + listMatch[3]) as { children: unknown[] } | null
+      if (block) {
+        const indent = indentWidth(listMatch[1])
+        while (listStack.length && listStack[listStack.length - 1].indent >= indent) listStack.pop()
+        if (listStack.length) listStack[listStack.length - 1].block.children.push(block)
+        else blocks.push(block)
+        listStack.push({ indent, block })
+        para = null
+        i++
+        continue
+      }
+    }
+    listStack = []
 
     // Code block
     const codeMatch = line.match(/^```(.*)/)
@@ -194,6 +220,7 @@ export function markdownToBlocks(markdown: string): unknown[] {
           children: [],
         })
       }
+      para = null
       continue
     }
 
@@ -207,6 +234,19 @@ export function markdownToBlocks(markdown: string): unknown[] {
         i++
       }
       blocks.push(embedBlock(target, embed[1], rest))
+      para = null
+      continue
+    }
+
+    // A quote: its > lines together, as one quote block.
+    if (line.startsWith('>')) {
+      const quoteLines: string[] = []
+      while (i < lines.length && lines[i].startsWith('>') && !EMBED_LINE.test(lines[i])) {
+        quoteLines.push(lines[i].replace(/^>\s?/, ''))
+        i++
+      }
+      blocks.push({ type: 'quote', content: parseInline(quoteLines.join('\n')), children: [] })
+      para = null
       continue
     }
 
@@ -219,11 +259,24 @@ export function markdownToBlocks(markdown: string): unknown[] {
         i++
       }
       blocks.push(parseTableLines(tableLines))
+      para = null
       continue
     }
 
-    const block = markdownLineToBlock(line)
-    if (block) blocks.push(block)
+    const block = markdownLineToBlock(line.trimStart()) as { type?: string; content: unknown[] } | null
+    if (block?.type === 'paragraph') {
+      const text = line.trim()
+      if (para) {
+        para.lines.push(text)
+        para.block.content = parseInline(para.lines.join('\n'))
+      } else {
+        blocks.push(block)
+        para = { block, lines: [text] }
+      }
+    } else {
+      if (block) blocks.push(block)
+      para = null
+    }
     i++
   }
   return blocks

@@ -71,10 +71,8 @@ describe('migrateNotesToJson', () => {
     const numbered = parsed.blocks.filter((b: any) => b.type === 'numberedListItem')
     expect(numbered).toHaveLength(2)
 
-    // quote → paragraph with italic
-    const quote = parsed.blocks.find(
-      (b: any) => b.type === 'paragraph' && b.content[0]?.styles?.italic,
-    )
+    // quote → the editor's quote block
+    const quote = parsed.blocks.find((b: any) => b.type === 'quote')
     expect(quote).toBeTruthy()
     expect(quote.content[0].text).toBe('a quote')
 
