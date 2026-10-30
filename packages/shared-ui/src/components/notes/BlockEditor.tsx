@@ -33,6 +33,10 @@ import { schema } from './blockSchema.js'
 import { attachmentUrlResolver } from '../../utils/attachmentUrl.js'
 import { takeNoteBlock, onNoteBlockRequest, revealBlock } from '../../utils/noteNavigation.js'
 
+/** BlockNote's own allow-list of link schemes (not exported by it), plus banjuan: (pages, tasks, notes in the library). */
+const ALLOWED_LINK = /^(?:(?:http|https|ftp|ftps|mailto|tel|callto|sms|cid|xmpp|banjuan):|[^a-z]|[a-z0-9+.\-]+(?:[^a-z+.\-:]|$))/i
+const isValidLink = (href: string) => !href || ALLOWED_LINK.test(href.replace(/\s/g, ''))
+
 interface NoteItem {
   id: string
   title: string
@@ -232,6 +236,9 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     // Slash menu, placeholders and toolbars in the UI language (BlockNote ships
     // all seven); taken at creation — a note opened after switching follows it.
     dictionary: blockNoteLocales[locale] ?? blockNoteLocales.en,
+    // banjuan:// links (a document page, a task, …) too: BlockNote drops the
+    // address of any scheme it doesn't know, leaving links that go nowhere.
+    links: { isValidLink: isValidLink },
   })
   editorRef.current = editor
 

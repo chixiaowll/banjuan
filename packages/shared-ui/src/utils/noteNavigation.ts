@@ -24,16 +24,23 @@ export function onNoteBlockRequest(noteId: string, handler: () => void): () => v
   return () => document.removeEventListener(EVENT, listener)
 }
 
-/** Scroll a block of this editor into view and flash it; waits a little for the editor to render it. */
+/**
+ * Scroll a block of this editor into view and flash it; waits a little for the
+ * editor to render it. The flash is a style rule, not a class on the block: the
+ * editor owns its DOM and undoes changes made to it.
+ */
 export async function revealBlock(root: HTMLElement, blockId: string): Promise<boolean> {
+  const selector = `.bn-block-outer[data-id="${CSS.escape(blockId)}"]`
   for (let i = 0; i < 60; i++) {
-    const el = root.querySelector(`.bn-block-outer[data-id="${CSS.escape(blockId)}"]`) as HTMLElement | null
+    const el = root.querySelector(selector) as HTMLElement | null
     if (el && el.offsetParent !== null) {
       el.scrollIntoView({ block: 'center', behavior: 'smooth' })
-      el.classList.remove('bj-block-flash')
-      void el.offsetWidth   // restart the animation
-      el.classList.add('bj-block-flash')
-      setTimeout(() => el.classList.remove('bj-block-flash'), 2000)
+      document.querySelector(`style[data-block-flash="${CSS.escape(blockId)}"]`)?.remove()
+      const style = document.createElement('style')
+      style.dataset.blockFlash = blockId
+      style.textContent = `${selector} { animation: bjBlockFlash 1.8s ease-out; border-radius: 4px; }`
+      document.head.appendChild(style)
+      setTimeout(() => style.remove(), 2000)
       return true
     }
     await new Promise(r => setTimeout(r, 50))
