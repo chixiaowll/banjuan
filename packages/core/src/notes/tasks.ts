@@ -9,7 +9,9 @@ import { v5 as uuidv5 } from 'uuid'
  * the index never has to rewrite notes on its own.
  *
  * Optional conventions in its text: a due date `📅 2026-11-05`, a done date
- * `✅ 2026-10-28`, a priority prefix `[P0]` (often bold), `#tags`.
+ * `✅ 2026-10-28`, a created date `➕ 2026-10-20` (as in Obsidian Tasks: when
+ * it really started, for one that was written down later), a priority prefix
+ * `[P0]` (often bold), `#tags`.
  */
 
 export interface ParsedTask {
@@ -19,6 +21,8 @@ export interface ParsedTask {
   done: boolean
   due: string | null
   doneDate: string | null
+  /** From ➕: when it was created, if the text says. */
+  created: string | null
   priority: string | null
   tags: string[]
   /** Order in the note. */
@@ -27,6 +31,7 @@ export interface ParsedTask {
 
 const DUE = /📅\s*(\d{4}-\d{2}-\d{2})/u
 const DONE = /✅\s*(\d{4}-\d{2}-\d{2})/u
+const CREATED = /➕\s*(\d{4}-\d{2}-\d{2})/u
 const PRIORITY = /^\s*\[(P\d)\]\s*/
 const TAG = /(?:^|\s)#([^\s#,，。;；:：!！?？、]+)/gu
 
@@ -47,9 +52,10 @@ export function parseTaskText(raw: string): Omit<ParsedTask, 'id' | 'done' | 'po
   const priority = PRIORITY.exec(raw)?.[1] ?? null
   const due = DUE.exec(raw)?.[1] ?? null
   const doneDate = DONE.exec(raw)?.[1] ?? null
-  const text = raw.replace(PRIORITY, '').replace(new RegExp(DUE.source, 'gu'), '').replace(new RegExp(DONE.source, 'gu'), '').replace(/\s+/g, ' ').trim()
+  const created = CREATED.exec(raw)?.[1] ?? null
+  const text = [DUE, DONE, CREATED].reduce((s, re) => s.replace(new RegExp(re.source, 'gu'), ''), raw.replace(PRIORITY, '')).replace(/\s+/g, ' ').trim()
   const tags = [...text.matchAll(TAG)].map(m => m[1])
-  return { text, due, doneDate, priority, tags }
+  return { text, due, doneDate, created, priority, tags }
 }
 
 const TASK_ID_NAMESPACE = '6f1c7a52-3b0e-4f3a-9a64-7d2e1b5c9e10'

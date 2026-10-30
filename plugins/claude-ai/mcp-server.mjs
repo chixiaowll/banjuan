@@ -207,6 +207,7 @@ const TOOLS = [
         section: { type: 'string', description: 'The section heading line, e.g. "### 待办" (optional)' },
         due: { type: 'string', description: 'Due date YYYY-MM-DD (optional)' },
         priority: { type: 'string', description: 'P0–P9 (optional)' },
+        created: { type: 'string', description: 'When it really started, YYYY-MM-DD, for one written down later (optional; written as ➕ date, "open for N days" counts from it)' },
         source: { type: 'string', description: 'Who is writing (default: $BANJUAN_SOURCE)' },
       },
       required: ['text', 'noteId'],
@@ -525,7 +526,7 @@ async function handleToolCall(name, args) {
       return await apiCall(`/api/tasks?${params}`)
     }
     case 'add_task':
-      return await apiPost('/api/tasks', { text: args.text, noteId: args.noteId, section: args.section, due: args.due, priority: args.priority, source: sourceOf(args) })
+      return await apiPost('/api/tasks', { text: args.text, noteId: args.noteId, section: args.section, due: args.due, priority: args.priority, created: args.created, source: sourceOf(args) })
     case 'complete_task':
       return await apiPost(`/api/tasks/${encodeURIComponent(args.id)}/done`, { comment: args.comment, undo: !!args.undo, source: sourceOf(args) })
     case 'update_task': {

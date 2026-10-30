@@ -66,12 +66,15 @@ taskCmd
   .option('--section <heading>', 'the section, as its Markdown heading line, e.g. "### 待办"')
   .option('--due <date>', 'due date (YYYY-MM-DD, today, tomorrow)')
   .option('--priority <p>', 'P0–P9')
+  .option('--created <date>', 'when it really started (YYYY-MM-DD), for one written down later: written as ➕ <date>, counted from for "open for N days"')
   .option('--source <name>', SOURCE_HELP)
   .option('--json', 'print the task as JSON (with its id and link)')
-  .action(async (text: string, opts: { note: string; section?: string; due?: string; priority?: string; source?: string; json?: boolean }) => {
+  .action(async (text: string, opts: { note: string; section?: string; due?: string; priority?: string; created?: string; source?: string; json?: boolean }) => {
     const due = opts.due ? dayArg(opts.due) : undefined
     if (due === null) return fail(`--due: YYYY-MM-DD, today or tomorrow, got ${opts.due}`)
-    const task = await apiPost('/api/tasks', { text, noteId: opts.note, section: opts.section, due, priority: opts.priority, source: sourceOf(opts) })
+    const created = opts.created ? dayArg(opts.created) : undefined
+    if (created === null) return fail(`--created: YYYY-MM-DD or today, got ${opts.created}`)
+    const task = await apiPost('/api/tasks', { text, noteId: opts.note, section: opts.section, due, priority: opts.priority, created, source: sourceOf(opts) })
     if (opts.json) { outputJson(task); return }
     console.log(chalk.green(`✓ Added task ${task.id} to ${task.note.title}`))
   })

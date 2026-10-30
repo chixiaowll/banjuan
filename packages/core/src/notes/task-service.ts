@@ -63,10 +63,13 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/
 const PRIORITY = /^P\d$/
 const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-/** The text a task's line is written with: priority, words, due date, done date. */
-function taskLine(text: string, due: string | null, priority: string | null, doneDate: string | null): string {
-  return `${priority ? `**[${priority}]** ` : ''}${text}${due ? ` 📅 ${due}` : ''}${doneDate ? ` ✅ ${doneDate}` : ''}`
+/** The text a task's line is written with: priority, words, created, due and done dates. */
+function taskLine(text: string, due: string | null, priority: string | null, doneDate: string | null, created: string | null = null): string {
+  return `${priority ? `**[${priority}]** ` : ''}${text}${created ? ` ➕ ${created}` : ''}${due ? ` 📅 ${due}` : ''}${doneDate ? ` ✅ ${doneDate}` : ''}`
 }
+
+/** A ➕ created date as the start of that day, local time. */
+const dayStart = (date: string) => { const [y, m, d] = date.split('-').map(Number); return new Date(y, m - 1, d).toISOString() }
 
 /** A task's line as inline content (Markdown inline styles and links honoured). */
 function lineContent(line: string): unknown[] {
@@ -105,7 +108,8 @@ export class TaskService {
       this.db.run(
         `INSERT OR REPLACE INTO tasks (id, note_id, text, done, due, priority, project, tags, folder, first_seen, done_at, position)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [p.id, note.id, p.text, p.done ? 1 : 0, p.due, p.priority, projectOf(p.tags, folder), JSON.stringify(p.tags), folder, old?.first_seen ?? now, doneAt, p.position],
+        // First seen: a ➕ created date when the text has one, else when the index first met it.
+        [p.id, note.id, p.text, p.done ? 1 : 0, p.due, p.priority, projectOf(p.tags, folder), JSON.stringify(p.tags), folder, p.created ? dayStart(p.created) : old?.first_seen ?? now, doneAt, p.position],
       )
     }
   }
@@ -199,12 +203,13 @@ export class TaskService {
   }
 
   /** Add a task to a note: at the end of a section (created at the end of the note if missing), else of the note. */
-  async add(input: { text: string; noteId: string; section?: string; due?: string; priority?: string }, write: NoteWriteOptions = {}): Promise<Task> {
+  async add(input: { text: string; noteId: string; section?: string; due?: string; priority?: string; created?: string }, write: NoteWriteOptions = {}): Promise<Task> {
     if (!input.text?.trim()) throw new Error('Task text required')
     if (input.due && !DATE.test(input.due)) throw new Error(`due: YYYY-MM-DD, got ${input.due}`)
+    if (input.created && !DATE.test(input.created)) throw new Error(`created: YYYY-MM-DD, got ${input.created}`)
     if (input.priority && !PRIORITY.test(input.priority)) throw new Error(`priority: P0–P9, got ${input.priority}`)
     const id = uuid()
-    const [block] = markdownToBlocks(`- [ ] ${taskLine(input.text.trim(), input.due ?? null, input.priority ?? null, null)} ^${id}`)
+    const [block] = markdownToBlocks(`- [ ] ${taskLine(input.text.trim(), input.due ?? null, input.priority ?? null, null, input.created ?? null)} ^${id}`)
     let blocks: unknown[] = await this.blocksOf(input.noteId)
     if (input.section) {
       const heading = parseHeadingLine(input.section)
@@ -241,7 +246,7 @@ export class TaskService {
     const { task, blocks, at } = await this.locate(id)
     const block = at.list[at.index]
     const p = parseTaskText(inlineText(block.content))
-    at.list[at.index] = { ...block, props: { ...block.props, checked: false }, content: p.doneDate ? lineContent(taskLine(p.text, p.due, p.priority, null)) : block.content }
+    at.list[at.index] = { ...block, props: { ...block.props, checked: false }, content: p.doneDate ? lineContent(taskLine(p.text, p.due, p.priority, null, p.created)) : block.content }
     await this.write(task.note.id, blocks, write)
     return this.get(id)!
   }
@@ -258,7 +263,7 @@ export class TaskService {
       if (!text) throw new Error('Task text required')
       const due = changes.due !== undefined ? changes.due : p.due
       const priority = changes.priority !== undefined ? changes.priority : p.priority
-      block = { ...block, content: lineContent(taskLine(text, due, priority, p.doneDate)) }
+      block = { ...block, content: lineContent(taskLine(text, due, priority, p.doneDate, p.created)) }
       at.list[at.index] = block
     }
     const to = changes.moveTo

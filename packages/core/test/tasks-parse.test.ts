@@ -18,9 +18,9 @@ describe('extractTasks', () => {
       task('a3', false, [t('无日期的事')]),
     ]
     expect(extractTasks(blocks, 'n')).toEqual([
-      { id: 'a1', text: '部署测试环境复现 #发布', done: false, due: '2026-11-05', doneDate: null, priority: 'P0', tags: ['发布'], position: 0 },
-      { id: 'a2', text: '写复现脚本', done: true, due: null, doneDate: '2026-10-28', priority: null, tags: [], position: 1 },
-      { id: 'a3', text: '无日期的事', done: false, due: null, doneDate: null, priority: null, tags: [], position: 2 },
+      { id: 'a1', text: '部署测试环境复现 #发布', done: false, due: '2026-11-05', doneDate: null, created: null, priority: 'P0', tags: ['发布'], position: 0 },
+      { id: 'a2', text: '写复现脚本', done: true, due: null, doneDate: '2026-10-28', created: null, priority: null, tags: [], position: 1 },
+      { id: 'a3', text: '无日期的事', done: false, due: null, doneDate: null, created: null, priority: null, tags: [], position: 2 },
     ])
   })
 
@@ -35,6 +35,13 @@ describe('extractTasks', () => {
     expect(changed).toBe(true)
     expect(extractTasks(out, 'note-1').map(x => x.id)).toEqual(ids)
     expect(ensureTaskIds(out, 'note-1').changed).toBe(false)
+  })
+})
+
+describe('created date', () => {
+  it('reads ➕ YYYY-MM-DD as when the task was created, and leaves it out of the text', () => {
+    expect(extractTasks([task('c1', false, [t('补齐发布文档 ➕ 2026-10-20 📅 2026-11-05')])], 'n')[0])
+      .toMatchObject({ text: '补齐发布文档', created: '2026-10-20', due: '2026-11-05' })
   })
 })
 

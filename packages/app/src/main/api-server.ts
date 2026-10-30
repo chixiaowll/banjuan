@@ -923,10 +923,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     if (!lib) return
     try {
       const body = JSON.parse(await readBody(req))
-      const task = await lib.tasks.add({ text: body.text, noteId: body.noteId, section: body.section || undefined, due: body.due || undefined, priority: body.priority || undefined }, { by: body.source || undefined })
+      const task = await lib.tasks.add({ text: body.text, noteId: body.noteId, section: body.section || undefined, due: body.due || undefined, priority: body.priority || undefined, created: body.created || undefined }, { by: body.source || undefined })
       json(res, 200, withTaskLink(task, lib.rootPath))
     } catch (e: any) {
-      json(res, /not found/i.test(e.message) ? 404 : /required|due:|priority:|heading|markdown notes|source name/i.test(e.message) ? 400 : 500, { error: e.message })
+      json(res, /not found/i.test(e.message) ? 404 : /required|due:|priority:|created:|heading|markdown notes|source name/i.test(e.message) ? 400 : 500, { error: e.message })
     }
     return
   }

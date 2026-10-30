@@ -325,7 +325,8 @@ banjuan task add "部署测试环境" --note <id> [--section "### 待办"] [--du
 banjuan task done <id> [--comment "已部署"] [--undo] --json      # checks it, adds ✅ <today>
 banjuan task update <id> [--text …] [--due <date|none>] [--priority <P0|none>] [--move-to <note-id> --section "## Backlog"] --json
 ```
-- In a task's text: `📅 2026-11-05` due date, `✅ 2026-10-28` done date, a `[P0]` / `**[P0]**` prefix, `#tags`.
+- In a task's text: `📅 2026-11-05` due date, `✅ 2026-10-28` done date, `➕ 2026-10-20` created date (when it really
+  started — "open for N days" counts from it; `task add --created <date>` writes it), a `[P0]` / `**[P0]**` prefix, `#tags`.
 - Its project is its first `#tag`, else the name of its note's folder (`--project` matches that exactly, any case);
   every task also carries `note.folder` (the full path) and `firstSeen` ("open for N days").
 - In Markdown from `note show --body` / `read_note` a checkbox ends with ` ^<task id>`: keep it when you rewrite

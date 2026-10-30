@@ -48,6 +48,18 @@ describe('tasks: the checkboxes of notes, indexed', () => {
     expect(lib.tasks.list({ noteId: n.id }).length).toBe(3)
   })
 
+  it('a ➕ created date is when the task was first seen; adding with one and rewriting keep it', async () => {
+    const n = await lib.notes.create({ title: 'n', content: '## Backlog\n\n- [ ] 迁移来的 ➕ 2026-10-20' })
+    const [old] = lib.tasks.list({})
+    expect(new Date(old.firstSeen).getTime()).toBe(new Date(2026, 9, 20).getTime())
+    const added = await lib.tasks.add({ text: '补记的', noteId: n.id, section: '## Backlog', created: '2026-10-22', due: '2026-11-01' })
+    expect(await md(n.id)).toContain(`- [ ] 补记的 ➕ 2026-10-22 📅 2026-11-01 ^${added.id}`)
+    await lib.tasks.update(added.id, { text: '补记的（改）', priority: 'P2' })
+    expect(await md(n.id)).toContain(`- [ ] **[P2]** 补记的（改） ➕ 2026-10-22 📅 2026-11-01 ^${added.id}`)
+    expect(new Date(lib.tasks.get(added.id)!.firstSeen).getTime()).toBe(new Date(2026, 9, 22).getTime())
+    await expect(lib.tasks.add({ text: 'x', noteId: n.id, created: '10-22' })).rejects.toThrow()
+  })
+
   it('keeps the tasks (and when each was first seen) through a full rebuild', async () => {
     await lib.notes.create({ title: 'n', content: '- [ ] 甲\n- [ ] 乙' })
     const before = lib.tasks.list({})
