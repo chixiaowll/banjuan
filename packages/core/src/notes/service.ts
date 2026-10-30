@@ -18,6 +18,8 @@ import { noteFileLock } from '../storage/keyed-lock.js'
 import { noteLockKey } from './note-file.js'
 import { NoteHistory, type NoteVersion } from './history.js'
 import { parseHeadingLine, upsertSection } from './sections.js'
+import { ensureTaskIds } from './tasks.js'
+import type { TaskService } from './task-service.js'
 
 /** The app's own saves (an editor saving as you type) keep at most one version per note this often. */
 const EDIT_VERSION_INTERVAL_MS = 10 * 60_000
@@ -82,6 +84,10 @@ export class NoteService {
     return row?.id ?? null
   }
 
+  private tasks: TaskService | null = null
+  /** The task index follows every write of a note's content. */
+  setTasks(tasks: TaskService): void { this.tasks = tasks }
+
   private trash: TrashService | null = null
   /** Deletes move the note file to the recycle bin instead of erasing it. */
   setTrash(trash: TrashService): void { this.trash = trash }
@@ -120,6 +126,7 @@ export class NoteService {
               if (noteType === 'mindmap' && raw.nodes) {
                 this.importMindmapNodesFromFile(m.id, raw.nodes, raw.edges ?? [])
               }
+              if (noteType === 'markdown' && Array.isArray(raw.blocks)) this.tasks?.indexNote({ id: m.id, path: relPath, type: noteType }, raw.blocks)
               pendingLinks.push({ noteId: m.id, rawText })
             } catch { /* skip malformed files */ }
           }
@@ -231,6 +238,7 @@ export class NoteService {
       for (const note of inDir()) {
         this.db.run('UPDATE notes SET path = ?, updated_at = ? WHERE id = ?', [newPath + '/' + note.path.substring(prefix.length), now, note.id])
       }
+      this.tasks?.refreshFolders()
     })
   }
 
@@ -312,6 +320,7 @@ export class NoteService {
         }
         blocks = contentToBlocks(content)
       }
+      blocks = ensureTaskIds(blocks, id).blocks   // checkboxes keep one id from the start
       await this.fs.writeTextFile(fullPath, JSON.stringify({ meta, blocks }, null, 2))
       contentStr = JSON.stringify(blocks)
       this.search.index({ id, title: input.title, content: this.blocksToText(blocks), type: 'note' })
@@ -338,6 +347,7 @@ export class NoteService {
     }
 
     if (linkBlocks) await this.syncLinksFromBlocks(id, linkBlocks)
+    if (linkBlocks) this.tasks?.indexNote({ id, path: relPath, type: noteType }, linkBlocks)
 
     const note: Note = {
       id, title: input.title, type: noteType, path: relPath, docId: input.docId ?? null,
@@ -505,11 +515,12 @@ export class NoteService {
         }
         if (updates.title !== undefined) raw.meta.title = updates.title
         raw.meta.updatedAt = now
-        if (updates.content !== undefined) raw.blocks = contentToBlocks(updates.content)
+        if (updates.content !== undefined) raw.blocks = ensureTaskIds(contentToBlocks(updates.content), id).blocks
         await this.fs.writeTextFile(filePath, JSON.stringify(raw, null, 2))
         // Content may have added/removed wiki-links — keep link tables current
         // so we don't depend on a full rebuild to fix them.
         if (updates.content !== undefined) await this.syncLinksFromBlocks(id, raw.blocks)
+        if (updates.content !== undefined) this.tasks?.indexNote({ id, path: row.path as string, type: 'markdown' }, raw.blocks ?? [])
         // Keep full-text search current: it was only written on create, so
         // search kept finding a note's first draft until a full rebuild.
         if (updates.content !== undefined || updates.title !== undefined) {
@@ -615,6 +626,7 @@ export class NoteService {
       }
 
       this.db.run('UPDATE notes SET path = ?, folder_id = NULL, updated_at = ? WHERE id = ?', [newRelPath, now, id])
+      this.tasks?.refreshFolders()   // its folder (and so its tasks' project) changed
     })
     const note = (await this.get(id))!
     this.events.emit('note:updated', { note })
@@ -652,6 +664,7 @@ export class NoteService {
       this.db.run('DELETE FROM notes WHERE id = ?', [id])
     })
     this.search.removeById(id)
+    this.tasks?.removeNote(id)
     const filePath = join(this.notesDir, row.path)
     if (await this.fs.exists(filePath)) {
       if (this.trash) {

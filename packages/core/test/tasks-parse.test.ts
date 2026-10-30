@@ -17,21 +17,24 @@ describe('extractTasks', () => {
       { type: 'bulletListItem', content: [t('挂起：部署测试环境（已挂 3 天）'), { type: 'link', href: 'banjuan://task/a1', content: [t('↗')] }], children: [] },
       task('a3', false, [t('无日期的事')]),
     ]
-    expect(extractTasks(blocks)).toEqual([
+    expect(extractTasks(blocks, 'n')).toEqual([
       { id: 'a1', text: '部署测试环境复现 #发布', done: false, due: '2026-11-05', doneDate: null, priority: 'P0', tags: ['发布'], position: 0 },
       { id: 'a2', text: '写复现脚本', done: true, due: null, doneDate: '2026-10-28', priority: null, tags: [], position: 1 },
       { id: 'a3', text: '无日期的事', done: false, due: null, doneDate: null, priority: null, tags: [], position: 2 },
     ])
   })
 
-  it('skips checkboxes without an id (ensureTaskIds gives them one, and says so)', () => {
-    const blocks = [task(undefined, false, [t('新任务')]), task('keep', false, [t('已有')], [task(undefined, false, [t('子任务')])])]
-    expect(extractTasks(blocks).map(x => x.id)).toEqual(['keep'])
-    const { blocks: out, changed } = ensureTaskIds(blocks)
+  it('gives a checkbox without an id one made from its note and text — the one ensureTaskIds then stores', () => {
+    const blocks = [task(undefined, false, [t('新任务')]), task('keep', false, [t('已有')], [task(undefined, false, [t('子任务')])]), task(undefined, false, [t('新任务')])]
+    const ids = extractTasks(blocks, 'note-1').map(x => x.id)
+    expect(ids[1]).toBe('keep')
+    expect(new Set(ids).size).toBe(4)   // the two "新任务" differ too
+    expect(extractTasks(blocks, 'note-1').map(x => x.id)).toEqual(ids)   // stable
+    expect(extractTasks(blocks, 'note-2')[0].id).not.toBe(ids[0])   // per note
+    const { blocks: out, changed } = ensureTaskIds(blocks, 'note-1')
     expect(changed).toBe(true)
-    expect(extractTasks(out).length).toBe(3)
-    expect((out[1] as any).id).toBe('keep')
-    expect(ensureTaskIds(out).changed).toBe(false)
+    expect(extractTasks(out, 'note-1').map(x => x.id)).toEqual(ids)
+    expect(ensureTaskIds(out, 'note-1').changed).toBe(false)
   })
 })
 

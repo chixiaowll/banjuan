@@ -159,6 +159,27 @@ CREATE TABLE IF NOT EXISTS mindmap_summaries (
 );
 `
 
+// The checkboxes of notes (notes/task-service.ts). Built from the notes, but
+// never cleared by a rebuild: it reconciles instead, keeping first_seen.
+const TASKS_SQL = `
+CREATE TABLE IF NOT EXISTS tasks (
+  id TEXT PRIMARY KEY,
+  note_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  done INTEGER NOT NULL DEFAULT 0,
+  due TEXT,
+  priority TEXT,
+  project TEXT NOT NULL DEFAULT '',
+  tags TEXT,
+  folder TEXT NOT NULL DEFAULT '',
+  first_seen TEXT NOT NULL,
+  done_at TEXT,
+  position INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_note ON tasks(note_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_open ON tasks(done, due);
+`
+
 // Secondary indexes. Composite primary keys only cover their FIRST column, so
 // lookups by the second (backlinks by target, items by tag) and by document
 // path / mind-map id otherwise scan the whole table. Created on every open, so
@@ -183,6 +204,7 @@ CREATE INDEX IF NOT EXISTS idx_mindmap_summaries_mindmap ON mindmap_summaries(mi
 export function initSchema(db: PlatformDatabase): void {
   db.execute(SCHEMA_SQL)
   db.execute(INDEX_SQL)
+  db.execute(TASKS_SQL)
 
   ensureSearchIndex(db)
   ensureDocTextIndex(db)

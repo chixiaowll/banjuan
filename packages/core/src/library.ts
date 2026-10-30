@@ -1,4 +1,5 @@
 import type { PlatformDatabase } from './platform/index.js'
+import { TaskService } from './notes/task-service.js'
 import type { PlatformDeps, PlatformFS } from './platform/index.js'
 import { join, relative, dirname } from './platform/path.js'
 import { initSchema } from './db/schema.js'
@@ -37,6 +38,8 @@ export class Library {
   readonly documents: DocumentService
   readonly annotations: AnnotationService
   readonly notes: NoteService
+  /** The checkboxes of notes, indexed (notes/task-service.ts). */
+  readonly tasks: TaskService
   readonly folders: FolderService
   readonly noteLinks: NoteLinkService
   readonly docLinks: DocLinkService
@@ -63,6 +66,9 @@ export class Library {
     this.documents = new DocumentService(db, rootPath, this.search, this.events, deps.fs, deps.crypto)
     this.annotations = new AnnotationService(db, rootPath, this.events, deps.fs)
     this.notes = new NoteService(db, rootPath, this.search, this.events, deps.fs)
+    this.tasks = new TaskService(db)
+    this.notes.setTasks(this.tasks)
+    this.tasks.setNotes(this.notes)
     this.folders = new FolderService(db, this.events)
     this.noteLinks = new NoteLinkService(db)
     this.docLinks = new DocLinkService(db)
@@ -225,7 +231,7 @@ export class Library {
   }
 
   createIndexService(): IndexService {
-    return new IndexService(this.db, this.rootPath, this.fs)
+    return new IndexService(this.db, this.rootPath, this.fs, this.tasks)
   }
 
   createStubService(): StubService {

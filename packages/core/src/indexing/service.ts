@@ -1,4 +1,5 @@
 import type { PlatformDatabase, PlatformFS } from '../platform/index.js'
+import type { TaskService } from '../notes/task-service.js'
 import { join } from '../platform/path.js'
 import { JsonStore } from '../storage/json-store.js'
 import { hasPlainPath } from '../storage/safe-path.js'
@@ -12,7 +13,8 @@ import { extractNoteLinks, extractDocumentLinks } from '../notes/extract-links.j
  * one-time full rebuild; matching versions skip rebuildFull entirely.
  */
 // 2: search_index switched to the trigram tokenizer (Chinese substring search).
-export const INDEX_VERSION = 2
+// 3: the task index (notes/task-service.ts) — one rebuild fills it for existing notes.
+export const INDEX_VERSION = 3
 
 export class IndexService {
   private docStore: JsonStore<DocumentFileData>
@@ -22,7 +24,7 @@ export class IndexService {
   private notesDir: string
   private ftsAvailable: boolean
 
-  constructor(private db: PlatformDatabase, private rootPath: string, private fs: PlatformFS) {
+  constructor(private db: PlatformDatabase, private rootPath: string, private fs: PlatformFS, private tasks?: TaskService) {
     try {
       db.query('SELECT 1 FROM search_index LIMIT 0')
       this.ftsAvailable = true
@@ -82,7 +84,11 @@ export class IndexService {
 
       const pendingLinks: PendingNoteLink[] = []
       const pendingDocLinks: PendingDocLink[] = []
-      for (const note of pickOnePerId(notes, notePaths)) this.insertNote(note, pendingLinks, pendingDocLinks)
+      const indexed = pickOnePerId(notes, notePaths)
+      for (const note of indexed) this.insertNote(note, pendingLinks, pendingDocLinks)
+      // Tasks are reconciled, not cleared: when each was first seen survives the rebuild.
+      this.tasks?.reconcileAll(indexed.flatMap(n => n.kind === 'json' && Array.isArray(n.raw.blocks)
+        ? [{ id: n.id, path: n.relPath, type: n.raw.meta?.type ?? 'markdown', blocks: n.raw.blocks }] : []))
       // Title-only links (markdown-imported) resolve here, after every note row
       // exists — first note wins on duplicate titles, same as click-to-open.
       const titleToId = new Map<string, string>()
@@ -214,6 +220,7 @@ export class IndexService {
     const noteLinks: PendingNoteLink[] = []
     const docLinks: PendingDocLink[] = []
     this.insertNote(note, noteLinks, docLinks)
+    if (note.kind === 'json' && Array.isArray(note.raw.blocks)) this.tasks?.indexNote({ id: note.id, path: note.relPath, type: note.raw.meta?.type ?? 'markdown' }, note.raw.blocks)
     for (const link of noteLinks) {
       const targetId = link.targetId
         || (link.targetTitle ? this.db.queryOne<{ id: string }>('SELECT id FROM notes WHERE title = ? LIMIT 1', [link.targetTitle])?.id ?? '' : '')

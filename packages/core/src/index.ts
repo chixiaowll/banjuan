@@ -30,5 +30,7 @@ export { migrateNotesToJson, migrateNotesToJsonAsync, markdownToBlocks, contentT
 export { AttachmentService } from './notes/attachment-service.js'
 export { blocksToMarkdown, collectAttachmentPaths } from './notes/export-markdown.js'
 export { formatLink, parseLink, linkPage, type LinkKind, type ParsedLink } from './notes/links.js'
+export { TaskService, type Task, type TaskFilter, type TaskChanges } from './notes/task-service.js'
+export { extractTasks, parseTaskText } from './notes/tasks.js'
 export { extractPdf, extractPdfWith, extractEpub, extractPlain, stripHtml, normalizeText, joinTextItems, type PdfjsLocation, type ExtractedPage, type ExtractedText } from './search/doc-text-extract.js'
 export { epubCoverImage } from './documents/epub-cover.js'
