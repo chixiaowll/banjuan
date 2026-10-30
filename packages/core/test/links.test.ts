@@ -7,6 +7,7 @@ describe('banjuan links', () => {
     expect(parseLink('banjuan://doc/abc123?page=3&library=%2FUsers%2Fa+b%2F%E4%B9%A6%E6%88%BF')).toEqual({ kind: 'doc', id: 'abc123', query: { page: '3', library: '/Users/a b/书房' } })
     expect(parseLink(formatLink('annotation', 'a-1', { doc: 'd1', page: 7 }))).toEqual({ kind: 'annotation', id: 'a-1', query: { doc: 'd1', page: '7' } })
     expect(formatLink('note', 'n1')).toBe('banjuan://note/n1')
+    expect(parseLink('banjuan://task/3f2a-77')).toEqual({ kind: 'task', id: '3f2a-77', query: {} })
     expect(formatLink('doc', 'd', { page: undefined, authors: '' })).toBe('banjuan://doc/d')
     expect(parseLink('banjuan://note/n1/')).toEqual({ kind: 'note', id: 'n1', query: {} })
   })

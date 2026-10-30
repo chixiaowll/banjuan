@@ -5,11 +5,12 @@
  *   banjuan://doc/<id>?page=12                     a document (at a page)
  *   banjuan://annotation/<id>?doc=<docId>&page=3   an annotation
  *   banjuan://note/<id>                            a note
+ *   banjuan://task/<id>                            a task (a checkbox in a note)
  *
  * Any of them may carry `library=<path>`. Other query values pass through.
  */
 
-export type LinkKind = 'doc' | 'annotation' | 'note'
+export type LinkKind = 'doc' | 'annotation' | 'note' | 'task'
 
 export interface ParsedLink {
   kind: LinkKind
@@ -17,7 +18,7 @@ export interface ParsedLink {
   query: Record<string, string>
 }
 
-const LINK = /^banjuan:\/\/(doc|annotation|note)\/([A-Za-z0-9-]{1,64})\/?(?:\?(.*))?$/
+const LINK = /^banjuan:\/\/(doc|annotation|note|task)\/([A-Za-z0-9-]{1,64})\/?(?:\?(.*))?$/
 
 export function formatLink(kind: LinkKind, id: string, query: Record<string, string | number | undefined> = {}): string {
   const params = new URLSearchParams()

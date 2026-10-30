@@ -129,7 +129,10 @@ function markdownLineToBlock(line: string): unknown | null {
 
   const checkMatch = line.match(/^[-*]\s+\[([ xX])\]\s+(.*)/)
   if (checkMatch) {
-    return { type: 'checkListItem', props: { checked: checkMatch[1] !== ' ' }, content: parseInline(checkMatch[2]), children: [] }
+    // A task's id at the end (" ^<id>", from blocksToMarkdown for AI tools) is the block's id again.
+    const idMatch = /\s+\^([A-Za-z0-9-]{4,64})\s*$/.exec(checkMatch[2])
+    const body = idMatch ? checkMatch[2].slice(0, idMatch.index) : checkMatch[2]
+    return { ...(idMatch ? { id: idMatch[1] } : {}), type: 'checkListItem', props: { checked: checkMatch[1] !== ' ' }, content: parseInline(body), children: [] }
   }
 
   const bulletMatch = line.match(/^[-*]\s+(.*)/)

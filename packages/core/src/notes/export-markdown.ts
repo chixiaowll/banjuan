@@ -74,7 +74,8 @@ function blockToMd(block: Record<string, unknown>, opts: MarkdownOptions = {}): 
       result = '1. ' + text
       break
     case 'checkListItem':
-      result = (props.checked ? '- [x] ' : '- [ ] ') + text
+      // For AI tools the task's id goes along (" ^<id>"), so writing it back keeps the task.
+      result = (props.checked ? '- [x] ' : '- [ ] ') + text + (opts.banjuanLinks && typeof block.id === 'string' && block.id ? ` ^${block.id}` : '')
       break
     case 'codeBlock':
       result = '```' + (props.language || '') + '\n' + text + '\n```'
