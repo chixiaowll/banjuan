@@ -559,6 +559,12 @@ export class NoteService {
     return this.versions.list(id)
   }
 
+  /** A version's title and content (BlockNote JSON), to look at before putting it back. */
+  async readVersion(id: string, version: string): Promise<{ title: string; content: string }> {
+    const file = JSON.parse(await this.versions.read(id, version)) as Partial<NoteJsonFile>
+    return { title: String(file.meta?.title ?? ''), content: JSON.stringify(Array.isArray(file.blocks) ? file.blocks : []) }
+  }
+
   /** Put a note back as it was in `version` (what it replaces is kept as a version too). */
   async restore(id: string, version: string, write: NoteWriteOptions = {}): Promise<Note> {
     const file = JSON.parse(await this.versions.read(id, version)) as Partial<NoteJsonFile>

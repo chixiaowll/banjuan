@@ -1,4 +1,4 @@
-import { PanelLeftClose, PanelLeftOpen, Home, LibraryBig, ChevronDown, ChevronRight, Folder, PenLine, Cloud, Puzzle, Settings, Trash2, Tag, ArrowLeftRight } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Home, LibraryBig, ChevronDown, ChevronRight, Folder, PenLine, Cloud, Puzzle, Settings, Trash2, ListTodo, Tag, ArrowLeftRight } from 'lucide-react'
 import DirTreeItem from './DirTreeItem.js'
 import { type DirNode, type LibraryTag } from './helpers.js'
 import { useLibrary } from './LibraryContext.js'
@@ -216,6 +216,19 @@ export default function LibrarySidebar() {
           <Settings size={sb.iconSize} style={{ flexShrink: 0 }} />
           {!sidebarCollapsed && t('settings.title')}
         </div>
+        {api.tasks && (
+          <div
+            style={sidebarItemStyle(selectedSection === 'tasks')}
+            onClick={() => handleSectionChange('tasks')}
+            onMouseEnter={e => { if (selectedSection !== 'tasks') e.currentTarget.style.background = sb.hoverBackground }}
+            onMouseLeave={e => { if (selectedSection !== 'tasks') e.currentTarget.style.background = 'transparent' }}
+            title={sidebarCollapsed ? t('tasks.title') : undefined}
+            data-sidebar-tasks
+          >
+            <ListTodo size={sb.iconSize} style={{ flexShrink: 0 }} />
+            {!sidebarCollapsed && t('tasks.title')}
+          </div>
+        )}
         {api.trash && (
           <div
             style={sidebarItemStyle(selectedSection === 'trash')}

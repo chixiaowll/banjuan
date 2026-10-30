@@ -892,3 +892,18 @@
   width: 20px;
   text-align: center;
 }
+
+/* A block opened from a task link or the to-do list: a short highlight. */
+.bn-block-outer.bj-block-flash {
+  animation: bjBlockFlash 1.8s ease-out;
+  border-radius: 4px;
+}
+@keyframes bjBlockFlash {
+  0%, 35% { background: var(--accent-soft, rgba(232, 130, 93, 0.22)); }
+  100% { background: transparent; }
+}
+/* Links to tasks: struck through once the task is done. */
+a[href^="banjuan://task/"][data-task-done="true"] {
+  text-decoration: line-through;
+  opacity: 0.6;
+}

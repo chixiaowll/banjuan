@@ -21,6 +21,11 @@ export function withPageLinks<P extends { page: number }, T extends { pages: P[]
   return { ...result, pages: result.pages.map(p => ({ ...p, link: formatLink('doc', docId, { page: p.page, library }) })) }
 }
 
+/** A task with its link. */
+export function withTaskLink<T extends { id: string }>(task: T, library: string): T & { link: string } {
+  return { ...task, link: formatLink('task', task.id, { library }) }
+}
+
 /** A document with its link. */
 export function withDocLink<T extends { id: string }>(doc: T, library: string): T & { link: string } {
   return { ...doc, link: formatLink('doc', doc.id, { library }) }

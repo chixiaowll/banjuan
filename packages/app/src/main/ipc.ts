@@ -1,4 +1,5 @@
 import { ipcMain, dialog, clipboard, shell, BrowserWindow, app, safeStorage, webContents } from 'electron'
+import type { TaskFilter } from '@banjuan/core'
 import { readFileSync, existsSync, mkdirSync, writeFileSync, copyFileSync, unlinkSync, readdirSync, statSync, renameSync, realpathSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { readByteRange } from './read-range.js'
@@ -598,6 +599,13 @@ export function registerIpcHandlers() {
     return getLib(event).notes.get(id)
   })
 
+  ipcMain.handle('notes:history', (event, id: string) => getLib(event).notes.history(id))
+  ipcMain.handle('notes:readVersion', (event, id: string, version: string) => getLib(event).notes.readVersion(id, version))
+  ipcMain.handle('notes:restore', (event, id: string, version: string) => getLib(event).notes.restore(id, version, { by: 'app' }))
+  ipcMain.handle('tasks:list', (event, filter?: TaskFilter) => getLib(event).tasks.list(filter ?? {}))
+  ipcMain.handle('tasks:get', (event, id: string) => getLib(event).tasks.get(id))
+  // From the to-do list: written like the app's own edits (its saves coalesce versions).
+  ipcMain.handle('tasks:setDone', (event, id: string, done: boolean) => getLib(event).tasks.setDone(id, !!done, { source: 'app' }))
   ipcMain.handle('notes:update', async (event, id: string, updates: {
     title?: string; content?: string; typeMeta?: Record<string, unknown>
   }) => {

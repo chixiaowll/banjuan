@@ -35,7 +35,7 @@ export interface LibraryViewProps {
   onLibraryRenamed?: (name: string) => void
 }
 
-export type SidebarSection = 'home' | 'documents' | 'notes' | 'sync' | 'plugins' | 'settings' | 'trash' | 'tags' | 'tag-results'
+export type SidebarSection = 'home' | 'documents' | 'notes' | 'sync' | 'plugins' | 'settings' | 'trash' | 'tasks' | 'tags' | 'tag-results'
 
 export interface DirNode {
   name: string

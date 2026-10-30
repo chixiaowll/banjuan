@@ -183,6 +183,67 @@ const TOOLS = [
     },
   },
   {
+    name: 'list_tasks',
+    description: 'Tasks are the checkboxes (- [ ] …) in Markdown notes. List them across the library: open ones by default. Each: { id, text, done, due, priority, project (its first #tag, else its note\'s folder name), tags, note: { id, title, folder }, link, firstSeen (when first seen — "open for N days"), doneAt }. In Markdown from read_note a checkbox ends with " ^<task id>": keep it when you edit.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['open', 'done', 'all'], description: 'Default open' },
+        project: { type: 'string', description: 'Only this project (exact, any case)' },
+        dueBefore: { type: 'string', description: 'Due on or before (YYYY-MM-DD)' },
+        doneSince: { type: 'string', description: 'Done on or after (YYYY-MM-DD)' },
+        noteId: { type: 'string', description: 'Only the tasks of this note' },
+      },
+    },
+  },
+  {
+    name: 'add_task',
+    description: 'Add a task (a checkbox) to a note: at the end of a section (given by its heading line; made at the end of the note if missing), else at the end of the note. Returns the task with its id and link.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'What to do' },
+        noteId: { type: 'string', description: 'The note it goes in' },
+        section: { type: 'string', description: 'The section heading line, e.g. "### 待办" (optional)' },
+        due: { type: 'string', description: 'Due date YYYY-MM-DD (optional)' },
+        priority: { type: 'string', description: 'P0–P9 (optional)' },
+        source: { type: 'string', description: 'Who is writing (default: $BANJUAN_SOURCE)' },
+      },
+      required: ['text', 'noteId'],
+    },
+  },
+  {
+    name: 'complete_task',
+    description: 'Check a task in its note and add today\'s done date (✅ YYYY-MM-DD); an optional comment (the outcome) goes under it. undo: true unchecks it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Task id' },
+        comment: { type: 'string', description: 'What came of it (optional)' },
+        undo: { type: 'boolean', description: 'Uncheck it again' },
+        source: { type: 'string', description: 'Who is writing (default: $BANJUAN_SOURCE)' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'update_task',
+    description: 'Change a task\'s text, due date or priority (null clears them), or move it to another note / section. It keeps its id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Task id' },
+        text: { type: 'string' },
+        due: { type: ['string', 'null'], description: 'YYYY-MM-DD, or null to clear' },
+        priority: { type: ['string', 'null'], description: 'P0–P9, or null to clear' },
+        moveToNoteId: { type: 'string', description: 'Move it into this note' },
+        moveToSection: { type: 'string', description: 'With moveToNoteId: the section heading line' },
+        source: { type: 'string', description: 'Who is writing (default: $BANJUAN_SOURCE)' },
+      },
+      required: ['id'],
+    },
+  },
+  {
     name: 'note_history',
     description: 'Earlier versions of a note, newest first: { version, at, reason, title, preview }. A version is kept before every write through these tools, and as the user edits.',
     inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Note ID' } }, required: ['id'] },
@@ -455,6 +516,24 @@ async function handleToolCall(name, args) {
     }
     case 'update_note_section':
       return brief(await apiPost(`/api/notes/${encodeURIComponent(args.id)}/section`, { heading: args.heading, content: args.content, mode: args.mode, newAt: args.newAt, order: args.order, source: sourceOf(args) }))
+    case 'list_tasks': {
+      const params = new URLSearchParams({ status: args.status || 'open' })
+      if (args.project !== undefined) params.set('project', args.project)
+      if (args.dueBefore) params.set('dueBefore', args.dueBefore)
+      if (args.doneSince) params.set('doneSince', args.doneSince)
+      if (args.noteId) params.set('note', args.noteId)
+      return await apiCall(`/api/tasks?${params}`)
+    }
+    case 'add_task':
+      return await apiPost('/api/tasks', { text: args.text, noteId: args.noteId, section: args.section, due: args.due, priority: args.priority, source: sourceOf(args) })
+    case 'complete_task':
+      return await apiPost(`/api/tasks/${encodeURIComponent(args.id)}/done`, { comment: args.comment, undo: !!args.undo, source: sourceOf(args) })
+    case 'update_task': {
+      const body = { source: sourceOf(args) }
+      for (const k of ['text', 'due', 'priority']) if (k in args) body[k] = args[k]
+      if (args.moveToNoteId) body.moveTo = { noteId: args.moveToNoteId, section: args.moveToSection }
+      return await apiPut(`/api/tasks/${encodeURIComponent(args.id)}`, body)
+    }
     case 'note_history':
       return await apiCall(`/api/notes/${encodeURIComponent(args.id)}/history`)
     case 'restore_note':

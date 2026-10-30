@@ -33,7 +33,21 @@ import type {
   SearchResult,
   SearchOptions,
   TrashEntry,
+  Task,
+  TaskFilter,
 } from '@banjuan/core'
+
+/** An earlier version of a note (kept before writes): who wrote it and why it was kept. */
+export interface NoteVersion {
+  version: string
+  at: string
+  /** The write it was kept before: 'edit' (the app), 'external', 'restore'. */
+  reason: string
+  title: string
+  preview: string
+  /** Who wrote this version: 'app', a program's name ('cc-desk', 'cli'), 'external', or '' (not known). */
+  by: string
+}
 
 // ---------------------------------------------------------------------------
 // BanjuanAPI – platform-agnostic interface mirroring the Electron preload API
@@ -238,6 +252,20 @@ export interface BanjuanAPI {
     importDroppedMarkdown?(files: File[], targetFolder: string | null): Promise<Array<{ title: string; success: boolean; error?: string }>>
     exportDir?(entries: Array<{ title: string; content: string; attachments: string[]; subPath: string }>, format: 'markdown' | 'pdf', folderName: string): Promise<string | null>
     onNavigateLink(callback: (noteId: string) => void): () => void
+    /** Earlier versions, newest first (desktop). */
+    history?(id: string): Promise<NoteVersion[]>
+    /** A version's title and content (BlockNote JSON). */
+    readVersion?(id: string, version: string): Promise<{ title: string; content: string }>
+    /** Put the note back as it was (what it replaces is kept as a version too). */
+    restore?(id: string, version: string): Promise<Note>
+  }
+
+  /** Tasks: the checkboxes of notes, across the library (desktop). */
+  tasks?: {
+    list(filter?: TaskFilter): Promise<Task[]>
+    get(id: string): Promise<Task | null>
+    /** Check (adding today's done date) or uncheck, in its note. */
+    setDone(id: string, done: boolean): Promise<Task>
   }
 
   folders: {

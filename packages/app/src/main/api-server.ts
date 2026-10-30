@@ -8,7 +8,7 @@ import { randomUUID, randomBytes } from 'node:crypto'
 import { app } from 'electron'
 import type { Library } from '@banjuan/core'
 import { blocksToMarkdown } from '@banjuan/core'
-import { withSearchLinks, withPageLinks, withAnnotationLinks, withNoteLink, withDocLink } from './api-links.js'
+import { withSearchLinks, withPageLinks, withAnnotationLinks, withNoteLink, withDocLink, withTaskLink } from './api-links.js'
 import { findSameContent } from './same-content.js'
 import { saveClip } from './clip-service.js'
 import { openLibraryForApi, initLibraryForApi, libraries, getLibraryHistory, releaseLibrary } from './ipc.js'
@@ -113,7 +113,7 @@ function requireLib(res: ServerResponse, query: Record<string, string>): Library
 function changeKind(method: string, path: string): 'documents' | 'notes' | 'all' | null {
   if (method === 'GET' || method === 'OPTIONS') return null
   if (path === '/api/clip' || path.startsWith('/api/documents') || path.startsWith('/api/annotations')) return 'documents'
-  if (path.startsWith('/api/notes') || path.startsWith('/api/mindmaps') || path.startsWith('/api/folders')) return 'notes'
+  if (path.startsWith('/api/notes') || path.startsWith('/api/mindmaps') || path.startsWith('/api/folders') || path.startsWith('/api/tasks')) return 'notes'
   if (path.startsWith('/api/tags')) return 'all'
   return null
 }
@@ -903,6 +903,70 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     if (query.page) opts.page = parseInt(query.page, 10)
     const annotations = await lib.annotations.list(opts as any)
     json(res, 200, withAnnotationLinks(annotations, lib.rootPath))
+    return
+  }
+
+  // --- Tasks: the checkboxes of notes (core notes/task-service.ts) ---
+  if (path === '/api/tasks' && req.method === 'GET') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    const status = query.status === 'done' || query.status === 'all' ? query.status : 'open'
+    const day = (v: string | undefined) => (v && !Number.isNaN(new Date(v).getTime()) ? v : undefined)
+    const tasks = lib.tasks.list({
+      status, project: query.project, dueBefore: day(query.dueBefore), doneSince: day(query.doneSince), noteId: query.note || undefined,
+    })
+    json(res, 200, tasks.map(t => withTaskLink(t, lib.rootPath)))
+    return
+  }
+  if (path === '/api/tasks' && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      const task = await lib.tasks.add({ text: body.text, noteId: body.noteId, section: body.section || undefined, due: body.due || undefined, priority: body.priority || undefined }, { by: body.source || undefined })
+      json(res, 200, withTaskLink(task, lib.rootPath))
+    } catch (e: any) {
+      json(res, /not found/i.test(e.message) ? 404 : /required|due:|priority:|heading|markdown notes|source name/i.test(e.message) ? 400 : 500, { error: e.message })
+    }
+    return
+  }
+  const taskMatch = path.match(/^\/api\/tasks\/([^/]+)$/)
+  if (taskMatch && req.method === 'GET') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    const task = lib.tasks.get(taskMatch[1])
+    if (!task) { json(res, 404, { error: 'Task not found' }); return }
+    json(res, 200, withTaskLink(task, lib.rootPath))
+    return
+  }
+  if (taskMatch && req.method === 'PUT') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req))
+      const task = await lib.tasks.update(taskMatch[1], {
+        text: body.text, due: body.due, priority: body.priority,
+        moveTo: body.moveTo?.noteId ? { noteId: body.moveTo.noteId, section: body.moveTo.section || undefined } : undefined,
+      }, { by: body.source || undefined })
+      json(res, 200, withTaskLink(task, lib.rootPath))
+    } catch (e: any) {
+      json(res, /not found/i.test(e.message) ? 404 : /required|due:|priority:|heading|markdown notes|source name/i.test(e.message) ? 400 : 500, { error: e.message })
+    }
+    return
+  }
+  const taskDoneMatch = path.match(/^\/api\/tasks\/([^/]+)\/done$/)
+  if (taskDoneMatch && req.method === 'POST') {
+    const lib = requireLib(res, query)
+    if (!lib) return
+    try {
+      const body = JSON.parse(await readBody(req) || '{}')
+      const task = body.undo
+        ? await lib.tasks.setDone(taskDoneMatch[1], false, { by: body.source || undefined })
+        : await lib.tasks.complete(taskDoneMatch[1], { comment: body.comment || undefined }, { by: body.source || undefined })
+      json(res, 200, withTaskLink(task, lib.rootPath))
+    } catch (e: any) {
+      json(res, /not found/i.test(e.message) ? 404 : /source name/i.test(e.message) ? 400 : 500, { error: e.message })
+    }
     return
   }
 

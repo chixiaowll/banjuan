@@ -316,6 +316,23 @@ banjuan note list --since 2026-10-24 --json             # what changed this week
   over is kept there too.
 - `--json` on every write; failures exit non-zero with the reason on stderr.
 
+## Tasks (the checkboxes in notes)
+
+A task is a checkbox in a note (`- [ ] …`); the note is where it lives, these commands find and change it:
+```bash
+banjuan task list [--open|--done|--all] [--project <name>] [--due-before today] [--done-since 2026-10-24] [--note <id>] --json
+banjuan task add "部署测试环境" --note <id> [--section "### 待办"] [--due 2026-11-05] [--priority P0] --json
+banjuan task done <id> [--comment "已部署"] [--undo] --json      # checks it, adds ✅ <today>
+banjuan task update <id> [--text …] [--due <date|none>] [--priority <P0|none>] [--move-to <note-id> --section "## Backlog"] --json
+```
+- In a task's text: `📅 2026-11-05` due date, `✅ 2026-10-28` done date, a `[P0]` / `**[P0]**` prefix, `#tags`.
+- Its project is its first `#tag`, else the name of its note's folder (`--project` matches that exactly, any case);
+  every task also carries `note.folder` (the full path) and `firstSeen` ("open for N days").
+- In Markdown from `note show --body` / `read_note` a checkbox ends with ` ^<task id>`: keep it when you rewrite
+  the note, so the task keeps its id. New checkboxes need none.
+- A plain list item linking to a task (`- 部署（已挂 3 天）[↗](banjuan://task/<id>)`) is not a task: use that for
+  snapshots (a diary's "pending" list), so tasks are not copied every day.
+
 ## MCP (AI tools without a shell)
 
 The same library is available to AI tools as MCP tools (search, read_document by page, notes, mindmaps, tags):

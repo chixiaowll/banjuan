@@ -31,6 +31,7 @@ const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp
 export { schema } from './blockSchema.js'
 import { schema } from './blockSchema.js'
 import { attachmentUrlResolver } from '../../utils/attachmentUrl.js'
+import { takeNoteBlock, onNoteBlockRequest, revealBlock } from '../../utils/noteNavigation.js'
 
 interface NoteItem {
   id: string
@@ -266,6 +267,42 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   // first editor on the page — often another note in a hidden tab — so a pasted
   // file went into that note, once per open editor.
   const rootRef = useRef<HTMLDivElement>(null)
+
+  // Opened at a block (a task link, the to-do list): scroll there and flash it.
+  useEffect(() => {
+    if (!noteId) return
+    const reveal = () => {
+      const blockId = takeNoteBlock(noteId)
+      if (blockId && rootRef.current) void revealBlock(rootRef.current, blockId)
+    }
+    reveal()
+    return onNoteBlockRequest(noteId, reveal)
+  }, [noteId])
+
+  // Links to tasks (banjuan://task/<id>) show how the task stands: struck through once done.
+  useEffect(() => {
+    const tasks = api.tasks
+    if (!tasks) return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const mark = async () => {
+      const root = rootRef.current
+      if (!root) return
+      const links = [...root.querySelectorAll<HTMLAnchorElement>('a[href^="banjuan://task/"]')]
+      const ids = [...new Set(links.map(a => /^banjuan:\/\/task\/([A-Za-z0-9-]+)/.exec(a.getAttribute('href') ?? '')?.[1]).filter((x): x is string => !!x))]
+      const found = new Map(await Promise.all(ids.map(async id => [id, await tasks.get(id).catch(() => null)] as const)))
+      for (const a of links) {
+        const id = /^banjuan:\/\/task\/([A-Za-z0-9-]+)/.exec(a.getAttribute('href') ?? '')?.[1]
+        const task = id ? found.get(id) : null
+        a.dataset.taskDone = task ? String(task.done) : 'missing'
+      }
+    }
+    const soon = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => { void mark() }, 400) }
+    soon()
+    const observer = new MutationObserver(soon)
+    if (rootRef.current) observer.observe(rootRef.current, { childList: true, subtree: true })
+    document.addEventListener('banjuan:note-content-changed', soon)   // a task may have been done elsewhere
+    return () => { observer.disconnect(); document.removeEventListener('banjuan:note-content-changed', soon); if (timer) clearTimeout(timer) }
+  }, [api])
   useEffect(() => {
     if (readOnly || !noteId) return
     const container = rootRef.current

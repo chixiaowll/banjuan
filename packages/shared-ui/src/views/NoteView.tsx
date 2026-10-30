@@ -17,7 +17,8 @@ import { useKeyboardShortcuts } from '../components/mindmap/useKeyboardShortcuts
 import HandwritingCenterContent from '../components/handwriting/HandwritingCenterContent.js'
 import PageListPanel from '../components/handwriting/PageListPanel.js'
 import { createHandwritingStore, HandwritingStoreContext } from '../components/handwriting/useHandwritingStore.js'
-import { FileDown, FileText, FileImage, Eye, Pencil, PanelLeft, PanelRight, ZoomIn, ZoomOut, LayoutTemplate } from 'lucide-react'
+import { FileDown, FileText, FileImage, Eye, Pencil, PanelLeft, PanelRight, ZoomIn, ZoomOut, LayoutTemplate, History } from 'lucide-react'
+import { NoteHistoryDialog } from '../components/notes/NoteHistoryDialog.js'
 import { exportToDirectory, exportSingleNote } from '../utils/exportToDirectory.js'
 import TagInput from '../components/tags/TagInput.js'
 import { useResizable, ResizeHandle } from '../components/ResizeHandle.js'
@@ -335,6 +336,7 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
     setNaturalH(el.offsetHeight)
   }, [])
   const editorRef = useRef<BlockEditorHandle>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const saver = useDebouncedSaver(800, note.id)   // flushes on unmount / window close, never drops the last edit
   const savesInFlight = useRef(0)
   // Reload when this note is saved in another editor (a PDF side panel) or
@@ -594,6 +596,13 @@ function NoteViewInner({ note, onBack, onOpenNote }: Props) {
               }}>
               {readingMode ? <Pencil size={16} /> : <Eye size={16} />}
             </button>
+            {api.notes.history && (
+              <button onClick={() => setHistoryOpen(true)} title={t('history.title')} data-note-history-button
+                style={{ background: 'none', border: 'none', borderRadius: 4, cursor: 'pointer', padding: '4px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}>
+                <History size={16} />
+              </button>
+            )}
+            {historyOpen && <NoteHistoryDialog noteId={note.id} onClose={() => setHistoryOpen(false)} beforeRestore={() => saver.flush()} />}
             <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
               <button
                 onClick={() => setExportMenuOpen(v => !v)}

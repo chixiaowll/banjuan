@@ -14,6 +14,7 @@ import { mindmapCmd } from './commands/mindmap.js'
 import { searchCmd } from './commands/search.js'
 import { tagCmd } from './commands/tag.js'
 import { folderCmd } from './commands/folder.js'
+import { taskCmd } from './commands/task.js'
 
 const program = new Command()
   .name('banjuan')
@@ -302,6 +303,7 @@ program.addCommand(mindmapCmd)
 program.addCommand(searchCmd)
 program.addCommand(tagCmd)
 program.addCommand(folderCmd)
+program.addCommand(taskCmd)
 
 // `banjuan <file>`: open a file on its own in the app, like `code <file>`. A
 // name that is also a command runs the command (write ./name for the file).

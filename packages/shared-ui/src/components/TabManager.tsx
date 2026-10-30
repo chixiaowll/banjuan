@@ -23,6 +23,7 @@ import '../styles/mobile.css'
 import { useEscapeKey } from '../utils/useEscapeKey.js'
 import { toast, errorMessage } from './feedback.js'
 import { requestDocPage } from '../utils/docNavigation.js'
+import { requestNoteBlock } from '../utils/noteNavigation.js'
 import { parseLink, linkPage } from '@banjuan/core/dist/notes/links.js'
 import { installLongPressMenu } from '../utils/longPressMenu.js'
 import ErrorBoundary from './ErrorBoundary.js'
@@ -222,6 +223,13 @@ export default function TabManager({ libraryPath, libraryName, onSwitchLibrary, 
       if (!link) return
       const notFound = () => toast.error(t('link.notFound'))
       // Opened through the events below, whose handlers see the current tabs.
+      if (link.kind === 'task') {
+        const task = await api.tasks?.get(link.id).catch(() => null)
+        if (!task) { notFound(); return }
+        requestNoteBlock(task.note.id, task.id)
+        document.dispatchEvent(new CustomEvent('note-link-click', { detail: { noteId: task.note.id } }))
+        return
+      }
       if (link.kind === 'note') {
         const note = await api.notes.get(link.id).catch(() => null)
         if (note) document.dispatchEvent(new CustomEvent('note-link-click', { detail: { noteId: note.id } }))

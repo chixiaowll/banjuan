@@ -137,6 +137,14 @@ const api = {
       ipcRenderer.on('navigate-note-link', handler)
       return () => { ipcRenderer.removeListener('navigate-note-link', handler) }
     },
+    history: (id: string) => ipcRenderer.invoke('notes:history', id),
+    readVersion: (id: string, version: string) => ipcRenderer.invoke('notes:readVersion', id, version),
+    restore: (id: string, version: string) => ipcRenderer.invoke('notes:restore', id, version),
+  },
+  tasks: {
+    list: (filter?: Record<string, unknown>) => ipcRenderer.invoke('tasks:list', filter),
+    get: (id: string) => ipcRenderer.invoke('tasks:get', id),
+    setDone: (id: string, done: boolean) => ipcRenderer.invoke('tasks:setDone', id, done),
   },
   folders: {
     create: (input: { name: string; parentId?: string }) => ipcRenderer.invoke('folders:create', input),

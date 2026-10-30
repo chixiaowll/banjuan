@@ -19,6 +19,7 @@ async function has(lib: Library, link: ParsedLink): Promise<boolean> {
   try {
     if (link.kind === 'doc') return !!(await lib.documents.get(link.id))
     if (link.kind === 'note') return !!(await lib.notes.get(link.id))
+    if (link.kind === 'task') return !!lib.tasks.get(link.id)
     return !!(await lib.annotations.get(link.id))
   } catch {
     return false

@@ -1,6 +1,7 @@
 import SyncConfigPanel from '../components/sync/SyncConfigPanel.js'
 import TagManagerView from './TagManagerView.js'
 import TrashView from './TrashView.js'
+import TasksView from './TasksView.js'
 import { ResizeHandle } from '../components/ResizeHandle.js'
 import SettingsPanel from './library/SettingsPanel.js'
 import { useLibraryState } from './library/useLibraryState.js'
@@ -41,6 +42,12 @@ export default function LibraryView(props: LibraryViewProps) {
             <div style={layout.contentMaxWidth ? { flex: 1, overflow: 'auto' } : { display: 'contents' }}>
               <div style={layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth, margin: '0 auto' } : { display: 'contents' }}>
                 <SettingsPanel locale={locale} setLocale={setLocale} t={t} />
+              </div>
+            </div>
+          ) : selectedSection === 'tasks' ? (
+            <div style={layout.contentMaxWidth ? { flex: 1, overflow: 'auto' } : { display: 'contents' }}>
+              <div style={layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth, margin: '0 auto' } : { display: 'contents' }}>
+                <TasksView />
               </div>
             </div>
           ) : selectedSection === 'trash' ? (
