@@ -26,6 +26,7 @@
     "@codemirror/view": "^6.41.1",
     "@mantine/core": "^8.3.18",
     "@mantine/hooks": "^8.3.18",
+    "@tiptap/pm": "^3.22.4",
     "@xyflow/react": "^12.10.2",
     "d3": "^7.9.0",
     "epubjs": "^0.3.93",

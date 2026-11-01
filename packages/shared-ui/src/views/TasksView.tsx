@@ -78,6 +78,18 @@ export default function TasksView() {
   }
 
   const daysOpen = (task: Task) => Math.max(0, Math.floor((Date.now() - new Date(task.firstSeen).getTime()) / DAY))
+  // Near dates in words ("due today", "overdue by 3 days"), others as a date.
+  const dueLabel = (task: Task) => {
+    const left = Math.round((new Date(`${task.due}T00:00:00`).getTime() - new Date(`${today}T00:00:00`).getTime()) / DAY)
+    if (task.done) return t('tasks.dueOn', date(task.due!))
+    return left < 0 ? t('tasks.overdueDays', -left) : left === 0 ? t('tasks.dueToday') : left === 1 ? t('tasks.dueTomorrow') : t('tasks.dueOn', date(task.due!))
+  }
+  const counts: Record<Filter, number> = {
+    all: (open ?? []).length,
+    today: (open ?? []).filter(x => x.due === today).length,
+    overdue: (open ?? []).filter(x => !!x.due && x.due < today).length,
+    week: (open ?? []).filter(x => !!x.due && x.due >= today && x.due <= weekEnd).length,
+  }
   const date = (d: string) => new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString(LOCALE_TAGS[locale], { month: 'short', day: 'numeric' })
 
   const chip = (active: boolean): React.CSSProperties => ({
@@ -100,6 +112,7 @@ export default function TasksView() {
         {(['all', 'today', 'overdue', 'week'] as const).map(f => (
           <button key={f} data-task-filter={f} onClick={() => setFilter(f)} style={chip(filter === f)}>
             {t(f === 'all' ? 'tasks.filterAll' : f === 'today' ? 'tasks.filterToday' : f === 'overdue' ? 'tasks.filterOverdue' : 'tasks.filterWeek')}
+            {open && <span style={{ marginLeft: 5, opacity: 0.7, color: f === 'overdue' && counts.overdue > 0 ? '#c0392b' : undefined }}>{counts[f]}</span>}
           </button>
         ))}
         <select value={project} onChange={e => setProject(e.target.value)} data-task-project
@@ -134,7 +147,7 @@ export default function TasksView() {
                     {task.text}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {task.due && <span style={overdue ? { color: '#c0392b', fontWeight: 600 } : undefined}>{overdue ? t('tasks.overdueSince', date(task.due)) : t('tasks.dueOn', date(task.due))}</span>}
+                    {task.due && <span title={date(task.due)} style={overdue ? { color: '#c0392b', fontWeight: 600 } : task.due === today && !task.done ? { color: '#d35400', fontWeight: 600 } : undefined}>{dueLabel(task)}</span>}
                     {task.done && task.doneAt ? <span>{t('tasks.doneOn', date(task.doneAt))}</span> : <span>{t('tasks.openDays', daysOpen(task))}</span>}
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.note.title}</span>
                   </div>

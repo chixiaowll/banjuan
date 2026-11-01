@@ -9,7 +9,7 @@ import './BlockEditor.css'
 import { useBanjuanAPI } from '../../api.js'
 import type { BanjuanAPI } from '../../api.js'
 import * as blockNoteLocales from '@blocknote/core/locales'
-import { useI18n } from '../../i18n/index.js'
+import { useI18n, LOCALE_TAGS } from '../../i18n/index.js'
 import type { MessageKey } from '../../i18n/index.js'
 import {
   exportBlocksToMarkdown, exportBlocksToHTML,
@@ -32,6 +32,7 @@ export { schema } from './blockSchema.js'
 import { schema } from './blockSchema.js'
 import { attachmentUrlResolver } from '../../utils/attachmentUrl.js'
 import { takeNoteBlock, onNoteBlockRequest, revealBlock } from '../../utils/noteNavigation.js'
+import { taskChipsExtension, taskLinkIds, setTaskStatuses } from './taskChips.js'
 
 /** BlockNote's own allow-list of link schemes (not exported by it), plus banjuan: (pages, tasks, notes in the library). */
 const ALLOWED_LINK = /^(?:(?:http|https|ftp|ftps|mailto|tel|callto|sms|cid|xmpp|banjuan):|[^a-z]|[a-z0-9+.\-]+(?:[^a-z+.\-:]|$))/i
@@ -228,6 +229,7 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
   }, [noteId])
 
   const { locale, t } = useI18n()
+  const shortDate = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString(LOCALE_TAGS[locale], { month: 'short', day: 'numeric' })
   const editor = useCreateBlockNote({
     schema,
     initialContent: parsedContent,
@@ -239,6 +241,13 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     // banjuan:// links (a document page, a task, …) too: BlockNote drops the
     // address of any scheme it doesn't know, leaving links that go nowhere.
     links: { isValidLink: isValidLink },
+    extensions: [taskChipsExtension({
+      due: (date, left, done) => done ? t('tasks.dueOn', shortDate(date))
+        : left < 0 ? t('tasks.overdueDays', -left) : left === 0 ? t('tasks.dueToday') : left === 1 ? t('tasks.dueTomorrow') : t('tasks.dueOn', shortDate(date)),
+      done: date => t('tasks.doneOn', shortDate(date)),
+      created: date => t('tasks.createdOn', shortDate(date)),
+      doneMark: t('tasks.doneMark'),
+    })],
   })
   editorRef.current = editor
 
@@ -286,30 +295,32 @@ const BlockEditor = forwardRef<BlockEditorHandle, Props>(function BlockEditor({ 
     return onNoteBlockRequest(noteId, reveal)
   }, [noteId])
 
-  // Links to tasks (banjuan://task/<id>) show how the task stands: struck through once done.
+  // Links to tasks (banjuan://task/<id>) show how the task stands: the decorations
+  // (taskChips.ts) strike through and mark the done ones; this looks them up.
   useEffect(() => {
     const tasks = api.tasks
     if (!tasks) return
     let timer: ReturnType<typeof setTimeout> | null = null
-    const mark = async () => {
-      const root = rootRef.current
-      if (!root) return
-      const links = [...root.querySelectorAll<HTMLAnchorElement>('a[href^="banjuan://task/"]')]
-      const ids = [...new Set(links.map(a => /^banjuan:\/\/task\/([A-Za-z0-9-]+)/.exec(a.getAttribute('href') ?? '')?.[1]).filter((x): x is string => !!x))]
-      const found = new Map(await Promise.all(ids.map(async id => [id, await tasks.get(id).catch(() => null)] as const)))
-      for (const a of links) {
-        const id = /^banjuan:\/\/task\/([A-Za-z0-9-]+)/.exec(a.getAttribute('href') ?? '')?.[1]
-        const task = id ? found.get(id) : null
-        a.dataset.taskDone = task ? String(task.done) : 'missing'
-      }
+    let live = true
+    let last = ''
+    const refresh = async () => {
+      let view
+      try { view = editor.prosemirrorView } catch { return }
+      if (!view) return
+      const ids = taskLinkIds(view.state.doc)
+      const entries = await Promise.all(ids.map(async id => [id, !!(await tasks.get(id).catch(() => null))?.done] as const))
+      const key = JSON.stringify(entries)
+      if (!live || key === last) return   // unchanged: no transaction (it would set off the observer again)
+      last = key
+      try { setTaskStatuses(editor.prosemirrorView!, new Map(entries)) } catch { /* editor gone */ }
     }
-    const soon = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => { void mark() }, 400) }
+    const soon = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => { void refresh() }, 400) }
     soon()
     const observer = new MutationObserver(soon)
-    if (rootRef.current) observer.observe(rootRef.current, { childList: true, subtree: true })
+    if (rootRef.current) observer.observe(rootRef.current, { childList: true, subtree: true, characterData: true })
     document.addEventListener('banjuan:note-content-changed', soon)   // a task may have been done elsewhere
-    return () => { observer.disconnect(); document.removeEventListener('banjuan:note-content-changed', soon); if (timer) clearTimeout(timer) }
-  }, [api])
+    return () => { live = false; observer.disconnect(); document.removeEventListener('banjuan:note-content-changed', soon); if (timer) clearTimeout(timer) }
+  }, [api, editor])
   useEffect(() => {
     if (readOnly || !noteId) return
     const container = rootRef.current

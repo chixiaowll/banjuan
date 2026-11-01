@@ -898,8 +898,38 @@
   0%, 35% { background: var(--accent-soft, rgba(232, 130, 93, 0.22)); }
   100% { background: transparent; }
 }
-/* Links to tasks: struck through once the task is done. */
-a[href^="banjuan://task/"][data-task-done="true"] {
+/* Links to done tasks (taskChips.ts): struck through, a "✓ done" mark after. */
+.bj-task-link-done {
   text-decoration: line-through;
-  opacity: 0.6;
+  color: var(--text-muted) !important;
 }
+.bj-task-done-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 0.78em;
+  line-height: 1.6;
+  color: #27ae60;
+  background: rgba(39, 174, 96, 0.12);
+  user-select: none;
+}
+
+/* Task lines: their marks as chips (taskChips.ts). */
+.bj-chip {
+  padding: 1px 6px;
+  margin: 0 1px;
+  border-radius: 9px;
+  font-size: 0.82em;
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: rgba(0, 0, 0, 0.05);
+}
+.bj-chip-due.bj-due-overdue { color: #c0392b; background: rgba(192, 57, 43, 0.12); font-weight: 600; }
+.bj-chip-due.bj-due-today { color: #d35400; background: rgba(230, 126, 34, 0.14); font-weight: 600; }
+.bj-chip-due.bj-due-soon { color: var(--accent); background: var(--accent-soft, rgba(232, 130, 93, 0.14)); }
+.bj-chip-done { color: #27ae60; background: rgba(39, 174, 96, 0.12); }
+.bj-chip-prio { font-weight: 700; }
+.bj-chip-prio.bj-prio-P0 { color: #c0392b; background: rgba(192, 57, 43, 0.12); }
+.bj-chip-prio.bj-prio-P1 { color: #d35400; background: rgba(230, 126, 34, 0.14); }
+.bj-chip-tag { color: var(--accent); background: transparent; padding: 0 1px; }
