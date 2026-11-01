@@ -144,6 +144,7 @@ app.on('activate', () => {
 // debounced save still on a timer would otherwise die with the renderer).
 let quitReady = false
 app.on('before-quit', (e) => {
+  console.log(`[quit] before-quit${quitReady ? ' (flushed already)' : ''}`)
   if (quitReady) return
   e.preventDefault()
   quitReady = true

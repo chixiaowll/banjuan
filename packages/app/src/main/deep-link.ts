@@ -1,11 +1,10 @@
-import { BrowserWindow, dialog, ipcMain, webContents } from 'electron'
+import { BrowserWindow, ipcMain, webContents } from 'electron'
 import { realpathSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parseLink, type ParsedLink, type Library } from '@banjuan/core'
 import { pickLibrary } from './deep-link-target.js'
 import { libraries, getLibraryHistory } from './ipc.js'
 import { createWindow, getLastFocusedLibraryWindow, setBanjuanLinkHandler } from './windows.js'
-import { uiText } from './main-locale.js'
 
 /**
  * banjuan:// links (AI answers citing a page, note links written out as
@@ -33,11 +32,18 @@ export async function openDeepLink(url: string): Promise<void> {
   const target = await pickLibrary(link, { history: getLibraryHistory().map(e => e.path), open, real, has })
   console.log(`[deep-link] ${link.kind} ${link.id} →`, target?.path ?? 'not found')
   if (!target) {
-    // Somewhere to be, then say so (not modal: nothing waits on it).
-    const win = getLastFocusedLibraryWindow() ?? createWindow()
+    // A library window says so (a toast) after looking in its own library.
+    // Not a sheet: while one is up macOS turns a quit away before the app
+    // hears of it, and the window may be on another Space or behind others.
+    const win = getLastFocusedLibraryWindow()
+    if (!win) {
+      const recent = getLibraryHistory()[0]?.path
+      createWindow(recent ? { hash: new URLSearchParams({ library: recent, openLink: url }).toString() } : {})
+      return
+    }
     if (win.isMinimized()) win.restore()
     win.show(); win.focus()
-    void dialog.showMessageBox(win, { type: 'info', message: uiText('link.notFound') })
+    win.webContents.send('library:open-link', url)
     return
   }
   // A window showing that library: hand it the link. Else open one for it.
